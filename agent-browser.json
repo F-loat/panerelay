@@ -1,0 +1,10 @@
+{
+  "plugins": [
+    {
+      "name": "panerelay",
+      "command": "node",
+      "args": ["./packages/agent-browser/dist/index.js"],
+      "capabilities": ["browser.provider"]
+    }
+  ]
+}

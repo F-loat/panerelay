@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PaneRelay large artifact fixture</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, sans-serif;
+      }
+
+      canvas {
+        display: block;
+        width: 7in;
+        height: 7in;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>PaneRelay large artifact fixture</h1>
+    <canvas id="artifact" width="1200" height="1200"></canvas>
+    <script>
+      const canvas = document.querySelector('#artifact');
+      const context = canvas.getContext('2d');
+      const image = context.createImageData(canvas.width, canvas.height);
+      let state = 0x5eed1234;
+
+      for (let index = 0; index < image.data.length; index += 4) {
+        state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+        image.data[index] = state & 255;
+        image.data[index + 1] = (state >>> 8) & 255;
+        image.data[index + 2] = (state >>> 16) & 255;
+        image.data[index + 3] = 255;
+      }
+
+      context.putImageData(image, 0, 0);
+      document.body.dataset.ready = 'true';
+    </script>
+  </body>
+</html>

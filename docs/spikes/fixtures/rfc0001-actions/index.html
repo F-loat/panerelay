@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PaneRelay RFC-0001 Action Matrix</title>
+    <style>
+      body {
+        max-width: 42rem;
+        margin: 4rem auto;
+        padding: 0 1.5rem;
+        color: #171717;
+        font:
+          16px/1.5 system-ui,
+          sans-serif;
+      }
+
+      form {
+        display: grid;
+        gap: 1rem;
+        padding: 1.5rem;
+        border: 1px solid #d4d4d4;
+        border-radius: 1rem;
+      }
+
+      fieldset {
+        display: grid;
+        gap: 0.75rem;
+        margin: 0;
+        padding: 1rem;
+        border: 1px solid #e5e5e5;
+        border-radius: 0.75rem;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+      }
+
+      input,
+      button,
+      a {
+        font: inherit;
+      }
+
+      input {
+        padding: 0.75rem;
+      }
+
+      button {
+        width: fit-content;
+        padding: 0.65rem 1rem;
+      }
+
+      output {
+        min-height: 1.5rem;
+        color: #08783e;
+        font-weight: 600;
+      }
+
+      iframe {
+        width: 100%;
+        min-height: 8rem;
+        border: 1px solid #d4d4d4;
+        border-radius: 0.75rem;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        body {
+          color: #f5f5f5;
+          background: #171717;
+        }
+
+        form,
+        fieldset,
+        iframe {
+          border-color: #525252;
+        }
+      }
+
+      @media print {
+        .actions {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>PaneRelay action matrix</h1>
+      <p>
+        This local fixture verifies extension-backed agent-browser commands without touching
+        unrelated sites.
+      </p>
+      <form>
+        <fieldset>
+          <legend>Page interaction</legend>
+          <label for="name">Test name</label>
+          <input id="name" name="name" autocomplete="off" placeholder="Enter a value" />
+          <button id="run" type="button">Run action</button>
+          <output id="result" aria-live="polite"></output>
+          <a href="./complete.html">Continue to completion page</a>
+        </fieldset>
+
+        <fieldset>
+          <legend>State and network diagnostics</legend>
+          <div class="actions">
+            <button id="popup" type="button">Open test popup</button>
+            <button id="storage" type="button">Write fixture storage</button>
+            <button id="cookie" type="button">Inspect fixture cookie</button>
+            <button id="request" type="button">Fetch test data</button>
+            <button id="headers" type="button">Echo safe headers</button>
+            <button id="auth" type="button">Fetch credential challenge</button>
+          </div>
+          <output id="diagnostic-result" aria-live="polite"></output>
+        </fieldset>
+
+        <fieldset>
+          <legend>Files and artifacts</legend>
+          <label for="upload">Upload fixture file</label>
+          <input id="upload" name="upload" type="file" />
+          <output id="upload-result" aria-live="polite"></output>
+          <a id="download" href="./api/download" download="panerelay-download.txt">
+            Download fixture file
+          </a>
+        </fieldset>
+
+        <fieldset>
+          <legend>Emulation state</legend>
+          <button id="emulation" type="button">Refresh emulation state</button>
+          <output id="emulation-result" aria-live="polite"></output>
+        </fieldset>
+
+        <fieldset>
+          <legend>Same-origin accessibility frame</legend>
+          <iframe src="./frame.html" title="PaneRelay accessibility fixture"></iframe>
+        </fieldset>
+      </form>
+    </main>
+    <script>
+      const diagnosticResult = document.querySelector('#diagnostic-result');
+      const emulationResult = document.querySelector('#emulation-result');
+
+      document.querySelector('#run').addEventListener('click', () => {
+        const value = document.querySelector('#name').value;
+        window.setTimeout(() => {
+          document.querySelector('#result').textContent = `Completed: ${value}`;
+        }, 250);
+      });
+
+      document.querySelector('#popup').addEventListener('click', () => {
+        window.open('./popup.html', 'panerelay-popup', 'width=420,height=320');
+      });
+
+      document.querySelector('#storage').addEventListener('click', () => {
+        localStorage.setItem('panerelay-acceptance', 'local');
+        sessionStorage.setItem('panerelay-acceptance', 'session');
+        diagnosticResult.textContent = 'Fixture storage written';
+      });
+
+      document.querySelector('#cookie').addEventListener('click', () => {
+        diagnosticResult.textContent = document.cookie.includes('panerelay_acceptance=')
+          ? 'Fixture cookie present'
+          : 'Fixture cookie absent';
+      });
+
+      document.querySelector('#request').addEventListener('click', async () => {
+        const response = await fetch('./data.json');
+        const data = await response.json();
+        console.info('PaneRelay fixture request completed', data);
+        diagnosticResult.textContent = data.message;
+      });
+
+      document.querySelector('#headers').addEventListener('click', async () => {
+        const response = await fetch('./api/echo-headers');
+        const data = await response.json();
+        diagnosticResult.textContent = `Header: ${data.acceptance || 'missing'}`;
+      });
+
+      document.querySelector('#auth').addEventListener('click', async () => {
+        const response = await fetch('./api/auth');
+        diagnosticResult.textContent = `Credential response: ${response.status}`;
+      });
+
+      document.querySelector('#upload').addEventListener('change', event => {
+        const [file] = event.currentTarget.files;
+        document.querySelector('#upload-result').textContent = file
+          ? `${file.name}:${file.size}`
+          : 'No fixture file selected';
+      });
+
+      function renderEmulationState() {
+        const state = {
+          width: window.innerWidth,
+          height: window.innerHeight,
+          dark: window.matchMedia('(prefers-color-scheme: dark)').matches,
+          reducedMotion: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+          online: navigator.onLine,
+          language: navigator.language,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          userAgent: navigator.userAgent,
+        };
+        emulationResult.textContent = JSON.stringify(state);
+      }
+
+      document.querySelector('#emulation').addEventListener('click', renderEmulationState);
+      window.addEventListener('online', renderEmulationState);
+      window.addEventListener('offline', renderEmulationState);
+      window.addEventListener('resize', renderEmulationState);
+      window
+        .matchMedia('(prefers-color-scheme: dark)')
+        .addEventListener('change', renderEmulationState);
+      renderEmulationState();
+    </script>
+  </body>
+</html>

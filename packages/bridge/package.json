@@ -1,0 +1,51 @@
+{
+  "name": "@panerelay/bridge",
+  "version": "0.1.0-alpha.1",
+  "description": "PaneRelay Native Messaging host and local browser-level CDP relay.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/F-loat/panerelay.git",
+    "directory": "packages/bridge"
+  },
+  "homepage": "https://github.com/F-loat/panerelay#readme",
+  "bugs": {
+    "url": "https://github.com/F-loat/panerelay/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    "./install": {
+      "types": "./dist/host-installation.d.ts",
+      "import": "./dist/host-installation.js"
+    }
+  },
+  "bin": {
+    "panerelay-bridge": "./dist/native-host.js",
+    "panerelay-host-install": "./dist/install.js"
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.*",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "node clean.mjs && tsc -p tsconfig.json && node build.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm run build && node ../../scripts/run-compiled-tests.mjs dist",
+    "install:host": "pnpm run build && node dist/install.js",
+    "uninstall:host": "pnpm run build && node dist/install.js --uninstall",
+    "prepublishOnly": "pnpm build"
+  },
+  "dependencies": {
+    "@panerelay/agent-browser": "workspace:*",
+    "@panerelay/protocol": "workspace:*",
+    "ws": "^8.21.1"
+  }
+}

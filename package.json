@@ -1,0 +1,56 @@
+{
+  "name": "panerelay",
+  "version": "0.1.0-alpha.1",
+  "private": true,
+  "description": "Open browser relay for bidirectional interoperability between users, browsers, and AI agents.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/F-loat/panerelay.git"
+  },
+  "bugs": {
+    "url": "https://github.com/F-loat/panerelay/issues"
+  },
+  "homepage": "https://github.com/F-loat/panerelay#readme",
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "build": "pnpm -r --if-present build",
+    "dev": "pnpm --filter @panerelay/extension dev",
+    "package": "pnpm --filter @panerelay/extension package",
+    "typecheck": "pnpm --filter @panerelay/protocol build && pnpm --filter @panerelay/agent-browser build && pnpm --filter @panerelay/bridge build && pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test && node --test scripts/*.test.mjs",
+    "lint": "eslint \"{apps,packages}/**/src/**/*.ts\"",
+    "lint:fix": "pnpm run lint --fix",
+    "lint:strict": "pnpm run lint --max-warnings 0",
+    "format": "prettier --write \"{apps,packages}/**/*.{ts,mjs,json,css,html}\" \"scripts/**/*.{mjs,json}\" \"docs/**/*.md\" \".github/**/*.yml\" \"*.{md,json,mjs,yaml,yml}\"",
+    "format:check": "prettier --check \"{apps,packages}/**/*.{ts,mjs,json,css,html}\" \"scripts/**/*.{mjs,json}\" \"docs/**/*.md\" \".github/**/*.yml\" \"*.{md,json,mjs,yaml,yml}\"",
+    "check": "pnpm run format:check && pnpm run lint:strict && pnpm run typecheck && pnpm run test && pnpm run build",
+    "acceptance:agent-browser": "node docs/spikes/run-agent-browser-advanced.mjs",
+    "release:check": "node scripts/release.mjs",
+    "release:pack": "node scripts/release.mjs --retain",
+    "publish": "pnpm --filter @panerelay/protocol --filter @panerelay/agent-browser --filter @panerelay/bridge --filter @panerelay/setup publish --access public",
+    "publish:alpha": "npm run publish -- --tag alpha",
+    "install:host": "pnpm --filter @panerelay/bridge install:host",
+    "uninstall:host": "pnpm --filter @panerelay/bridge uninstall:host"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/chrome": "^0.2.2",
+    "@types/node": "^20.19.43",
+    "@types/ws": "^8.18.1",
+    "eslint": "^10.1.0",
+    "eslint-config-prettier": "^10.1.8",
+    "esbuild": "^0.28.1",
+    "prettier": "^3.8.1",
+    "typescript-eslint": "^8.58.0",
+    "typescript": "^6.0.3"
+  }
+}

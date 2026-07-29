@@ -1,0 +1,36 @@
+schema: spec-driven
+
+context: |
+  PaneRelay is a pre-alpha open browser relay for bidirectional interoperability between users,
+  browser extensions, agent-browser, and agent runtimes.
+  Tech stack: TypeScript, Node.js 20+, Chrome Manifest V3, pnpm workspace.
+  Architecture: the Bridge is the local routing and policy boundary; the Extension controls only
+  explicitly authorized tabs; protocol identifiers are opaque; browser automation semantics stay
+  in agent-browser.
+  Durable architecture and security decisions live in docs/rfcs/. Version-specific integration
+  coverage lives in docs/compatibility/. Bounded browser experiments live in docs/spikes/.
+  Validation: pnpm install --frozen-lockfile, pnpm run check, git diff --check, plus a real existing
+  Chrome run for agent-browser compatibility claims.
+
+rules:
+  proposal:
+    - Include explicit non-goals and browser-ownership limitations.
+    - Identify the pinned agent-browser version and affected compatibility groups.
+  specs:
+    - Express acceptance scenarios in Given/When/Then form.
+    - Cover authorization, revocation, target lifecycle, and fail-closed behavior when relevant.
+  design:
+    - Reference affected RFCs instead of duplicating durable decisions.
+    - Distinguish Verified, Forwarded, Partial, and Unsupported capability claims.
+  tasks:
+    - Include automated tests, real daily-Chrome verification, compatibility documentation, and cleanup.
+
+operations:
+  apply:
+    guidance:
+      - Preserve unrelated user changes and keep unsupported browser-process features explicit.
+      - Use local fixtures for mutating browser verification.
+  archive:
+    guidance:
+      - Update docs/compatibility/ before archiving a version-dependent change.
+      - Do not mark an RFC Implemented until the corresponding code is released.
