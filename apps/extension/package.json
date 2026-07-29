@@ -1,0 +1,25 @@
+{
+  "name": "@panerelay/extension",
+  "version": "0.1.0-alpha.1",
+  "private": true,
+  "description": "PaneRelay Chrome extension and side panel.",
+  "type": "module",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite --host 127.0.0.1",
+    "package": "node package.mjs",
+    "test": "node test.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@panerelay/protocol": "workspace:*",
+    "lucide": "^1.27.0"
+  },
+  "devDependencies": {
+    "@crxjs/vite-plugin": "2.7.1",
+    "vite": "7.3.6"
+  }
+}

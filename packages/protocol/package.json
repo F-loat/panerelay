@@ -1,0 +1,44 @@
+{
+  "name": "@panerelay/protocol",
+  "version": "0.1.0-alpha.1",
+  "description": "Versioned relay protocol and shared types for PaneRelay.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/F-loat/panerelay.git",
+    "directory": "packages/protocol"
+  },
+  "homepage": "https://github.com/F-loat/panerelay#readme",
+  "bugs": {
+    "url": "https://github.com/F-loat/panerelay/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "default": "./dist/node.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.*",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "pnpm run build && node ../../scripts/run-compiled-tests.mjs dist",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "prepublishOnly": "pnpm build"
+  }
+}

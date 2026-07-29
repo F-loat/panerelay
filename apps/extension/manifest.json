@@ -1,0 +1,41 @@
+{
+  "manifest_version": 3,
+  "minimum_chrome_version": "116",
+  "name": "PaneRelay",
+  "description": "Connect authorized browser tabs to local AI agents.",
+  "version": "0.1.0.1",
+  "version_name": "0.1.0-alpha.1",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA6QDbGiCIdDhbQB6LVhhTOCHReR9fzPwgCw5RKA3j0gFjvzmmB9o86DVLsHNgpcoDpM3XuHKTnn1d+2zf1tQhCtzO9olE8qwvTmTGdWiquSPKFLKLMyyan8/tuFiaOSkSS2DPn/dsZzIZtfOWlmYpTSCWrNPz/Sd5JwE/qc4eNIe5nLoUzgikRlsgDWPjRUuv6FI7nvzktWGEXnkIZoTUR7ZFBn/R6AtQZbLo1IwD5/FPn9iRZu4KErGHU9is0Ur6LiqkNqE8fjLEZSTjFgsXKUIyl1xzp//2oQ1WynLwZpW1a9dydD9uGuj1zIpfGiuYCFJOD+P3qH8J8M9B8aKnJQIDAQAB",
+  "action": {
+    "default_title": "Open PaneRelay",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "service_worker": "src/background/index.ts",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "src/pages/sidepanel/index.html"
+  },
+  "optional_host_permissions": ["http://*/*", "https://*/*", "file:///*"],
+  "permissions": [
+    "activeTab",
+    "debugger",
+    "nativeMessaging",
+    "scripting",
+    "sidePanel",
+    "storage",
+    "tabs"
+  ]
+}
