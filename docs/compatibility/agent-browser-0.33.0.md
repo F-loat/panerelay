@@ -1,6 +1,6 @@
 # agent-browser 0.33.0 compatibility
 
-- Panerelay release: stable `0.1.0`
+- Panerelay release: current stable channel
 - agent-browser: 0.33.0
 - Support policy: minimum supported version and initial version-specific verified baseline
 - Connection: browser-level Provider over Native Messaging
@@ -133,16 +133,16 @@ Daily-Chrome verification of provider warm-up, lazy history, draft-first send, a
 
 ## Stable distribution boundaries
 
-- The Extension, protocol, Provider, Bridge, and setup CLI are one lockstep compatibility unit; `0.1.0` does not negotiate with a different Panerelay build.
+- The Extension, protocol, Provider, Bridge, and setup CLI are one lockstep compatibility unit; different Panerelay versions do not negotiate with each other.
 - Candidate validation packs all four npm packages, installs them outside the workspace, and runs setup, doctor, update, and uninstall in disposable user state.
 - Native Messaging setup supports macOS, Linux, and current-user Windows Chrome registration.
 - Installing the candidate does not grant Chrome site permission, authorize a tab, or acquire a control lease.
 - Packaging does not change participant isolation, target serialization, or Chrome authorization boundaries recorded above.
 
-## Deferred final-candidate evidence
+## Release automation evidence
 
-The retained `0.1.0` candidate passes the automated source, packed-artifact, and integrity gates. After its final rebuild, however, it was not reinstalled into daily Chrome to repeat doctor, control-visibility, authorization-revocation, and cleanup acceptance. The real-browser evidence above was collected from the corresponding source build rather than the retained package.
+The stable workflow passed candidate preparation, exact npm publication, and GitHub Release creation. The matching tag and Release target the prepared commit, and all four public packages expose the same version through npm tag `latest`.
 
-Real Windows Chrome acceptance for Native Messaging launch, update, uninstall, and paths containing spaces was also not run. Windows coverage for this candidate is limited to deterministic and CI checks.
+The workflow-built beta Extension archive was loaded in daily Chrome and passed displayed beta identity, authorization, revocation, and cleanup acceptance. Prepare Release generated a reviewed version pull request without package, tag, Release, or Store side effects before merge.
 
-Archiving `prepare-first-stable-release` records implementation completion under these maintainer-approved evidence deferrals; it does not declare the candidate releasable. The `stable-distribution` acceptance requirement remains unchanged, so the candidate stays not ready until the missing evidence passes or a later explicit release decision changes that policy. No package publication, Git tag, upload, or external release is part of this closeout.
+The stable Extension was subsequently published under official Chrome Web Store ID `panplnkjlkoceaonlmpdekjphgmbggmi`, and the maintainer confirmed the published installation and browser behavior passed verification.

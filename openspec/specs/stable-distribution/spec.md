@@ -2,25 +2,38 @@
 
 ## Purpose
 
-Define the observable release identity, compatibility policy, documentation, and verification gates for Panerelay's first stable `0.1.0` distribution.
+Define the observable release identity, compatibility policy, documentation, and verification gates for Panerelay stable distributions.
 
 ## Requirements
 
 ### Requirement: Stable artifacts have one release identity
 
-Panerelay SHALL assign the stable version `0.1.0` to every publishable package and expose the same human-readable release identity in the Extension and retained candidate inventory.
+Panerelay SHALL keep the repository's plain semantic version authoritative for stable releases. Stable candidates SHALL use that version across every publishable package, the Extension `version_name`, and retained inventory. An explicitly selected beta workflow SHALL instead derive one unique prerelease version from the repository version and workflow run identity and apply it consistently only in the temporary runner workspace.
 
 #### Scenario: Stable candidate metadata is aligned
 
-- **GIVEN** a maintainer prepares the first stable candidate
+- **GIVEN** a maintainer prepares a stable candidate
 - **WHEN** release validation reads package, Extension, and release metadata
-- **THEN** every distributable artifact identifies stable `0.1.0`
+- **THEN** every distributable artifact identifies the repository's plain semantic version
 
 #### Scenario: Alpha or mismatched metadata remains
 
 - **GIVEN** one package, internal dependency, Extension field, command example, or candidate entry still identifies an alpha or different version
 - **WHEN** release validation runs
 - **THEN** it fails before accepting the stable candidate
+
+#### Scenario: Beta candidate metadata is aligned
+
+- **GIVEN** a maintainer dispatches the beta publication workflow
+- **WHEN** release validation reads the temporarily prepared package, Extension, and release metadata
+- **THEN** every distributable artifact identifies the same derived beta version
+- **AND** the repository source version remains unchanged after preparation
+
+#### Scenario: Channel or lockstep metadata drifts
+
+- **GIVEN** one package, Extension field, candidate entry, or selected channel does not match the expected release identity
+- **WHEN** release validation runs
+- **THEN** it fails before accepting or publishing the candidate
 
 ### Requirement: Stable Extension identity is consistent
 
@@ -128,15 +141,15 @@ Panerelay SHALL generate beta npm versions as `X.Y.Z-beta.<run-number>`. A retry
 
 #### Scenario: A new beta workflow run is prepared
 
-- **GIVEN** the repository version is the stable base `0.1.0`
-- **WHEN** release workflow run number 2 prepares the beta candidate
-- **THEN** every publishable package uses version `0.1.0-beta.2`
+- **GIVEN** the repository version is stable base `X.Y.Z`
+- **WHEN** release workflow run number `N` prepares the beta candidate
+- **THEN** every publishable package uses version `X.Y.Z-beta.N`
 
 #### Scenario: A beta workflow run is retried
 
-- **GIVEN** workflow run number 2 is retried with a higher run-attempt value
+- **GIVEN** workflow run number `N` is retried with a higher run-attempt value
 - **WHEN** the beta candidate is prepared again
-- **THEN** the npm package version remains `0.1.0-beta.2`
+- **THEN** the npm package version remains `X.Y.Z-beta.N`
 
 ### Requirement: Stable guidance distinguishes constraints from limitations
 
