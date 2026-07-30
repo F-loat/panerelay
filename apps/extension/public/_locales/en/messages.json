@@ -1,0 +1,11 @@
+{
+  "extensionName": {
+    "message": "Panerelay"
+  },
+  "extensionDescription": {
+    "message": "Connect authorized browser tabs to local AI agents."
+  },
+  "actionTitle": {
+    "message": "Open Panerelay"
+  }
+}

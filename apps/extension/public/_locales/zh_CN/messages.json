@@ -1,0 +1,11 @@
+{
+  "extensionName": {
+    "message": "Panerelay"
+  },
+  "extensionDescription": {
+    "message": "将已授权的浏览器标签页连接到本地 AI Agent。"
+  },
+  "actionTitle": {
+    "message": "打开 Panerelay"
+  }
+}

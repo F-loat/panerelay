@@ -37,7 +37,6 @@ to an installed provider, and falls back to Codex when neither is installed.
 
    ```bash
    npx --yes @panerelay/setup --global-provider
-   npx --yes @panerelay/setup doctor --global-provider
    ```
 
 3. Open Panerelay from the Chrome toolbar and authorize the current web tab or all supported web
@@ -52,6 +51,14 @@ Omitting an action runs setup. Use `--project-provider` instead of `--global-pro
 should apply only to the current project. Provider selection changes routing only; it never grants
 Chrome permission or authorizes a tab.
 
+### Update, uninstall, and diagnose issues
+
+```bash
+npx --yes @panerelay/setup update
+npx --yes @panerelay/setup uninstall
+npx --yes @panerelay/setup doctor
+```
+
 ### Custom Extension ID
 
 Official builds use Extension ID `panplnkjlkoceaonlmpdekjphgmbggmi`. Self-built or differently
@@ -63,17 +70,6 @@ npx --yes @panerelay/setup --extension-id <32-character-id>
 
 The value must be 32 lowercase letters from `a` through `p`; `PANERELAY_EXTENSION_ID` is the
 environment alternative.
-
-### Update and uninstall
-
-```bash
-npx --yes @panerelay/setup update
-npx --yes @panerelay/setup doctor --json
-npx --yes @panerelay/setup uninstall --yes
-```
-
-Windows installation is current-user scoped and does not require administrator privileges.
-Uninstall removes only Panerelay-managed files and registration.
 
 ## Operating boundaries
 

@@ -21,3 +21,38 @@ test('retains the public manifest key that derives the official Extension ID', a
   assert.equal(chromeExtensionId(manifest.key!), PANERELAY_EXTENSION_ID);
   assert.equal(PANERELAY_EXTENSION_ID, 'panplnkjlkoceaonlmpdekjphgmbggmi');
 });
+
+test('does not request the redundant activeTab permission', async () => {
+  const manifest = JSON.parse(await readFile(join(process.cwd(), 'manifest.json'), 'utf8')) as {
+    permissions?: string[];
+  };
+  assert.ok(!manifest.permissions?.includes('activeTab'));
+});
+
+test('localizes Extension metadata in English and Simplified Chinese', async () => {
+  const manifest = JSON.parse(await readFile(join(process.cwd(), 'manifest.json'), 'utf8')) as {
+    action?: { default_title?: string };
+    default_locale?: string;
+    description?: string;
+    name?: string;
+  };
+  const [english, simplifiedChinese] = await Promise.all(
+    ['en', 'zh_CN'].map(async locale => {
+      const source = await readFile(
+        join(process.cwd(), 'public', '_locales', locale, 'messages.json'),
+        'utf8',
+      );
+      return JSON.parse(source) as Record<string, { message?: string }>;
+    }),
+  );
+
+  assert.equal(manifest.default_locale, 'en');
+  assert.equal(manifest.name, '__MSG_extensionName__');
+  assert.equal(manifest.description, '__MSG_extensionDescription__');
+  assert.equal(manifest.action?.default_title, '__MSG_actionTitle__');
+  for (const messages of [english, simplifiedChinese]) {
+    assert.ok(messages.extensionName?.message);
+    assert.ok(messages.extensionDescription?.message);
+    assert.ok(messages.actionTitle?.message);
+  }
+});
