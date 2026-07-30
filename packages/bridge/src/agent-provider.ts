@@ -10,6 +10,7 @@ export interface AgentProvider {
   readonly id: string;
   close(): Promise<void>;
   getDescriptor(): Promise<AgentProviderSummary>;
+  prepare(): Promise<void>;
   interrupt(conversationId: string, turnId: string): Promise<Record<string, never>>;
   listConversations(): Promise<ConversationSummary[]>;
   onEvent(listener: (event: ConversationEvent) => void): () => void;

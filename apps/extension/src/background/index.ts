@@ -13,7 +13,6 @@ import {
   type CdpCommandMessage,
   type CdpTargetInfo,
   type CdpTargetRequestMessage,
-  type ConversationDetail,
   type ConversationSummary,
   type HostToExtensionMessage,
 } from '@panerelay/protocol';
@@ -22,6 +21,7 @@ import { createControlActivityState, reduceControlActivity } from './control-act
 import type {
   AuthorizationMode,
   ConversationChangedMessage,
+  ConversationWorkspaceChangedMessage,
   ExtensionStatus,
   SidePanelRequest,
   SidePanelResponse,
@@ -35,6 +35,10 @@ import {
 } from '../shared/authorization.js';
 import { applyControlledFavicon, releaseControlledFavicon } from './controlled-favicon.js';
 import { debuggerDetachReason } from './debugger-detach.js';
+import { installConversationWorkspaceObservers } from './conversation-workspace-observers.js';
+import { ConversationWorkspaceService } from './conversation-workspace-service.js';
+import { createChromeConversationWorkspaceStore } from './conversation-workspaces.js';
+import type { ConversationWorkspaceSnapshot } from '../shared/conversation-workspaces.js';
 
 const BROWSER_ID_KEY = 'panerelay.browserId';
 const ALL_TABS_AUTHORIZATION_KEY = 'panerelay.authorization.allTabs';
@@ -62,6 +66,12 @@ const pendingAgentRequests = new Map<string, PendingAgentRequest>();
 const nativeTransferReceiver = new NativeTransferReceiver();
 let nativeTransferCleanupTimer: ReturnType<typeof setTimeout> | null = null;
 let controlActivityState = createControlActivityState();
+const conversationWorkspaceStore = createChromeConversationWorkspaceStore();
+const conversationWorkspaceService = new ConversationWorkspaceService({
+  activeTabId: async () => (await activeTab())?.id ?? null,
+  requestAgent,
+  store: conversationWorkspaceStore,
+});
 
 async function updateActionBadge(): Promise<void> {
   await chrome.action.setBadgeBackgroundColor({ color: '#20e68f' });
@@ -107,6 +117,19 @@ async function broadcastStatus(): Promise<void> {
   const message: StatusChangedMessage = {
     type: 'panerelay.status.changed',
     status: await status(),
+  };
+  await chrome.runtime.sendMessage(message).catch(() => undefined);
+}
+
+async function broadcastWorkspaceForTab(
+  tabId: number,
+  workspace?: ConversationWorkspaceSnapshot,
+): Promise<void> {
+  const current = await activeTab();
+  if (current?.id !== tabId) return;
+  const message: ConversationWorkspaceChangedMessage = {
+    type: 'panerelay.workspace.changed',
+    workspace: workspace ?? (await conversationWorkspaceStore.get(tabId)),
   };
   await chrome.runtime.sendMessage(message).catch(() => undefined);
 }
@@ -506,7 +529,8 @@ async function handleTargetRequest(message: CdpTargetRequestMessage): Promise<vo
     }
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
-    lastError = reason;
+    // Target-scoped failures are returned to the automation client. They do not describe the
+    // health of the Extension or Bridge connection and must not surface as a global status error.
     sendTargetResult(message.requestId, { success: false, error: reason });
     await broadcastStatus();
   }
@@ -534,13 +558,15 @@ async function attachTarget(requestId: string, targetId: string): Promise<void> 
     });
     await broadcastStatus();
   } catch (error) {
-    lastError = error instanceof Error ? error.message : String(error);
+    const reason = error instanceof Error ? error.message : String(error);
+    // The attach result is the authoritative error channel for this target. Global status remains
+    // reserved for connection and initialization failures that need user attention.
     sendNative({
       type: 'cdp.attached',
       protocol: PANERELAY_PROTOCOL_VERSION,
       requestId,
       success: false,
-      error: lastError,
+      error: reason,
     });
     await broadcastStatus();
   }
@@ -583,6 +609,7 @@ async function runCdpCommand(message: CdpCommandMessage): Promise<void> {
       tabId: current.id,
       ...(message.sessionId ? { sessionId: message.sessionId } : {}),
     } as chrome.debugger.Debuggee;
+    await applyControlledFavicon(current.id);
     const result = await chrome.debugger.sendCommand(
       debuggee,
       message.method as never,
@@ -700,6 +727,22 @@ async function handleSidePanelRequest(message: SidePanelRequest): Promise<SidePa
         success: true,
         providers: (await requestAgent({ method: 'agent.providers' })) as AgentProviderSummary[],
       };
+    case 'panerelay.agent.prepare':
+      await requestAgent({ method: 'agent.prepare', providerId: message.providerId });
+      return { success: true };
+    case 'panerelay.workspace.get':
+      return {
+        success: true,
+        workspace: await conversationWorkspaceService.get(message.providerId),
+      };
+    case 'panerelay.workspace.reset':
+      return {
+        success: true,
+        workspace: await conversationWorkspaceService.reset(
+          message.providerId,
+          message.expectedRevision,
+        ),
+      };
     case 'panerelay.conversation.list':
       return {
         success: true,
@@ -708,31 +751,25 @@ async function handleSidePanelRequest(message: SidePanelRequest): Promise<SidePa
           providerId: message.providerId,
         })) as ConversationSummary[],
       };
-    case 'panerelay.conversation.start':
-      return {
-        success: true,
-        conversation: (await requestAgent({
-          method: 'conversation.start',
-          providerId: message.providerId,
-        })) as ConversationDetail,
-      };
     case 'panerelay.conversation.resume':
       return {
         success: true,
-        conversation: (await requestAgent({
-          method: 'conversation.resume',
-          providerId: message.providerId,
-          conversationId: message.conversationId,
-        })) as ConversationDetail,
+        ...(await conversationWorkspaceService.resume(
+          message.providerId,
+          message.conversationId,
+          message.expectedRevision,
+        )),
       };
     case 'panerelay.conversation.send': {
-      const result = (await requestAgent({
-        method: 'conversation.send',
-        providerId: message.providerId,
-        conversationId: message.conversationId,
-        text: message.text,
-      })) as { turnId: string };
-      return { success: true, turnId: result.turnId };
+      return {
+        success: true,
+        ...(await conversationWorkspaceService.send(
+          message.providerId,
+          message.expectedRevision,
+          message.text,
+          message.conversationId,
+        )),
+      };
     }
     case 'panerelay.conversation.interrupt':
       await requestAgent({
@@ -758,7 +795,13 @@ chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) =
   if (!message || typeof message !== 'object' || !('type' in message)) return false;
   const type = (message as { type?: unknown }).type;
   if (typeof type !== 'string' || !type.startsWith('panerelay.')) return false;
-  if (type === 'panerelay.status.changed' || type === 'panerelay.conversation.event') return false;
+  if (
+    type === 'panerelay.status.changed' ||
+    type === 'panerelay.conversation.event' ||
+    type === 'panerelay.workspace.changed'
+  ) {
+    return false;
+  }
 
   void handleSidePanelRequest(message as SidePanelRequest)
     .then(sendResponse)
@@ -869,6 +912,7 @@ chrome.tabs.onActivated.addListener(({ tabId }) => {
     .then(publishTargetForTab)
     .catch(() => undefined);
   void broadcastStatus();
+  void broadcastWorkspaceForTab(tabId);
 });
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   void (async () => {
@@ -897,9 +941,6 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
         return;
       }
       controlledTabs.set(targetId, summary);
-      if (changeInfo.url || changeInfo.status === 'loading' || changeInfo.status === 'complete') {
-        await applyControlledFavicon(tabId);
-      }
     }
     await publishTargetForTab(tab);
     if (changeInfo.url || changeInfo.title) await broadcastStatus();
@@ -927,6 +968,9 @@ chrome.permissions.onRemoved.addListener(() => {
 });
 
 void updateActionBadge();
+installConversationWorkspaceObservers(conversationWorkspaceStore, {
+  onInherited: broadcastWorkspaceForTab,
+});
 void chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true });
 void restorePersistentAuthorization()
   .catch(error => {

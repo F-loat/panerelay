@@ -1,0 +1,45 @@
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import test from 'node:test';
+
+test('registers the actual Chrome runtime Extension ID', async () => {
+  const source = await readFile(join(process.cwd(), 'src/background/index.ts'), 'utf8');
+  assert.match(source, /extensionId: chrome\.runtime\.id/);
+});
+
+test('keeps target-scoped automation failures out of the global error banner', async () => {
+  const source = await readFile(join(process.cwd(), 'src/background/index.ts'), 'utf8');
+  const targetRequestHandler = source.slice(
+    source.indexOf('async function handleTargetRequest'),
+    source.indexOf('async function attachTarget'),
+  );
+  const attachHandler = source.slice(
+    source.indexOf('async function attachTarget'),
+    source.indexOf('async function runCdpCommand'),
+  );
+
+  assert.match(targetRequestHandler, /sendTargetResult\(message\.requestId, \{ success: false/);
+  assert.match(attachHandler, /type: 'cdp\.attached'/);
+  assert.match(attachHandler, /success: false/);
+  assert.doesNotMatch(targetRequestHandler, /lastError\s*=/);
+  assert.doesNotMatch(attachHandler, /lastError\s*=/);
+});
+
+test('marks the current document on Agent commands without persisting across navigation', async () => {
+  const source = await readFile(join(process.cwd(), 'src/background/index.ts'), 'utf8');
+  const commandHandler = source.slice(
+    source.indexOf('async function runCdpCommand'),
+    source.indexOf('async function detachTarget'),
+  );
+  const tabUpdatedHandler = source.slice(
+    source.indexOf('chrome.tabs.onUpdated.addListener'),
+    source.indexOf('chrome.permissions.onRemoved.addListener'),
+  );
+
+  assert.ok(
+    commandHandler.indexOf('await applyControlledFavicon(current.id)') <
+      commandHandler.indexOf('await chrome.debugger.sendCommand'),
+  );
+  assert.doesNotMatch(tabUpdatedHandler, /applyControlledFavicon/);
+});

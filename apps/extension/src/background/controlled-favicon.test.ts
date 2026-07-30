@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import test from 'node:test';
 import {
   AGENT_BROWSER_CONTROLLED_FAVICON_DATA_URL,
@@ -15,6 +17,12 @@ test('uses the agent-browser mark with a green control dot', () => {
   assert.match(svg, /M64 31L96 88H32L64 31Z/);
   assert.match(svg, /fill="#20E68F"/);
   assert.match(svg, /cx="104" cy="104"/);
+});
+
+test('uses the Mearl corner-radius ratio for the Panerelay icon', async () => {
+  const source = await readFile(join(process.cwd(), 'assets/panerelay-icon.svg'), 'utf8');
+  assert.match(source, /<rect width="512" height="512" rx="112" fill="#111513" \/>/);
+  assert.doesNotMatch(source, /rx="144"/);
 });
 
 test('injects and restores the favicon in the requested tab', async () => {

@@ -14,6 +14,8 @@ report before describing a newer version as verified.
 
 - **Verified**: covered by automated tests and exercised against an unpacked Panerelay Extension in
   an existing Chrome profile.
+- **Automated**: covered by deterministic contract or Extension tests; a dedicated daily-Chrome
+  acceptance scenario has not yet been completed.
 - **Forwarded**: uses page-scoped CDP that Panerelay routes without a command allowlist, but does not
   yet have a dedicated daily-Chrome acceptance scenario.
 - **Partial**: the main command works, with a documented browser-ownership limitation.
@@ -56,17 +58,17 @@ report before describing a newer version as verified.
 
 ## Control session and activity
 
-| capability                         | Status      | Notes                                                                                                                                          |
-| ---------------------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| Transparent heartbeat renewal      | Verified    | An idle Provider session remained usable after 38 seconds with a 35-second lease deadline.                                                     |
-| Multi-transport liveness           | Verified    | Automated Bridge coverage keeps the lease while any authenticated transport remains responsive.                                                |
-| Expiry and stale reconnect cleanup | Verified    | Deterministic tests cover closed transport, target detach, pending failure, and rejected stale credentials.                                    |
-| Normal Provider release            | Verified    | Direct close and terminal Qoder ACP turns released their scoped control leases without changing tab authorization.                             |
-| Immediate user release             | Verified    | The settings panel exposes release while active; automated integration coverage verifies terminal cleanup.                                     |
-| Per-tab controlled favicon         | Forwarded   | Extension tests cover agent-browser icon injection, SPA resistance, navigation reapply, and restoration; daily-Chrome verification is pending. |
-| Sanitized activity lifecycle       | Verified    | Real page and tab commands rendered localized completed rows; protocol tests reject raw sensitive fields.                                      |
-| Bounded replay and history gaps    | Verified    | Bridge and Extension tests cover ring limits, epochs, sequence gaps, and reconnect snapshots.                                                  |
-| Durable activity history           | Unsupported | Activity is intentionally memory-only and is cleared across process histories.                                                                 |
+| capability                         | Status      | Notes                                                                                                                                            |
+| ---------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Transparent heartbeat renewal      | Verified    | An idle Provider session remained usable after 38 seconds with a 35-second lease deadline.                                                       |
+| Multi-transport liveness           | Verified    | Automated Bridge coverage keeps the lease while any authenticated transport remains responsive.                                                  |
+| Expiry and stale reconnect cleanup | Verified    | Deterministic tests cover closed transport, target detach, pending failure, and rejected stale credentials.                                      |
+| Normal Provider release            | Verified    | Direct close and terminal Qoder ACP turns released their scoped control leases without changing tab authorization.                               |
+| Immediate user release             | Verified    | The settings panel exposes release while active; automated integration coverage verifies terminal cleanup.                                       |
+| Per-tab controlled favicon         | Forwarded   | Extension tests cover command-triggered icon injection, SPA resistance, refresh clearing, and restoration; daily-Chrome verification is pending. |
+| Sanitized activity lifecycle       | Verified    | Real page and tab commands rendered localized completed rows; protocol tests reject raw sensitive fields.                                        |
+| Bounded replay and history gaps    | Verified    | Bridge and Extension tests cover ring limits, epochs, sequence gaps, and reconnect snapshots.                                                    |
+| Durable activity history           | Unsupported | Activity is intentionally memory-only and is cleared across process histories.                                                                   |
 
 Real-browser evidence covers active heartbeat, completed page activity, tab activity, direct
 Provider release, and two consecutive Qoder CLI 1.1.2 browser turns. Each Qoder terminal event was
@@ -104,6 +106,23 @@ commands remain automated-test scenarios to avoid perturbing the user's daily br
 
 `agent-browser mcp`, `chat`, and the dashboard use the same underlying command surface, so their
 browser-control coverage follows this matrix rather than defining a separate transport capability.
+
+## Side-panel provider sessions
+
+The side-panel providers create scoped agent-browser `0.33.0` MCP connections when a conversation
+uses browser tools. Conversation workspace behavior is Extension-private and does not alter
+agent-browser commands, authorization, or control leases.
+
+| capability                                | Status    | Notes                                                                                                        |
+| ----------------------------------------- | --------- | ------------------------------------------------------------------------------------------------------------ |
+| Selected-provider preparation             | Automated | Codex app-server and Qoder ACP initialize idempotently without listing history or creating a conversation.   |
+| Lazy recent-conversation history          | Automated | History loads on explicit open and covers loading, search, empty, error, retry, and resume states.           |
+| Draft-first conversation creation         | Automated | “New” stays local until the first non-empty message, then starts, binds, and sends exactly once.             |
+| Active-tab conversation restoration       | Automated | Opaque revisions reject stale async results and restore cached or provider-native conversation state.        |
+| Trusted related-tab workspace inheritance | Automated | Only Chrome-reported opener/navigation-target relationships inherit; authorization and leases stay separate. |
+
+Daily-Chrome verification of provider warm-up, lazy history, draft-first send, active-tab
+restoration, and related-tab inheritance remains pending.
 
 ## Stable distribution boundaries
 

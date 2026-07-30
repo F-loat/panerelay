@@ -91,6 +91,9 @@ export class AgentService {
     if (!provider) throw new Error(`Unknown agent provider: ${request.providerId}`);
 
     switch (request.method) {
+      case 'agent.prepare':
+        await provider.prepare();
+        return {};
       case 'conversation.list': {
         const conversations = await provider.listConversations();
         for (const conversation of conversations) {

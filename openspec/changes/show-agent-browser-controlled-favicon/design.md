@@ -2,8 +2,8 @@
 
 RFC-0001 requires controlled state to remain visible and immediately revocable. RFC-0002 adds
 browser-level multi-target control with lazy debugger attachment. Panerelay currently exposes a
-global action-badge count, but not a page-local identity that survives navigation and can be
-removed after every detach path.
+global action-badge count, but not a page-local indication that the Agent has operated on the
+current document and can be removed after every detach path.
 
 Mearl's Extension implementation demonstrates a bounded approach: inject an inline data-URL
 favicon, retain the original icon nodes, use a `MutationObserver` while control is active, and
@@ -15,6 +15,7 @@ restore the retained nodes on release.
 
 - Make each actively controlled page recognizable in Chrome's tab strip.
 - Use the official agent-browser black-square/white-triangle mark with a green status dot.
+- Let navigation and refresh restore the new document's own favicon until the Agent operates on it.
 - Restore the original favicon on normal Provider cleanup, user release, target detach, and
   debugger displacement when Chrome still permits page injection.
 - Keep authorization and automation success independent from indicator rendering.
@@ -41,8 +42,11 @@ nodes while controlled, and inserts one Panerelay-owned link. A `MutationObserve
 page-owned replacements. Release disconnects the observer, removes the owned link, and restores the
 captured clones.
 
-The state is document-local. Navigation destroys it, so the background re-applies the indicator
-when Chrome reports updates for a still-controlled authorized tab.
+The state is intentionally document-local. Navigation destroys it and the background does not
+reapply the indicator from tab update events. Before each valid target-scoped CDP command, the
+background best-effort applies the indicator to the current top-level document. This makes the
+favicon an activity marker for the document the Agent has actually touched, rather than a durable
+or authoritative control-lease signal.
 
 ### Treat the indicator as best-effort
 
@@ -70,9 +74,9 @@ bottom-right communicates active control at 16px.
 ## Migration Plan
 
 1. Add the controlled-favicon module and automated tests.
-2. Wire attach, navigation, target release, full release, and debugger-detach paths.
+2. Wire attach, target-command, target release, full release, and debugger-detach paths.
 3. Add `scripting` to the Extension manifest and rebuild the unpacked candidate.
-4. Reload the Extension and verify attach, navigation, and release against the local fixture with
-   agent-browser 0.33.0.
+4. Reload the Extension and verify attach, refresh clearing, next-command reapplication, and
+   release against the local fixture with agent-browser 0.33.0.
 5. Roll back by removing the lifecycle calls and permission; toolbar and side-panel visibility
    remain available.

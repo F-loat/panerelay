@@ -199,6 +199,7 @@ function activityFromItem(item: CodexItem, completed: boolean): ConversationActi
 export class CodexProvider implements AgentProvider {
   readonly id = CODEX_PROVIDER_ID;
   private client: CodexClient | null = null;
+  private clientStart: Promise<CodexClient> | null = null;
   private config: PanerelayRuntimeConfig | null = null;
   private readonly pendingApprovals = new Map<string, PendingApproval>();
   private readonly activeTurns = new Map<string, string>();
@@ -213,6 +214,9 @@ export class CodexProvider implements AgentProvider {
     }
 
     switch (request.method) {
+      case 'agent.prepare':
+        await this.prepare();
+        return {};
       case 'conversation.list':
         return this.listConversations();
       case 'conversation.start':
@@ -234,8 +238,10 @@ export class CodexProvider implements AgentProvider {
   }
 
   async close(): Promise<void> {
-    await this.client?.close();
+    const client = this.client ?? (await this.clientStart?.catch(() => null));
+    await client?.close();
     this.client = null;
+    this.clientStart = null;
     this.config = null;
     this.pendingApprovals.clear();
     this.activeTurns.clear();
@@ -259,8 +265,22 @@ export class CodexProvider implements AgentProvider {
     };
   }
 
+  async prepare(): Promise<void> {
+    await this.ensureClient();
+  }
+
   private async ensureClient(): Promise<CodexClient> {
     if (this.client) return this.client;
+    if (this.clientStart) return this.clientStart;
+    this.clientStart = this.startClient();
+    try {
+      return await this.clientStart;
+    } finally {
+      this.clientStart = null;
+    }
+  }
+
+  private async startClient(): Promise<CodexClient> {
     const config = await (this.options.runtimeConfig ?? readRuntimeConfig)();
     if (!config.codexPath) {
       throw new Error('Codex CLI is unavailable. Install it and reinstall the Panerelay host.');
@@ -275,25 +295,34 @@ export class CodexProvider implements AgentProvider {
         this.emit({ kind: 'error', message });
       },
     };
-    this.client = this.options.createClient
+    const client = this.options.createClient
       ? this.options.createClient(config, handlers)
       : new CodexAppServer({
           codexPath: config.codexPath,
           pathEntries: config.agentBrowserPath ? [dirname(config.agentBrowserPath)] : [],
           ...handlers,
         });
-    await this.client.start();
-    return this.client;
+    try {
+      await client.start();
+      this.client = client;
+      return client;
+    } catch (error) {
+      if (this.client === client) this.client = null;
+      this.config = null;
+      await client.close().catch(() => {});
+      throw error;
+    }
   }
 
   async listConversations(): Promise<ConversationSummary[]> {
     const client = await this.ensureClient();
     const result = asRecord(
       await client.request('thread/list', {
+        cursor: null,
         limit: 30,
         sortKey: 'updated_at',
         sortDirection: 'desc',
-        sourceKinds: ['appServer'],
+        archived: false,
       }),
     );
     const data = Array.isArray(result.data) ? result.data : [];

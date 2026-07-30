@@ -11,7 +11,8 @@ the controlling automation engine.
   plus a small green control-status dot.
 - Preserve the page's original favicon and restore it when the target or complete control lease is
   released.
-- Reapply the indicator after navigation and resist a controlled SPA replacing it at runtime.
+- Let navigation or refresh clear the current-document indicator, reapply it on the next
+  target-scoped Agent command, and resist a controlled SPA replacing it at runtime.
 - Keep injection best-effort so visual-indicator failure never turns a successful browser command
   into a false failure.
 - Add Chrome's `scripting` permission without widening optional host access; scripts remain limited
@@ -37,8 +38,8 @@ None.
 
 ## Impact
 
-- Extension: controlled-favicon generator, page injection/restoration, navigation handling, and the
-  `scripting` permission.
+- Extension: controlled-favicon generator, page injection/restoration, command lifecycle handling,
+  and the `scripting` permission.
 - Tests: icon identity, injection, release, and failure-isolation coverage.
 - Documentation: RFC-0002 ownership/visibility behavior and the pinned agent-browser 0.33.0
   compatibility matrix.

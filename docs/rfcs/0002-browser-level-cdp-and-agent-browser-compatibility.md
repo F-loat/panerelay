@@ -111,10 +111,13 @@ Identifiers are discarded when the target, transport, lease, Extension, or Bridg
 
 One relay session retains the exclusive automation lease. It may lazily attach multiple authorized
 targets under that lease. The Extension action badge reports the number of controlled tabs. Each
-attached page temporarily uses the agent-browser favicon with a green control-status dot; normal
-target detach and lease release restore the page-owned favicon. The side panel reports the same
-controlled-tab count and keeps immediate release available. Releasing authorization detaches all
-controlled targets and invalidates every connection credential.
+attached page temporarily uses the agent-browser favicon with a green control-status dot after an
+Agent command touches its current document. Navigation or refresh restores the new document's
+page-owned favicon; the next target-scoped Agent command reapplies the indicator. Normal target
+detach and lease release restore the page-owned favicon when the marked document survives. This
+favicon is a document-local activity cue, not the authoritative lease state. The side panel reports
+the controlled-tab count and keeps immediate release available. Releasing authorization detaches
+all controlled targets and invalidates every connection credential.
 
 A debugger displacement or target-specific authorization failure clears the affected debugger
 attachment without invalidating unrelated targets. A normal agent-requested target close removes

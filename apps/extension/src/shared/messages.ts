@@ -7,6 +7,12 @@ import type {
   ConversationSummary,
   ControlSessionSummary,
 } from '@panerelay/protocol';
+import type {
+  ConversationWorkspaceChangedMessage,
+  ConversationWorkspaceSnapshot,
+} from './conversation-workspaces.js';
+
+export type { ConversationWorkspaceChangedMessage } from './conversation-workspaces.js';
 
 export interface TabSummary {
   id: number;
@@ -37,17 +43,25 @@ export type SidePanelRequest =
       mode: AuthorizationMode;
     }
   | { type: 'panerelay.agent.providers' }
+  | { type: 'panerelay.agent.prepare'; providerId: string }
+  | { type: 'panerelay.workspace.get'; providerId: string }
+  | {
+      type: 'panerelay.workspace.reset';
+      providerId: string;
+      expectedRevision: string;
+    }
   | { type: 'panerelay.conversation.list'; providerId: string }
-  | { type: 'panerelay.conversation.start'; providerId: string }
   | {
       type: 'panerelay.conversation.resume';
       providerId: string;
       conversationId: string;
+      expectedRevision: string;
     }
   | {
       type: 'panerelay.conversation.send';
       providerId: string;
-      conversationId: string;
+      conversationId?: string;
+      expectedRevision: string;
       text: string;
     }
   | {
@@ -81,6 +95,7 @@ export interface SidePanelSuccessResponse {
   conversations?: ConversationSummary[];
   conversation?: ConversationDetail;
   turnId?: string;
+  workspace?: ConversationWorkspaceSnapshot;
 }
 
 export interface SidePanelErrorResponse {
@@ -89,3 +104,6 @@ export interface SidePanelErrorResponse {
 }
 
 export type SidePanelResponse = SidePanelSuccessResponse | SidePanelErrorResponse;
+
+export type SidePanelRuntimeMessage =
+  StatusChangedMessage | ConversationChangedMessage | ConversationWorkspaceChangedMessage;

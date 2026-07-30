@@ -7,8 +7,13 @@ import type { CodexRpcMessage } from './codex-app-server.js';
 class FakeCodexClient implements CodexClient {
   readonly requests: Array<{ method: string; params: unknown }> = [];
   readonly responses: Array<{ id: number | string; result: unknown }> = [];
+  startCalls = 0;
+  startBarrier: Promise<void> | undefined;
 
-  async start(): Promise<void> {}
+  async start(): Promise<void> {
+    this.startCalls += 1;
+    await this.startBarrier;
+  }
 
   async request(method: string, params: unknown = {}): Promise<unknown> {
     this.requests.push({ method, params });
@@ -124,6 +129,42 @@ test('exposes Codex through provider-neutral conversation results', async () => 
   assert.deepEqual(config['mcp_servers.panerelay_browser.args'], ['mcp', '--tools', 'core,tabs']);
   assert.equal(params.approvalPolicy, 'on-request');
   assert.equal(params.sandbox, 'read-only');
+});
+
+test('prepares Codex once for concurrent warmups without creating a conversation', async () => {
+  const { provider, client } = createProvider();
+  let releaseStart!: () => void;
+  client.startBarrier = new Promise<void>(resolve => {
+    releaseStart = resolve;
+  });
+
+  const first = provider.prepare();
+  const second = provider.prepare();
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(client.startCalls, 1);
+  assert.deepEqual(client.requests, []);
+
+  releaseStart();
+  await Promise.all([first, second]);
+  await provider.prepare();
+
+  assert.equal(client.startCalls, 1);
+  assert.deepEqual(client.requests, []);
+});
+
+test('lists recent Codex history across sources and working directories', async () => {
+  const { provider, client } = createProvider();
+
+  await provider.listConversations();
+
+  const listRequest = client.requests.find(request => request.method === 'thread/list');
+  assert.deepEqual(listRequest?.params, {
+    cursor: null,
+    limit: 30,
+    sortKey: 'updated_at',
+    sortDirection: 'desc',
+    archived: false,
+  });
 });
 
 test('normalizes streaming, activity, completion, and approval events', async () => {

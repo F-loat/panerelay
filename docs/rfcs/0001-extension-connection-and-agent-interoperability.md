@@ -243,10 +243,10 @@ transport.chunk
 transport.cancel
 ```
 
-`agent.request` carries a provider-neutral operation (`agent.providers`, `conversation.list`,
-`conversation.start`, `conversation.resume`, `conversation.send`, `conversation.interrupt`, or
-`conversation.respond`). `agent.response` correlates the bounded result or error. Streaming and
-unsolicited updates use `conversation.event`.
+`agent.request` carries a provider-neutral operation (`agent.providers`, `agent.prepare`,
+`conversation.list`, `conversation.start`, `conversation.resume`, `conversation.send`,
+`conversation.interrupt`, or `conversation.respond`). `agent.response` correlates the bounded
+result or error. Streaming and unsolicited updates use `conversation.event`.
 
 The normalized conversation event union currently covers turn lifecycle, assistant message
 deltas and completion, reasoning-summary deltas, tool activity, approval requests and resolution,
@@ -325,6 +325,7 @@ The user can interrupt a conversation, deny an approval, release a tab, or trans
 The Bridge will expose a provider-neutral conversation contract. A provider adapter is responsible for:
 
 - availability and setup status;
+- explicit, idempotent runtime preparation without creating a conversation;
 - listing resumable sessions when supported;
 - starting and resuming sessions;
 - validating text and image inputs;
@@ -343,12 +344,36 @@ available. The Bridge negotiates capabilities, keeps ACP option identifiers priv
 supported streams and permissions, and contains process failure so Qoder availability cannot block
 Codex.
 
+Provider discovery is side-effect free. It may resolve an executable and version, but it does not
+start app-server, ACP, or a conversation. The side panel explicitly requests `agent.prepare` for
+the selected available provider and reports preparation failures as provider-local state rather
+than as a global Extension failure.
+
 For browser work, each new Codex or Qoder session receives a uniquely scoped Panerelay
 agent-browser MCP server. The MCP process uses the existing Panerelay agent-browser provider and
 therefore must acquire the same short-lived browser relay session and user-visible control lease as
 an external automation client. Chat availability does not imply browser authorization.
 
 The relationship between a side-panel agent and browser tools must be explicit. A provider receives a scoped relay session or scoped agent-browser MCP endpoint; it does not inherit unrestricted access to all registered browsers.
+
+## Extension-private conversation workspaces
+
+The Extension background service worker owns the current Chrome session's relationship between a
+side-panel conversation and its related tabs. It stores only an opaque group identifier, an opaque
+revision, the provider identifier, and either a local draft state or provider conversation
+identifier in `chrome.storage.session`. Raw Chrome tab IDs and workspace group identifiers do not
+cross the shared protocol or provider boundary.
+
+Side-panel mutations include the revision they were rendered from. The background captures the
+active tab before asynchronous provider work, serializes workspace mutations, and rejects stale
+revisions. Selecting “new conversation” creates only an Extension-local draft; the first non-empty
+message performs one provider start, binds the resulting conversation, and sends once. Provider
+history remains lazy and is loaded only when the user opens it.
+
+A new tab inherits a workspace only when Chrome reports a trusted opener relationship through
+`tabs.onCreated` or `webNavigation.onCreatedNavigationTarget`. Focus, timing, origin equality, and
+ordinary navigation never create a relationship. These workspaces select UI/provider context only:
+they grant no Chrome site permission, tab authorization, debugger attachment, or control lease.
 
 ## Security and privacy
 
@@ -387,7 +412,12 @@ The Bridge must not listen on non-loopback interfaces in the first release.
 
 ### Extension permissions
 
-The initial Chrome extension is expected to require `debugger`, `nativeMessaging`, `sidePanel`, `storage`, and tab-related permissions. Broad host access will be optional and requested per site or origin through a user gesture.
+The initial Chrome extension is expected to require `debugger`, `nativeMessaging`, `sidePanel`,
+`storage`, `webNavigation`, and tab-related permissions. `webNavigation` is used only to observe
+Chrome's `onCreatedNavigationTarget` relationship so an Agent-created or page-created related tab
+can inherit its source tab's conversation workspace. It does not read browsing history or page
+content and does not grant host access. Broad host access will be optional and requested per site
+or origin through a user gesture.
 
 Permission descriptions and controlled-tab indicators are part of the product, not release documentation alone.
 

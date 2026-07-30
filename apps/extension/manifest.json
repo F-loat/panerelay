@@ -30,5 +30,13 @@
     "default_path": "src/pages/sidepanel/index.html"
   },
   "optional_host_permissions": ["http://*/*", "https://*/*", "file:///*"],
-  "permissions": ["debugger", "nativeMessaging", "scripting", "sidePanel", "storage", "tabs"]
+  "permissions": [
+    "debugger",
+    "nativeMessaging",
+    "scripting",
+    "sidePanel",
+    "storage",
+    "tabs",
+    "webNavigation"
+  ]
 }

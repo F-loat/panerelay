@@ -284,6 +284,7 @@ export type ConversationEvent =
 
 export type AgentRequest =
   | { method: 'agent.providers' }
+  | { method: 'agent.prepare'; providerId: string }
   | { method: 'conversation.list'; providerId: string }
   | { method: 'conversation.start'; providerId: string }
   | { method: 'conversation.resume'; providerId: string; conversationId: string }

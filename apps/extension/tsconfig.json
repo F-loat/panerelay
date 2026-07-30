@@ -2,10 +2,11 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ES2022", "DOM"],
+    "jsx": "react-jsx",
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "types": ["chrome"]
+    "types": ["chrome", "vite/client"]
   },
-  "exclude": ["src/**/*.test.ts"],
-  "include": ["src/**/*.ts"]
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/test/**"],
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
 }

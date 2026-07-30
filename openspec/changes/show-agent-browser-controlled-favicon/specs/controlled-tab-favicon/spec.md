@@ -22,16 +22,25 @@ mark and a green control-status dot.
 - **WHEN** agent-browser only discovers the tab without sending a target-scoped command
 - **THEN** Panerelay leaves the page favicon unchanged
 
-### Requirement: The indicator follows the controlled document
+### Requirement: The indicator describes Agent activity in the current document
 
-Panerelay SHALL reapply the controlled favicon after an authorized controlled target navigates and
-SHALL prevent page runtime updates from replacing it while the document remains controlled.
+Panerelay SHALL allow navigation to clear the current-document favicon, SHALL reapply it before the
+next target-scoped Agent command, and SHALL prevent page runtime updates from replacing it while
+that document remains controlled.
 
-#### Scenario: Controlled target navigates
+#### Scenario: Controlled target navigates or refreshes
 
 - **GIVEN** a target already displays the agent-browser control favicon
-- **WHEN** the page navigates to another origin still covered by current authorization
-- **THEN** Panerelay applies the control favicon to the new top-level document
+- **WHEN** the page navigates or refreshes
+- **THEN** the new top-level document starts with its page-owned favicon
+
+#### Scenario: Agent operates on the new document
+
+- **GIVEN** navigation cleared the agent-browser control favicon from an authorized controlled
+  target
+- **WHEN** agent-browser sends the next target-scoped command
+- **THEN** Panerelay reapplies the control favicon to the current top-level document on a
+  best-effort basis
 
 #### Scenario: Controlled SPA rewrites its icon
 

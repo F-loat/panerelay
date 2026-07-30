@@ -386,6 +386,7 @@ export class QoderProcessRuntime implements QoderRuntime {
 export class QoderProvider implements AgentProvider {
   readonly id = QODER_PROVIDER_ID;
   private runtime: QoderRuntime | null = null;
+  private runtimeStart: Promise<void> | null = null;
   private initializeResponse: acp.InitializeResponse | null = null;
   private runtimeConfigValue: PanerelayRuntimeConfig | null = null;
   private resolution: QoderExecutableResolution | null = null;
@@ -404,7 +405,18 @@ export class QoderProvider implements AgentProvider {
       docsUrl: 'https://docs.qoder.com/en/cli/quick-start',
     };
     try {
-      await this.ensureRuntime();
+      const config = await (this.options.runtimeConfig ?? readRuntimeConfig)();
+      const resolution = this.options.resolveExecutable
+        ? await this.options.resolveExecutable()
+        : await resolveQoderExecutable({
+            configuredPath: config.qoderPath,
+            environment: this.options.environment,
+            platform: this.options.platform,
+          });
+      this.resolution = resolution;
+      if (!resolution.executable) {
+        throw new Error(resolution.error || 'Qoder CLI is unavailable');
+      }
       const capabilities = this.initializeResponse?.agentCapabilities;
       return {
         id: this.id,
@@ -437,6 +449,10 @@ export class QoderProvider implements AgentProvider {
   onEvent(listener: (event: ConversationEvent) => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  }
+
+  async prepare(): Promise<void> {
+    await this.ensureRuntime();
   }
 
   async listConversations(): Promise<ConversationSummary[]> {
@@ -615,6 +631,7 @@ export class QoderProvider implements AgentProvider {
     }
     this.sessions.clear();
     this.runtime = null;
+    this.runtimeStart = null;
     this.initializeResponse = null;
     this.runtimeConfigValue = null;
     this.resolution = null;
@@ -624,6 +641,16 @@ export class QoderProvider implements AgentProvider {
 
   private async ensureRuntime(): Promise<void> {
     if (this.runtime && this.initializeResponse) return;
+    if (this.runtimeStart) return this.runtimeStart;
+    this.runtimeStart = this.startRuntime();
+    try {
+      await this.runtimeStart;
+    } finally {
+      this.runtimeStart = null;
+    }
+  }
+
+  private async startRuntime(): Promise<void> {
     const config = await (this.options.runtimeConfig ?? readRuntimeConfig)();
     const resolution = this.options.resolveExecutable
       ? await this.options.resolveExecutable()

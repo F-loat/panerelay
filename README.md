@@ -75,6 +75,9 @@ environment alternative.
 
 - Chrome permission, tab authorization, and the exclusive control lease are separate and
   revocable.
+- The `webNavigation` permission is used only to recognize tabs Chrome reports as opened from
+  another tab so they can share conversation context; it does not read browsing history or page
+  content and does not grant site access.
 - Panerelay reuses the running Chrome profile. Browser-process operations such as isolated
   contexts, launch-time proxy/profile changes, and closing Chrome are unsupported and fail
   explicitly.

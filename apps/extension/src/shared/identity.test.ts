@@ -27,6 +27,7 @@ test('does not request the redundant activeTab permission', async () => {
     permissions?: string[];
   };
   assert.ok(!manifest.permissions?.includes('activeTab'));
+  assert.ok(manifest.permissions?.includes('webNavigation'));
 });
 
 test('localizes Extension metadata in English and Simplified Chinese', async () => {

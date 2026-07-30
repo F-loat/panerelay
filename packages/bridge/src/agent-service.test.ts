@@ -39,6 +39,10 @@ class FakeProvider implements AgentProvider {
     };
   }
 
+  async prepare(): Promise<void> {
+    this.calls.push('prepare');
+  }
+
   async listConversations(): Promise<ConversationSummary[]> {
     this.calls.push('list');
     return [this.summary()];
@@ -175,6 +179,27 @@ test('routes conversations to their provider and rejects mismatches before adapt
   );
   assert.match(failures[0]?.error || '', /belongs to another agent provider/);
   assert.match(failures[1]?.error || '', /Unknown agent provider/);
+});
+
+test('prepares only the explicitly selected provider without creating a conversation', async () => {
+  const messages: HostToExtensionMessage[] = [];
+  const codex = new FakeProvider('codex', 'codex-1');
+  const qoder = new FakeProvider('qoder', 'qoder-1');
+  const service = new AgentService(message => messages.push(message), {
+    providers: [codex, qoder],
+  });
+
+  await service.handle(request('prepare-qoder', { method: 'agent.prepare', providerId: 'qoder' }));
+
+  assert.deepEqual(codex.calls, []);
+  assert.deepEqual(qoder.calls, ['prepare']);
+  assert.deepEqual(messages[0], {
+    type: 'agent.response',
+    protocol: PANERELAY_PROTOCOL_VERSION,
+    requestId: 'prepare-qoder',
+    success: true,
+    result: {},
+  });
 });
 
 test('correlates provider events and closes every adapter', async () => {

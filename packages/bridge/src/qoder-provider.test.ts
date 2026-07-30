@@ -145,12 +145,25 @@ test('reports missing Qoder without blocking and exposes negotiated capabilities
     docsUrl: 'https://docs.qoder.com/en/cli/quick-start',
   });
 
-  const { provider } = harness();
+  const { provider, runtimes } = harness();
   const descriptor = await provider.getDescriptor();
   assert.equal(descriptor.status, 'ready');
   assert.equal(descriptor.version, '1.1.2');
   assert.equal(descriptor.setup?.loginCommand, 'qodercli');
+  assert.equal(runtimes.length, 0);
   assert.deepEqual(descriptor.capabilities, {
+    approvals: true,
+    imageInput: false,
+    interrupt: true,
+    listConversations: false,
+    resume: false,
+    streaming: true,
+  });
+
+  await provider.prepare();
+  const preparedDescriptor = await provider.getDescriptor();
+  assert.equal(runtimes.length, 1);
+  assert.deepEqual(preparedDescriptor.capabilities, {
     approvals: true,
     imageInput: true,
     interrupt: true,
@@ -158,6 +171,47 @@ test('reports missing Qoder without blocking and exposes negotiated capabilities
     resume: true,
     streaming: true,
   });
+});
+
+test('deduplicates concurrent Qoder preparation and retries after startup failure', async () => {
+  let starts = 0;
+  let creations = 0;
+  let releaseStart!: () => void;
+  const barrier = new Promise<void>(resolve => {
+    releaseStart = resolve;
+  });
+  const provider = new QoderProvider({
+    runtimeConfig: async () => ({
+      agentBrowserConfigPath: '/tmp/agent-browser.json',
+      qoderPath: '/bin/qodercli',
+    }),
+    resolveExecutable: async () => ({ executable: '/bin/qodercli', version: '1.1.2' }),
+    createRuntime: (_executable, handlers) => {
+      creations += 1;
+      const runtime = new FakeQoderRuntime(handlers);
+      const originalStart = runtime.start.bind(runtime);
+      runtime.start = async () => {
+        starts += 1;
+        if (creations === 1) throw new Error('temporary startup failure');
+        await barrier;
+        return originalStart();
+      };
+      return runtime;
+    },
+  });
+
+  await assert.rejects(provider.prepare(), /temporary startup failure/);
+  const first = provider.prepare();
+  const second = provider.prepare();
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(creations, 2);
+  assert.equal(starts, 2);
+
+  releaseStart();
+  await Promise.all([first, second]);
+  await provider.prepare();
+  assert.equal(creations, 2);
+  assert.equal(starts, 2);
 });
 
 test('lists, starts, and loads Qoder sessions with isolated browser MCP definitions', async () => {
@@ -439,8 +493,9 @@ test('fails unsupported capabilities and cleans browser sessions after an ACP pr
   assert.equal(browserSessionClosures.length, 1);
   const descriptor = await provider.getDescriptor();
   assert.equal(descriptor.status, 'ready');
-  assert.equal(runtimes.length, 2);
+  assert.equal(runtimes.length, 1);
   await provider.startConversation();
+  assert.equal(runtimes.length, 2);
   await provider.close();
   assert.equal(runtimes[1]?.closed, true);
 });

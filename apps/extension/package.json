@@ -11,15 +11,26 @@
     "build": "vite build",
     "dev": "vite --host 127.0.0.1",
     "package": "node package.mjs",
-    "test": "node test.mjs",
+    "test": "node test.mjs && vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@panerelay/protocol": "workspace:*",
-    "lucide": "^1.27.0"
+    "lucide-react": "^0.468.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "2.7.1",
-    "vite": "7.3.6"
+    "@tailwindcss/vite": "^4.3.3",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "happy-dom": "^18.0.1",
+    "tailwindcss": "^4.3.3",
+    "vite": "7.3.6",
+    "vitest": "^3.2.7"
   }
 }
