@@ -28,10 +28,10 @@ Panerelay 是连接 AI Agent 与用户现有 Chrome 会话的开源本地桥梁�
 环境要求：macOS、Linux 或 Windows 上的 Chrome、Node.js 20+ 和兼容的 agent-browser。
 
 1. 从 [Panerelay Releases](https://github.com/F-loat/panerelay/releases) 下载并解压扩展。打开 `chrome://extensions`，启用开发者模式，加载解压后的目录。
-2. 安装本地集成，并将 Panerelay 设置为用户级 agent-browser 默认 Provider：
+2. 安装本地集成：
 
    ```bash
-   npx --yes @panerelay/setup --global-provider
+   npx --yes @panerelay/setup
    ```
 
 3. 从 Chrome 工具栏打开 Panerelay，授权当前网页标签页或所有受支持的网页标签页。
@@ -43,7 +43,7 @@ Panerelay 是连接 AI Agent 与用户现有 Chrome 会话的开源本地桥梁�
 
 5. 如果希望直接在 Chrome 中工作，打开侧边栏并选择本机已安装的 Agent。Panerelay 会自动发现支持的本地 Agent；对应的 Agent CLI 仍需提前安装并登录。
 
-设置 `--global-provider` 后，后续 agent-browser 命令可以省略 `--provider panerelay`。如果只想影响当前项目，请改用 `--project-provider`。Provider 选择只改变路由，不会授予 Chrome 权限，也不会授权任何标签页。
+如需在后续命令中省略 `--provider panerelay`，可在扩展设置中将 Panerelay 设为用户级默认 Agent，或安装时加上 `--global-provider`；如果只想影响当前项目，请改用 `--project-provider`。默认 Agent 只改变路由，不会授予 Chrome 权限，也不会授权任何标签页。
 
 ## Panerelay 提供什么
 
@@ -64,14 +64,14 @@ npx --yes @panerelay/setup doctor
 npx --yes @panerelay/setup uninstall
 ```
 
-将 Panerelay 设置为 agent-browser 用户级或当前项目的默认 Provider：
+扩展设置可以随时设为或取消 Panerelay 用户级默认 Agent，不会卸载任何集成。安装时也可以直接选择默认范围：
 
 ```bash
 npx --yes @panerelay/setup --global-provider
 npx --yes @panerelay/setup --project-provider
 ```
 
-agent-browser 从 `~/.agent-browser/config.json` 读取用户级默认值，当前项目的 `./agent-browser.json` 优先级更高。修改其中的 `provider` 字段即可切换 Provider；删除该字段则使用 agent-browser 的内置默认值。Panerelay 会继续保留，仍可通过 `--provider panerelay` 使用。
+agent-browser 从 `~/.agent-browser/config.json` 读取用户级默认值，当前项目的 `./agent-browser.json` 优先级更高。如需恢复其他默认 Agent，修改或删除对应配置中的 `provider` 字段即可。Panerelay 会继续保留，始终可以通过 `--provider panerelay` 使用。
 
 官方构建使用扩展 ID `panplnkjlkoceaonlmpdekjphgmbggmi`。自行构建的扩展可以注册自己的 32 位 ID：
 

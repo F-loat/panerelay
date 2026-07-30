@@ -18,7 +18,7 @@ function hash(value, algorithm, encoding) {
 
 async function candidateFixture(channel = 'beta') {
   const candidateDirectory = await mkdtemp(join(tmpdir(), 'panerelay-publish-candidate-'));
-  const version = channel === 'stable' ? '0.1.0' : '0.1.0-beta.9.2';
+  const version = channel === 'stable' ? '0.1.0' : '0.1.0-beta.9';
   const manifests = new Map();
   const artifacts = [];
   for (const [index, definition] of PACKAGE_DEFINITIONS.entries()) {

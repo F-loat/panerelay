@@ -1,6 +1,9 @@
 import { constants } from 'node:fs';
 import { access, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
-import { homedir } from 'node:os';
+import {
+  setPanerelayUserDefaultProvider,
+  userAgentBrowserConfigPath,
+} from '@panerelay/bridge/agent-browser-config';
 import { dirname, join } from 'node:path';
 
 interface JsonObject {
@@ -46,9 +49,7 @@ function emptyObject(value: JsonObject): boolean {
   return Object.keys(value).length === 0;
 }
 
-export function userAgentBrowserConfigPath(homeDirectory = homedir()): string {
-  return join(homeDirectory, '.agent-browser', 'config.json');
-}
+export { userAgentBrowserConfigPath };
 
 export function projectAgentBrowserConfigPath(projectDirectory = process.cwd()): string {
   return join(projectDirectory, 'agent-browser.json');
@@ -85,11 +86,7 @@ export async function registerPanerelayProvider(
 }
 
 export async function configureGlobalProvider(options: ConfigPathOptions = {}): Promise<string> {
-  const path = userAgentBrowserConfigPath(options.homeDirectory);
-  const config = await readJsonObject(path);
-  config.provider = 'panerelay';
-  await writeJsonObject(path, config);
-  return path;
+  return (await setPanerelayUserDefaultProvider({ homeDirectory: options.homeDirectory })).path;
 }
 
 export async function unregisterPanerelayProvider(

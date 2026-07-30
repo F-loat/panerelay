@@ -324,6 +324,32 @@ export interface AgentResponseMessage {
   error?: string;
 }
 
+export type IntegrationRequest =
+  | { method: 'default-provider.get' }
+  | { method: 'default-provider.set' }
+  | { method: 'default-provider.clear' };
+
+export interface IntegrationDefaultProviderResult {
+  provider: string | null;
+  isPanerelay: boolean;
+}
+
+export interface IntegrationRequestMessage {
+  type: 'integration.request';
+  protocol: typeof PANERELAY_PROTOCOL_VERSION;
+  requestId: string;
+  request: IntegrationRequest;
+}
+
+export interface IntegrationResponseMessage {
+  type: 'integration.response';
+  protocol: typeof PANERELAY_PROTOCOL_VERSION;
+  requestId: string;
+  success: boolean;
+  result?: IntegrationDefaultProviderResult;
+  error?: string;
+}
+
 export interface ConversationEventMessage {
   type: 'conversation.event';
   protocol: typeof PANERELAY_PROTOCOL_VERSION;
@@ -340,6 +366,7 @@ export type HostToExtensionMessage =
   | import('./control-activity.js').AutomationActivitySnapshotMessage
   | import('./control-activity.js').AutomationActivityUpdatedMessage
   | AgentResponseMessage
+  | IntegrationResponseMessage
   | ConversationEventMessage;
 
 export type ExtensionToHostMessage =
@@ -350,7 +377,8 @@ export type ExtensionToHostMessage =
   | CdpResultMessage
   | CdpEventMessage
   | CdpDetachedMessage
-  | AgentRequestMessage;
+  | AgentRequestMessage
+  | IntegrationRequestMessage;
 
 export interface BridgeState {
   protocol: typeof PANERELAY_PROTOCOL_VERSION;
@@ -409,6 +437,7 @@ export function isExtensionToHostMessage(value: unknown): value is ExtensionToHo
     'cdp.event',
     'cdp.detached',
     'agent.request',
+    'integration.request',
   ].includes(candidate.type);
 }
 
@@ -434,6 +463,7 @@ export function isHostToExtensionMessage(value: unknown): value is HostToExtensi
       'cdp.command',
       'cdp.detach',
       'agent.response',
+      'integration.response',
       'conversation.event',
     ].includes(candidate.type)
   );

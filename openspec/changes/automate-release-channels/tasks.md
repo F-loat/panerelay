@@ -24,3 +24,4 @@
 - [x] 4.2 Confirm agent-browser 0.33.0 compatibility claims and browser ownership/security behavior are unchanged; update no compatibility group without new evidence
 - [x] 4.3 Run focused release tests, workflow syntax checks, `pnpm install --frozen-lockfile`, `pnpm run check`, stable and beta dry-run candidates, strict OpenSpec validation, and `git diff --check`
 - [ ] 4.4 Download and load a workflow-built beta Extension zip in daily Chrome, verify its displayed beta identity and normal authorization/revocation, and remove temporary browser state and artifacts
+- [x] 4.5 Keep the public npm beta identity at one run-number ordinal across workflow retries

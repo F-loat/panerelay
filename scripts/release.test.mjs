@@ -146,7 +146,7 @@ test('validates stable and beta release identities', () => {
     validateReleaseIdentity({
       channel: 'beta',
       extensionVersion: '0.1.42.3',
-      version: '0.1.0-beta.42.3',
+      version: '0.1.0-beta.42',
     }),
     'beta',
   );
@@ -154,10 +154,10 @@ test('validates stable and beta release identities', () => {
     () =>
       validateReleaseIdentity({
         channel: 'beta',
-        extensionVersion: '0.1.42.2',
-        version: '0.1.0-beta.42.3',
+        extensionVersion: '0.1.41.2',
+        version: '0.1.0-beta.42',
       }),
-    /Beta Chrome version must be 0\.1\.42\.3/,
+    /Beta Chrome version must match 0\.1\.42\.<run-attempt>/,
   );
   assert.throws(
     () =>
@@ -173,7 +173,7 @@ test('validates stable and beta release identities', () => {
       validateReleaseIdentity({
         channel: 'beta',
         extensionVersion: '0.1.65536.1',
-        version: '0.1.0-beta.65536.1',
+        version: '0.1.0-beta.65536',
       }),
     /must not exceed 65535/,
   );
@@ -182,7 +182,7 @@ test('validates stable and beta release identities', () => {
       validateReleaseIdentity({
         channel: 'beta',
         extensionVersion: '0.1.1.1',
-        version: '0.1.0-beta.01.1',
+        version: '0.1.0-beta.01',
       }),
     /must match/,
   );

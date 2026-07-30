@@ -78,12 +78,12 @@ The workflow grants `id-token: write` only to the protected npm publication job.
 
 From GitHub Actions, open **Release**, choose **Run workflow**, and select the source branch and `beta`. Approve the `release` environment if it has an approval rule.
 
-- The workflow derives `<repository-version>-beta.<run-number>.<run-attempt>` without committing or pushing the temporary version.
+- The workflow derives `<repository-version>-beta.<run-number>` without committing or pushing the temporary version.
 - npm receives the four exact verified tarballs under the `beta` distribution tag.
 - The workflow run exposes `panerelay-extension-<version>`, containing the Extension zip, `inventory.json`, and `SHA256SUMS`.
 - No Git tag or GitHub Release is created.
 
-Every rerun gets a new beta version because `run-attempt` is part of the identity. Install the current beta with:
+Rerunning the same workflow reuses its beta package version and safely resumes only byte-identical packages. A new workflow run advances the beta number. Install the current beta with:
 
 ```bash
 npx --yes @panerelay/setup@beta

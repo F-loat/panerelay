@@ -36,7 +36,7 @@ Using one workflow is preferred to separate stable and beta files because npm tr
 
 Stable preparation reads the plain semantic version and Chrome numeric version already committed in `release.config.json`.
 
-Beta identity is `<stable>-beta.<run-number>.<run-attempt>`. Its Chrome `version_name` uses the same identity, while its numeric `version` uses `<stable-major>.<stable-minor>.<run-number>.<run-attempt>`. Every numeric component must fit Chrome's 16-bit component limit. GitHub run number and attempt make reruns distinct without dates, clocks, or repository writes.
+Beta identity is `<stable>-beta.<run-number>`. Its Chrome `version_name` uses the same identity, while its numeric `version` uses `<stable-major>.<stable-minor>.<run-number>.<run-attempt>`. Every numeric component must fit Chrome's 16-bit component limit. The run number advances public beta releases, while the run attempt distinguishes downloaded Chrome builds without exposing CI retry mechanics as another npm prerelease level.
 
 A Node release-channel helper snapshots the small allowlist of release metadata files, asserts that the checkout was clean before beta preparation, writes the temporary identity, invokes the existing candidate builder, and restores the files in `finally`. Candidate inventory records `channel`, the selected commit, and the pre-overlay clean state. Package documentation is made channel-neutral in source instead of being rewritten per beta.
 
@@ -70,7 +70,7 @@ Chrome Web Store submission remains manual and uses the same downloaded stable E
 - **Trusted publisher is not configured for all four packages** → Document the exact one-time npm configuration; publication fails without falling back to a long-lived token.
 - **A beta numeric Chrome version sorts above a later stable archive** → Beta is a downloadable developer build, not a Chrome Web Store update channel; stable Store submission remains independently versioned in source.
 - **Action major tags can change implementation over time** → Use official GitHub-maintained actions and keep Dependabot/review responsible for major upgrades; the release scripts retain content and integrity validation.
-- **Artifact upload succeeds but npm publication fails** → The run remains failed, the downloadable diagnostic candidate remains available, and a retry derives a new beta version or resumes the same stable candidate.
+- **Artifact upload succeeds but npm publication fails** → The run remains failed, the downloadable diagnostic candidate remains available, and a retry reuses the same beta package version so identical published tarballs can be resumed safely.
 - **Stable npm publication succeeds but GitHub Release creation fails** → Rerun safely integrity-matches npm packages and retries only the missing GitHub release.
 
 ## Migration Plan

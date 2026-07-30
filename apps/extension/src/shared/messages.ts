@@ -21,9 +21,19 @@ export interface TabSummary {
 }
 
 export type AuthorizationMode = 'none' | 'single-tab' | 'all-tabs';
+export type NativeHostState = 'connecting' | 'connected' | 'missing' | 'disconnected';
+export type AuthorizationRequest = 'all-tabs';
+
+export interface DefaultProviderState {
+  provider: string | null;
+  isPanerelay: boolean;
+}
 
 export interface ExtensionStatus {
   bridgeConnected: boolean;
+  nativeHostState: NativeHostState;
+  defaultProvider: DefaultProviderState | null;
+  authorizationRequest: AuthorizationRequest | null;
   activeTab: TabSummary | null;
   authorizationMode: AuthorizationMode;
   authorizedOriginPatterns: string[];
@@ -42,6 +52,10 @@ export type SidePanelRequest =
       type: 'panerelay.authorization.set';
       mode: AuthorizationMode;
     }
+  | { type: 'panerelay.native.retry' }
+  | { type: 'panerelay.default-provider.set'; enabled: boolean }
+  | { type: 'panerelay.controlled-tab.activate'; tabId: number }
+  | { type: 'panerelay.controlled-tab.close'; tabId: number }
   | { type: 'panerelay.agent.providers' }
   | { type: 'panerelay.agent.prepare'; providerId: string }
   | { type: 'panerelay.workspace.get'; providerId: string }

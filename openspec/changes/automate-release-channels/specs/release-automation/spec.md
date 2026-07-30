@@ -20,16 +20,23 @@ Panerelay SHALL expose a manually triggered publication workflow with exactly `s
 - **WHEN** the workflow evaluates the request
 - **THEN** it rejects the invalid request or waits without cancelling the active publication
 
-### Requirement: Beta identity is ephemeral and unique
+### Requirement: Beta identity is ephemeral and workflow-scoped
 
-Panerelay SHALL derive a unique semantic beta version from the repository's stable version and GitHub run identity, SHALL use the derived identity across every package, the Extension `version_name`, archive names, and inventory, and SHALL NOT commit or push the temporary version changes.
+Panerelay SHALL derive a semantic beta version from the repository's stable version and GitHub run number, SHALL use the derived identity across every package, the Extension `version_name`, archive names, and inventory, and SHALL NOT commit or push the temporary version changes. Retrying the same workflow run SHALL reuse the same public npm beta version.
 
 #### Scenario: Beta candidate is prepared
 
 - **GIVEN** the repository identifies stable version `X.Y.Z` and the workflow has a positive run number and attempt
 - **WHEN** the beta channel prepares a candidate
-- **THEN** every publishable package and human-readable Extension identity uses `X.Y.Z-beta.<run>.<attempt>`
+- **THEN** every publishable package and human-readable Extension identity uses `X.Y.Z-beta.<run>`
 - **AND** the Chrome numeric version is derived deterministically from numeric workflow values
+
+#### Scenario: Beta workflow is retried
+
+- **GIVEN** a beta workflow run already prepared `X.Y.Z-beta.<run>`
+- **WHEN** the same run is retried with a later attempt
+- **THEN** the public npm beta version remains `X.Y.Z-beta.<run>`
+- **AND** publication retry accepts only already-published tarballs with identical integrity
 
 #### Scenario: Beta preparation finishes or fails
 

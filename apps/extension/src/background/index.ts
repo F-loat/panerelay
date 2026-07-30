@@ -15,6 +15,8 @@ import {
   type CdpTargetRequestMessage,
   type ConversationSummary,
   type HostToExtensionMessage,
+  type IntegrationRequest,
+  type IntegrationResponseMessage,
 } from '@panerelay/protocol';
 import { controlBadgeText } from './action-badge.js';
 import { createControlActivityState, reduceControlActivity } from './control-activity-state.js';
@@ -22,7 +24,9 @@ import type {
   AuthorizationMode,
   ConversationChangedMessage,
   ConversationWorkspaceChangedMessage,
+  DefaultProviderState,
   ExtensionStatus,
+  NativeHostState,
   SidePanelRequest,
   SidePanelResponse,
   StatusChangedMessage,
@@ -39,20 +43,28 @@ import { installConversationWorkspaceObservers } from './conversation-workspace-
 import { ConversationWorkspaceService } from './conversation-workspace-service.js';
 import { createChromeConversationWorkspaceStore } from './conversation-workspaces.js';
 import type { ConversationWorkspaceSnapshot } from '../shared/conversation-workspaces.js';
+import { nativeHostDisconnectState } from './native-host-readiness.js';
 
 const BROWSER_ID_KEY = 'panerelay.browserId';
 const ALL_TABS_AUTHORIZATION_KEY = 'panerelay.authorization.allTabs';
 const RECONNECT_DELAY_MS = 2_000;
 const AGENT_REQUEST_TIMEOUT_MS = 60_000;
+const INTEGRATION_REQUEST_TIMEOUT_MS = 5_000;
 
-interface PendingAgentRequest {
-  resolve: (result: unknown) => void;
+interface PendingRequest<T> {
+  resolve: (result: T) => void;
   reject: (error: Error) => void;
   timer: ReturnType<typeof setTimeout>;
 }
 
+type PendingAgentRequest = PendingRequest<unknown>;
+type PendingIntegrationRequest = PendingRequest<DefaultProviderState>;
+
 let nativePort: chrome.runtime.Port | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let nativeHostState: NativeHostState = 'connecting';
+let defaultProvider: DefaultProviderState | null = null;
+let authorizationRequest: 'all-tabs' | null = null;
 let authorizationMode: AuthorizationMode = 'none';
 let authorizedOriginPatterns: string[] = [];
 let authorizedTab: TabSummary | null = null;
@@ -63,6 +75,7 @@ const tabIdsByTargetId = new Map<string, number>();
 const controlledTabs = new Map<string, TabSummary>();
 const sessionOwnedTabIds = new Set<number>();
 const pendingAgentRequests = new Map<string, PendingAgentRequest>();
+const pendingIntegrationRequests = new Map<string, PendingIntegrationRequest>();
 const nativeTransferReceiver = new NativeTransferReceiver();
 let nativeTransferCleanupTimer: ReturnType<typeof setTimeout> | null = null;
 let controlActivityState = createControlActivityState();
@@ -99,7 +112,10 @@ async function status(): Promise<ExtensionStatus> {
   const controlledTab =
     controlled.find(tab => tab.id === currentActiveTab?.id) ?? controlled[0] ?? null;
   return {
-    bridgeConnected: nativePort !== null,
+    bridgeConnected: nativeHostState === 'connected',
+    nativeHostState,
+    defaultProvider,
+    authorizationRequest,
     activeTab: currentActiveTab,
     authorizationMode,
     authorizedOriginPatterns: [...authorizedOriginPatterns],
@@ -215,6 +231,14 @@ function rejectPendingAgentRequests(reason: string): void {
   pendingAgentRequests.clear();
 }
 
+function rejectPendingIntegrationRequests(reason: string): void {
+  for (const pending of pendingIntegrationRequests.values()) {
+    clearTimeout(pending.timer);
+    pending.reject(new Error(reason));
+  }
+  pendingIntegrationRequests.clear();
+}
+
 function scheduleReconnect(): void {
   if (reconnectTimer) return;
   reconnectTimer = setTimeout(() => {
@@ -246,6 +270,8 @@ function connectNativeHost(): void {
       const error = chrome.runtime.lastError;
       nativePort = null;
       lastError = error?.message || 'Panerelay Bridge disconnected';
+      nativeHostState = nativeHostDisconnectState(lastError);
+      defaultProvider = null;
       nativeTransferReceiver.cancelAll();
       if (nativeTransferCleanupTimer) {
         clearTimeout(nativeTransferCleanupTimer);
@@ -257,6 +283,7 @@ function connectNativeHost(): void {
       }
       authorizedTab = null;
       rejectPendingAgentRequests(lastError);
+      rejectPendingIntegrationRequests(lastError);
       void releaseControl('Panerelay Bridge disconnected', false);
       void broadcastStatus();
       scheduleReconnect();
@@ -265,6 +292,8 @@ function connectNativeHost(): void {
   } catch (error) {
     nativePort = null;
     lastError = error instanceof Error ? error.message : String(error);
+    nativeHostState = nativeHostDisconnectState(lastError);
+    defaultProvider = null;
     void broadcastStatus();
     scheduleReconnect();
   }
@@ -273,8 +302,10 @@ function connectNativeHost(): void {
 async function handleHostMessage(message: HostToExtensionMessage): Promise<void> {
   switch (message.type) {
     case 'browser.registered':
+      nativeHostState = 'connected';
       lastError = undefined;
       await broadcastStatus();
+      void refreshDefaultProvider();
       return;
     case 'cdp.target.request':
       await handleTargetRequest(message);
@@ -300,6 +331,9 @@ async function handleHostMessage(message: HostToExtensionMessage): Promise<void>
       return;
     case 'agent.response':
       handleAgentResponse(message);
+      return;
+    case 'integration.response':
+      handleIntegrationResponse(message);
       return;
     case 'conversation.event': {
       const eventMessage: ConversationChangedMessage = {
@@ -347,6 +381,52 @@ function requestAgent(request: AgentRequest): Promise<unknown> {
     return Promise.reject(error);
   }
   return result;
+}
+
+function handleIntegrationResponse(message: IntegrationResponseMessage): void {
+  const pending = pendingIntegrationRequests.get(message.requestId);
+  if (!pending) return;
+  pendingIntegrationRequests.delete(message.requestId);
+  clearTimeout(pending.timer);
+  if (message.success && message.result) {
+    pending.resolve(message.result);
+  } else {
+    pending.reject(new Error(message.error || 'Integration request failed'));
+  }
+}
+
+function requestIntegration(request: IntegrationRequest): Promise<DefaultProviderState> {
+  const requestId = crypto.randomUUID();
+  const result = new Promise<DefaultProviderState>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pendingIntegrationRequests.delete(requestId);
+      reject(new Error(`Timed out waiting for ${request.method}`));
+    }, INTEGRATION_REQUEST_TIMEOUT_MS);
+    pendingIntegrationRequests.set(requestId, { resolve, reject, timer });
+  });
+  try {
+    sendNative({
+      type: 'integration.request',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      requestId,
+      request,
+    });
+  } catch (error) {
+    const pending = pendingIntegrationRequests.get(requestId);
+    if (pending) clearTimeout(pending.timer);
+    pendingIntegrationRequests.delete(requestId);
+    return Promise.reject(error);
+  }
+  return result;
+}
+
+async function refreshDefaultProvider(): Promise<void> {
+  try {
+    defaultProvider = await requestIntegration({ method: 'default-provider.get' });
+  } catch {
+    defaultProvider = null;
+  }
+  await broadcastStatus();
 }
 
 async function isTabOriginAuthorized(tab: TabSummary): Promise<boolean> {
@@ -484,7 +564,10 @@ async function handleTargetRequest(message: CdpTargetRequestMessage): Promise<vo
       }
       case 'create': {
         if (authorizationMode !== 'all-tabs') {
-          throw new Error('Creating tabs requires all-tabs authorization');
+          authorizationRequest = 'all-tabs';
+          throw new Error(
+            'Creating a new tab requires all-tabs authorization. Open the Panerelay Chrome Extension, authorize all tabs, then retry.',
+          );
         }
         const url = message.operation.url || 'about:blank';
         if (url !== 'about:blank') {
@@ -711,9 +794,54 @@ async function setAuthorization(mode: AuthorizationMode): Promise<ExtensionStatu
     await chrome.storage.local.remove(ALL_TABS_AUTHORIZATION_KEY);
   }
   authorizationMode = mode;
+  authorizationRequest = null;
   lastError = undefined;
   await broadcastStatus();
   return status();
+}
+
+async function retryNativeHost(): Promise<ExtensionStatus> {
+  if (!nativePort) {
+    if (reconnectTimer) {
+      clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+    }
+    nativeHostState = 'connecting';
+    lastError = undefined;
+    await broadcastStatus();
+    connectNativeHost();
+  }
+  return status();
+}
+
+async function setDefaultProvider(enabled: boolean): Promise<ExtensionStatus> {
+  defaultProvider = await requestIntegration({
+    method: enabled ? 'default-provider.set' : 'default-provider.clear',
+  });
+  await broadcastStatus();
+  return status();
+}
+
+function controlledTargetIdForTab(tabId: number): string {
+  const targetId = targetIdsByTabId.get(tabId);
+  if (!targetId || !controlledTabs.has(targetId)) {
+    throw new Error('This tab is no longer controlled by Panerelay');
+  }
+  return targetId;
+}
+
+async function activateControlledTab(tabId: number): Promise<void> {
+  controlledTargetIdForTab(tabId);
+  const tab = await chrome.tabs.get(tabId);
+  await chrome.tabs.update(tabId, { active: true });
+  if (typeof tab.windowId === 'number') {
+    await chrome.windows.update(tab.windowId, { focused: true });
+  }
+}
+
+async function closeControlledTab(tabId: number): Promise<void> {
+  controlledTargetIdForTab(tabId);
+  await chrome.tabs.remove(tabId);
 }
 
 async function handleSidePanelRequest(message: SidePanelRequest): Promise<SidePanelResponse> {
@@ -722,6 +850,16 @@ async function handleSidePanelRequest(message: SidePanelRequest): Promise<SidePa
       return { success: true, status: await status() };
     case 'panerelay.authorization.set':
       return { success: true, status: await setAuthorization(message.mode) };
+    case 'panerelay.native.retry':
+      return { success: true, status: await retryNativeHost() };
+    case 'panerelay.default-provider.set':
+      return { success: true, status: await setDefaultProvider(message.enabled) };
+    case 'panerelay.controlled-tab.activate':
+      await activateControlledTab(message.tabId);
+      return { success: true };
+    case 'panerelay.controlled-tab.close':
+      await closeControlledTab(message.tabId);
+      return { success: true };
     case 'panerelay.agent.providers':
       return {
         success: true,

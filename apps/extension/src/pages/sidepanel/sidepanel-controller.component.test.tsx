@@ -16,6 +16,9 @@ import type { SidepanelClient, SidepanelRuntimeMessage } from './sidepanel-clien
 
 const baseStatus: ExtensionStatus = {
   bridgeConnected: true,
+  nativeHostState: 'connected',
+  defaultProvider: { provider: null, isPanerelay: false },
+  authorizationRequest: null,
   activeTab: { id: 3, title: 'Fixture', url: 'https://example.com/page' },
   authorizationMode: 'none',
   authorizedOriginPatterns: [],
@@ -140,6 +143,22 @@ class FakeSidepanelClient implements SidepanelClient {
             authorizedTab: message.mode === 'single-tab' ? baseStatus.activeTab : null,
           },
         };
+      case 'panerelay.native.retry':
+        return { success: true as const, status: baseStatus };
+      case 'panerelay.default-provider.set':
+        return {
+          success: true as const,
+          status: {
+            ...baseStatus,
+            defaultProvider: {
+              provider: message.enabled ? 'panerelay' : null,
+              isPanerelay: message.enabled,
+            },
+          },
+        };
+      case 'panerelay.controlled-tab.activate':
+      case 'panerelay.controlled-tab.close':
+        return { success: true as const };
       case 'panerelay.conversation.send': {
         if (!message.conversationId) {
           const created = conversation(message.providerId);
@@ -317,8 +336,42 @@ describe('Side Panel controller', () => {
     expect(hook.result.current.state.error).toBe('');
     expect(client.listeners.size).toBe(1);
 
+    act(() => {
+      client.emit({
+        type: 'panerelay.status.changed',
+        status: {
+          ...baseStatus,
+          bridgeConnected: false,
+          nativeHostState: 'missing',
+          defaultProvider: null,
+          error: 'Specified native messaging host not found.',
+        },
+      });
+    });
+    expect(hook.result.current.state.error).toBe('');
+
     hook.unmount();
     expect(client.listeners.size).toBe(0);
+  });
+
+  it('routes default, Native Host, and controlled-tab settings actions', async () => {
+    const { client, hook } = await readyController();
+    client.requests.length = 0;
+
+    await act(() => hook.result.current.setDefaultProvider(true));
+    await act(() => hook.result.current.activateControlledTab(9));
+    await act(() => hook.result.current.closeControlledTab(9));
+    await act(() => hook.result.current.retryNativeHost());
+
+    expect(client.requests).toEqual([
+      { type: 'panerelay.default-provider.set', enabled: true },
+      { type: 'panerelay.controlled-tab.activate', tabId: 9 },
+      { type: 'panerelay.controlled-tab.close', tabId: 9 },
+      { type: 'panerelay.native.retry' },
+    ]);
+    expect(hook.result.current.state.defaultProviderPending).toBe(false);
+    expect(hook.result.current.state.controlledTabPendingId).toBeNull();
+    expect(hook.result.current.state.nativeRetryPending).toBe(false);
   });
 
   it('switches providers through a new draft without listing or resuming history', async () => {

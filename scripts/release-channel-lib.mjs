@@ -38,7 +38,7 @@ export function deriveBetaIdentity(stableVersion, runNumber, runAttempt) {
   return {
     channel: 'beta',
     extensionVersion: `${stableMatch[1]}.${stableMatch[2]}.${normalizedRunNumber}.${normalizedRunAttempt}`,
-    version: `${stableVersion}-beta.${normalizedRunNumber}.${normalizedRunAttempt}`,
+    version: `${stableVersion}-beta.${normalizedRunNumber}`,
   };
 }
 

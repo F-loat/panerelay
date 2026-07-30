@@ -62,6 +62,9 @@ export interface SidepanelState {
   submitting: boolean;
   initializing: boolean;
   authorizationPending: boolean;
+  nativeRetryPending: boolean;
+  defaultProviderPending: boolean;
+  controlledTabPendingId: number | null;
   settingsOpen: boolean;
   composerText: string;
   error: string;
@@ -103,6 +106,9 @@ export function createInitialSidepanelState(language?: string): SidepanelState {
     submitting: false,
     initializing: true,
     authorizationPending: false,
+    nativeRetryPending: false,
+    defaultProviderPending: false,
+    controlledTabPendingId: null,
     settingsOpen: false,
     composerText: '',
     error: '',
@@ -277,6 +283,10 @@ export interface SidepanelController {
   refreshHistory(): Promise<void>;
   retryProviderPreparation(): Promise<void>;
   setAuthorization(mode: AuthorizationMode): Promise<void>;
+  retryNativeHost(): Promise<void>;
+  setDefaultProvider(enabled: boolean): Promise<void>;
+  activateControlledTab(tabId: number): Promise<void>;
+  closeControlledTab(tabId: number): Promise<void>;
   setComposerText(text: string): void;
   useSuggestion(kind: 'summarize' | 'inspect' | 'find'): void;
   sendMessage(text?: string): Promise<void>;
@@ -721,6 +731,64 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
     [client, patch],
   );
 
+  const retryNativeHost = useCallback(async () => {
+    if (stateRef.current.nativeRetryPending) return;
+    patch({ nativeRetryPending: true, error: '' });
+    try {
+      const response = await client.request({ type: 'panerelay.native.retry' });
+      patch({ extensionStatus: response.status ?? stateRef.current.extensionStatus });
+    } catch (error) {
+      patch({ error: errorText(error) });
+    } finally {
+      patch({ nativeRetryPending: false });
+    }
+  }, [client, patch]);
+
+  const setDefaultProvider = useCallback(
+    async (enabled: boolean) => {
+      if (stateRef.current.defaultProviderPending) return;
+      patch({ defaultProviderPending: true, error: '' });
+      try {
+        const response = await client.request({
+          type: 'panerelay.default-provider.set',
+          enabled,
+        });
+        patch({ extensionStatus: response.status ?? stateRef.current.extensionStatus });
+      } catch (error) {
+        patch({ error: errorText(error) });
+      } finally {
+        patch({ defaultProviderPending: false });
+      }
+    },
+    [client, patch],
+  );
+
+  const activateControlledTab = useCallback(
+    async (tabId: number) => {
+      try {
+        await client.request({ type: 'panerelay.controlled-tab.activate', tabId });
+      } catch (error) {
+        patch({ error: errorText(error) });
+      }
+    },
+    [client, patch],
+  );
+
+  const closeControlledTab = useCallback(
+    async (tabId: number) => {
+      if (stateRef.current.controlledTabPendingId !== null) return;
+      patch({ controlledTabPendingId: tabId, error: '' });
+      try {
+        await client.request({ type: 'panerelay.controlled-tab.close', tabId });
+      } catch (error) {
+        patch({ error: errorText(error) });
+      } finally {
+        patch({ controlledTabPendingId: null });
+      }
+    },
+    [client, patch],
+  );
+
   const setComposerText = useCallback((composerText: string) => patch({ composerText }), [patch]);
 
   const useSuggestion = useCallback(
@@ -888,11 +956,14 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
           const wasConnected = stateRef.current.extensionStatus?.bridgeConnected ?? false;
           patch({
             extensionStatus: message.status,
-            error: message.status.error
-              ? message.status.error
-              : message.status.bridgeConnected
+            error:
+              message.status.nativeHostState === 'missing'
                 ? ''
-                : stateRef.current.error,
+                : message.status.error
+                  ? message.status.error
+                  : message.status.bridgeConnected
+                    ? ''
+                    : stateRef.current.error,
           });
           if (!wasConnected && message.status.bridgeConnected) void initialize();
           return;
@@ -956,6 +1027,10 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
     refreshHistory,
     retryProviderPreparation,
     setAuthorization,
+    retryNativeHost,
+    setDefaultProvider,
+    activateControlledTab,
+    closeControlledTab,
     setComposerText,
     useSuggestion,
     sendMessage,

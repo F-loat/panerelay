@@ -108,6 +108,7 @@ The Extension:
 - hosts the side panel and its conversation interface;
 - sends explicitly selected elements, page context, screenshots, and user comments to a conversation;
 - receives normalized agent events, activity updates, and approval requests.
+- lets the user request user-level integration settings through the Native Host without editing local configuration itself.
 
 The Extension does not store model credentials or spawn local agent processes.
 
@@ -118,6 +119,7 @@ The Bridge:
 - is installed as a Chrome Native Messaging host;
 - authenticates the paired extension and local clients;
 - maintains browser registrations, relay sessions, tab bindings, and control leases;
+- reads and conditionally updates Panerelay-owned user-level integration settings;
 - exposes loopback-only CDP WebSocket endpoints;
 - translates browser-level CDP target operations into extension and tab operations;
 - multiplexes tab-scoped CDP commands and events over Native Messaging;
@@ -235,11 +237,16 @@ agent.request
 agent.response
 conversation.event
 
+integration.request
+integration.response
+
 transport.chunk
 transport.cancel
 ```
 
 `agent.request` carries a provider-neutral operation (`agent.providers`, `agent.prepare`, `conversation.list`, `conversation.start`, `conversation.resume`, `conversation.send`, `conversation.interrupt`, or `conversation.respond`). `agent.response` correlates the bounded result or error. Streaming and unsolicited updates use `conversation.event`.
+
+`integration.request` carries a local Panerelay integration operation. The initial operations read, set, or conditionally clear the user-level agent-browser default Provider. `integration.response` returns the resulting current value or a correlated error. Clearing removes the value only when it currently selects Panerelay; it does not uninstall the Provider, remove the Native Host, or edit project-level configuration.
 
 The normalized conversation event union currently covers turn lifecycle, assistant message deltas and completion, reasoning-summary deltas, tool activity, approval requests and resolution, interruption, failure, and provider errors. Provider-native event objects do not cross the Bridge boundary.
 

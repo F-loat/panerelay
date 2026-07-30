@@ -80,7 +80,7 @@ const SEMVER_PATTERN = new RegExp(
   `^${NUMERIC_IDENTIFIER}\\.${NUMERIC_IDENTIFIER}\\.${NUMERIC_IDENTIFIER}$`,
 );
 const BETA_SEMVER_PATTERN = new RegExp(
-  `^${NUMERIC_IDENTIFIER}\\.${NUMERIC_IDENTIFIER}\\.${NUMERIC_IDENTIFIER}-beta\\.${NUMERIC_IDENTIFIER}\\.${NUMERIC_IDENTIFIER}$`,
+  `^${NUMERIC_IDENTIFIER}\\.${NUMERIC_IDENTIFIER}\\.${NUMERIC_IDENTIFIER}-beta\\.${NUMERIC_IDENTIFIER}$`,
 );
 const CHROME_VERSION_PATTERN = new RegExp(
   `^${NUMERIC_IDENTIFIER}\\.${NUMERIC_IDENTIFIER}\\.${NUMERIC_IDENTIFIER}\\.${NUMERIC_IDENTIFIER}$`,
@@ -274,11 +274,11 @@ export function validateReleaseIdentity(descriptor) {
   }
 
   const betaMatch = BETA_SEMVER_PATTERN.exec(descriptor.version);
-  invariant(betaMatch, 'Beta release version must match X.Y.Z-beta.<run-number>.<run-attempt>');
-  const expectedExtensionVersion = `${betaMatch[1]}.${betaMatch[2]}.${betaMatch[4]}.${betaMatch[5]}`;
+  invariant(betaMatch, 'Beta release version must match X.Y.Z-beta.<run-number>');
+  const expectedExtensionPrefix = `${betaMatch[1]}.${betaMatch[2]}.${betaMatch[4]}.`;
   invariant(
-    descriptor.extensionVersion === expectedExtensionVersion,
-    `Beta Chrome version must be ${expectedExtensionVersion}`,
+    descriptor.extensionVersion.startsWith(expectedExtensionPrefix) && Number(chromeMatch[4]) >= 1,
+    `Beta Chrome version must match ${expectedExtensionPrefix}<run-attempt>`,
   );
   return channel;
 }

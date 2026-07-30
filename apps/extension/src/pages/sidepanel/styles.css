@@ -522,6 +522,53 @@ summary:focus-visible {
   font-size: 10px;
 }
 
+.settings-provider-toggle {
+  display: flex;
+  width: 100%;
+  min-height: 28px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  padding: 5px 7px;
+  font-size: 9px;
+}
+
+.settings-provider-toggle:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.settings-provider-toggle[aria-pressed='true'] {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.settings-provider-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.settings-provider-indicator {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--surface);
+}
+
+.settings-provider-toggle[aria-pressed='true'] .settings-provider-indicator {
+  border-color: var(--accent);
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
 .settings-select {
   min-width: 0;
 }
@@ -650,11 +697,6 @@ summary:focus-visible {
   background: color-mix(in srgb, var(--accent-soft) 68%, transparent);
 }
 
-.external-control-heading > .text-button {
-  flex: none;
-  margin-right: 8px;
-}
-
 .external-control-icon {
   display: grid;
   width: 28px;
@@ -742,6 +784,109 @@ summary:focus-visible {
   fill: none;
   stroke: currentColor;
   stroke-width: 1.7;
+}
+
+.controlled-tab-section {
+  display: grid;
+  gap: 3px;
+  border-top: 1px solid var(--border);
+  padding: 6px 8px;
+}
+
+.controlled-tab-section > strong {
+  color: var(--text-tertiary);
+  font-size: 8px;
+  font-weight: 600;
+}
+
+.controlled-tab-list {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.controlled-tab-list li {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 3px;
+  border-radius: 6px;
+}
+
+.controlled-tab-list li:hover {
+  background: color-mix(in srgb, var(--accent-soft) 58%, transparent);
+}
+
+.controlled-tab-main {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  padding: 4px;
+  text-align: left;
+}
+
+.controlled-tab-main > svg {
+  width: 13px;
+  height: 13px;
+  color: var(--accent);
+  stroke-width: 1.7;
+}
+
+.controlled-tab-main > span {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.controlled-tab-main strong,
+.controlled-tab-main small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.controlled-tab-main strong {
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.controlled-tab-main small {
+  color: var(--text-tertiary);
+  font-size: 8px;
+}
+
+.controlled-tab-close {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-tertiary);
+}
+
+.controlled-tab-close:hover:not(:disabled) {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.controlled-tab-close:disabled {
+  opacity: 0.4;
+}
+
+.controlled-tab-close svg {
+  width: 12px;
+  height: 12px;
+  stroke-width: 1.8;
 }
 
 .external-activity-list {
@@ -891,6 +1036,128 @@ summary:focus-visible {
 
 .provider-setup-docs:hover {
   text-decoration: underline;
+}
+
+.setup-guidance {
+  display: grid;
+  width: min(330px, 100%);
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px;
+  border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent-soft) 40%, var(--surface));
+  padding: 9px;
+  text-align: left;
+}
+
+.setup-guidance-copy {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 2px;
+}
+
+.setup-guidance-copy strong {
+  color: var(--text);
+  font-size: 10px;
+}
+
+.setup-guidance-copy span {
+  color: var(--text-secondary);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.setup-guidance code {
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 6px 7px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 8px;
+  line-height: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.setup-guidance > button {
+  min-height: 26px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  padding: 5px 8px;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.setup-guidance > button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.activity-stack,
+.timeline-error-stack {
+  display: grid;
+  gap: 6px;
+}
+
+.activity-stack > .setup-guidance,
+.timeline-error-stack > .setup-guidance {
+  width: auto;
+  margin: 0 8px;
+}
+
+.authorization-request {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 8px 0;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent-soft) 52%, var(--surface));
+  padding: 7px 8px;
+}
+
+.authorization-request > svg {
+  width: 17px;
+  height: 17px;
+  color: var(--accent);
+  stroke-width: 1.7;
+}
+
+.authorization-request > span {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.authorization-request strong {
+  font-size: 10px;
+}
+
+.authorization-request small {
+  color: var(--text-secondary);
+  font-size: 8px;
+  line-height: 1.4;
+}
+
+.authorization-request button {
+  min-height: 26px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  padding: 5px 7px;
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.authorization-request button:disabled {
+  cursor: wait;
+  opacity: 0.55;
 }
 
 .welcome-authorization {

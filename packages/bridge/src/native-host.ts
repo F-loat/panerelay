@@ -12,6 +12,7 @@ import {
   type AgentRequestMessage,
   type BridgeState,
   type HostToExtensionMessage,
+  type IntegrationRequestMessage,
 } from '@panerelay/protocol';
 import { handlePluginRequest } from '@panerelay/agent-browser';
 import { AgentService } from './agent-service.js';
@@ -19,6 +20,7 @@ import { NativeMessageDecoder, encodeNativeMessage } from './native-messaging.js
 import { BrowserRelay } from './browser-relay.js';
 import { removeOwnedBridgeState, writeBridgeState } from './state.js';
 import { readRuntimeConfig } from './runtime-config.js';
+import { IntegrationService } from './integration-service.js';
 
 function log(message: string): void {
   process.stderr.write(`[Panerelay] ${message}\n`);
@@ -54,6 +56,7 @@ async function main(): Promise<void> {
   const runtimeConfig = await readRuntimeConfig();
   const expectedExtensionId = runtimeConfig.extensionId ?? PANERELAY_EXTENSION_ID;
   const agents = new AgentService(sendToExtension);
+  const integrations = new IntegrationService(sendToExtension);
   const relay = await BrowserRelay.listen({
     expectedExtensionId,
     sendToExtension,
@@ -123,7 +126,9 @@ async function main(): Promise<void> {
           const operation =
             message.type === 'agent.request'
               ? agents.handle(message as AgentRequestMessage)
-              : relay.handleExtensionMessage(message);
+              : message.type === 'integration.request'
+                ? integrations.handle(message as IntegrationRequestMessage)
+                : relay.handleExtensionMessage(message);
           void operation.catch(error => {
             log(
               `Extension message failed: ${error instanceof Error ? error.message : String(error)}`,

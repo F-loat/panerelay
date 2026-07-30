@@ -39,6 +39,9 @@ import {
 import { formatCopy, translate, type CopyKey, type Locale, type ThemeSetting } from './i18n.js';
 import { SelectMenu, type SelectMenuOption } from './dropdown.js';
 import { browserSidepanelClient, type SidepanelClient } from './sidepanel-client.js';
+import { isPanerelaySetupFailure } from './setup-guidance.js';
+
+const PANERELAY_SETUP_COMMAND = 'npx --yes @panerelay/setup';
 
 interface AppProps {
   client?: SidepanelClient;
@@ -370,6 +373,62 @@ function automationStatusText(locale: Locale, status: AutomationActivityStatus):
   return translate(locale, keys[status]);
 }
 
+function PanerelaySetupGuide({
+  controller,
+  nativeHost = false,
+}: {
+  controller: SidepanelController;
+  nativeHost?: boolean;
+}) {
+  const { state } = controller;
+  const { t } = useCopy(state);
+  return (
+    <section className="setup-guidance" data-native-host={nativeHost}>
+      <div className="setup-guidance-copy">
+        <strong>{t(nativeHost ? 'nativeHostMissingTitle' : 'panerelaySetupNeededTitle')}</strong>
+        <span>{t(nativeHost ? 'nativeHostMissingBody' : 'panerelaySetupNeededBody')}</span>
+      </div>
+      <code>{PANERELAY_SETUP_COMMAND}</code>
+      {nativeHost && (
+        <button
+          disabled={state.nativeRetryPending}
+          onClick={() => void controller.retryNativeHost()}
+          type="button"
+        >
+          {state.nativeRetryPending ? t('connecting') : t('retryNativeHost')}
+        </button>
+      )}
+    </section>
+  );
+}
+
+function AuthorizationRequestNotice({ controller }: { controller: SidepanelController }) {
+  const { state } = controller;
+  const { t } = useCopy(state);
+  if (
+    state.extensionStatus?.authorizationRequest !== 'all-tabs' ||
+    state.extensionStatus.authorizationMode === 'all-tabs'
+  ) {
+    return null;
+  }
+  return (
+    <section className="authorization-request" role="status">
+      <PanelTop aria-hidden="true" />
+      <span>
+        <strong>{t('authorizationNeededTitle')}</strong>
+        <small>{t('authorizationNeededBody')}</small>
+      </span>
+      <button
+        disabled={state.authorizationPending}
+        onClick={() => void controller.setAuthorization('all-tabs')}
+        type="button"
+      >
+        {t('authorizeAllTabs')}
+      </button>
+    </section>
+  );
+}
+
 interface AuthorizationPanelProps {
   compact?: boolean;
   controller: SidepanelController;
@@ -491,11 +550,6 @@ function ExternalControl({ controller }: { controller: SidepanelController }) {
         ...(session.heartbeatFreshness === 'fresh' ? [t('heartbeatLive')] : []),
       ]
     : [];
-  const canRelease =
-    status?.bridgeConnected &&
-    session &&
-    !(['released', 'expired', 'failed'] as ControlSessionState[]).includes(session.state);
-
   return (
     <section aria-live="polite" className="external-control">
       <div className="external-control-heading">
@@ -517,17 +571,40 @@ function ExternalControl({ controller }: { controller: SidepanelController }) {
           </span>
           <ChevronDown aria-hidden="true" className="external-control-chevron" />
         </button>
-        {canRelease && (
-          <button
-            className="text-button danger"
-            onClick={() => void controller.setAuthorization('none')}
-            type="button"
-          >
-            {t('release')}
-          </button>
-        )}
       </div>
       <div hidden={!expanded} id="external-control-details">
+        {(status?.controlledTabs.length ?? 0) > 0 && (
+          <div className="controlled-tab-section">
+            <strong>{t('controlledTabsTitle')}</strong>
+            <ul className="controlled-tab-list">
+              {status?.controlledTabs.map(tab => (
+                <li key={tab.id}>
+                  <button
+                    aria-label={tf('activateControlledTab', { title: tab.title })}
+                    className="controlled-tab-main"
+                    onClick={() => void controller.activateControlledTab(tab.id)}
+                    type="button"
+                  >
+                    <PanelTop aria-hidden="true" />
+                    <span>
+                      <strong>{tab.title}</strong>
+                      <small>{tab.url}</small>
+                    </span>
+                  </button>
+                  <button
+                    aria-label={tf('closeControlledTab', { title: tab.title })}
+                    className="controlled-tab-close"
+                    disabled={state.controlledTabPendingId === tab.id}
+                    onClick={() => void controller.closeControlledTab(tab.id)}
+                    type="button"
+                  >
+                    <X aria-hidden="true" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {status?.automationHistoryGap && (
           <p className="external-control-gap">
             <CircleAlert aria-hidden="true" />
@@ -561,6 +638,31 @@ function ExternalControl({ controller }: { controller: SidepanelController }) {
         )}
       </div>
     </section>
+  );
+}
+
+function DefaultProviderSetting({ controller }: { controller: SidepanelController }) {
+  const { state } = controller;
+  const { t } = useCopy(state);
+  const current = state.extensionStatus?.defaultProvider ?? null;
+  const connected = state.extensionStatus?.bridgeConnected ?? false;
+  const enabled = current?.isPanerelay ?? false;
+
+  return (
+    <div className="settings-field">
+      <span>{t('defaultProvider')}</span>
+      <button
+        aria-label={t(enabled ? 'clearDefault' : 'setAsDefault')}
+        aria-pressed={enabled}
+        className="settings-provider-toggle"
+        disabled={!connected || !current || state.defaultProviderPending}
+        onClick={() => void controller.setDefaultProvider(!enabled)}
+        type="button"
+      >
+        <span>agent-browser</span>
+        <span aria-hidden="true" className="settings-provider-indicator" />
+      </button>
+    </div>
   );
 }
 
@@ -644,6 +746,7 @@ function SettingsPopover({
           />
         </span>
       </div>
+      <DefaultProviderSetting controller={controller} />
       <AuthorizationPanel controller={controller} />
       <ExternalControl controller={controller} />
     </aside>
@@ -808,6 +911,10 @@ function activityStatus(locale: Locale, activity: ConversationActivity): string 
   return translate(locale, keys[activity.status]);
 }
 
+function activityTitle(title: string): string {
+  return title.replace(/^panerelay_browser(?=\s*(?:·|$))/, 'panerelay');
+}
+
 function activityIcon(activity: ConversationActivity): LucideIcon {
   switch (activity.kind) {
     case 'browser':
@@ -923,21 +1030,27 @@ function Timeline({
         }
         if (item.type === 'activity') {
           const Icon = activityIcon(item.activity);
+          const setupFailure =
+            item.activity.status === 'failed' &&
+            isPanerelaySetupFailure(
+              [item.activity.title, item.activity.detail].filter(Boolean).join('\n'),
+            );
           return (
-            <article
-              className="activity-card"
-              data-status={item.activity.status}
-              key={`activity-${item.activity.id}`}
-            >
-              <Icon aria-hidden="true" className="activity-icon" />
-              <div className="activity-copy">
-                <div className="activity-title">{item.activity.title}</div>
-                {item.activity.detail && (
-                  <div className="activity-detail">{item.activity.detail}</div>
-                )}
-              </div>
-              <span className="activity-status">{activityStatus(state.locale, item.activity)}</span>
-            </article>
+            <div className="activity-stack" key={`activity-${item.activity.id}`}>
+              <article className="activity-card" data-status={item.activity.status}>
+                <Icon aria-hidden="true" className="activity-icon" />
+                <div className="activity-copy">
+                  <div className="activity-title">{activityTitle(item.activity.title)}</div>
+                  {item.activity.detail && (
+                    <div className="activity-detail">{item.activity.detail}</div>
+                  )}
+                </div>
+                <span className="activity-status">
+                  {activityStatus(state.locale, item.activity)}
+                </span>
+              </article>
+              {setupFailure && <PanerelaySetupGuide controller={controller} />}
+            </div>
           );
         }
         if (item.type === 'approval') {
@@ -950,13 +1063,18 @@ function Timeline({
           );
         }
         return (
-          <article className="timeline-error mx-2" key={`error-${item.id}`}>
-            <CircleAlert aria-hidden="true" className="timeline-error-icon" />
-            <div className="timeline-error-copy">
-              <strong>{t('errorTitle')}</strong>
-              <span>{item.message}</span>
-            </div>
-          </article>
+          <div className="timeline-error-stack" key={`error-${item.id}`}>
+            <article className="timeline-error mx-2">
+              <CircleAlert aria-hidden="true" className="timeline-error-icon" />
+              <div className="timeline-error-copy">
+                <strong>{t('errorTitle')}</strong>
+                <span>{item.message}</span>
+              </div>
+            </article>
+            {isPanerelaySetupFailure(item.message) && (
+              <PanerelaySetupGuide controller={controller} />
+            )}
+          </div>
         );
       })}
       <TurnFeedback state={state} />
@@ -1019,15 +1137,16 @@ function Welcome({ controller }: { controller: SidepanelController }) {
   const { t, tf } = useCopy(state);
   const provider = state.providers.find(item => item.id === state.currentProviderId);
   const bridgeConnected = state.extensionStatus?.bridgeConnected ?? false;
+  const nativeHostMissing = state.extensionStatus?.nativeHostState === 'missing';
   const providerReady = provider?.status === 'ready';
   const setup = provider?.setup;
   const title = !bridgeConnected
-    ? t('emptyBridgeTitle')
+    ? t(nativeHostMissing ? 'nativeHostMissingTitle' : 'emptyBridgeTitle')
     : !providerReady
       ? tf('emptyProviderTitle', { agent: selectedAgentName(state) })
       : tf('emptyTitle', { agent: selectedAgentName(state) });
   const body = !bridgeConnected
-    ? state.extensionStatus?.error || t('emptyBridgeBody')
+    ? t(nativeHostMissing ? 'nativeHostMissingBody' : 'emptyBridgeBody')
     : !providerReady
       ? provider
         ? t(provider.id === 'qoder' ? 'qoderSetupBody' : 'codexSetupBody')
@@ -1058,8 +1177,14 @@ function Welcome({ controller }: { controller: SidepanelController }) {
   return (
     <div className="empty-state flex min-h-full flex-col items-center justify-center px-[18px] py-7 text-center">
       <Sparkles aria-hidden="true" className="empty-mark" />
-      <h2>{title}</h2>
-      <p>{body}</p>
+      {nativeHostMissing ? (
+        <PanerelaySetupGuide controller={controller} nativeHost />
+      ) : (
+        <>
+          <h2>{title}</h2>
+          <p>{body}</p>
+        </>
+      )}
       {bridgeConnected && !providerReady && setup && (
         <div className="provider-setup">
           {setup.installCommand && (
@@ -1233,6 +1358,7 @@ export function SidepanelApp({ client = browserSidepanelClient }: AppProps) {
         className="chat-scroll min-h-0 overflow-x-hidden overflow-y-auto [scrollbar-color:var(--border-strong)_transparent]"
         ref={scrollRef}
       >
+        <AuthorizationRequestNotice controller={controller} />
         <ProviderPreparationNotice controller={controller} />
         {state.initializing ? (
           <div

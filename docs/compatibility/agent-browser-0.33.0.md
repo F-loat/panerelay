@@ -4,7 +4,7 @@
 - agent-browser: 0.33.0
 - Support policy: minimum supported version and initial version-specific verified baseline
 - Connection: browser-level Provider over Native Messaging
-- Last verified: 2026-07-29
+- Last verified: 2026-07-30
 
 agent-browser versions newer than 0.33.0 satisfy Panerelay's minimum-version check, but they do not inherit this file's `Verified` classifications. Record a separate version-specific compatibility report before describing a newer version as verified.
 
@@ -39,7 +39,7 @@ agent-browser versions newer than 0.33.0 satisfy Panerelay's minimum-version che
 
 | agent-browser capability | Status | Notes |
 | --- | --- | --- |
-| `tab`, `tab new`, switch, close | Verified | Existing authorized tabs and Agent-created tabs use stable session-local IDs. |
+| `tab`, `tab new`, switch, close | Verified | Existing authorized tabs and Agent-created tabs use stable session-local IDs. Without all-tabs authorization, `tab new` fails closed and directs the user to an Extension-side authorization action. |
 | JavaScript popups | Verified | Newly created eligible page targets are discovered and can be selected. |
 | cross-origin iframe and worker sessions | Partial | Flattened child sessions are routed; auto-attach does not pause child startup. |
 | cookies: get, set, single-cookie expiry | Verified | Explicit URLs and domains are limited to the selected authorized target origin. |
@@ -107,6 +107,9 @@ The side-panel providers create scoped agent-browser `0.33.0` MCP connections wh
 | Draft-first conversation creation | Automated | “New” stays local until the first non-empty message, then starts, binds, and sends exactly once. |
 | Active-tab conversation restoration | Automated | Opaque revisions reject stale async results and restore cached or provider-native conversation state. |
 | Trusted related-tab workspace inheritance | Automated | Only Chrome-reported opener/navigation-target relationships inherit; authorization and leases stay separate. |
+| User-level default Agent controls | Automated | Extension settings read, set, and conditionally clear only a current Panerelay default through the Native Host; setup CLI scope options remain available. |
+| Native Host and Provider recovery guidance | Automated | Recognized missing-host and Panerelay plugin signatures show bounded setup or retry guidance while preserving original diagnostics. |
+| Agent-requested all-tabs guidance | Automated | A denied target creation publishes an Extension action; Chrome permission acquisition still requires the user's click. |
 
 Daily-Chrome verification of provider warm-up, lazy history, draft-first send, active-tab restoration, and related-tab inheritance remains pending.
 

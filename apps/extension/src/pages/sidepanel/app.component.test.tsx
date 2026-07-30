@@ -3,7 +3,7 @@ import type {
   ConversationApproval,
   ConversationDetail,
 } from '@panerelay/protocol';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { ExtensionStatus, SidePanelRequest } from '../../shared/messages.js';
@@ -13,6 +13,9 @@ import type { SidepanelClient, SidepanelRuntimeMessage } from './sidepanel-clien
 
 const readyStatus: ExtensionStatus = {
   bridgeConnected: true,
+  nativeHostState: 'connected',
+  defaultProvider: { provider: null, isPanerelay: false },
+  authorizationRequest: null,
   activeTab: { id: 8, title: 'Fixture page', url: 'https://example.com/page' },
   authorizationMode: 'none',
   authorizedOriginPatterns: [],
@@ -159,6 +162,20 @@ class AppClient implements SidepanelClient {
           authorizedTab: message.mode === 'single-tab' ? this.status.activeTab : null,
         };
         return { success: true as const, status: this.status };
+      case 'panerelay.native.retry':
+        return { success: true as const, status: this.status };
+      case 'panerelay.default-provider.set':
+        this.status = {
+          ...this.status,
+          defaultProvider: {
+            provider: message.enabled ? 'panerelay' : null,
+            isPanerelay: message.enabled,
+          },
+        };
+        return { success: true as const, status: this.status };
+      case 'panerelay.controlled-tab.activate':
+      case 'panerelay.controlled-tab.close':
+        return { success: true as const };
       case 'panerelay.conversation.interrupt':
       case 'panerelay.conversation.respond':
         return { success: true as const };
@@ -251,6 +268,98 @@ describe('React Side Panel', () => {
     await user.click(screen.getByRole('option', { name: '中文' }));
     expect(await screen.findByText('设置')).toBeVisible();
     expect(client.stored['panerelay.locale']).toBe('zh-CN');
+  });
+
+  it('sets and clears the user-level default Provider from settings', async () => {
+    const { client, user } = await renderReady();
+
+    await user.click(screen.getByRole('button', { name: /Browser access:/ }));
+    expect(screen.getByText('Default Provider')).toBeVisible();
+    expect(screen.getByText('agent-browser')).toBeVisible();
+    expect(screen.queryByText('Native Host unavailable')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Set default' }));
+
+    await waitFor(() =>
+      expect(client.requests).toContainEqual({
+        type: 'panerelay.default-provider.set',
+        enabled: true,
+      }),
+    );
+    expect(screen.getByRole('button', { name: 'Clear default' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Clear default' }));
+    expect(client.requests).toContainEqual({
+      type: 'panerelay.default-provider.set',
+      enabled: false,
+    });
+  });
+
+  it('guides a missing Native Host with setup and retry', async () => {
+    const client = new AppClient();
+    client.status = {
+      ...readyStatus,
+      bridgeConnected: false,
+      nativeHostState: 'missing',
+      defaultProvider: null,
+      error: 'Specified native messaging host not found.',
+    };
+    const user = userEvent.setup();
+    render(<SidepanelApp client={client} />);
+
+    expect(await screen.findByText('Install the Panerelay integration')).toBeVisible();
+    expect(screen.getByText('npx --yes @panerelay/setup')).toBeVisible();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Retry connection' }));
+    expect(client.requests).toContainEqual({ type: 'panerelay.native.retry' });
+  });
+
+  it('surfaces authorization requests and controlled-tab actions', async () => {
+    const client = new AppClient();
+    client.status = {
+      ...readyStatus,
+      authorizationRequest: 'all-tabs',
+      controlledTab: { id: 9, title: 'Controlled fixture', url: 'https://example.com/controlled' },
+      controlledTabs: [
+        { id: 9, title: 'Controlled fixture', url: 'https://example.com/controlled' },
+      ],
+      controlSession: {
+        id: 'control-1',
+        actor: { kind: 'automation', name: 'agent-browser' },
+        state: 'active',
+        controlledTargetCount: 1,
+        heartbeatFreshness: 'fresh',
+        updatedAt: '2026-07-30T05:27:00.000Z',
+      },
+    };
+    const { user } = await renderReady(client);
+
+    await user.click(screen.getByRole('button', { name: 'Authorize all tabs' }));
+    expect(client.requests).toContainEqual({
+      type: 'panerelay.authorization.set',
+      mode: 'all-tabs',
+    });
+
+    await user.click(screen.getByRole('button', { name: /Browser access:/ }));
+    const externalControl = screen.getByText('External control').closest('section');
+    expect(externalControl).not.toBeNull();
+    expect(
+      within(externalControl as HTMLElement).queryByRole('button', { name: 'Release' }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Expand external control details' }));
+    await user.click(screen.getByRole('button', { name: 'Activate Controlled fixture' }));
+    await user.click(screen.getByRole('button', { name: 'Close Controlled fixture' }));
+
+    expect(client.requests).toContainEqual({
+      type: 'panerelay.controlled-tab.activate',
+      tabId: 9,
+    });
+    expect(client.requests).toContainEqual({
+      type: 'panerelay.controlled-tab.close',
+      tabId: 9,
+    });
   });
 
   it('keeps external control activity collapsed until the summary is opened', async () => {
@@ -401,14 +510,35 @@ describe('React Side Panel', () => {
           activity: {
             id: 'activity-1',
             kind: 'browser',
-            title: 'Read the current page',
+            title: 'panerelay_browser · agent_browser_read',
             detail: 'snapshot',
             status: 'completed',
           },
         },
       });
     });
-    expect(screen.getByText('Read the current page')).toBeVisible();
+    expect(screen.getByText('panerelay · agent_browser_read')).toBeVisible();
+    expect(screen.queryByText('panerelay_browser · agent_browser_read')).not.toBeInTheDocument();
+
+    act(() => {
+      client.emit({
+        type: 'panerelay.conversation.event',
+        event: {
+          kind: 'activity.updated',
+          conversationId: 'conversation-1',
+          turnId: 'turn-1',
+          activity: {
+            id: 'activity-setup',
+            kind: 'browser',
+            title: 'agent-browser',
+            detail: "Plugin 'panerelay' returned success=false",
+            status: 'failed',
+          },
+        },
+      });
+    });
+    expect(screen.getByText('Panerelay setup needed')).toBeVisible();
+    expect(screen.getByText('npx --yes @panerelay/setup')).toBeVisible();
 
     act(() => {
       client.emit({

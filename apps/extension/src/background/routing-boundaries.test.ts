@@ -43,3 +43,39 @@ test('marks the current document on Agent commands without persisting across nav
   );
   assert.doesNotMatch(tabUpdatedHandler, /applyControlledFavicon/);
 });
+
+test('turns target creation authorization failures into Extension guidance', async () => {
+  const source = await readFile(join(process.cwd(), 'src/background/index.ts'), 'utf8');
+  const targetRequestHandler = source.slice(
+    source.indexOf('async function handleTargetRequest'),
+    source.indexOf('async function attachTarget'),
+  );
+
+  assert.match(targetRequestHandler, /authorizationRequest = 'all-tabs'/);
+  assert.match(
+    targetRequestHandler,
+    /Open the Panerelay Chrome Extension, authorize all tabs, then retry/,
+  );
+  assert.ok(
+    targetRequestHandler.indexOf("authorizationRequest = 'all-tabs'") <
+      targetRequestHandler.indexOf('chrome.tabs.create'),
+  );
+});
+
+test('validates controlled-tab membership before activating or closing a Chrome tab', async () => {
+  const source = await readFile(join(process.cwd(), 'src/background/index.ts'), 'utf8');
+  const controlledActions = source.slice(
+    source.indexOf('function controlledTargetIdForTab'),
+    source.indexOf('async function handleSidePanelRequest'),
+  );
+
+  assert.match(controlledActions, /controlledTabs\.has\(targetId\)/);
+  assert.ok(
+    controlledActions.indexOf('controlledTargetIdForTab(tabId)') <
+      controlledActions.indexOf('chrome.tabs.update'),
+  );
+  assert.ok(
+    controlledActions.lastIndexOf('controlledTargetIdForTab(tabId)') <
+      controlledActions.indexOf('chrome.tabs.remove'),
+  );
+});

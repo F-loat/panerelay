@@ -28,10 +28,10 @@ Local Agents ← Chrome side panel ← Panerelay Extension ↔ Authorized tabs
 Requirements: Chrome on macOS, Linux, or Windows; Node.js 20+; and a compatible agent-browser.
 
 1. Download and extract the Extension archive from [Panerelay Releases](https://github.com/F-loat/panerelay/releases). Open `chrome://extensions`, enable Developer mode, and load the extracted directory.
-2. Install the local integration and make Panerelay the user-level default agent-browser Provider:
+2. Install the local integration:
 
    ```bash
-   npx --yes @panerelay/setup --global-provider
+   npx --yes @panerelay/setup
    ```
 
 3. Open Panerelay from the Chrome toolbar and authorize the current web tab or all supported web tabs.
@@ -43,7 +43,7 @@ Requirements: Chrome on macOS, Linux, or Windows; Node.js 20+; and a compatible 
 
 5. To work from Chrome, open the side panel and select an installed local Agent. Panerelay automatically discovers supported local Agents; each Agent CLI must already be installed and signed in.
 
-`--global-provider` lets later agent-browser commands omit `--provider panerelay`. Use `--project-provider` instead when the default should apply only to the current project. Provider selection changes routing only—it never grants Chrome permission or authorizes a tab.
+To omit `--provider panerelay` in later commands, set Panerelay as the user-level default from Extension settings or run setup with `--global-provider`. Use `--project-provider` instead when the default should apply only to the current project. Provider selection changes routing only—it never grants Chrome permission or authorizes a tab.
 
 ## What Panerelay provides
 
@@ -64,14 +64,14 @@ npx --yes @panerelay/setup doctor
 npx --yes @panerelay/setup uninstall
 ```
 
-Set Panerelay as the user-level or current-project agent-browser default Provider:
+Extension settings can set or clear Panerelay as the user-level agent-browser default without uninstalling anything. The same defaults can be selected during setup:
 
 ```bash
 npx --yes @panerelay/setup --global-provider
 npx --yes @panerelay/setup --project-provider
 ```
 
-agent-browser reads the user default from `~/.agent-browser/config.json` and the project override from `./agent-browser.json`. Change the `provider` field to another configured Provider, or remove it to use agent-browser's built-in default. Panerelay remains installed and can still be selected with `--provider panerelay`.
+agent-browser reads the user default from `~/.agent-browser/config.json`; the current project's `./agent-browser.json` takes precedence. To restore another default, change or remove its `provider` field. Panerelay remains installed and can always be selected with `--provider panerelay`.
 
 Official builds use Extension ID `panplnkjlkoceaonlmpdekjphgmbggmi`. A self-built Extension can register its own 32-character ID:
 

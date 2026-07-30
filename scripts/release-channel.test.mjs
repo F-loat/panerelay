@@ -59,10 +59,20 @@ async function versionSources(root) {
 }
 
 test('derives unique beta package and Chrome identities', () => {
+  assert.deepEqual(deriveBetaIdentity('0.1.0', '2', '1'), {
+    channel: 'beta',
+    extensionVersion: '0.1.2.1',
+    version: '0.1.0-beta.2',
+  });
+  assert.equal(
+    deriveBetaIdentity('0.1.0', '2', '2').version,
+    '0.1.0-beta.2',
+    'a workflow retry must reuse the public beta version',
+  );
   assert.deepEqual(deriveBetaIdentity('0.1.0', '42', '3'), {
     channel: 'beta',
     extensionVersion: '0.1.42.3',
-    version: '0.1.0-beta.42.3',
+    version: '0.1.0-beta.42',
   });
   assert.throws(() => deriveBetaIdentity('0.1.0-beta.1', 1, 1), /plain stable/);
   assert.throws(() => deriveBetaIdentity('0.1.0', 0, 1), /run number/);
@@ -99,9 +109,9 @@ test('temporarily applies beta metadata and restores every source file', async (
     assert.deepEqual(observedDescriptor, {
       channel: 'beta',
       extensionVersion: '0.1.17.2',
-      version: '0.1.0-beta.17.2',
+      version: '0.1.0-beta.17',
     });
-    assert.equal(result.version, '0.1.0-beta.17.2');
+    assert.equal(result.version, '0.1.0-beta.17');
     assert.equal(result.npmTag, 'beta');
     assert.equal(result.releaseTag, '');
     assert.deepEqual(await versionSources(root), before);
