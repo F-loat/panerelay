@@ -1,0 +1,214 @@
+name: Release
+
+run-name: Release ${{ inputs.channel }} from ${{ github.ref_name }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: Release channel
+        required: true
+        default: beta
+        type: choice
+        options:
+          - beta
+          - stable
+
+concurrency:
+  group: panerelay-release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    name: Prepare ${{ inputs.channel }} candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      artifact_directory: ${{ steps.prepare.outputs.artifact_directory }}
+      candidate_artifact: panerelay-candidate-${{ steps.prepare.outputs.version }}
+      channel: ${{ steps.prepare.outputs.channel }}
+      extension_artifact: panerelay-extension-${{ steps.prepare.outputs.version }}
+      release_tag: ${{ steps.prepare.outputs.release_tag }}
+      version: ${{ steps.prepare.outputs.version }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Preflight stable release target
+        if: inputs.channel == 'stable'
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [[ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ]]; then
+            echo "Stable releases must run from $DEFAULT_BRANCH." >&2
+            exit 1
+          fi
+
+          version="$(node -p 'require("./release.config.json").version')"
+          tag="v$version"
+          set +e
+          git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null
+          tag_status=$?
+          set -e
+          if [[ $tag_status -eq 0 ]]; then
+            echo "Tag $tag already exists." >&2
+            exit 1
+          fi
+          if [[ $tag_status -ne 2 ]]; then
+            echo "Could not verify whether tag $tag exists." >&2
+            exit "$tag_status"
+          fi
+
+          release_status="$(
+            curl --silent --show-error --output "$RUNNER_TEMP/panerelay-release.json" \
+              --write-out '%{http_code}' \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header "X-GitHub-Api-Version: 2026-03-10" \
+              "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/releases/tags/$tag"
+          )"
+          if [[ "$release_status" == "200" ]]; then
+            echo "GitHub Release $tag already exists." >&2
+            exit 1
+          fi
+          if [[ "$release_status" != "404" ]]; then
+            echo "Could not verify whether GitHub Release $tag exists (HTTP $release_status)." >&2
+            exit 1
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20.19.0
+          package-manager-cache: false
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.34.5 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run quality checks
+        run: pnpm run check
+
+      - name: Prepare verified candidate
+        id: prepare
+        env:
+          RELEASE_CHANNEL: ${{ inputs.channel }}
+        run: |
+          pnpm run release:channel -- \
+            --channel "$RELEASE_CHANNEL" \
+            --run-number "$GITHUB_RUN_NUMBER" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Confirm source metadata was not changed
+        run: |
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git status --short
+            echo "Release preparation changed the source tree." >&2
+            exit 1
+          fi
+
+      - name: Upload complete candidate
+        uses: actions/upload-artifact@v7
+        with:
+          name: panerelay-candidate-${{ steps.prepare.outputs.version }}
+          path: ${{ steps.prepare.outputs.artifact_directory }}/
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+      - name: Upload downloadable Extension
+        uses: actions/upload-artifact@v7
+        with:
+          name: panerelay-extension-${{ steps.prepare.outputs.version }}
+          path: |
+            ${{ steps.prepare.outputs.extension_archive }}
+            ${{ steps.prepare.outputs.artifact_directory }}/inventory.json
+            ${{ steps.prepare.outputs.artifact_directory }}/SHA256SUMS
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
+
+  publish:
+    name: Publish ${{ needs.prepare.outputs.version }} to npm
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: release
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check out publication scripts
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js and npm registry
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.14.0
+          package-manager-cache: false
+          registry-url: https://registry.npmjs.org
+
+      - name: Enable npm trusted publishing
+        run: npm install --global npm@11
+
+      - name: Download verified candidate
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.prepare.outputs.candidate_artifact }}
+          path: ${{ needs.prepare.outputs.artifact_directory }}
+
+      - name: Publish exact candidate tarballs
+        run: |
+          node scripts/publish-release.mjs \
+            --candidate-directory "${{ needs.prepare.outputs.artifact_directory }}"
+
+  stable-release:
+    name: Create GitHub Release ${{ needs.prepare.outputs.release_tag }}
+    if: needs.prepare.outputs.channel == 'stable'
+    needs:
+      - prepare
+      - publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download stable Extension assets
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ needs.prepare.outputs.extension_artifact }}
+          path: release-assets
+
+      - name: Create stable GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          gh release create "$RELEASE_TAG" \
+            release-assets/panerelay-extension-"$RELEASE_VERSION".zip \
+            release-assets/inventory.json \
+            release-assets/SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "Panerelay $RELEASE_VERSION" \
+            --notes "Includes Codex and Qoder side-panel Agents. Claude is not included. Requires agent-browser 0.33.0 or newer." \
+            --generate-notes \
+            --latest

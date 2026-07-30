@@ -4,7 +4,7 @@ Local setup and diagnostics for Panerelay.
 
 ## Commands
 
-Panerelay `0.1.0` is a lockstep release. Use the same version as the Panerelay Extension:
+Panerelay components are published in lockstep. Use the same version as the Panerelay Extension:
 
 ```bash
 npx --yes @panerelay/setup

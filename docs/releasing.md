@@ -30,7 +30,7 @@ Create an ignored local candidate:
 pnpm run release:pack
 ```
 
-- [ ] Confirm `.artifacts/panerelay-0.1.0/inventory.json` records the intended commit, `"dirty": false`, official Extension ID, minimum agent-browser version, and verified-version list.
+- [ ] Confirm `.artifacts/panerelay-0.1.0/inventory.json` records channel `stable`, the intended commit, `"dirty": false`, official Extension ID, minimum agent-browser version, and verified-version list.
 - [ ] Confirm the directory contains four `@panerelay` npm tarballs, one Extension zip, `inventory.json`, and `SHA256SUMS`.
 - [ ] Verify checksums from inside the candidate directory:
 
@@ -59,17 +59,65 @@ pnpm run release:pack
 - Qoder is optional; its absence must not block Codex or browser automation.
 - Manual unpacked Extension loading does not use or require a private signing key.
 
-## External publication gate
+## One-time publication setup
 
-External writes require a separate explicit request after the retained candidate is accepted. Before publishing:
+The manual [Release workflow](../.github/workflows/release.yml) publishes through [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/), so it does not use a long-lived `NPM_TOKEN`.
 
-- [ ] Confirm the working tree is clean, the candidate commit is pushed, and the retained candidate still matches it byte-for-byte.
-- [ ] Draft the `0.1.0` release notes with the shipped side-panel providers (Codex and Qoder), the agent-browser `0.33.0` baseline and compatibility record, and an explicit note that Claude is not included.
-- [ ] Confirm the `@panerelay` npm organization and public package access.
-- [ ] Publish the four packages with `pnpm run publish -- --otp=<code>`. The filtered command runs in dependency order and builds each package through `prepublishOnly`.
-- [ ] Create the stable `v0.1.0` tag and GitHub release for the same commit.
-- [ ] Upload the exact accepted Extension archive, inventory, and checksums.
-- [ ] Install again from the public npm registry and downloaded stable asset.
-- [ ] Mark an RFC `Implemented` only after the released artifacts pass their applicable acceptance evidence.
+1. In GitHub repository settings, create an environment named `release`. Add required reviewers when the repository plan exposes environment protection rules; otherwise the explicit manual dispatch remains the human release gate.
+2. In the npm settings for each of `@panerelay/protocol`, `@panerelay/agent-browser`, `@panerelay/bridge`, and `@panerelay/setup`, configure the same GitHub Actions trusted publisher:
+   - Organization or user: `F-loat`
+   - Repository: `panerelay`
+   - Workflow filename: `release.yml`
+   - Environment: `release`
+   - Allowed action: `npm publish`
+3. Keep every package `repository.url` aligned exactly with `F-loat/panerelay`. Trusted publishing works while the repository is private, but npm will generate provenance only after the source repository is public.
 
-If a public smoke step fails, deprecate an affected immutable package version when appropriate, withdraw the release asset if necessary, and prepare a new patch version. Never overwrite an existing npm version or reuse a release tag.
+The workflow grants `id-token: write` only to the protected npm publication job. Candidate preparation uses Node.js 20.19; npm trusted publishing uses Node.js 22.14 and npm 11 or newer without changing the packages' Node.js 20 runtime floor.
+
+## Automated beta publication
+
+From GitHub Actions, open **Release**, choose **Run workflow**, and select the source branch and `beta`. Approve the `release` environment if it has an approval rule.
+
+- The workflow derives `<repository-version>-beta.<run-number>.<run-attempt>` without committing or pushing the temporary version.
+- npm receives the four exact verified tarballs under the `beta` distribution tag.
+- The workflow run exposes `panerelay-extension-<version>`, containing the Extension zip, `inventory.json`, and `SHA256SUMS`.
+- No Git tag or GitHub Release is created.
+
+Every rerun gets a new beta version because `run-attempt` is part of the identity. Install the current beta with:
+
+```bash
+npx --yes @panerelay/setup@beta
+```
+
+Beta Extension archives are developer downloads, not Chrome Web Store updates. Their numeric Chrome versions identify the workflow build but do not define Store upgrade order.
+
+## Automated stable publication
+
+Before dispatching `stable`:
+
+- [ ] Complete the candidate and runtime acceptance sections above.
+- [ ] Push the intended version commit to the default branch and confirm CI is green.
+- [ ] Confirm the repository version is the unused stable version to publish.
+- [ ] Confirm the matching remote tag and GitHub Release do not exist.
+- [ ] Confirm all four npm packages have the trusted publisher configuration above.
+
+Run **Release** from the default branch with channel `stable`, then approve the `release` environment if it has an approval rule. The workflow:
+
+1. runs the full workspace check and prepares the verified candidate;
+2. uploads the downloadable Extension artifact;
+3. publishes the exact tarballs under npm tag `latest`;
+4. creates `v<version>` and a GitHub Release for the selected commit; and
+5. attaches the Extension zip, inventory, and checksums to the Release.
+
+Afterward:
+
+- [ ] Install again from npm and the downloaded GitHub Release asset.
+- [ ] Upload the same stable Extension zip to Chrome Web Store and complete Store review manually.
+- [ ] Verify npm provenance and the `latest` tags.
+- [ ] Mark an RFC `Implemented` only after released artifacts pass their applicable acceptance evidence.
+
+## Retry and recovery
+
+npm publication is not transactional across four packages. Before any new package is published, the workflow compares existing registry SHA-512 integrity with the candidate. A retry skips only an identical package and publishes the missing packages in dependency order; a different package with the same immutable version fails closed.
+
+If a beta fails, rerun it to produce a new beta version. If stable npm publication succeeds but GitHub Release creation fails before creating a tag or draft, rerun the same workflow: it accepts identical npm tarballs and retries the missing Release. If the failed attempt already created a tag or draft, finish that Release manually from the same commit and accepted assets. If public contents differ, prepare a new patch version rather than overwriting npm packages or reusing a tag.

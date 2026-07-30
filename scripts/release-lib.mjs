@@ -75,7 +75,17 @@ const OFFICIAL_EXTENSION_ID = 'panplnkjlkoceaonlmpdekjphgmbggmi';
 const AGENT_BROWSER_MINIMUM_VERSION = '0.33.0';
 const ACP_SDK_MINIMUM_VERSION = '1.2.1';
 const CHROME_EXTENSION_ID_PATTERN = /^[a-p]{32}$/;
-const SEMVER_PATTERN = /^(\d+)\.(\d+)\.(\d+)$/;
+const NUMERIC_IDENTIFIER = '(0|[1-9]\\d*)';
+const SEMVER_PATTERN = new RegExp(
+  `^${NUMERIC_IDENTIFIER}\\.${NUMERIC_IDENTIFIER}\\.${NUMERIC_IDENTIFIER}$`,
+);
+const BETA_SEMVER_PATTERN = new RegExp(
+  `^${NUMERIC_IDENTIFIER}\\.${NUMERIC_IDENTIFIER}\\.${NUMERIC_IDENTIFIER}-beta\\.${NUMERIC_IDENTIFIER}\\.${NUMERIC_IDENTIFIER}$`,
+);
+const CHROME_VERSION_PATTERN = new RegExp(
+  `^${NUMERIC_IDENTIFIER}\\.${NUMERIC_IDENTIFIER}\\.${NUMERIC_IDENTIFIER}\\.${NUMERIC_IDENTIFIER}$`,
+);
+const CHROME_VERSION_COMPONENT_MAXIMUM = 65535;
 
 function invariant(condition, message) {
   if (!condition) throw new Error(message);
@@ -245,6 +255,34 @@ function compareVersions(left, right) {
   return 0;
 }
 
+export function validateReleaseIdentity(descriptor) {
+  const channel = descriptor.channel ?? 'stable';
+  invariant(channel === 'stable' || channel === 'beta', `Unsupported release channel: ${channel}`);
+  const chromeMatch = CHROME_VERSION_PATTERN.exec(descriptor.extensionVersion);
+  invariant(chromeMatch, 'Chrome release version must contain four numeric components');
+  invariant(
+    chromeMatch.slice(1).every(component => Number(component) <= CHROME_VERSION_COMPONENT_MAXIMUM),
+    `Chrome release version components must not exceed ${CHROME_VERSION_COMPONENT_MAXIMUM}`,
+  );
+
+  if (channel === 'stable') {
+    invariant(
+      SEMVER_PATTERN.test(descriptor.version),
+      'Stable release version must be a plain semantic version without prerelease metadata',
+    );
+    return channel;
+  }
+
+  const betaMatch = BETA_SEMVER_PATTERN.exec(descriptor.version);
+  invariant(betaMatch, 'Beta release version must match X.Y.Z-beta.<run-number>.<run-attempt>');
+  const expectedExtensionVersion = `${betaMatch[1]}.${betaMatch[2]}.${betaMatch[4]}.${betaMatch[5]}`;
+  invariant(
+    descriptor.extensionVersion === expectedExtensionVersion,
+    `Beta Chrome version must be ${expectedExtensionVersion}`,
+  );
+  return channel;
+}
+
 export function chromeExtensionIdFromPublicKey(key) {
   invariant(typeof key === 'string' && key.length > 0, 'Extension manifest public key is missing');
   const der = Buffer.from(key, 'base64');
@@ -265,10 +303,7 @@ export function validateReleaseMetadata({
   packageManifests,
   rootPackage,
 }) {
-  invariant(
-    SEMVER_PATTERN.test(descriptor.version),
-    'Stable release version must be a plain semantic version without alpha metadata',
-  );
+  validateReleaseIdentity(descriptor);
   invariant(
     descriptor.version === rootPackage.version,
     'Root version does not match release config',
@@ -454,6 +489,10 @@ export function validatePackedPackage({
   }
 }
 
+export function commandOutputLines(output) {
+  return output.replace(/\r\n?/g, '\n').split('\n').filter(Boolean);
+}
+
 async function sha256(path) {
   const hash = createHash('sha256');
   hash.update(await readFile(path));
@@ -482,7 +521,7 @@ async function packPackage(root, outputDirectory, definition, version) {
   );
   invariant(created.length === 1, `Expected one tarball for ${definition.name}`);
   const tarball = join(outputDirectory, created[0]);
-  const entries = (await run('tar', ['-tzf', tarball])).stdout.trim().split('\n');
+  const entries = commandOutputLines((await run('tar', ['-tzf', tarball])).stdout);
   const manifestText = (await run('tar', ['-xOf', tarball, 'package/package.json'])).stdout;
   const manifest = JSON.parse(manifestText);
   validatePackedPackage({
@@ -520,7 +559,9 @@ async function createExtensionArchive(root, outputDirectory, descriptor) {
   );
   const archive = join(outputDirectory, `panerelay-extension-${descriptor.version}.zip`);
   await run('zip', ['-q', '-r', archive, '.', '-x', '*.map'], { cwd: extensionDirectory });
-  const archivedEntries = new Set((await run('unzip', ['-Z1', archive])).stdout.trim().split('\n'));
+  const archivedEntries = new Set(
+    commandOutputLines((await run('unzip', ['-Z1', archive])).stdout),
+  );
   validateExtensionEntries(archivedEntries, requiredEntries, 'Extension archive');
   return archive;
 }
@@ -654,7 +695,7 @@ export async function smokePackedSetup(tarballs) {
 
 async function validateNoPrivateSigningMaterial(root) {
   const output = await run('git', ['ls-files', '-co', '--exclude-standard'], { cwd: root });
-  for (const relativePath of output.stdout.split('\n').filter(Boolean)) {
+  for (const relativePath of commandOutputLines(output.stdout)) {
     invariant(
       !/(?:^|\/)(?:private[-_.]?key[^/]*|[^/]+\.(?:pem|p12|pfx|crx))$/i.test(relativePath),
       `Repository contains private signing material: ${relativePath}`,
@@ -724,7 +765,7 @@ export async function loadReleaseMetadata(root) {
   };
 }
 
-export async function createReleaseCandidate({ outputDirectory, root }) {
+export async function createReleaseCandidate({ outputDirectory, root, sourceDirty }) {
   const metadata = await loadReleaseMetadata(root);
   validateReleaseMetadata(metadata);
   await validateNoPrivateSigningMaterial(root);
@@ -747,9 +788,11 @@ export async function createReleaseCandidate({ outputDirectory, root }) {
   ]);
   artifacts.sort((left, right) => left.file.localeCompare(right.file));
   const commit = (await run('git', ['rev-parse', 'HEAD'], { cwd: root })).stdout.trim();
-  const dirty = (await run('git', ['status', '--porcelain'], { cwd: root })).stdout.length > 0;
+  const dirty =
+    sourceDirty ?? (await run('git', ['status', '--porcelain'], { cwd: root })).stdout.length > 0;
   const inventory = {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    channel: metadata.descriptor.channel ?? 'stable',
     version: metadata.descriptor.version,
     extensionVersion: metadata.descriptor.extensionVersion,
     extensionId: metadata.descriptor.extensionId,

@@ -7,7 +7,7 @@ import type {
   ConversationMessage,
   ConversationSummary,
 } from '@panerelay/protocol';
-import { useCallback, useEffect, useReducer, useRef } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef } from 'react';
 import { ALL_WEB_ORIGIN_PATTERNS, originAuthorizationForUrl } from '../../shared/authorization.js';
 import type { ConversationWorkspaceSnapshot } from '../../shared/conversation-workspaces.js';
 import type { AuthorizationMode, ExtensionStatus } from '../../shared/messages.js';
@@ -861,7 +861,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
   const setSettingsOpen = useCallback((settingsOpen: boolean) => patch({ settingsOpen }), [patch]);
   const dismissError = useCallback(() => patch({ error: '' }), [patch]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     document.documentElement.lang = state.locale;
     document.documentElement.dataset.theme =
       state.themeSetting === 'system'

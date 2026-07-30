@@ -32,6 +32,8 @@
     "release:check": "node scripts/release.mjs",
     "release:pack": "node scripts/release.mjs --retain",
     "release:smoke": "node scripts/release-smoke.mjs",
+    "release:channel": "node scripts/release-channel.mjs",
+    "release:publish": "node scripts/publish-release.mjs",
     "publish": "pnpm --filter @panerelay/protocol --filter @panerelay/agent-browser --filter @panerelay/bridge --filter @panerelay/setup publish --access public",
     "install:host": "pnpm --filter @panerelay/bridge install:host",
     "uninstall:host": "pnpm --filter @panerelay/bridge uninstall:host"
