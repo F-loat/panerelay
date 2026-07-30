@@ -2,12 +2,12 @@
 
 ## Status
 
-Conclusive for the initial PaneRelay adapter baseline on 2026-07-30.
+Conclusive for the initial Panerelay adapter baseline on 2026-07-30.
 
 ## Question
 
 Can the locally installed Qoder CLI initialize ACP, create a session, accept a bounded prompt, and
-advertise the session and image capabilities needed by PaneRelay without exposing provider-native
+advertise the session and image capabilities needed by Panerelay without exposing provider-native
 payloads to the Extension?
 
 ## Probe
@@ -39,7 +39,7 @@ Initialization succeeded and identified `qoder-cli` 1.1.2. The runtime advertise
 
 ACP does not advertise a separate permission boolean in the initialization response. The client
 successfully registered the standard `session/request_permission` handler, but this read-only
-prompt did not trigger a permission request. PaneRelay therefore must treat each permission request
+prompt did not trigger a permission request. Panerelay therefore must treat each permission request
 as runtime input, normalize only recognized options, and cancel unrepresentable options rather than
 infer broader permission support from initialization.
 
@@ -51,7 +51,7 @@ The non-sensitive transcript was:
 - usage: reported
 
 The turn emitted bounded agent-message and thought chunks plus an
-`available_commands_update`. The latter is not part of PaneRelay's normalized conversation model
+`available_commands_update`. The latter is not part of Panerelay's normalized conversation model
 and should be ignored with a sanitized diagnostic.
 
 ## Decision

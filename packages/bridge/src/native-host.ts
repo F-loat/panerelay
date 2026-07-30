@@ -21,7 +21,7 @@ import { removeOwnedBridgeState, writeBridgeState } from './state.js';
 import { readRuntimeConfig } from './runtime-config.js';
 
 function log(message: string): void {
-  process.stderr.write(`[PaneRelay] ${message}\n`);
+  process.stderr.write(`[Panerelay] ${message}\n`);
 }
 
 function sendNativeEnvelope(message: unknown): void {

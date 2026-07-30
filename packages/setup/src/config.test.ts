@@ -7,13 +7,13 @@ import {
   configureGlobalProvider,
   configureProjectProvider,
   projectAgentBrowserConfigPath,
-  registerPaneRelayProvider,
+  registerPanerelayProvider,
   removeProjectProvider,
-  unregisterPaneRelayProvider,
+  unregisterPanerelayProvider,
   userAgentBrowserConfigPath,
 } from './config.js';
 
-test('registers PaneRelay without replacing unrelated user configuration', async () => {
+test('registers Panerelay without replacing unrelated user configuration', async () => {
   const root = await mkdtemp(join(tmpdir(), 'panerelay-config-'));
   const homeDirectory = join(root, 'home');
   const path = userAgentBrowserConfigPath(homeDirectory);
@@ -28,7 +28,7 @@ test('registers PaneRelay without replacing unrelated user configuration', async
   );
 
   try {
-    await registerPaneRelayProvider('/panerelay/host', { homeDirectory });
+    await registerPanerelayProvider('/panerelay/host', { homeDirectory });
     let config = JSON.parse(await readFile(path, 'utf8')) as {
       plugins: Array<{ command: string; name: string }>;
       provider: string;
@@ -45,7 +45,7 @@ test('registers PaneRelay without replacing unrelated user configuration', async
     config = JSON.parse(await readFile(path, 'utf8')) as typeof config;
     assert.equal(config.provider, 'panerelay');
 
-    await unregisterPaneRelayProvider({ homeDirectory });
+    await unregisterPanerelayProvider({ homeDirectory });
     config = JSON.parse(await readFile(path, 'utf8')) as typeof config;
     assert.equal(config.provider, undefined);
     assert.equal(config.session, 'kept');

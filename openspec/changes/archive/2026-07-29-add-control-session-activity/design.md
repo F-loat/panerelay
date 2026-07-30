@@ -25,7 +25,7 @@ The Bridge currently has one `ActiveRelaySession`, a short connection credential
 
 The Bridge will periodically send ping frames and record connection, authenticated command, and pong timestamps per transport. The `ws` client responds automatically, so unmodified agent-browser remains compatible.
 
-An active session stays live while at least one transport is responsive. Tests receive configurable heartbeat intervals and deadlines through `BrowserRelayOptions`; production uses fixed internal defaults. Application-level heartbeat commands were rejected because they would require upstream changes or a PaneRelay-specific daemon.
+An active session stays live while at least one transport is responsive. Tests receive configurable heartbeat intervals and deadlines through `BrowserRelayOptions`; production uses fixed internal defaults. Application-level heartbeat commands were rejected because they would require upstream changes or a Panerelay-specific daemon.
 
 ### Keep allocation expiry and lease expiry separate
 
@@ -60,7 +60,7 @@ External automation appears in a compact control section inside the browser-acce
 - **Background throttling delays heartbeat timers** → Use a deadline substantially larger than the interval and treat any responsive transport as sufficient.
 - **A transport responds to pong while its Agent is logically stuck** → Heartbeat proves transport liveness only; the UI presents it as connectivity, not successful work.
 - **High command volume floods the panel** → Coalesce updates by activity ID and cap Bridge and Extension buffers.
-- **Error messages leak remote data** → Emit only stable PaneRelay policy text or coarse failure labels; never forward arbitrary CDP error data into activity.
+- **Error messages leak remote data** → Emit only stable Panerelay policy text or coarse failure labels; never forward arbitrary CDP error data into activity.
 - **Extension reconnect loses history** → Epoch/sequence gaps are visible, and terminal lease cleanup remains independent of rendering.
 - **Protocol changes require matching pre-alpha builds** → Build protocol, Bridge, and Extension together; do not claim backward compatibility before publication.
 

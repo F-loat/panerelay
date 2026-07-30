@@ -7,13 +7,13 @@
 
 ## Question
 
-Which advanced agent-browser commands work correctly through PaneRelay's authorized daily-Chrome
+Which advanced agent-browser commands work correctly through Panerelay's authorized daily-Chrome
 targets, and which gaps belong to the Provider, Extension, browser ownership, or local environment?
 
 ## Safety boundary
 
 The acceptance workflow mutates only the checked-in local fixture. Before the first mutating
-command, the runner verifies that the selected PaneRelay target has the same origin as
+command, the runner verifies that the selected Panerelay target has the same origin as
 `PANERELAY_FIXTURE_URL`. Evidence is written outside the repository.
 
 The workflow never runs `agent-browser cookies clear`: Chrome implements it as
@@ -30,7 +30,7 @@ storage, and the fixture cookie, then closes the Agent session.
 node docs/spikes/fixtures/rfc0001-actions/server.mjs
 ```
 
-Open `http://127.0.0.1:41731/` in Chrome and authorize that tab in PaneRelay. The default port can
+Open `http://127.0.0.1:41731/` in Chrome and authorize that tab in Panerelay. The default port can
 be changed with `PANERELAY_FIXTURE_PORT`.
 
 ## Run acceptance groups
@@ -62,7 +62,7 @@ agent-browser versions other than `0.33.0`.
 - **Extension**: target authorization, debugger attachment, CDP forwarding, or Native Messaging
   transport changes the command's correct target-scoped behavior.
 - **Browser ownership**: the command requires process, browser-context, launch, or profile control
-  that PaneRelay intentionally does not own.
+  that Panerelay intentionally does not own.
 - **Environment**: the command depends on unavailable local browser or operating-system support.
 
 Only commands with automated coverage and a representative authorized daily-Chrome run can move
@@ -71,21 +71,21 @@ to `Verified` in the compatibility matrix.
 ## Pre-change baseline
 
 Run on 2026-07-29 with agent-browser `0.33.0`, daily Chrome `150.0.7871.187`, the unpacked
-PaneRelay Extension, and the loopback fixture:
+Panerelay Extension, and the loopback fixture:
 
 | Capability group            | Result                                                                        | Classification before implementation                     |
 | --------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------- |
-| local/session storage       | Passed set, get, and cleanup                                                  | No PaneRelay gap                                         |
+| local/session storage       | Passed set, get, and cleanup                                                  | No Panerelay gap                                         |
 | cookies                     | Passed target-origin set, get, observation, and single-cookie expiry          | Global clear is a browser-ownership and privacy boundary |
-| headers and credentials     | Passed safe header echo, Basic credential challenge, and reset                | No PaneRelay gap                                         |
-| request list/detail and HAR | Passed fixture request detail and a one-entry readable HAR                    | No PaneRelay gap                                         |
-| offline and Fetch routes    | Passed offline observation, route response, unroute, and restored response    | No PaneRelay gap                                         |
-| PDF                         | Passed with a readable 127,791-byte, one-page PDF                             | No PaneRelay gap                                         |
-| upload                      | Passed Agent-local file selection and page-observed name/size                 | No PaneRelay gap                                         |
+| headers and credentials     | Passed safe header echo, Basic credential challenge, and reset                | No Panerelay gap                                         |
+| request list/detail and HAR | Passed fixture request detail and a one-entry readable HAR                    | No Panerelay gap                                         |
+| offline and Fetch routes    | Passed offline observation, route response, unroute, and restored response    | No Panerelay gap                                         |
+| PDF                         | Passed with a readable 127,791-byte, one-page PDF                             | No Panerelay gap                                         |
+| upload                      | Passed Agent-local file selection and page-observed name/size                 | No Panerelay gap                                         |
 | download to an Agent path   | Failed at `Browser.setDownloadBehavior` on a tab debuggee                     | Browser ownership                                        |
-| viewport and media          | Passed 480×720 viewport, dark scheme, and reduced motion                      | No PaneRelay gap; real Chrome window is unchanged        |
-| accessibility audit         | Passed structured axe output with a selector path into the same-origin iframe | No PaneRelay gap                                         |
-| trace and profiler          | Passed readable 541,713-byte trace and 139,237-byte profile                   | No PaneRelay gap                                         |
+| viewport and media          | Passed 480×720 viewport, dark scheme, and reduced motion                      | No Panerelay gap; real Chrome window is unchanged        |
+| accessibility audit         | Passed structured axe output with a selector path into the same-origin iframe | No Panerelay gap                                         |
+| trace and profiler          | Passed readable 541,713-byte trace and 139,237-byte profile                   | No Panerelay gap                                         |
 | `record start`              | Failed explicitly at `Target.createBrowserContext`                            | Browser ownership; isolated contexts remain unsupported  |
 
 External evidence:
@@ -95,7 +95,7 @@ External evidence:
 - `~/verify-evidence/panerelay/agent-browser-advanced/2026-07-29T115601-197Z`
 - `~/verify-evidence/panerelay/agent-browser-advanced/2026-07-29T115442-031Z`
 
-The baseline exposed one PaneRelay clarity gap: browser-process methods sent through a virtual page
+The baseline exposed one Panerelay clarity gap: browser-process methods sent through a virtual page
 session were reaching the tab debuggee and returning Chrome's generic “method not found” response.
 The implementation should reject those methods at the Bridge with an ownership-specific error. It
 also exposed a privacy gap in theoretical forwarding: whole-profile cookie methods must not reach
@@ -117,7 +117,7 @@ Post-change daily-Chrome evidence:
 - `~/verify-evidence/panerelay/agent-browser-advanced/2026-07-29T120334-912Z`
 
 The post-change artifact run produced a readable 4,338,652-byte PDF, exercising multi-frame Native
-Messaging reconstruction. Download now fails with the explicit PaneRelay
+Messaging reconstruction. Download now fails with the explicit Panerelay
 `Browser.setDownloadBehavior requires browser-process ownership` error.
 
 `record start` remains unsupported because agent-browser creates an isolated browser context. The
@@ -125,5 +125,5 @@ target-scoped `record restart` path reached Chrome screencast successfully, but 
 ffmpeg, so agent-browser could not package the frames as WebM. The failure left the session usable,
 stream status remained observable, stream cleanup passed, and a fresh Provider session worked.
 
-Timezone and locale remain `Forwarded`: PaneRelay's contract coverage confirms the target-scoped
+Timezone and locale remain `Forwarded`: Panerelay's contract coverage confirms the target-scoped
 Emulation commands, but agent-browser `0.33.0` does not expose them through its CLI or MCP tools.

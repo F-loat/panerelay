@@ -106,7 +106,7 @@ function harness(
     cwd: () => '/workspace',
     onDiagnostic: message => diagnostics.push(message),
     runtimeConfig: async () => ({
-      agentBrowserConfigPath: 'C:\\PaneRelay Data\\agent-browser.json',
+      agentBrowserConfigPath: 'C:\\Panerelay Data\\agent-browser.json',
       agentBrowserPath: 'C:\\npm wrappers\\agent-browser.cmd',
       qoderPath: 'C:\\Qoder\\qodercli.cmd',
       qoderVersion: '1.1.2',
@@ -237,7 +237,7 @@ test('normalizes streaming, reasoning, plan, tools, usage, completion, and unkno
       update: {
         sessionUpdate: 'tool_call',
         toolCallId: 'tool-1',
-        title: 'PaneRelay browser snapshot',
+        title: 'Panerelay browser snapshot',
         kind: 'fetch',
         status: 'in_progress',
       },
@@ -469,7 +469,7 @@ test('bounds prompt timeouts and leaves the provider reusable', async () => {
 test('builds Windows MCP and cleanup commands without widening Provider scope', async () => {
   const servers = qoderBrowserMcpServers(
     {
-      agentBrowserConfigPath: 'C:\\PaneRelay & Data\\agent-browser.json',
+      agentBrowserConfigPath: 'C:\\Panerelay & Data\\agent-browser.json',
       agentBrowserPath: 'C:\\npm wrappers\\agent-browser.cmd',
     },
     'qoder-session-1',
@@ -492,7 +492,7 @@ test('builds Windows MCP and cleanup commands without widening Provider scope', 
       env: [
         {
           name: 'AGENT_BROWSER_CONFIG',
-          value: 'C:\\PaneRelay & Data\\agent-browser.json',
+          value: 'C:\\Panerelay & Data\\agent-browser.json',
         },
         { name: 'AGENT_BROWSER_PROVIDER', value: 'panerelay' },
         { name: 'AGENT_BROWSER_SESSION', value: 'qoder-session-1' },
@@ -510,7 +510,7 @@ test('builds Windows MCP and cleanup commands without widening Provider scope', 
     | undefined;
   await closeQoderBrowserSession(
     {
-      configPath: 'C:\\PaneRelay & Data\\agent-browser.json',
+      configPath: 'C:\\Panerelay & Data\\agent-browser.json',
       executable: 'C:\\npm wrappers\\agent-browser.cmd',
       label: 'qoder-session-1',
     },
@@ -542,7 +542,7 @@ test('builds Windows MCP and cleanup commands without widening Provider scope', 
   ]);
   assert.equal(
     cleanup?.environment?.AGENT_BROWSER_CONFIG,
-    'C:\\PaneRelay & Data\\agent-browser.json',
+    'C:\\Panerelay & Data\\agent-browser.json',
   );
   assert.equal(cleanup?.environment?.AGENT_BROWSER_PROVIDER, 'panerelay');
   assert.equal(cleanup?.environment?.AGENT_BROWSER_SESSION, 'qoder-session-1');

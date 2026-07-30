@@ -1,12 +1,15 @@
 # setup-cli-localization Specification
 
 ## Purpose
+
 Define bilingual documentation and setup CLI behavior without making machine-readable diagnostics
 locale-dependent.
+
 ## Requirements
+
 ### Requirement: Primary documentation is available in English and Simplified Chinese
 
-PaneRelay SHALL provide equivalent root README entry points in English and Simplified Chinese.
+Panerelay SHALL provide equivalent root README entry points in English and Simplified Chinese.
 
 #### Scenario: Reader changes documentation language
 
@@ -39,8 +42,14 @@ invocation.
 
 ### Requirement: Human-readable setup operations are localized
 
-PaneRelay SHALL localize CLI-owned help, argument errors, setup results, uninstall interaction, and
+Panerelay SHALL localize CLI-owned help, argument errors, setup results, uninstall interaction, and
 doctor presentation in the selected language.
+
+#### Scenario: Setup action is omitted
+
+- **GIVEN** the user invokes the setup package with setup options but no action
+- **WHEN** the CLI parses the invocation
+- **THEN** it runs setup with those options and identifies setup as the default action in help
 
 #### Scenario: Chinese help is requested
 
@@ -55,9 +64,33 @@ doctor presentation in the selected language.
 - **THEN** known check labels, statuses, details, and remediation hints are localized while paths
   and executable names remain intact
 
+#### Scenario: Doctor presents an actionable human report
+
+- **GIVEN** doctor has passing, warning, and failing checks
+- **WHEN** it prints a human-readable report
+- **THEN** checks are grouped by environment, local integration, browser connection, and default
+  Provider with visual status markers, remediation beside affected checks, and a final summary
+
+### Requirement: Default Provider flags use symmetric scope names
+
+Panerelay SHALL expose `--project-provider` and `--global-provider` for project-level and
+user-level default Provider configuration, and SHALL NOT accept `--project` as an alias.
+
+#### Scenario: Project default Provider is requested
+
+- **GIVEN** the user invokes setup or doctor with `--project-provider`
+- **WHEN** the CLI parses the invocation
+- **THEN** it applies project-level Provider and Agent Skill behavior
+
+#### Scenario: Removed project alias is supplied
+
+- **GIVEN** the user invokes the CLI with `--project`
+- **WHEN** arguments are validated
+- **THEN** the CLI rejects the unknown option before changing installation state
+
 ### Requirement: Machine-readable diagnostics are locale-independent
 
-PaneRelay SHALL keep `doctor --json` independent of the selected human language.
+Panerelay SHALL keep `doctor --json` independent of the selected human language.
 
 #### Scenario: Agent requests JSON diagnostics
 

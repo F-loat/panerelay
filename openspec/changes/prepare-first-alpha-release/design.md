@@ -23,7 +23,7 @@ version-specific capability record.
 
 - Do not provide a general monorepo release manager or automatic semantic-version selection.
 - Do not promise byte-for-byte reproducible archives across operating systems.
-- Do not introduce a compatibility shim between different PaneRelay protocol builds.
+- Do not introduce a compatibility shim between different Panerelay protocol builds.
 - Do not test or support browser-process capabilities excluded by RFC-0002.
 
 ## Decisions
@@ -63,7 +63,7 @@ inspected candidate's integrity; they are not a cross-platform reproducibility p
 
 ### Smoke-test tarballs as an isolated consumer
 
-The release check installs all packed PaneRelay packages into a temporary consumer project so
+The release check installs all packed Panerelay packages into a temporary consumer project so
 package-manager resolution cannot fall back to workspace links. It runs the setup CLI help and a
 setup/doctor/update/uninstall lifecycle against a disposable home with generated non-secret stub
 executables.

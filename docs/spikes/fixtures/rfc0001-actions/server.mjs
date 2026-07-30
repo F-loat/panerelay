@@ -112,7 +112,7 @@ const server = createServer(async (request, response) => {
 });
 
 server.listen(port, '127.0.0.1', () => {
-  console.log(`PaneRelay fixture listening on http://127.0.0.1:${port}`);
+  console.log(`Panerelay fixture listening on http://127.0.0.1:${port}`);
 });
 
 for (const signal of ['SIGINT', 'SIGTERM']) {

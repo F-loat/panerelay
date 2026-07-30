@@ -580,12 +580,12 @@ export async function smokePackedSetup(tarballs) {
       cwd: consumerDirectory,
       env: environment,
     });
-    const setupArgs = ['setup', '--project', '--global-provider', '--extension-id', extensionId];
+    const setupArgs = ['--project-provider', '--global-provider', '--extension-id', extensionId];
     await run(process.execPath, cliArguments(setupArgs), {
       cwd: consumerDirectory,
       env: environment,
     });
-    const doctorArgs = ['doctor', '--project', '--global-provider', '--json'];
+    const doctorArgs = ['doctor', '--project-provider', '--global-provider', '--json'];
     const firstDoctor = await packedDoctor(process.execPath, cliArguments(doctorArgs), {
       cwd: consumerDirectory,
       env: environment,
@@ -598,10 +598,14 @@ export async function smokePackedSetup(tarballs) {
       ),
       'Packed setup doctor did not preserve the custom Extension ID',
     );
-    await run(process.execPath, cliArguments(['update', '--project', '--global-provider']), {
-      cwd: consumerDirectory,
-      env: environment,
-    });
+    await run(
+      process.execPath,
+      cliArguments(['update', '--project-provider', '--global-provider']),
+      {
+        cwd: consumerDirectory,
+        env: environment,
+      },
+    );
     const updatedDoctor = await packedDoctor(process.execPath, cliArguments(doctorArgs), {
       cwd: consumerDirectory,
       env: environment,
@@ -614,7 +618,7 @@ export async function smokePackedSetup(tarballs) {
       ),
       'Packed setup update replaced the persisted custom Extension ID',
     );
-    await run(process.execPath, cliArguments(['uninstall', '--project', '--yes']), {
+    await run(process.execPath, cliArguments(['uninstall', '--project-provider', '--yes']), {
       cwd: consumerDirectory,
       env: environment,
     });

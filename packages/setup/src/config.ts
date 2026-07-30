@@ -12,7 +12,7 @@ export interface ConfigPathOptions {
   projectDirectory?: string;
 }
 
-export interface PaneRelayPluginConfig {
+export interface PanerelayPluginConfig {
   name: 'panerelay';
   command: string;
   args: ['--agent-browser-plugin'];
@@ -54,7 +54,7 @@ export function projectAgentBrowserConfigPath(projectDirectory = process.cwd()):
   return join(projectDirectory, 'agent-browser.json');
 }
 
-export function paneRelayPlugin(hostPath: string): PaneRelayPluginConfig {
+export function panerelayPlugin(hostPath: string): PanerelayPluginConfig {
   return {
     name: 'panerelay',
     command: hostPath,
@@ -63,7 +63,7 @@ export function paneRelayPlugin(hostPath: string): PaneRelayPluginConfig {
   };
 }
 
-export async function registerPaneRelayProvider(
+export async function registerPanerelayProvider(
   hostPath: string,
   options: ConfigPathOptions = {},
 ): Promise<string> {
@@ -78,7 +78,7 @@ export async function registerPaneRelayProvider(
         Array.isArray(plugin) ||
         (plugin as JsonObject).name !== 'panerelay',
     ),
-    paneRelayPlugin(hostPath),
+    panerelayPlugin(hostPath),
   ];
   await writeJsonObject(path, config);
   return path;
@@ -92,7 +92,7 @@ export async function configureGlobalProvider(options: ConfigPathOptions = {}): 
   return path;
 }
 
-export async function unregisterPaneRelayProvider(
+export async function unregisterPanerelayProvider(
   options: ConfigPathOptions = {},
 ): Promise<string> {
   const path = userAgentBrowserConfigPath(options.homeDirectory);

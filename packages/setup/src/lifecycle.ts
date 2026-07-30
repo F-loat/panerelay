@@ -6,13 +6,13 @@ import {
 import {
   configureGlobalProvider,
   configureProjectProvider,
-  registerPaneRelayProvider,
+  registerPanerelayProvider,
   removeProjectProvider,
-  unregisterPaneRelayProvider,
+  unregisterPanerelayProvider,
 } from './config.js';
-import { installPaneRelaySkill, uninstallPaneRelaySkill } from './skill.js';
+import { installPanerelaySkill, uninstallPanerelaySkill } from './skill.js';
 
-export interface PaneRelaySetupOptions {
+export interface PanerelaySetupOptions {
   environment?: NodeJS.ProcessEnv;
   extensionId?: string;
   globalProvider?: boolean;
@@ -22,7 +22,7 @@ export interface PaneRelaySetupOptions {
   projectDirectory?: string;
 }
 
-export interface PaneRelaySetupResult {
+export interface PanerelaySetupResult {
   agentBrowserConfigPath: string;
   globalProvider: boolean;
   globalSkillPath: string;
@@ -31,7 +31,7 @@ export interface PaneRelaySetupResult {
   projectSkillPath?: string;
 }
 
-export interface PaneRelayUninstallResult {
+export interface PanerelayUninstallResult {
   agentBrowserConfigPath: string;
   globalSkillPath: string;
   projectConfigPath?: string;
@@ -42,22 +42,22 @@ export interface LifecycleDependencies {
   configureGlobal?: typeof configureGlobalProvider;
   configureProject?: typeof configureProjectProvider;
   installHost?: typeof installNativeHost;
-  installSkill?: typeof installPaneRelaySkill;
-  registerProvider?: typeof registerPaneRelayProvider;
+  installSkill?: typeof installPanerelaySkill;
+  registerProvider?: typeof registerPanerelayProvider;
   removeProject?: typeof removeProjectProvider;
   uninstallHost?: typeof uninstallNativeHost;
-  uninstallSkill?: typeof uninstallPaneRelaySkill;
-  unregisterProvider?: typeof unregisterPaneRelayProvider;
+  uninstallSkill?: typeof uninstallPanerelaySkill;
+  unregisterProvider?: typeof unregisterPanerelayProvider;
 }
 
-export async function setupPaneRelay(
-  options: PaneRelaySetupOptions = {},
+export async function setupPanerelay(
+  options: PanerelaySetupOptions = {},
   dependencies: LifecycleDependencies = {},
-): Promise<PaneRelaySetupResult> {
+): Promise<PanerelaySetupResult> {
   const installHost = dependencies.installHost ?? installNativeHost;
-  const registerProvider = dependencies.registerProvider ?? registerPaneRelayProvider;
+  const registerProvider = dependencies.registerProvider ?? registerPanerelayProvider;
   const configureGlobal = dependencies.configureGlobal ?? configureGlobalProvider;
-  const installSkill = dependencies.installSkill ?? installPaneRelaySkill;
+  const installSkill = dependencies.installSkill ?? installPanerelaySkill;
   const configureProject = dependencies.configureProject ?? configureProjectProvider;
   const host = await installHost({
     environment: options.environment,
@@ -99,13 +99,13 @@ export async function setupPaneRelay(
   };
 }
 
-export async function uninstallPaneRelay(
-  options: PaneRelaySetupOptions = {},
+export async function uninstallPanerelay(
+  options: PanerelaySetupOptions = {},
   dependencies: LifecycleDependencies = {},
-): Promise<PaneRelayUninstallResult> {
+): Promise<PanerelayUninstallResult> {
   const uninstallHost = dependencies.uninstallHost ?? uninstallNativeHost;
-  const unregisterProvider = dependencies.unregisterProvider ?? unregisterPaneRelayProvider;
-  const uninstallSkill = dependencies.uninstallSkill ?? uninstallPaneRelaySkill;
+  const unregisterProvider = dependencies.unregisterProvider ?? unregisterPanerelayProvider;
+  const uninstallSkill = dependencies.uninstallSkill ?? uninstallPanerelaySkill;
   const removeProject = dependencies.removeProject ?? removeProjectProvider;
   await uninstallHost({
     homeDirectory: options.homeDirectory,

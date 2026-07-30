@@ -69,7 +69,7 @@ try {
       clientCapabilities: {},
       clientInfo: {
         name: 'panerelay-qoder-spike',
-        title: 'PaneRelay Qoder ACP spike',
+        title: 'Panerelay Qoder ACP spike',
         version: '0.0.0-spike',
       },
     }),

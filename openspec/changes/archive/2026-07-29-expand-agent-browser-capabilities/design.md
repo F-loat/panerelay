@@ -34,7 +34,7 @@ This avoids adding special cases for CDP commands the existing generic target-sc
 
 Page, Network, Runtime, DOM, Accessibility, Emulation, Fetch, Tracing, Profiler, and target-scoped Browser commands continue through the selected page or flattened child session. The Bridge adds special handling only for browser-root operations that agent-browser sends without a target session.
 
-A browser-root operation is synthesized or routed only when PaneRelay can preserve its semantics in the daily browser. Otherwise it receives an explicit unsupported CDP error. This follows RFC-0002 instead of weakening it for higher command counts.
+A browser-root operation is synthesized or routed only when Panerelay can preserve its semantics in the daily browser. Otherwise it receives an explicit unsupported CDP error. This follows RFC-0002 instead of weakening it for higher command counts.
 
 ### Verify in bounded capability batches
 
@@ -51,7 +51,7 @@ Each batch includes fixture changes, command-level evidence, cleanup, and compat
 
 The Extension only transports CDP commands, events, and payloads. agent-browser remains responsible for resolving upload paths and writing PDF, HAR, trace, profile, download, screenshot, and recording files.
 
-PaneRelay's large-message transfer remains the transport mechanism for base64 or event batches. The Extension never receives general filesystem access. If a browser-wide download configuration cannot be applied through the selected target, download remains `Partial` or `Unsupported`.
+Panerelay's large-message transfer remains the transport mechanism for base64 or event batches. The Extension never receives general filesystem access. If a browser-wide download configuration cannot be applied through the selected target, download remains `Partial` or `Unsupported`.
 
 ### Use privacy-preserving fixtures and evidence
 
@@ -64,7 +64,7 @@ Verification uses only local HTTP fixtures and generated non-secret files. Cooki
 - `Verified`: package tests and a representative existing-Chrome scenario pass.
 - `Forwarded`: the CDP surface is routed but the command workflow lacks daily-Chrome evidence.
 - `Partial`: useful behavior works with a documented semantic limitation.
-- `Unsupported`: PaneRelay cannot provide the required browser ownership or security guarantee.
+- `Unsupported`: Panerelay cannot provide the required browser ownership or security guarantee.
 
 No classification is promoted solely because a CDP method returned success once.
 
@@ -74,7 +74,7 @@ No classification is promoted solely because a CDP method returned success once.
 - **HAR, trace, profiler, and recording streams can produce large or sustained payloads** → Use bounded local scenarios, verify integrity, and stop collectors in cleanup paths.
 - **Network or emulation state can outlive a failed command** → Add reversible commands and close the relay session after each batch; verify a fresh session is unaffected.
 - **Cookie or request diagnostics could expose daily-browser secrets** → Run only on the local fixture and never print unrelated cookie values, authorization headers, or request bodies.
-- **A command can succeed while relying on process-wide behavior PaneRelay does not own** → Inspect the agent-browser implementation and observable result before marking it `Verified`.
+- **A command can succeed while relying on process-wide behavior Panerelay does not own** → Inspect the agent-browser implementation and observable result before marking it `Verified`.
 
 ## Migration Plan
 

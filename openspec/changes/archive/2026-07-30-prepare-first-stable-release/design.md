@@ -14,7 +14,7 @@ does not create a new authorization or ownership model.
 The Mearl repository provides three reusable implementation shapes: Windows Native Messaging
 through a quoted `.cmd` launcher plus an HKCU Chrome registry value, Qoder CLI integration through
 `qodercli --acp` with capability negotiation, and an Agent selector that keeps supported providers
-visible while rendering structured setup guidance for an unavailable selection. PaneRelay will
+visible while rendering structured setup guidance for an unavailable selection. Panerelay will
 adapt those shapes to its smaller local-first protocol rather than copy Mearl's product-specific
 services or source code.
 
@@ -30,7 +30,7 @@ services or source code.
 
 **Non-Goals:**
 
-- Generalize PaneRelay into a universal ACP gateway or expose provider-native events.
+- Generalize Panerelay into a universal ACP gateway or expose provider-native events.
 - Make Qoder installation mandatory or make any Agent provider grant browser authorization.
 - Emulate browser-process features excluded by RFC-0002.
 - Add automatic release publication or persistent activity/history storage.
@@ -48,7 +48,7 @@ The release descriptor replaces the alpha-specific single `agentBrowserVersion` 
 `agentBrowserVerifiedVersions: ["0.33.0"]`. Release validation checks both the minimum policy and
 the existence of each referenced compatibility record.
 
-Lockstep PaneRelay component versions remain the safest first stable distribution because the
+Lockstep Panerelay component versions remain the safest first stable distribution because the
 Native Messaging protocol does not negotiate backward compatibility. Independent package versions
 remain a future compatibility-RFC topic.
 
@@ -97,14 +97,14 @@ because users need to connect custom, rebranded, or independently packaged Exten
 ### Register the Windows Host per user and launch it through a managed wrapper
 
 Windows keeps installed Host code, launcher, manifest, runtime config, and Provider config under
-PaneRelay's user-owned data directory. Setup writes a `panerelay-native-host.cmd` launcher that
+Panerelay's user-owned data directory. Setup writes a `panerelay-native-host.cmd` launcher that
 invokes the exact current Node executable and installed bundled Host with quoted paths. Both the
 Chrome manifest and agent-browser plugin config point to the launcher.
 
 Setup registers
 `HKCU\SOFTWARE\Google\Chrome\NativeMessagingHosts\<host-name>` with a default `REG_SZ` value
 containing the manifest path. `reg.exe` is invoked with an argument array, never a constructed
-shell command. Uninstall deletes only that exact key and PaneRelay-managed files, and treats absent
+shell command. Uninstall deletes only that exact key and Panerelay-managed files, and treats absent
 artifacts as success.
 
 The manifest need not live in a system-wide Chrome directory because Windows Chrome discovers it
@@ -128,7 +128,7 @@ Codex event normalization remains unchanged behind the new interface. This refac
 to adding Qoder branches throughout `AgentService`, which would recreate provider-specific
 coupling at the routing boundary.
 
-The Extension owns an ordered catalog of provider IDs supported by the current PaneRelay build,
+The Extension owns an ordered catalog of provider IDs supported by the current Panerelay build,
 initially Codex then Qoder. Runtime descriptors overlay availability, capabilities, version, and
 diagnostic data onto that catalog, so a disconnected or incomplete discovery response never
 replaces the selector with a misleading "no provider available" option.
@@ -150,7 +150,7 @@ conversation routing only; browser authorization UI and control leases remain in
 `QoderProvider` discovers `PANERELAY_QODER_PATH`, platform PATH candidates, normal npm command
 locations, `~/.qoder/bin/qodercli`, and official versioned Qoder CLI installations. Candidates must
 pass a bounded version probe. Starting the provider launches `qodercli --acp`, connects the
-`@agentclientprotocol/sdk` NDJSON client over stdio, and initializes with PaneRelay client
+`@agentclientprotocol/sdk` NDJSON client over stdio, and initializes with Panerelay client
 metadata.
 
 One lazily started ACP process can own multiple provider sessions. The adapter records advertised
@@ -158,14 +158,14 @@ session, prompt, image, and permission capabilities and rejects operations that 
 runtime does not advertise. Process exit fails active turns, cancels pending permissions, clears
 session mappings, and permits a fresh later probe.
 
-ACP session creation and resume receive a PaneRelay-scoped agent-browser MCP definition rather
+ACP session creation and resume receive a Panerelay-scoped agent-browser MCP definition rather
 than an unrestricted browser connection. The MCP command selects the `panerelay` Provider and a
 unique session label, so it must acquire the normal Bridge relay credential and browser-side
 control lease.
 
-PaneRelay records that unique agent-browser label as part of the Qoder session it created. Qoder
+Panerelay records that unique agent-browser label as part of the Qoder session it created. Qoder
 owns the MCP child process, but ACP process or session shutdown does not prove that agent-browser's
-per-label daemon has closed its PaneRelay Provider connection. The adapter therefore runs a
+per-label daemon has closed its Panerelay Provider connection. The adapter therefore runs a
 bounded, idempotent `agent-browser close` for the recorded label whenever a prompt completes,
 fails, or is interrupted, and sweeps every recorded label again when the Qoder runtime exits or
 the provider closes. A terminal turn event is not emitted until its cleanup attempt has finished;
@@ -176,7 +176,7 @@ next browser tool call.
 ACP updates are accumulated only as needed to emit bounded `ConversationEvent` values. Text,
 thought, plan, tool, usage, completion, and failure map into existing normalized shapes. A small
 extension to normalized approval data represents Qoder tool permission choices; it carries stable
-PaneRelay decisions and adapter-private ACP option IDs remain in the Bridge pending-request map.
+Panerelay decisions and adapter-private ACP option IDs remain in the Bridge pending-request map.
 Unknown updates are ignored with a sanitized diagnostic or fail the affected operation; raw ACP
 objects never cross Native Messaging.
 

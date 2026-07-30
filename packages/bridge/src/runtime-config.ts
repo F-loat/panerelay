@@ -3,7 +3,7 @@ import { agentBrowserConfigPath, runtimeConfigPath } from '@panerelay/protocol/n
 import { isExecutableFile } from './platform.js';
 import { probeAgentBrowserCompatibility } from './compatibility.js';
 
-export interface PaneRelayRuntimeConfig {
+export interface PanerelayRuntimeConfig {
   extensionId?: string;
   codexPath?: string;
   agentBrowserPath?: string;
@@ -18,12 +18,12 @@ async function executable(path: string | undefined): Promise<boolean> {
   return isExecutableFile(path);
 }
 
-export async function readRuntimeConfig(): Promise<PaneRelayRuntimeConfig> {
-  let stored: Partial<PaneRelayRuntimeConfig> = {};
+export async function readRuntimeConfig(): Promise<PanerelayRuntimeConfig> {
+  let stored: Partial<PanerelayRuntimeConfig> = {};
   try {
     stored = JSON.parse(
       await readFile(runtimeConfigPath(), 'utf8'),
-    ) as Partial<PaneRelayRuntimeConfig>;
+    ) as Partial<PanerelayRuntimeConfig>;
   } catch {
     // Missing runtime discovery is reported as provider setup guidance.
   }

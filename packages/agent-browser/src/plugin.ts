@@ -50,7 +50,7 @@ async function readLiveBridgeState(): Promise<BridgeState> {
     state = JSON.parse(await readFile(bridgeStatePath(), 'utf8')) as BridgeState;
   } catch {
     throw new Error(
-      'PaneRelay Bridge is unavailable. Build and load the extension, then authorize a tab.',
+      'Panerelay Bridge is unavailable. Build and load the extension, then authorize a tab.',
     );
   }
 
@@ -60,13 +60,13 @@ async function readLiveBridgeState(): Promise<BridgeState> {
     typeof state.port !== 'number' ||
     typeof state.token !== 'string'
   ) {
-    throw new Error('PaneRelay Bridge state is invalid or incompatible');
+    throw new Error('Panerelay Bridge state is invalid or incompatible');
   }
 
   try {
     process.kill(state.pid, 0);
   } catch {
-    throw new Error('PaneRelay Bridge state is stale; reopen the extension and retry');
+    throw new Error('Panerelay Bridge state is stale; reopen the extension and retry');
   }
 
   return state;
@@ -107,7 +107,7 @@ async function createRelaySession(
     typeof body.cdpUrl !== 'string' ||
     typeof body.connectExpiresAt !== 'string'
   ) {
-    throw new Error(body.error || `PaneRelay Bridge rejected the session (${response.status})`);
+    throw new Error(body.error || `Panerelay Bridge rejected the session (${response.status})`);
   }
   return body as RelaySessionCreated;
 }
@@ -146,7 +146,7 @@ async function releaseRelaySession(value: unknown): Promise<void> {
     },
   );
   if (response.status !== 204 && response.status !== 404) {
-    throw new Error(`PaneRelay Bridge could not release the session (${response.status})`);
+    throw new Error(`Panerelay Bridge could not release the session (${response.status})`);
   }
 }
 
@@ -161,7 +161,7 @@ export async function handlePluginRequest(input: PluginRequest): Promise<PluginR
         name: 'panerelay',
         capabilities: ['browser.provider'],
         description:
-          "Connect agent-browser to a user's authorized Chrome targets through PaneRelay.",
+          "Connect agent-browser to a user's authorized Chrome targets through Panerelay.",
       },
     });
   }

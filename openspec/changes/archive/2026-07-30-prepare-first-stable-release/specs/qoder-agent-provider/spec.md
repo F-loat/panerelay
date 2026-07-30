@@ -1,13 +1,13 @@
 ## Purpose
 
-Define how PaneRelay exposes Qoder CLI as an optional ACP-backed Agent while preserving its
+Define how Panerelay exposes Qoder CLI as an optional ACP-backed Agent while preserving its
 provider-neutral conversation, browser-authorization, approval, and cleanup boundaries.
 
 ## ADDED Requirements
 
 ### Requirement: Qoder availability is discovered without blocking other providers
 
-PaneRelay SHALL discover configured, PATH-based, and documented user-local Qoder CLI candidates,
+Panerelay SHALL discover configured, PATH-based, and documented user-local Qoder CLI candidates,
 probe ACP availability, and expose one provider descriptor with actionable setup guidance.
 
 #### Scenario: Compatible Qoder CLI is installed
@@ -25,7 +25,7 @@ probe ACP availability, and expose one provider descriptor with actionable setup
 
 ### Requirement: Qoder conversations use capability-negotiated ACP sessions
 
-PaneRelay SHALL start, list, resume, prompt, interrupt, and close Qoder conversations only when the
+Panerelay SHALL start, list, resume, prompt, interrupt, and close Qoder conversations only when the
 installed runtime advertises the corresponding ACP capability, and SHALL fail unsupported
 operations explicitly.
 
@@ -33,37 +33,37 @@ operations explicitly.
 
 - **GIVEN** Qoder initialized ACP and the user selected a valid working directory
 - **WHEN** the user starts a conversation and sends text
-- **THEN** PaneRelay creates an ACP session, sends the prompt, and correlates the turn with the
-  PaneRelay conversation
+- **THEN** Panerelay creates an ACP session, sends the prompt, and correlates the turn with the
+  Panerelay conversation
 
 #### Scenario: Runtime cannot list or resume sessions
 
 - **GIVEN** the installed Qoder runtime does not advertise the requested session capability
 - **WHEN** the user lists or resumes conversations
-- **THEN** PaneRelay reports that operation as unavailable without fabricating sessions or history
+- **THEN** Panerelay reports that operation as unavailable without fabricating sessions or history
 
 ### Requirement: Qoder events are provider neutral at the Extension boundary
 
-PaneRelay SHALL normalize Qoder text, reasoning, plan, tool, usage, completion, cancellation, and
+Panerelay SHALL normalize Qoder text, reasoning, plan, tool, usage, completion, cancellation, and
 error updates into the shared conversation event model before sending them to the Extension.
 
 #### Scenario: Qoder streams a turn
 
 - **GIVEN** an active Qoder ACP prompt emits thought, message, plan, and tool updates
-- **WHEN** PaneRelay forwards the turn to the side panel
+- **WHEN** Panerelay forwards the turn to the side panel
 - **THEN** the panel receives bounded normalized events associated with the correct conversation
   and turn
 
 #### Scenario: Qoder emits an unknown provider-native update
 
-- **GIVEN** a Qoder version emits an ACP update PaneRelay does not support
+- **GIVEN** a Qoder version emits an ACP update Panerelay does not support
 - **WHEN** the Bridge receives it
-- **THEN** PaneRelay does not expose the raw provider object or claim successful normalized
+- **THEN** Panerelay does not expose the raw provider object or claim successful normalized
   behavior
 
 ### Requirement: Qoder permission requests remain user controlled
 
-PaneRelay SHALL translate supported ACP permission options into explicit side-panel approval
+Panerelay SHALL translate supported ACP permission options into explicit side-panel approval
 choices, correlate one response to the pending request, and cancel unanswered requests when the
 turn, session, provider process, or Bridge ends.
 
@@ -71,12 +71,12 @@ turn, session, provider process, or Bridge ends.
 
 - **GIVEN** Qoder requests permission with a supported one-time approval option
 - **WHEN** the user selects that option in the side panel
-- **THEN** PaneRelay returns only the correlated ACP option identifier and marks the approval
+- **THEN** Panerelay returns only the correlated ACP option identifier and marks the approval
   resolved
 
 #### Scenario: Permission request cannot be represented safely
 
-- **GIVEN** Qoder requests a permission shape PaneRelay cannot normalize
+- **GIVEN** Qoder requests a permission shape Panerelay cannot normalize
 - **WHEN** the Bridge evaluates the request
 - **THEN** it cancels or rejects the request instead of selecting a broader permission
 
@@ -84,12 +84,12 @@ turn, session, provider process, or Bridge ends.
 
 - **GIVEN** a Qoder permission request is waiting for a response
 - **WHEN** the user interrupts or closes the conversation
-- **THEN** PaneRelay cancels the pending request and the Qoder turn cannot continue under stale
+- **THEN** Panerelay cancels the pending request and the Qoder turn cannot continue under stale
   approval
 
 ### Requirement: Qoder browser access uses the existing scoped relay
 
-PaneRelay SHALL provide Qoder browser tools through the PaneRelay agent-browser Provider and the
+Panerelay SHALL provide Qoder browser tools through the Panerelay agent-browser Provider and the
 same browser-side authorization and exclusive control lease required by other Agents.
 
 #### Scenario: Qoder starts without browser authorization
@@ -102,36 +102,36 @@ same browser-side authorization and exclusive control lease required by other Ag
 
 - **GIVEN** a Qoder conversation owns a controlled authorized target
 - **WHEN** the user releases authorization or the relay session ends
-- **THEN** PaneRelay revokes the lease, detaches the target, and rejects further commands using the
+- **THEN** Panerelay revokes the lease, detaches the target, and rejects further commands using the
   stale session
 
 ### Requirement: Qoder-owned browser sessions clean up at terminal boundaries
 
-PaneRelay SHALL retain the unique agent-browser session label assigned to each Qoder conversation
+Panerelay SHALL retain the unique agent-browser session label assigned to each Qoder conversation
 and SHALL make a bounded, idempotent close attempt after every completed, failed, or interrupted
 turn, on Qoder runtime exit, and when the provider closes. A turn SHALL NOT report its terminal
 event before its close attempt finishes.
 
 #### Scenario: Qoder completes browser work normally
 
-- **GIVEN** a Qoder turn acquired the PaneRelay browser control lease through its scoped
+- **GIVEN** a Qoder turn acquired the Panerelay browser control lease through its scoped
   agent-browser MCP session
 - **WHEN** the ACP prompt completes or fails
-- **THEN** PaneRelay closes that agent-browser session before reporting the terminal turn event so
+- **THEN** Panerelay closes that agent-browser session before reporting the terminal turn event so
   another authorized Agent can acquire browser control
 
 #### Scenario: Qoder is interrupted or shuts down
 
 - **GIVEN** one or more Qoder conversations have assigned agent-browser session labels
 - **WHEN** a turn is interrupted, the Qoder runtime exits, or the provider closes
-- **THEN** PaneRelay attempts cleanup for every affected label without widening browser
+- **THEN** Panerelay attempts cleanup for every affected label without widening browser
   authorization or closing an unrelated agent-browser session
 
 ### Requirement: Provider selection keeps supported Agents visible and isolated
 
-PaneRelay SHALL keep every Agent provider supported by the current build visible regardless of
+Panerelay SHALL keep every Agent provider supported by the current build visible regardless of
 installation state, SHALL prefer a ready provider for a new default selection, and SHALL select
-Codex when none is ready. PaneRelay SHALL keep conversations associated with their originating
+Codex when none is ready. Panerelay SHALL keep conversations associated with their originating
 provider and route every operation only to a ready matching provider.
 
 #### Scenario: Codex and Qoder are both ready
@@ -170,4 +170,4 @@ provider and route every operation only to a ready matching provider.
 
 - **GIVEN** a conversation belongs to Qoder
 - **WHEN** a request presents that conversation ID to another provider
-- **THEN** PaneRelay fails the request without leaking or mutating the Qoder session
+- **THEN** Panerelay fails the request without leaking or mutating the Qoder session

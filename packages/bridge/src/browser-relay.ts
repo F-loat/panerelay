@@ -139,7 +139,7 @@ export class BrowserRelay {
         this.sendJson(response, status, {
           protocol: PANERELAY_PROTOCOL_VERSION,
           error:
-            error instanceof RelayHttpError ? error.message : 'PaneRelay Bridge request failed',
+            error instanceof RelayHttpError ? error.message : 'Panerelay Bridge request failed',
         });
       });
     });
@@ -160,7 +160,7 @@ export class BrowserRelay {
     });
     const address = httpServer.address();
     if (!address || typeof address === 'string') {
-      throw new Error('PaneRelay Bridge did not receive a TCP address');
+      throw new Error('Panerelay Bridge did not receive a TCP address');
     }
     return new BrowserRelay(server, httpServer, options, address.port);
   }
@@ -173,7 +173,7 @@ export class BrowserRelay {
           message.extensionId !== this.options.expectedExtensionId
         ) {
           throw new Error(
-            `Extension ID ${message.extensionId} does not match the configured PaneRelay Extension ID`,
+            `Extension ID ${message.extensionId} does not match the configured Panerelay Extension ID`,
           );
         }
         this.browser = {
@@ -222,15 +222,15 @@ export class BrowserRelay {
 
   private handleConnection(client: WebSocket, request: IncomingMessage): void {
     if (!this.isAuthorizedCdpRequest(request)) {
-      client.close(1008, 'Invalid PaneRelay session token');
+      client.close(1008, 'Invalid Panerelay session token');
       return;
     }
     if (!this.browser) {
-      client.close(1013, 'PaneRelay extension is not registered');
+      client.close(1013, 'Panerelay extension is not registered');
       return;
     }
     if (this.clients.size >= MAX_LEASE_CONNECTIONS) {
-      client.close(1013, 'The PaneRelay lease has too many transport connections');
+      client.close(1013, 'The Panerelay lease has too many transport connections');
       return;
     }
 
@@ -286,7 +286,7 @@ export class BrowserRelay {
     if (!this.isAuthorizedBootstrapRequest(request)) {
       this.sendJson(response, 401, {
         protocol: PANERELAY_PROTOCOL_VERSION,
-        error: 'Invalid PaneRelay Bridge token',
+        error: 'Invalid Panerelay Bridge token',
       });
       return;
     }
@@ -309,7 +309,7 @@ export class BrowserRelay {
 
     this.sendJson(response, 404, {
       protocol: PANERELAY_PROTOCOL_VERSION,
-      error: 'Unknown PaneRelay Bridge endpoint',
+      error: 'Unknown Panerelay Bridge endpoint',
     });
   }
 
@@ -324,7 +324,7 @@ export class BrowserRelay {
     if (!this.browser) {
       this.sendJson(response, 503, {
         protocol: PANERELAY_PROTOCOL_VERSION,
-        error: 'PaneRelay extension is not registered',
+        error: 'Panerelay extension is not registered',
       });
       return;
     }
@@ -532,7 +532,7 @@ export class BrowserRelay {
         client,
         id,
         -32000,
-        `${method} requires browser-process ownership and is not supported by PaneRelay`,
+        `${method} requires browser-process ownership and is not supported by Panerelay`,
         undefined,
         'policy-denied',
       );
@@ -558,7 +558,7 @@ export class BrowserRelay {
       client,
       id,
       -32000,
-      `${method} requires an attached PaneRelay target session`,
+      `${method} requires an attached Panerelay target session`,
       undefined,
       'policy-denied',
     );
@@ -589,7 +589,7 @@ export class BrowserRelay {
         const targetId = this.requiredTargetId(params);
         const flatten = params.flatten;
         if (flatten !== true) {
-          this.sendCdpError(client, id, -32602, 'PaneRelay requires flattened CDP sessions');
+          this.sendCdpError(client, id, -32602, 'Panerelay requires flattened CDP sessions');
           return;
         }
         await this.ensureKnownTarget(targetId);
@@ -602,7 +602,7 @@ export class BrowserRelay {
       case 'Target.detachFromTarget': {
         const sessionId = typeof params.sessionId === 'string' ? params.sessionId : undefined;
         if (!sessionId || !this.removePageSession(sessionId)) {
-          this.sendCdpError(client, id, -32602, 'Unknown PaneRelay target session');
+          this.sendCdpError(client, id, -32602, 'Unknown Panerelay target session');
           return;
         }
         this.sendResult(client, id, {});
@@ -649,14 +649,14 @@ export class BrowserRelay {
             client,
             id,
             -32000,
-            'PaneRelay cannot pause new top-level tabs before their first request',
+            'Panerelay cannot pause new top-level tabs before their first request',
           );
           return;
         }
         this.sendResult(client, id, {});
         return;
       default:
-        this.sendCdpError(client, id, -32601, `${method} is not supported by PaneRelay`);
+        this.sendCdpError(client, id, -32601, `${method} is not supported by Panerelay`);
     }
   }
 
@@ -672,14 +672,14 @@ export class BrowserRelay {
     if (existing) return existing;
     await this.refreshTargets();
     const refreshed = this.targets.get(targetId);
-    if (!refreshed) throw new Error('PaneRelay target is no longer available');
+    if (!refreshed) throw new Error('Panerelay target is no longer available');
     return refreshed;
   }
 
   private async refreshTargets(): Promise<CdpTargetInfo[]> {
     const result = await this.requestTarget({ kind: 'list' });
     if (!result.success || !result.targets) {
-      throw new Error(result.error || 'PaneRelay could not list authorized targets');
+      throw new Error(result.error || 'Panerelay could not list authorized targets');
     }
     const nextIds = new Set(result.targets.map(target => target.targetId));
     for (const targetId of this.targets.keys()) {
@@ -731,7 +731,7 @@ export class BrowserRelay {
         client,
         cdpId,
         -32000,
-        'Unknown PaneRelay CDP session',
+        'Unknown Panerelay CDP session',
         sessionId,
         'policy-denied',
       );
@@ -784,10 +784,10 @@ export class BrowserRelay {
     params: Record<string, unknown>,
   ): string | null {
     if (method.startsWith('Browser.')) {
-      return `${method} requires browser-process ownership and is not supported by PaneRelay`;
+      return `${method} requires browser-process ownership and is not supported by Panerelay`;
     }
     if (BROWSER_COOKIE_METHODS.has(method)) {
-      return `${method} can access the entire daily Chrome profile and is not supported by PaneRelay`;
+      return `${method} can access the entire daily Chrome profile and is not supported by Panerelay`;
     }
 
     const target = this.targets.get(targetId);
@@ -797,7 +797,7 @@ export class BrowserRelay {
     if (method === 'Network.getCookies') {
       const urls = Array.isArray(params.urls) ? params.urls : [];
       if (urls.some(url => typeof url !== 'string' || !this.hasSameOrigin(targetUrl, url))) {
-        return 'Network.getCookies is limited to the selected PaneRelay target origin';
+        return 'Network.getCookies is limited to the selected Panerelay target origin';
       }
     }
 
@@ -824,7 +824,7 @@ export class BrowserRelay {
       method === 'Storage.clearDataForOrigin' &&
       (typeof params.origin !== 'string' || !this.hasSameOrigin(targetUrl, params.origin))
     ) {
-      return 'Storage.clearDataForOrigin is limited to the selected PaneRelay target origin';
+      return 'Storage.clearDataForOrigin is limited to the selected Panerelay target origin';
     }
 
     return null;
@@ -841,13 +841,13 @@ export class BrowserRelay {
         : undefined;
 
     if (cookieUrl && !this.hasSameOrigin(targetUrl, cookieUrl)) {
-      return 'Cookie mutation is limited to the selected PaneRelay target origin';
+      return 'Cookie mutation is limited to the selected Panerelay target origin';
     }
     if (cookieDomain && cookieDomain !== targetUrl.hostname.toLowerCase()) {
-      return 'Cookie mutation is limited to the selected PaneRelay target host';
+      return 'Cookie mutation is limited to the selected Panerelay target host';
     }
     if (!cookieUrl && !cookieDomain) {
-      return 'Cookie mutation requires the selected PaneRelay target URL or host';
+      return 'Cookie mutation requires the selected Panerelay target URL or host';
     }
     return null;
   }
@@ -1132,7 +1132,7 @@ export class BrowserRelay {
     if (client.readyState !== WebSocket.OPEN || !this.browser) return;
     this.sendResult(client, id, {
       protocolVersion: CDP_PROTOCOL_VERSION,
-      product: `${this.browser.browserName} via PaneRelay`,
+      product: `${this.browser.browserName} via Panerelay`,
       revision: '',
       userAgent: '',
       jsVersion: '',

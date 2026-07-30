@@ -324,7 +324,7 @@ export async function installNativeHost(
   const manifest = `${JSON.stringify(
     {
       name: PANERELAY_NATIVE_HOST_NAME,
-      description: 'PaneRelay local browser and agent bridge',
+      description: 'Panerelay local browser and agent bridge',
       path: paths.launchPath,
       type: 'stdio',
       allowed_origins: [`chrome-extension://${extensionId}/`],

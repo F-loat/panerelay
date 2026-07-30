@@ -1,6 +1,6 @@
 # Stable release checklist
 
-PaneRelay candidate creation is deliberately separate from publication. The repository commands
+Panerelay candidate creation is deliberately separate from publication. The repository commands
 below build and validate local artifacts only; they do not publish packages, create tags, upload
 assets, call release APIs, or require publication credentials.
 
@@ -68,16 +68,16 @@ pnpm run release:pack
       permission decision, interruption, and browser authorization revocation without retaining
       prompts or page data.
 - [ ] On real Windows Chrome, repeat setup, registry discovery, Host launch, doctor, update,
-      uninstall, and cleanup from paths containing spaces. Confirm only the exact HKCU PaneRelay
+      uninstall, and cleanup from paths containing spaces. Confirm only the exact HKCU Panerelay
       Native Messaging key and user-owned files change.
 - [ ] Remove disposable consumers, browser state, and temporary candidates, retaining only the
       intentionally accepted `.artifacts/panerelay-0.1.0` directory.
 
 ## Compatibility and distribution boundaries
 
-- PaneRelay components remain one lockstep compatibility unit; the protocol does not yet negotiate
+- Panerelay components remain one lockstep compatibility unit; the protocol does not yet negotiate
   across versions.
-- PaneRelay reuses the existing Chrome process and cannot own isolated contexts, launch-time proxy
+- Panerelay reuses the existing Chrome process and cannot own isolated contexts, launch-time proxy
   or profile selection, whole-browser close, or top-level request containment.
 - Activity is sanitized, bounded, memory-only, and not a durable audit history.
 - Qoder is optional; its absence must not block Codex or browser automation.

@@ -1,7 +1,7 @@
 ## Context
 
 RFC-0001 requires controlled state to remain visible and immediately revocable. RFC-0002 adds
-browser-level multi-target control with lazy debugger attachment. PaneRelay currently exposes a
+browser-level multi-target control with lazy debugger attachment. Panerelay currently exposes a
 global action-badge count, but not a page-local identity that survives navigation and can be
 removed after every detach path.
 
@@ -37,7 +37,7 @@ Extension's existing optional origin permissions and does not make another tab e
 ### Preserve page-owned icon nodes
 
 The injected state captures clones of the first page-owned `link[rel~="icon"]` nodes, removes those
-nodes while controlled, and inserts one PaneRelay-owned link. A `MutationObserver` removes later
+nodes while controlled, and inserts one Panerelay-owned link. A `MutationObserver` removes later
 page-owned replacements. Release disconnects the observer, removes the owned link, and restores the
 captured clones.
 
@@ -53,7 +53,7 @@ The side panel and toolbar count remain the authoritative fallback indicators.
 ### Generate the icon in code
 
 The favicon is an encoded SVG data URL so no network request or extension URL reaches the page.
-The base mark matches agent-browser's favicon geometry; a white-ringed PaneRelay green dot at the
+The base mark matches agent-browser's favicon geometry; a white-ringed Panerelay green dot at the
 bottom-right communicates active control at 16px.
 
 ## Risks / Trade-offs

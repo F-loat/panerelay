@@ -20,7 +20,7 @@ import {
   resolveQoderExecutable,
   type QoderExecutableResolution,
 } from './qoder-executable.js';
-import { readRuntimeConfig, type PaneRelayRuntimeConfig } from './runtime-config.js';
+import { readRuntimeConfig, type PanerelayRuntimeConfig } from './runtime-config.js';
 
 const QODER_PROVIDER_ID = 'qoder';
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -54,7 +54,7 @@ export interface QoderProviderOptions {
   platform?: NodeJS.Platform;
   requestTimeoutMs?: number;
   resolveExecutable?: () => Promise<QoderExecutableResolution>;
-  runtimeConfig?: () => Promise<PaneRelayRuntimeConfig>;
+  runtimeConfig?: () => Promise<PanerelayRuntimeConfig>;
 }
 
 export interface QoderBrowserSession {
@@ -154,7 +154,7 @@ function activityStatus(
 }
 
 function qoderBrowserSession(
-  config: PaneRelayRuntimeConfig,
+  config: PanerelayRuntimeConfig,
   sessionLabel: string,
 ): QoderBrowserSession | undefined {
   if (!config.agentBrowserPath || !config.agentBrowserConfigPath) return undefined;
@@ -166,7 +166,7 @@ function qoderBrowserSession(
 }
 
 export function qoderBrowserMcpServers(
-  config: PaneRelayRuntimeConfig,
+  config: PanerelayRuntimeConfig,
   sessionLabel: string,
   platform: NodeJS.Platform = process.platform,
   environment: NodeJS.ProcessEnv = process.env,
@@ -333,7 +333,7 @@ export class QoderProcessRuntime implements QoderRuntime {
           clientCapabilities: {},
           clientInfo: {
             name: 'panerelay',
-            title: 'PaneRelay',
+            title: 'Panerelay',
             version: '0.1.0',
           },
         }),
@@ -387,7 +387,7 @@ export class QoderProvider implements AgentProvider {
   readonly id = QODER_PROVIDER_ID;
   private runtime: QoderRuntime | null = null;
   private initializeResponse: acp.InitializeResponse | null = null;
-  private runtimeConfigValue: PaneRelayRuntimeConfig | null = null;
+  private runtimeConfigValue: PanerelayRuntimeConfig | null = null;
   private resolution: QoderExecutableResolution | null = null;
   private readonly listeners = new Set<(event: ConversationEvent) => void>();
   private readonly sessions = new Map<string, QoderSession>();
@@ -665,7 +665,7 @@ export class QoderProvider implements AgentProvider {
     }
   }
 
-  private getRuntimeConfig(): PaneRelayRuntimeConfig {
+  private getRuntimeConfig(): PanerelayRuntimeConfig {
     if (!this.runtimeConfigValue) throw new Error('Qoder runtime configuration is unavailable');
     return this.runtimeConfigValue;
   }

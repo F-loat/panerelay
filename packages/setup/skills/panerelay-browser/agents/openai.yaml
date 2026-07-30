@@ -1,4 +1,4 @@
 interface:
-  display_name: 'PaneRelay Browser'
+  display_name: 'Panerelay Browser'
   short_description: 'Use agent-browser through an authorized Chrome tab'
   default_prompt: 'Use $panerelay-browser to work in my authorized Chrome tab.'

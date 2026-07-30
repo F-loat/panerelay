@@ -1,6 +1,6 @@
 ## Why
 
-PaneRelay's core browser relay, setup flow, side panel, and control-session lifecycle now work in
+Panerelay's core browser relay, setup flow, side panel, and control-session lifecycle now work in
 development, but the repository still uses placeholder versions and private package metadata.
 The first alpha needs a reproducible, locally verifiable distribution unit before any npm or
 GitHub release is attempted.

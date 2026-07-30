@@ -33,7 +33,7 @@ const evidenceDirectory = resolve(
 const evidenceRelativeToRepository = relative(repositoryRoot, evidenceDirectory);
 
 if (!evidenceRelativeToRepository.startsWith('..') && !isAbsolute(evidenceRelativeToRepository)) {
-  throw new Error('PANERELAY_EVIDENCE_DIR must be outside the PaneRelay repository');
+  throw new Error('PANERELAY_EVIDENCE_DIR must be outside the Panerelay repository');
 }
 
 await mkdir(evidenceDirectory, { recursive: true });
@@ -41,7 +41,7 @@ await mkdir(evidenceDirectory, { recursive: true });
 const results = [];
 const baseArguments = ['--session', sessionName, '--provider', 'panerelay'];
 if (requestedGroup === 'emulation' || requestedGroup === 'all') {
-  baseArguments.push('--user-agent', 'PaneRelayAcceptance/0.33.0');
+  baseArguments.push('--user-agent', 'PanerelayAcceptance/0.33.0');
 }
 let harStarted = false;
 let traceStarted = false;
@@ -92,11 +92,11 @@ async function assertFixtureTarget() {
   try {
     current = new URL(currentUrl);
   } catch {
-    throw new Error('The selected PaneRelay target did not return a valid URL');
+    throw new Error('The selected Panerelay target did not return a valid URL');
   }
   if (current.origin !== fixtureUrl.origin) {
     throw new Error(
-      'The selected PaneRelay target is not the local fixture. Open and authorize the fixture tab before running acceptance.',
+      'The selected Panerelay target is not the local fixture. Open and authorize the fixture tab before running acceptance.',
     );
   }
 }
@@ -178,7 +178,7 @@ async function runStateAndNetwork() {
   );
 
   await recordStep('requests-clear', ['network', 'requests', '--clear']);
-  await recordStep('headers-set', ['set', 'headers', '{"X-PaneRelay-Acceptance":"verified"}']);
+  await recordStep('headers-set', ['set', 'headers', '{"X-Panerelay-Acceptance":"verified"}']);
   await recordStep('headers-fetch', ['click', '#headers']);
   await recordStep('headers-observe', ['get', 'text', '#diagnostic-result']);
   await recordStep('headers-reset', ['set', 'headers', '{}']);
@@ -245,7 +245,7 @@ async function runArtifacts() {
   const pdfPath = resolve(evidenceDirectory, 'fixture.pdf');
   const largePdfPath = resolve(evidenceDirectory, 'fixture-large.pdf');
   const downloadPath = resolve(evidenceDirectory, 'panerelay-download.txt');
-  await writeFile(uploadPath, 'PaneRelay upload fixture.\n', 'utf8');
+  await writeFile(uploadPath, 'Panerelay upload fixture.\n', 'utf8');
 
   await recordStep('pdf', ['pdf', pdfPath]);
   await recordStep('large-artifact-open', ['open', new URL('/artifact.html', fixtureUrl).href]);
@@ -292,7 +292,7 @@ async function runEmulation() {
   ]);
   await recordStep('user-agent-observe', [
     'eval',
-    'navigator.userAgent === "PaneRelayAcceptance/0.33.0"',
+    'navigator.userAgent === "PanerelayAcceptance/0.33.0"',
   ]);
   await recordStep('a11y', ['--json', 'a11y']);
 }
@@ -347,7 +347,7 @@ async function runDiagnostics() {
   });
   await recordStep('post-recording-recovery', [
     'eval',
-    'document.title === "PaneRelay RFC-0001 Action Matrix"',
+    'document.title === "Panerelay RFC-0001 Action Matrix"',
   ]);
 
   await recordStep('stream-status-before', ['stream', 'status']);

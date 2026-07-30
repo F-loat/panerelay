@@ -1,6 +1,6 @@
 ## Context
 
-PaneRelay's Extension has one MV3 module service worker and one side-panel HTML application today.
+Panerelay's Extension has one MV3 module service worker and one side-panel HTML application today.
 Its custom esbuild script bundles those TypeScript files and manually copies manifest, CSS, HTML,
 and icon files. The source directory is already mixing runtime boundaries, and fixed output names
 have leaked into release validation.

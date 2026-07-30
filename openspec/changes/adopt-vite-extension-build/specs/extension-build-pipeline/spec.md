@@ -1,13 +1,13 @@
 ## Purpose
 
-Define a maintainable, manifest-driven build and source layout for PaneRelay's Chrome Extension
+Define a maintainable, manifest-driven build and source layout for Panerelay's Chrome Extension
 without changing its runtime permissions or browser behavior.
 
 ## ADDED Requirements
 
 ### Requirement: Extension source reflects runtime boundaries
 
-PaneRelay SHALL organize Extension implementation by background, page, shared, and public-asset
+Panerelay SHALL organize Extension implementation by background, page, shared, and public-asset
 ownership.
 
 #### Scenario: Maintainer changes browser control
@@ -24,7 +24,7 @@ ownership.
 
 ### Requirement: Manifest defines build entry points
 
-PaneRelay SHALL use the MV3 manifest as the source of truth for Extension background and page entry
+Panerelay SHALL use the MV3 manifest as the source of truth for Extension background and page entry
 points.
 
 #### Scenario: Production Extension is built
@@ -43,7 +43,7 @@ points.
 
 ### Requirement: Static assets remain stable
 
-PaneRelay SHALL copy public icon assets without content hashing and SHALL preserve all manifest
+Panerelay SHALL copy public icon assets without content hashing and SHALL preserve all manifest
 icon references in the built Extension.
 
 #### Scenario: Manifest declares an icon
@@ -54,7 +54,7 @@ icon references in the built Extension.
 
 ### Requirement: Candidate validation follows declared resources
 
-PaneRelay SHALL validate built Extension resources from manifest and HTML references rather than
+Panerelay SHALL validate built Extension resources from manifest and HTML references rather than
 assuming fixed JavaScript or CSS bundle names.
 
 #### Scenario: Vite hashes an implementation asset
@@ -71,18 +71,18 @@ assuming fixed JavaScript or CSS bundle names.
 
 ### Requirement: Extension review packaging is lightweight
 
-PaneRelay SHALL provide a command that builds and archives only the Chrome Extension.
+Panerelay SHALL provide a command that builds and archives only the Chrome Extension.
 
 #### Scenario: Maintainer requests an Extension zip
 
 - **GIVEN** the maintainer wants to inspect or manually install the current Extension
 - **WHEN** the maintainer runs the Extension packaging command
-- **THEN** PaneRelay writes one versioned Extension zip without producing npm tarballs, inventory,
+- **THEN** Panerelay writes one versioned Extension zip without producing npm tarballs, inventory,
   or checksum files
 
 ### Requirement: Build migration preserves runtime scope
 
-PaneRelay SHALL preserve the Extension identity, Chrome version floor, permissions, optional host
+Panerelay SHALL preserve the Extension identity, Chrome version floor, permissions, optional host
 patterns, side-panel path, and browser-control behavior during the build migration.
 
 #### Scenario: Built manifest is compared

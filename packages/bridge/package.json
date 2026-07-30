@@ -1,7 +1,7 @@
 {
   "name": "@panerelay/bridge",
   "version": "0.1.0",
-  "description": "PaneRelay Native Messaging host and local browser-level CDP relay.",
+  "description": "Panerelay Native Messaging host and local browser-level CDP relay.",
   "type": "module",
   "license": "MIT",
   "repository": {

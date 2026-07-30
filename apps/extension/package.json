@@ -2,7 +2,7 @@
   "name": "@panerelay/extension",
   "version": "0.1.0",
   "private": true,
-  "description": "PaneRelay Chrome extension and side panel.",
+  "description": "Panerelay Chrome extension and side panel.",
   "type": "module",
   "engines": {
     "node": ">=20.19.0"

@@ -6,13 +6,13 @@ import test from 'node:test';
 import { installNativeHost } from '@panerelay/bridge/install';
 import type { CommandRunner } from '@panerelay/bridge/platform';
 import { configureGlobalProvider } from './config.js';
-import { doctorPaneRelay } from './doctor.js';
+import { doctorPanerelay } from './doctor.js';
 
 test('doctor verifies the optional global default Provider', async () => {
   const homeDirectory = await mkdtemp(join(tmpdir(), 'panerelay-doctor-'));
   try {
     await configureGlobalProvider({ homeDirectory });
-    const report = await doctorPaneRelay({
+    const report = await doctorPanerelay({
       globalProvider: true,
       homeDirectory,
       platform: 'linux',
@@ -62,7 +62,7 @@ test('doctor verifies Windows registry, manifest, launcher, and effective origin
       registryRunner,
     });
     manifestPath = installation.manifestPaths[0]!;
-    const report = await doctorPaneRelay({
+    const report = await doctorPanerelay({
       homeDirectory,
       platform: 'win32',
       registryRunner,
@@ -81,7 +81,7 @@ test('doctor verifies Windows registry, manifest, launcher, and effective origin
       );
     }
 
-    const stale = await doctorPaneRelay({
+    const stale = await doctorPanerelay({
       homeDirectory,
       platform: 'win32',
       registryRunner: async () => ({
@@ -113,7 +113,7 @@ test('doctor reports the detected agent-browser version and rejects versions bel
     })}\n`,
   );
   try {
-    const old = await doctorPaneRelay({
+    const old = await doctorPanerelay({
       commandRunner: async () => ({
         code: 0,
         stderr: '',
@@ -127,7 +127,7 @@ test('doctor reports the detected agent-browser version and rejects versions bel
     assert.match(oldCheck?.detail || '', /0\.32\.9/);
     assert.match(oldCheck?.hint || '', /0\.33\.0 or newer/);
 
-    const newer = await doctorPaneRelay({
+    const newer = await doctorPanerelay({
       commandRunner: async () => ({
         code: 0,
         stderr: '',

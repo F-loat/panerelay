@@ -15,7 +15,7 @@ import type {
 } from '@panerelay/protocol';
 import type { AgentProvider } from './agent-provider.js';
 import { CodexAppServer, type CodexRpcMessage } from './codex-app-server.js';
-import { readRuntimeConfig, type PaneRelayRuntimeConfig } from './runtime-config.js';
+import { readRuntimeConfig, type PanerelayRuntimeConfig } from './runtime-config.js';
 
 interface CodexThread {
   id: string;
@@ -70,9 +70,9 @@ export interface CodexClient {
 
 export interface CodexProviderOptions {
   onEvent?: (event: ConversationEvent) => void;
-  runtimeConfig?: () => Promise<PaneRelayRuntimeConfig>;
+  runtimeConfig?: () => Promise<PanerelayRuntimeConfig>;
   createClient?: (
-    config: PaneRelayRuntimeConfig,
+    config: PanerelayRuntimeConfig,
     handlers: {
       onNotification: (message: CodexRpcMessage) => void;
       onServerRequest: (message: CodexRpcMessage & { id: number | string; method: string }) => void;
@@ -199,7 +199,7 @@ function activityFromItem(item: CodexItem, completed: boolean): ConversationActi
 export class CodexProvider implements AgentProvider {
   readonly id = CODEX_PROVIDER_ID;
   private client: CodexClient | null = null;
-  private config: PaneRelayRuntimeConfig | null = null;
+  private config: PanerelayRuntimeConfig | null = null;
   private readonly pendingApprovals = new Map<string, PendingApproval>();
   private readonly activeTurns = new Map<string, string>();
   private readonly listeners = new Set<(event: ConversationEvent) => void>();
@@ -254,7 +254,7 @@ export class CodexProvider implements AgentProvider {
         docsUrl: 'https://developers.openai.com/codex/cli',
       },
       ...(!config.codexPath
-        ? { setupHint: 'Install Codex CLI, then run panerelay setup again.' }
+        ? { setupHint: 'Install Codex CLI, then run npx --yes @panerelay/setup again.' }
         : {}),
     };
   }
@@ -263,7 +263,7 @@ export class CodexProvider implements AgentProvider {
     if (this.client) return this.client;
     const config = await (this.options.runtimeConfig ?? readRuntimeConfig)();
     if (!config.codexPath) {
-      throw new Error('Codex CLI is unavailable. Install it and reinstall the PaneRelay host.');
+      throw new Error('Codex CLI is unavailable. Install it and reinstall the Panerelay host.');
     }
     this.config = config;
     const handlers = {
@@ -328,7 +328,7 @@ export class CodexProvider implements AgentProvider {
         sandbox: 'read-only',
         serviceName: 'panerelay',
         developerInstructions:
-          'You are running inside the PaneRelay browser side panel. Use the panerelay_browser MCP tools for browser interaction when relevant. Browser authorization is controlled by the user in the side panel; never attempt to widen or bypass it. Keep chat responses concise and surface meaningful browser actions.',
+          'You are running inside the Panerelay browser side panel. Use the panerelay_browser MCP tools for browser interaction when relevant. Browser authorization is controlled by the user in the side panel; never attempt to widen or bypass it. Keep chat responses concise and surface meaningful browser actions.',
         config: browserMcpConfig,
       }),
     );

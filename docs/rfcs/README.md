@@ -1,6 +1,6 @@
-# PaneRelay RFCs
+# Panerelay RFCs
 
-RFCs define significant PaneRelay protocol, architecture, security, and product decisions before implementation makes them expensive to change.
+RFCs define significant Panerelay protocol, architecture, security, and product decisions before implementation makes them expensive to change.
 
 ## Statuses
 

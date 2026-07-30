@@ -1,6 +1,6 @@
 ## Why
 
-PaneRelay can now control authorized daily-Chrome targets through agent-browser, but an active external Agent is visible only as a debugger badge and an exclusive lease. The product needs a bounded, privacy-preserving control-session lifecycle and activity stream so users can tell who is controlling which target, what category of work is in progress, and whether control has expired or been released.
+Panerelay can now control authorized daily-Chrome targets through agent-browser, but an active external Agent is visible only as a debugger badge and an exclusive lease. The product needs a bounded, privacy-preserving control-session lifecycle and activity stream so users can tell who is controlling which target, what category of work is in progress, and whether control has expired or been released.
 
 ## What Changes
 

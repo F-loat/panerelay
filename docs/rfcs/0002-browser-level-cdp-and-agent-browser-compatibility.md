@@ -9,14 +9,14 @@
 
 ## Summary
 
-PaneRelay will expose a browser-level Chrome DevTools Protocol endpoint to agent-browser while
+Panerelay will expose a browser-level Chrome DevTools Protocol endpoint to agent-browser while
 continuing to attach Chrome's debugger only to authorized tabs. The Bridge synthesizes browser
 target discovery and lifecycle, maps opaque CDP target and session identifiers, and forwards
 page-scoped commands through the Extension.
 
 The minimum supported and initial version-specific verified baseline is agent-browser 0.33.0.
 Newer versions satisfy the version floor but require their own evidence before inheriting
-`Verified` classifications. PaneRelay targets broad support for normal browser automation without
+`Verified` classifications. Panerelay targets broad support for normal browser automation without
 claiming that an Extension connection is equivalent to a Chrome process launched and owned by
 agent-browser.
 
@@ -27,13 +27,13 @@ through a direct-page Provider. Direct-page mode cannot represent multiple tabs,
 target switching, or flattened child sessions. It also makes agent-browser intentionally skip its
 browser-level Target workflow.
 
-PaneRelay needs browser-level semantics to cover agent-browser's normal tab model while preserving
+Panerelay needs browser-level semantics to cover agent-browser's normal tab model while preserving
 the user's daily browser, explicit Chrome permissions, visible debugger state, and immediate
 revocation.
 
 ## Goals
 
-1. Return a normal browser-level CDP endpoint from the PaneRelay Provider.
+1. Return a normal browser-level CDP endpoint from the Panerelay Provider.
 2. Support target discovery, create, attach, activate, close, and lifecycle events.
 3. Support stable agent-browser tab IDs and labels without exposing Chrome tab IDs.
 4. Route flattened iframe and worker sessions through the owning authorized tab.
@@ -52,7 +52,7 @@ revocation.
 
 ## Target model
 
-The Extension owns a session-local map between Chrome tab IDs and random opaque PaneRelay target
+The Extension owns a session-local map between Chrome tab IDs and random opaque Panerelay target
 IDs. Raw Chrome tab IDs remain Extension-private.
 
 - Single-tab authorization exposes only the selected tab and exact authorized origin.
@@ -63,7 +63,7 @@ IDs. Raw Chrome tab IDs remain Extension-private.
 - A single-tab session cannot create additional tabs.
 
 The active eligible tab is returned first. agent-browser attaches a flattened CDP session to every
-reported page during initialization, but PaneRelay treats those as virtual Bridge sessions.
+reported page during initialization, but Panerelay treats those as virtual Bridge sessions.
 `chrome.debugger.attach` occurs only when the first target-scoped command reaches a tab.
 
 ## Browser-level CDP surface
@@ -91,7 +91,7 @@ explicit CDP errors.
 
 A browser connection can contain three identifier layers:
 
-1. an opaque PaneRelay target ID for an eligible Chrome tab;
+1. an opaque Panerelay target ID for an eligible Chrome tab;
 2. a Bridge-generated flattened page session ID returned by `Target.attachToTarget`;
 3. a Chrome debugger child-session ID for an auto-attached iframe, worker, or related target.
 
@@ -100,9 +100,9 @@ The Bridge maps page sessions to targets. The Extension forwards the `sessionId`
 copied to each Bridge page session for their owning target.
 
 agent-browser normally requests page-scoped auto-attach with `waitForDebuggerOnStart: true`.
-PaneRelay keeps flattened child discovery enabled but forwards that request with waiting disabled.
+Panerelay keeps flattened child discovery enabled but forwards that request with waiting disabled.
 This prevents a newly navigated renderer from remaining paused when the Extension cannot establish
-the same browser-process-wide interception guarantees. PaneRelay still rejects the equivalent
+the same browser-process-wide interception guarantees. Panerelay still rejects the equivalent
 top-level request instead of claiming `--allowed-domains` containment.
 
 Identifiers are discarded when the target, transport, lease, Extension, or Bridge disconnects.
@@ -122,7 +122,7 @@ only that target. Releasing browser authorization revokes the complete relay ses
 
 ## Compatibility policy
 
-PaneRelay classifies agent-browser commands into three levels:
+Panerelay classifies agent-browser commands into three levels:
 
 - **Verified**: covered by contract tests and a real daily-Chrome run against the pinned version.
 - **Forwarded**: built from page-scoped CDP methods supported by `chrome.debugger`, with package
@@ -135,9 +135,9 @@ supported until its handshake and representative command groups pass.
 
 ### Network containment
 
-PaneRelay does not support agent-browser's `--allowed-domains` mode in this release. Although
+Panerelay does not support agent-browser's `--allowed-domains` mode in this release. Although
 flattened iframe and worker sessions are forwarded, a Chrome Extension cannot guarantee that a
-newly opened top-level tab is paused before its first request. PaneRelay therefore rejects
+newly opened top-level tab is paused before its first request. Panerelay therefore rejects
 top-level `Target.setAutoAttach` with `waitForDebuggerOnStart: true` instead of implying complete
 containment.
 
@@ -149,7 +149,7 @@ supported independently when their CDP commands work through an attached authori
 ### Keep direct-page mode and add custom tab actions
 
 agent-browser deliberately skips browser-level Target behavior for direct-page Providers. Custom
-PaneRelay tab commands would split automation semantics between projects and would not support
+Panerelay tab commands would split automation semantics between projects and would not support
 normal agent-browser CLI or MCP tab workflows.
 
 ### Attach every eligible tab during discovery
@@ -163,7 +163,7 @@ browser-level semantics without that side effect.
 
 A normal Chrome window is not an isolated CDP browser context. Returning a synthetic context ID
 would misrepresent cookie, storage, cache, and network isolation. `window new` remains unsupported
-until PaneRelay can provide honest semantics.
+until Panerelay can provide honest semantics.
 
 ## Delivery
 

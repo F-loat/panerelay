@@ -7,7 +7,7 @@
 ## Question
 
 Can an unmodified `agent-browser` process operate an explicitly authorized tab in the
-user's Chrome through a PaneRelay extension?
+user's Chrome through a Panerelay extension?
 
 ## Implemented path
 
@@ -17,7 +17,7 @@ agent-browser --provider panerelay
   -> authenticated loopback session allocation
   -> short-lived direct-page WebSocket
   -> @panerelay/bridge Native Messaging host
-  -> PaneRelay Chrome extension
+  -> Panerelay Chrome extension
   -> chrome.debugger on one authorized tab
 ```
 
@@ -129,7 +129,7 @@ Passed on 2026-07-29 with `agent-browser 0.33.0` and Chrome for Testing
 `148.0.7778.96`. The real extension-backed run returned the `Example Domain` heading,
 paragraph text, and `Learn more` link from the authorized tab. The compatibility run also showed
 that agent-browser can briefly overlap direct-page WebSockets during auto-launch and probes an
-existing connection with `Browser.getVersion`. PaneRelay treats overlapping sockets as transports
+existing connection with `Browser.getVersion`. Panerelay treats overlapping sockets as transports
 inside one authorization lease, revokes them together, and answers the liveness probe at the relay
 boundary so consecutive commands reuse the attachment.
 

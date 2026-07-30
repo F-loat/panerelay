@@ -20,6 +20,8 @@ import {
 } from './config.js';
 import { globalSkillPath, projectSkillPath } from './skill.js';
 
+const SETUP_COMMAND = 'npx --yes @panerelay/setup';
+
 export type DoctorStatus = 'pass' | 'warn' | 'fail';
 
 export interface DoctorCheck {
@@ -87,8 +89,8 @@ async function nativeManifestCheck(
     id: 'native-manifest',
     label: 'Chrome Native Messaging manifest',
     status: 'fail',
-    detail: 'No valid PaneRelay manifest was found',
-    hint: 'Run: panerelay setup',
+    detail: 'No valid Panerelay manifest was found',
+    hint: `Run: ${SETUP_COMMAND}`,
   };
 }
 
@@ -123,7 +125,7 @@ async function executableCheck(
   };
 }
 
-export async function doctorPaneRelay(options: DoctorOptions = {}): Promise<DoctorReport> {
+export async function doctorPanerelay(options: DoctorOptions = {}): Promise<DoctorReport> {
   const home = options.homeDirectory ?? homedir();
   const platform = options.platform ?? process.platform;
   const paths = resolveNativeHostInstallationPaths({
@@ -170,9 +172,9 @@ export async function doctorPaneRelay(options: DoctorOptions = {}): Promise<Doct
   checks.push(
     await executableCheck(
       'native-host',
-      'PaneRelay Native Host',
+      'Panerelay Native Host',
       paths.hostPath,
-      'Run: panerelay setup',
+      `Run: ${SETUP_COMMAND}`,
       platform,
     ),
   );
@@ -180,9 +182,9 @@ export async function doctorPaneRelay(options: DoctorOptions = {}): Promise<Doct
     checks.push(
       await executableCheck(
         'native-launcher',
-        'PaneRelay Native Host launcher',
+        'Panerelay Native Host launcher',
         paths.launcherPath,
-        'Run: panerelay setup',
+        `Run: ${SETUP_COMMAND}`,
         platform,
       ),
     );
@@ -200,7 +202,7 @@ export async function doctorPaneRelay(options: DoctorOptions = {}): Promise<Doct
       label: 'Chrome Native Messaging registry',
       status: registryReady ? 'pass' : 'fail',
       detail: registryValue || 'Not found',
-      ...(registryReady ? {} : { hint: 'Run: panerelay setup' }),
+      ...(registryReady ? {} : { hint: `Run: ${SETUP_COMMAND}` }),
     });
   }
   const codexPath =
@@ -214,7 +216,7 @@ export async function doctorPaneRelay(options: DoctorOptions = {}): Promise<Doct
       'codex',
       'Codex CLI',
       codexPath,
-      'Install Codex CLI, then run: panerelay setup',
+      `Install Codex CLI, then run: ${SETUP_COMMAND}`,
       platform,
     ),
   );
@@ -230,11 +232,13 @@ export async function doctorPaneRelay(options: DoctorOptions = {}): Promise<Doct
       : 'Not found',
     ...(qoderReady
       ? {}
-      : { hint: 'Install Qoder CLI or set PANERELAY_QODER_PATH, then run: panerelay setup' }),
+      : {
+          hint: `Install Qoder CLI or set PANERELAY_QODER_PATH, then run: ${SETUP_COMMAND}`,
+        }),
   });
   let agentBrowserStatus: DoctorStatus = 'fail';
   let agentBrowserDetail = agentBrowserPath || 'Not found';
-  let agentBrowserHint = 'Install agent-browser, then run: panerelay setup';
+  let agentBrowserHint = `Install agent-browser, then run: ${SETUP_COMMAND}`;
   if (agentBrowserPath && (await isExecutableFile(agentBrowserPath, platform))) {
     try {
       const compatibility = await probeAgentBrowserCompatibility(agentBrowserPath, {
@@ -246,7 +250,7 @@ export async function doctorPaneRelay(options: DoctorOptions = {}): Promise<Doct
       agentBrowserDetail = `${agentBrowserPath} (${compatibility.version})`;
       agentBrowserHint = `Upgrade agent-browser to ${AGENT_BROWSER_MINIMUM_VERSION} or newer`;
     } catch {
-      agentBrowserHint = `Install a working agent-browser ${AGENT_BROWSER_MINIMUM_VERSION} or newer, then run: panerelay setup`;
+      agentBrowserHint = `Install a working agent-browser ${AGENT_BROWSER_MINIMUM_VERSION} or newer, then run: ${SETUP_COMMAND}`;
     }
   }
   checks.push({
@@ -267,10 +271,10 @@ export async function doctorPaneRelay(options: DoctorOptions = {}): Promise<Doct
   const providerReady = providerPlugin(userConfig, paths.launchPath);
   checks.push({
     id: 'provider',
-    label: 'agent-browser PaneRelay provider',
+    label: 'agent-browser Panerelay provider',
     status: providerReady ? 'pass' : 'fail',
     detail: userConfigPath,
-    ...(providerReady ? {} : { hint: 'Run: panerelay setup' }),
+    ...(providerReady ? {} : { hint: `Run: ${SETUP_COMMAND}` }),
   });
   if (options.globalProvider) {
     const globalProviderReady = userConfig.provider === 'panerelay';
@@ -283,17 +287,17 @@ export async function doctorPaneRelay(options: DoctorOptions = {}): Promise<Doct
         : typeof userConfig.provider === 'string'
           ? userConfig.provider
           : 'Not configured',
-      ...(globalProviderReady ? {} : { hint: 'Run: panerelay setup --global-provider' }),
+      ...(globalProviderReady ? {} : { hint: `Run: ${SETUP_COMMAND} --global-provider` }),
     });
   }
   const skillPath = globalSkillPath(home);
   const skillReady = await exists(join(skillPath, 'SKILL.md'));
   checks.push({
     id: 'skill',
-    label: 'PaneRelay Agent Skill',
+    label: 'Panerelay Agent Skill',
     status: skillReady ? 'pass' : 'fail',
     detail: skillPath,
-    ...(skillReady ? {} : { hint: 'Run: panerelay setup' }),
+    ...(skillReady ? {} : { hint: `Run: ${SETUP_COMMAND}` }),
   });
 
   const bridgeStatePath = join(home, '.panerelay', 'bridge.json');
@@ -319,7 +323,7 @@ export async function doctorPaneRelay(options: DoctorOptions = {}): Promise<Doct
   }
   checks.push({
     id: 'extension',
-    label: 'PaneRelay Extension connection',
+    label: 'Panerelay Extension connection',
     status: bridgeStatus,
     detail: bridgeDetail,
     ...(bridgeStatus === 'pass'
@@ -342,16 +346,16 @@ export async function doctorPaneRelay(options: DoctorOptions = {}): Promise<Doct
       label: 'Project default provider',
       status: projectConfigured ? 'pass' : 'fail',
       detail: projectConfigPath,
-      ...(projectConfigured ? {} : { hint: 'Run: panerelay setup --project' }),
+      ...(projectConfigured ? {} : { hint: `Run: ${SETUP_COMMAND} --project-provider` }),
     });
     const installedProjectSkillPath = projectSkillPath(projectDirectory);
     const projectSkillReady = await exists(join(installedProjectSkillPath, 'SKILL.md'));
     checks.push({
       id: 'project-skill',
-      label: 'Project PaneRelay Skill',
+      label: 'Project Panerelay Skill',
       status: projectSkillReady ? 'pass' : 'fail',
       detail: installedProjectSkillPath,
-      ...(projectSkillReady ? {} : { hint: 'Run: panerelay setup --project' }),
+      ...(projectSkillReady ? {} : { hint: `Run: ${SETUP_COMMAND} --project-provider` }),
     });
   }
 

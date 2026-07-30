@@ -68,7 +68,7 @@ test('registers the actual Chrome runtime Extension ID', async () => {
   assert.match(source, /extensionId: chrome\.runtime\.id/);
 });
 
-test('uses the Mearl corner-radius ratio for the PaneRelay icon', async () => {
+test('uses the Mearl corner-radius ratio for the Panerelay icon', async () => {
   const source = await readFile(join(process.cwd(), 'assets/panerelay-icon.svg'), 'utf8');
   assert.match(source, /<rect width="512" height="512" rx="112" fill="#111513" \/>/);
   assert.doesNotMatch(source, /rx="144"/);

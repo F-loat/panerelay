@@ -136,7 +136,7 @@ export class CodexAppServer {
     await this.rawRequest('initialize', {
       clientInfo: {
         name: 'panerelay',
-        title: 'PaneRelay',
+        title: 'Panerelay',
         version: '0.0.1',
       },
     });

@@ -34,4 +34,4 @@ await mkdir(outputDirectory, { recursive: true });
 await rm(archive, { force: true });
 await zipExtension();
 
-console.log(`PaneRelay Extension package: ${archive}`);
+console.log(`Panerelay Extension package: ${archive}`);

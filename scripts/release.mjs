@@ -21,7 +21,7 @@ if (retain) {
 
 try {
   const inventory = await createReleaseCandidate({ outputDirectory, root });
-  console.log(`PaneRelay ${inventory.version} candidate verified.`);
+  console.log(`Panerelay ${inventory.version} candidate verified.`);
   if (retain) console.log(`Artifacts: ${outputDirectory}`);
 } finally {
   if (temporaryDirectory) {

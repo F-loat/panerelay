@@ -13,7 +13,7 @@ test('parses setup aliases and Provider scope flags', () => {
     project: false,
     yes: false,
   });
-  assert.deepEqual(parseSetupArgs(['install', '--project', '--global-provider']), {
+  assert.deepEqual(parseSetupArgs(['install', '--project-provider', '--global-provider']), {
     globalProvider: true,
     help: false,
     json: false,
@@ -31,10 +31,48 @@ test('parses setup aliases and Provider scope flags', () => {
     project: false,
     yes: false,
   });
+  assert.throws(() => parseSetupArgs(['--project']), /Unknown option: --project/);
   assert.throws(
     () => parseSetupArgs(['uninstall', '--global-provider']),
     /--global-provider is not needed/,
   );
+});
+
+test('runs setup when the action is omitted', async () => {
+  const output: string[] = [];
+  const originalLog = console.log;
+  let receivedGlobalProvider = false;
+  console.log = (...values: unknown[]) => output.push(values.join(' '));
+  try {
+    const code = await main(['--global-provider'], {
+      environment: {},
+      setup: async options => {
+        receivedGlobalProvider = options?.globalProvider === true;
+        return {
+          agentBrowserConfigPath: '/tmp/agent-browser.json',
+          globalProvider: true,
+          globalSkillPath: '/tmp/panerelay-browser',
+          host: {
+            agentBrowserConfigPath: '/tmp/agent-browser.json',
+            agentBrowserPath: '/tmp/agent-browser',
+            agentBrowserSupported: true,
+            extensionId: 'abcdefghijklmnopabcdefghijklmnop',
+            hostPath: '/tmp/host.mjs',
+            launchPath: '/tmp/host',
+            legacyHostPath: '/tmp/legacy-host',
+            manifestPaths: ['/tmp/manifest.json'],
+            runtimeConfigPath: '/tmp/runtime.json',
+          },
+        };
+      },
+      systemLocale: 'en',
+    });
+    assert.equal(code, 0);
+    assert.equal(receivedGlobalProvider, true);
+    assert.match(output.join('\n'), /Panerelay setup complete/);
+  } finally {
+    console.log = originalLog;
+  }
 });
 
 test('accepts language options before or after the command', () => {
@@ -84,6 +122,60 @@ test('prints help in the explicit or detected system language', async () => {
   }
 });
 
+test('groups human-readable doctor checks with actionable remediation', async () => {
+  const report: DoctorReport = {
+    checks: [
+      {
+        detail: 'No valid Panerelay manifest was found',
+        hint: 'Run: npx --yes @panerelay/setup',
+        id: 'native-manifest',
+        label: 'Chrome Native Messaging manifest',
+        status: 'fail',
+      },
+      {
+        detail: 'v25.0.0',
+        id: 'node',
+        label: 'Node.js',
+        status: 'pass',
+      },
+      {
+        detail: 'Connected through process 42345',
+        id: 'extension',
+        label: 'Panerelay Extension connection',
+        status: 'pass',
+      },
+    ],
+    ok: false,
+  };
+  const output: string[] = [];
+  const originalLog = console.log;
+  console.log = (...values: unknown[]) => output.push(values.join(' '));
+  try {
+    assert.equal(
+      await main(['doctor', '--lang', 'en'], {
+        doctor: async () => report,
+        environment: {},
+        systemLocale: 'en',
+      }),
+      1,
+    );
+  } finally {
+    console.log = originalLog;
+  }
+  const rendered = output.join('\n');
+  assert.match(rendered, /^Panerelay doctor/m);
+  assert.match(rendered, /Environment\n {2}✅ Node\.js — v25\.0\.0/);
+  assert.match(
+    rendered,
+    /Local integration\n {2}❌ Native Messaging manifest — No valid Panerelay manifest was found/,
+  );
+  assert.match(rendered, /Fix: Run: npx --yes @panerelay\/setup/);
+  assert.match(rendered, /Browser connection\n {2}✅ Extension — Connected through process 42345/);
+  assert.match(rendered, /❌ Panerelay needs attention\./);
+  assert.match(rendered, /Failed checks: 1/);
+  assert.doesNotMatch(rendered, /\b(?:PASS|FAIL|WARN)\b/);
+});
+
 test('keeps doctor JSON identical across supported languages', async () => {
   const report: DoctorReport = {
     checks: [
@@ -91,7 +183,7 @@ test('keeps doctor JSON identical across supported languages', async () => {
         detail: 'Extension is not currently connected',
         hint: 'Load or reload the extension, then open its side panel',
         id: 'extension',
-        label: 'PaneRelay Extension connection',
+        label: 'Panerelay Extension connection',
         status: 'warn',
       },
     ],

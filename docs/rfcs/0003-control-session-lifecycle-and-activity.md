@@ -9,7 +9,7 @@
 
 ## Summary
 
-PaneRelay will make external browser control observable as a first-class, provider-neutral control
+Panerelay will make external browser control observable as a first-class, provider-neutral control
 session. The Bridge will maintain lease liveness with authenticated WebSocket heartbeat, expire
 unresponsive sessions, and emit a bounded stream of sanitized activity events. The Extension side
 panel will show the current external actor, controlled-target count, lease state, and recent action
@@ -196,7 +196,7 @@ credentials never appear in activity events.
 4. Activity events are emitted after the Bridge has associated a command with an authorized
    virtual target session.
 5. Parameters and results are excluded by construction rather than redacted after logging.
-6. Error summaries use stable PaneRelay messages or error classes and exclude arbitrary remote
+6. Error summaries use stable Panerelay messages or error classes and exclude arbitrary remote
    payload data.
 7. Histories are bounded, memory-only, and cleared on browser unregister or Bridge restart.
 8. User release remains available even when activity rendering fails.
@@ -208,7 +208,7 @@ version. Newer versions satisfy the version floor but need separate evidence. We
 is transparent to the Provider and daemon, so no new agent-browser option is required.
 
 Existing Extension builds that do not understand the new message types are incompatible with the
-updated Bridge protocol package and must be rebuilt as one lockstep PaneRelay release. A future
+updated Bridge protocol package and must be rebuilt as one lockstep Panerelay release. A future
 protocol revision will require additive version negotiation.
 
 RFC-0001 and RFC-0002 retain authority over authorization, target routing, and unsupported
@@ -225,7 +225,7 @@ client. It leaves stale debugger attachments and control ownership ambiguous.
 ### Require an agent-browser heartbeat command
 
 An explicit application command would be easy to reason about but would require upstream changes
-or a PaneRelay-specific daemon fork. WebSocket ping/pong provides transport liveness through the
+or a Panerelay-specific daemon fork. WebSocket ping/pong provides transport liveness through the
 existing Provider boundary.
 
 ### Log every CDP method and params

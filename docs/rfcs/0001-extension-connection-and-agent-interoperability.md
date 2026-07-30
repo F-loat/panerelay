@@ -9,11 +9,11 @@
 
 ## Summary
 
-PaneRelay will let browser automation tools and AI agents interact with a user's existing browser through a Chrome extension and a local bridge. The same extension will provide a side panel for agent conversations, browser-context sharing, activity review, approvals, interruption, and control handoff.
+Panerelay will let browser automation tools and AI agents interact with a user's existing browser through a Chrome extension and a local bridge. The same extension will provide a side panel for agent conversations, browser-context sharing, activity review, approvals, interruption, and control handoff.
 
-The first automation integration will use agent-browser without maintaining a permanent fork. A PaneRelay provider will return a local CDP endpoint backed by the extension. agent-browser will continue to own browser automation semantics such as snapshots, locators, input, waiting, and screenshots; PaneRelay will provide transport, browser attachment, policy, and human interaction.
+The first automation integration will use agent-browser without maintaining a permanent fork. A Panerelay provider will return a local CDP endpoint backed by the extension. agent-browser will continue to own browser automation semantics such as snapshots, locators, input, waiting, and screenshots; Panerelay will provide transport, browser attachment, policy, and human interaction.
 
-The first release will be local-first. Browser content and agent traffic will not require a PaneRelay cloud service.
+The first release will be local-first. Browser content and agent traffic will not require a Panerelay cloud service.
 
 RFC-0001 standardizes the trust boundary, direct-page automation path, control model, and
 provider-neutral conversation boundary needed for the first complete local workflow. Browser-level
@@ -63,7 +63,7 @@ The following goals extend the accepted foundation and will be specified indepen
 
 ## Terminology
 
-- **Extension**: the PaneRelay Manifest V3 browser extension.
+- **Extension**: the Panerelay Manifest V3 browser extension.
 - **Bridge**: the local native process that terminates Native Messaging, exposes local automation endpoints, and enforces session policy.
 - **Automation adapter**: an integration that connects a browser automation engine to the Bridge. The first adapter targets agent-browser.
 - **Agent provider**: an adapter for an agent runtime, such as an app-server or an Agent Client Protocol implementation.
@@ -82,13 +82,13 @@ External Agent ──MCP──▶ │      agent-browser       │
                                       │ CDP WebSocket
                                       ▼
 ┌──────────────────┐       ┌──────────────────────────┐
-│ Agent Runtime(s) │◀─────▶│     PaneRelay Bridge     │
+│ Agent Runtime(s) │◀─────▶│     Panerelay Bridge     │
 └──────────────────┘       │ routing, policy, leases  │
                            └────────────┬─────────────┘
                                       │ Native Messaging
                                       ▼
                            ┌──────────────────────────┐
-                           │   PaneRelay Extension    │
+                           │   Panerelay Extension    │
                            │ debugger, permissions,   │
                            │ side panel, tab status   │
                            └────────────┬─────────────┘
@@ -165,7 +165,7 @@ Agent-provider-specific wire events will be normalized before reaching the side 
 
 ### Chosen direction
 
-PaneRelay will expose a CDP-compatible endpoint instead of adding PaneRelay-specific page actions to agent-browser.
+Panerelay will expose a CDP-compatible endpoint instead of adding Panerelay-specific page actions to agent-browser.
 
 This preserves standard agent-browser CLI and MCP behavior, avoids duplicating its automation semantics, and keeps the integration useful for other CDP clients where practical.
 
@@ -185,7 +185,7 @@ The first product release will expose a browser-level CDP endpoint that multiple
 
 The Bridge will implement or synthesize the required browser-level target operations and forward tab-scoped commands through the Extension. The compatibility surface will be driven by recorded agent-browser command traces and contract tests rather than an assumption that every Chrome DevTools Protocol method can be supported.
 
-Unsupported methods must return explicit CDP errors. PaneRelay must not report successful execution for ignored commands.
+Unsupported methods must return explicit CDP errors. Panerelay must not report successful execution for ignored commands.
 
 ### CDP session mapping
 
@@ -200,7 +200,7 @@ These identifiers are opaque outside the Bridge. Raw Chrome tab IDs are not part
 
 ## Relay protocol
 
-PaneRelay will define a versioned JSON protocol in `@panerelay/protocol`. Native Messaging and local Bridge clients will use the same logical envelopes even when their transports differ.
+Panerelay will define a versioned JSON protocol in `@panerelay/protocol`. Native Messaging and local Bridge clients will use the same logical envelopes even when their transports differ.
 
 Every request and event will include:
 
@@ -298,7 +298,7 @@ The user remains the ultimate owner. Manual browser use does not require a lease
 
 ## Bidirectional interoperability
 
-PaneRelay defines bidirectional interoperability as three observable flows.
+Panerelay defines bidirectional interoperability as three observable flows.
 
 ### Agent to browser
 
@@ -336,15 +336,15 @@ The Bridge will expose a provider-neutral conversation contract. A provider adap
 The reference implementation adapts Codex app-server over its local stdio JSON-RPC transport. The
 Bridge owns the process, initialization, thread lifecycle, streaming-event normalization, approval
 responses, and interruption. Codex app-server types remain adapter-private and do not become the
-PaneRelay public conversation protocol.
+Panerelay public conversation protocol.
 
 The same internal registry adapts Qoder CLI over ACP when a compatible optional runtime is
 available. The Bridge negotiates capabilities, keeps ACP option identifiers private, normalizes
 supported streams and permissions, and contains process failure so Qoder availability cannot block
 Codex.
 
-For browser work, each new Codex or Qoder session receives a uniquely scoped PaneRelay
-agent-browser MCP server. The MCP process uses the existing PaneRelay agent-browser provider and
+For browser work, each new Codex or Qoder session receives a uniquely scoped Panerelay
+agent-browser MCP server. The MCP process uses the existing Panerelay agent-browser provider and
 therefore must acquire the same short-lived browser relay session and user-visible control lease as
 an external automation client. Chat availability does not imply browser authorization.
 
@@ -367,7 +367,7 @@ The relationship between a side-panel agent and browser tools must be explicit. 
 
 ### Native Messaging
 
-The Bridge installer registers only the effective PaneRelay Extension ID selected by the user.
+The Bridge installer registers only the effective Panerelay Extension ID selected by the user.
 Official builds default to `panplnkjlkoceaonlmpdekjphgmbggmi`, derived from the retained public
 manifest key; a validated custom ID can be persisted for self-built Extensions. The Bridge rejects
 messages that do not complete a versioned registration handshake with the same actual
@@ -407,13 +407,13 @@ Audit events will not contain raw page HTML, screenshots, cookies, credentials, 
 - If the Extension disconnects, the Bridge closes its CDP targets and expires its leases.
 - If the automation client disconnects, the Bridge releases its leases and debugger attachments.
 - If the Bridge restarts, the Extension reconnects and re-registers, but prior control leases do not revive automatically.
-- If DevTools or another debugger displaces PaneRelay, the affected target closes and clients receive an explicit error.
+- If DevTools or another debugger displaces Panerelay, the affected target closes and clients receive an explicit error.
 - If a tab navigates outside authorized origins, mutating commands pause until authorization is re-evaluated.
 - If side-panel event replay is incomplete, the UI reports the gap instead of implying a complete history.
 
 ## Compatibility strategy
 
-PaneRelay will test against pinned agent-browser versions and publish a compatibility matrix.
+Panerelay will test against pinned agent-browser versions and publish a compatibility matrix.
 
 Contract tests will cover:
 
@@ -451,15 +451,15 @@ A fork could add direct extension transport throughout the agent-browser daemon.
 
 ### Delegate high-level actions to a generic plugin
 
-PaneRelay could expose `snapshot`, `click`, and similar commands as custom plugin actions. Existing agent-browser plugins do not replace core action execution, and a parallel action vocabulary would fragment CLI and MCP behavior. This alternative is not selected.
+Panerelay could expose `snapshot`, `click`, and similar commands as custom plugin actions. Existing agent-browser plugins do not replace core action execution, and a parallel action vocabulary would fragment CLI and MCP behavior. This alternative is not selected.
 
 ### Load the extension only into agent-browser-managed Chrome
 
-agent-browser can load extensions into a browser it launches. This is useful for tests but does not connect to the user's existing tabs and daily browser session, which is a primary PaneRelay goal.
+agent-browser can load extensions into a browser it launches. This is useful for tests but does not connect to the user's existing tabs and daily browser session, which is a primary Panerelay goal.
 
 ### Expose a raw remote-debugging port from the user's browser
 
-Launching the daily browser with a remote-debugging port weakens the extension-controlled authorization model and may require a separate profile. PaneRelay instead exposes short-lived, policy-aware CDP sessions through the Bridge.
+Launching the daily browser with a remote-debugging port weakens the extension-controlled authorization model and may require a separate profile. Panerelay instead exposes short-lived, policy-aware CDP sessions through the Bridge.
 
 ### Put the agent runtime inside the extension
 
@@ -504,7 +504,7 @@ RFC-0001 can move from `Draft` to `Accepted` when:
 
 | Assertion                                                                                                    | Status  | Evidence or remaining work                                                                                                                                                                                                                                                                    |
 | ------------------------------------------------------------------------------------------------------------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| An unmodified supported agent-browser client connects through PaneRelay.                                     | Pass    | Spike 0001 passed with agent-browser 0.33.0 in test and daily Chrome profiles.                                                                                                                                                                                                                |
+| An unmodified supported agent-browser client connects through Panerelay.                                     | Pass    | Spike 0001 passed with agent-browser 0.33.0 in test and daily Chrome profiles.                                                                                                                                                                                                                |
 | Snapshot, click, fill, navigation, wait, and screenshot work on an authorized existing tab.                  | Pass    | A current daily-Chrome run completed the checked-in action fixture through agent-browser 0.33.0, including filled state and post-navigation screenshots.                                                                                                                                      |
 | Denied browser targets and missing leases fail closed.                                                       | Pass    | Exact-origin matching, Chrome permission removal, unsupported targets, invalid credentials, and lease conflicts are covered; a real all-tabs grant also survived Extension reload.                                                                                                            |
 | Disconnect and user revocation reliably detach the debugger and invalidate credentials.                      | Pass    | Relay tests cover provider cleanup, credential expiry, and immediate extension revocation.                                                                                                                                                                                                    |

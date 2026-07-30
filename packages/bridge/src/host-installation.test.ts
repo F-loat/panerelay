@@ -167,7 +167,7 @@ test('creates a quoted Windows launcher and uses exact structured registry argum
 
 test('installs, updates, and repeatedly uninstalls isolated Windows artifacts', async () => {
   const root = await mkdtemp(join(tmpdir(), 'panerelay windows & host-'));
-  const dataDirectory = join(root, 'PaneRelay Data');
+  const dataDirectory = join(root, 'Panerelay Data');
   const bundledHostPath = join(root, 'native-host.bundle.cjs');
   const agentBrowserPath = join(root, 'npm wrappers', 'agent-browser.cmd');
   const codexPath = join(root, 'npm wrappers', 'codex.cmd');

@@ -145,7 +145,7 @@ test('rejects a browser registration from a different configured Extension ID', 
         extensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
         extensionVersion: '0.1.0.2',
       }),
-      /does not match the configured PaneRelay Extension ID/,
+      /does not match the configured Panerelay Extension ID/,
     );
     assert.equal(registered, false);
   } finally {
@@ -518,7 +518,7 @@ test('fails closed for top-level request pausing and browser contexts', async ()
         id: 1,
         error: {
           code: -32000,
-          message: 'PaneRelay cannot pause new top-level tabs before their first request',
+          message: 'Panerelay cannot pause new top-level tabs before their first request',
         },
       },
     );
@@ -531,7 +531,7 @@ test('fails closed for top-level request pausing and browser contexts', async ()
         id: 2,
         error: {
           code: -32601,
-          message: 'Target.createBrowserContext is not supported by PaneRelay',
+          message: 'Target.createBrowserContext is not supported by Panerelay',
         },
       },
     );
@@ -604,7 +604,7 @@ test('keeps browser-process and cookie commands inside the authorized target bou
         error: {
           code: -32000,
           message:
-            'Browser.grantPermissions requires browser-process ownership and is not supported by PaneRelay',
+            'Browser.grantPermissions requires browser-process ownership and is not supported by Panerelay',
         },
       },
     );
@@ -620,7 +620,7 @@ test('keeps browser-process and cookie commands inside the authorized target bou
         error: {
           code: -32000,
           message:
-            'Browser.setDownloadBehavior requires browser-process ownership and is not supported by PaneRelay',
+            'Browser.setDownloadBehavior requires browser-process ownership and is not supported by Panerelay',
         },
         sessionId: pageSessionId,
       },
@@ -636,7 +636,7 @@ test('keeps browser-process and cookie commands inside the authorized target bou
         error: {
           code: -32000,
           message:
-            'Network.getAllCookies can access the entire daily Chrome profile and is not supported by PaneRelay',
+            'Network.getAllCookies can access the entire daily Chrome profile and is not supported by Panerelay',
         },
         sessionId: pageSessionId,
       },
@@ -652,7 +652,7 @@ test('keeps browser-process and cookie commands inside the authorized target bou
         error: {
           code: -32000,
           message:
-            'Network.clearBrowserCookies can access the entire daily Chrome profile and is not supported by PaneRelay',
+            'Network.clearBrowserCookies can access the entire daily Chrome profile and is not supported by Panerelay',
         },
         sessionId: pageSessionId,
       },
@@ -668,7 +668,7 @@ test('keeps browser-process and cookie commands inside the authorized target bou
         id: 6,
         error: {
           code: -32000,
-          message: 'Network.getCookies is limited to the selected PaneRelay target origin',
+          message: 'Network.getCookies is limited to the selected Panerelay target origin',
         },
         sessionId: pageSessionId,
       },
@@ -692,7 +692,7 @@ test('keeps browser-process and cookie commands inside the authorized target bou
         id: 7,
         error: {
           code: -32000,
-          message: 'Cookie mutation is limited to the selected PaneRelay target origin',
+          message: 'Cookie mutation is limited to the selected Panerelay target origin',
         },
         sessionId: pageSessionId,
       },
@@ -737,7 +737,7 @@ test('keeps browser-process and cookie commands inside the authorized target bou
         id: 11,
         method: 'Emulation.setUserAgentOverride',
         sessionId: pageSessionId,
-        params: { userAgent: 'PaneRelayAcceptance/0.33.0' },
+        params: { userAgent: 'PanerelayAcceptance/0.33.0' },
       }),
       { id: 11, result: {}, sessionId: pageSessionId },
     );
@@ -792,7 +792,7 @@ test('rejects invalid credentials and keeps relay sessions exclusive', async () 
     });
     assert.deepEqual(await closed, {
       code: 1008,
-      reason: 'Invalid PaneRelay session token',
+      reason: 'Invalid Panerelay session token',
     });
   } finally {
     if (invalidClient) await closeClient(invalidClient);
@@ -853,7 +853,7 @@ test('invalidates browser-level credentials when Extension control is revoked', 
     });
     assert.deepEqual(await closed, {
       code: 1008,
-      reason: 'Invalid PaneRelay session token',
+      reason: 'Invalid Panerelay session token',
     });
     const replacement = await createRelaySession(relay, 'replacement');
     assert.notEqual(replacement.sessionId, firstSession.sessionId);
@@ -1072,7 +1072,7 @@ test('expires an unused allocation and rejects its stale credential', async () =
     client = new WebSocket(session.cdpUrl);
     assert.deepEqual(await waitForClose(client), {
       code: 1008,
-      reason: 'Invalid PaneRelay session token',
+      reason: 'Invalid Panerelay session token',
     });
   } finally {
     if (client) await closeClient(client);
@@ -1125,7 +1125,7 @@ test('expires every unresponsive transport and never revives its credential', as
     staleClient = new WebSocket(session.cdpUrl);
     assert.deepEqual(await waitForClose(staleClient), {
       code: 1008,
-      reason: 'Invalid PaneRelay session token',
+      reason: 'Invalid Panerelay session token',
     });
     const replacement = await createRelaySession(relay, 'replacement-after-heartbeat');
     assert.notEqual(replacement.sessionId, session.sessionId);

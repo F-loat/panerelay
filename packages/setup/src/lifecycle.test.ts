@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { NativeHostInstallationResult } from '@panerelay/bridge/install';
-import { setupPaneRelay, uninstallPaneRelay } from './lifecycle.js';
+import { setupPanerelay, uninstallPanerelay } from './lifecycle.js';
 
 const host: NativeHostInstallationResult = {
   agentBrowserConfigPath: '/home/.panerelay/agent-browser.json',
@@ -20,7 +20,7 @@ const host: NativeHostInstallationResult = {
 test('setup can opt into global and project default providers', async () => {
   const calls: string[] = [];
   const extensionId = 'abcdefghijklmnopabcdefghijklmnop';
-  const result = await setupPaneRelay(
+  const result = await setupPanerelay(
     {
       environment: { PANERELAY_EXTENSION_ID: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
       extensionId,
@@ -71,9 +71,9 @@ test('setup can opt into global and project default providers', async () => {
   assert.equal(result.projectConfigPath, '/project/agent-browser.json');
 });
 
-test('uninstall removes only PaneRelay-owned integration through scoped operations', async () => {
+test('uninstall removes only Panerelay-owned integration through scoped operations', async () => {
   const calls: string[] = [];
-  await uninstallPaneRelay(
+  await uninstallPanerelay(
     { homeDirectory: '/home', project: true, projectDirectory: '/project' },
     {
       removeProject: async () => {

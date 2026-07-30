@@ -1,10 +1,10 @@
 # AGENTS.md
 
-This file provides guidance to coding agents working in PaneRelay.
+This file provides guidance to coding agents working in Panerelay.
 
 ## Project phase
 
-PaneRelay is preparing its first stable `0.1.0` release. Its Extension connection, Codex/Qoder
+Panerelay is preparing its first stable `0.1.0` release. Its Extension connection, Codex/Qoder
 side-panel providers, cross-platform setup flow, and browser-level agent-browser Provider are
 available for development and release-candidate testing.
 

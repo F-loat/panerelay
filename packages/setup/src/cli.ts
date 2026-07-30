@@ -5,9 +5,9 @@ import { resolve } from 'node:path';
 import { stdin, stdout } from 'node:process';
 import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
-import { doctorPaneRelay, type DoctorReport } from './doctor.js';
+import { doctorPanerelay, type DoctorReport } from './doctor.js';
 import { normalizeLocale, resolveLocale, translate, type SupportedLocale } from './i18n.js';
-import { setupPaneRelay, uninstallPaneRelay } from './lifecycle.js';
+import { setupPanerelay, uninstallPanerelay } from './lifecycle.js';
 
 export type SetupOperation = 'setup' | 'doctor' | 'uninstall';
 
@@ -91,7 +91,7 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
   const optionStart = command === localized.argv[0] ? 1 : 0;
   for (let index = optionStart; index < localized.argv.length; index += 1) {
     const argument = localized.argv[index]!;
-    if (argument === '--project') project = true;
+    if (argument === '--project-provider') project = true;
     else if (argument === '--global-provider') globalProvider = true;
     else if (argument === '--json') json = true;
     else if (argument === '--extension-id' || argument.startsWith('--extension-id=')) {
@@ -134,40 +134,67 @@ function printHelp(locale: SupportedLocale): void {
 }
 
 const doctorLabels: Record<string, { en: string; 'zh-CN': string }> = {
-  'agent-browser': { en: 'agent-browser CLI', 'zh-CN': 'agent-browser CLI' },
-  codex: { en: 'Codex CLI', 'zh-CN': 'Codex CLI' },
-  extension: { en: 'PaneRelay Extension connection', 'zh-CN': 'PaneRelay 扩展连接' },
+  'agent-browser': { en: 'agent-browser', 'zh-CN': 'agent-browser' },
+  codex: { en: 'Codex', 'zh-CN': 'Codex' },
+  extension: { en: 'Extension', 'zh-CN': '扩展' },
   'extension-id': { en: 'Effective Extension ID', 'zh-CN': '生效的扩展 ID' },
-  'global-provider': { en: 'Global default provider', 'zh-CN': '全局默认 Provider' },
-  'native-host': { en: 'PaneRelay Native Host', 'zh-CN': 'PaneRelay Native Host' },
+  'global-provider': { en: 'User default', 'zh-CN': '用户级默认值' },
+  'native-host': { en: 'Native Host', 'zh-CN': 'Native Host' },
   'native-launcher': {
-    en: 'PaneRelay Native Host launcher',
-    'zh-CN': 'PaneRelay Native Host 启动器',
+    en: 'Native Host launcher',
+    'zh-CN': 'Native Host 启动器',
   },
   'native-manifest': {
-    en: 'Chrome Native Messaging manifest',
-    'zh-CN': 'Chrome Native Messaging 清单',
+    en: 'Native Messaging manifest',
+    'zh-CN': 'Native Messaging 清单',
   },
   node: { en: 'Node.js', 'zh-CN': 'Node.js' },
-  'project-provider': { en: 'Project default provider', 'zh-CN': '项目默认 Provider' },
-  'project-skill': { en: 'Project PaneRelay Skill', 'zh-CN': '项目 PaneRelay Skill' },
+  'project-provider': { en: 'Project default', 'zh-CN': '项目级默认值' },
+  'project-skill': { en: 'Project Agent Skill', 'zh-CN': '项目 Agent Skill' },
   provider: {
-    en: 'agent-browser PaneRelay provider',
-    'zh-CN': 'agent-browser PaneRelay Provider',
+    en: 'agent-browser Provider',
+    'zh-CN': 'agent-browser Provider',
   },
-  qoder: { en: 'Qoder CLI (optional)', 'zh-CN': 'Qoder CLI（可选）' },
-  skill: { en: 'PaneRelay Agent Skill', 'zh-CN': 'PaneRelay Agent Skill' },
+  qoder: { en: 'Qoder (optional)', 'zh-CN': 'Qoder（可选）' },
+  skill: { en: 'Agent Skill', 'zh-CN': 'Agent Skill' },
   'windows-registry': {
-    en: 'Chrome Native Messaging registry',
-    'zh-CN': 'Chrome Native Messaging 注册表',
+    en: 'Native Messaging registry',
+    'zh-CN': 'Native Messaging 注册表',
   },
 };
+
+const doctorGroups = [
+  {
+    ids: ['node', 'agent-browser', 'codex', 'qoder'],
+    title: 'doctorGroupEnvironment',
+  },
+  {
+    ids: [
+      'native-host',
+      'native-launcher',
+      'native-manifest',
+      'windows-registry',
+      'extension-id',
+      'provider',
+      'skill',
+    ],
+    title: 'doctorGroupIntegration',
+  },
+  {
+    ids: ['extension'],
+    title: 'doctorGroupBrowser',
+  },
+  {
+    ids: ['global-provider', 'project-provider', 'project-skill'],
+    title: 'doctorGroupDefaultProvider',
+  },
+] as const;
 
 function doctorDetail(detail: string, locale: SupportedLocale): string {
   if (locale === 'en') return detail;
   if (detail === 'Not found') return '未找到';
   if (detail === 'Not configured') return '未配置';
-  if (detail === 'No valid PaneRelay manifest was found') return '未找到有效的 PaneRelay 清单';
+  if (detail === 'No valid Panerelay manifest was found') return '未找到有效的 Panerelay 清单';
   if (detail === 'Extension is not currently connected') return '扩展当前未连接';
   if (detail === 'Connected Extension ID does not match the effective Extension ID') {
     return '已连接扩展的 ID 与生效扩展 ID 不一致';
@@ -183,37 +210,74 @@ function doctorDetail(detail: string, locale: SupportedLocale): string {
 function doctorHint(id: string, hint: string, locale: SupportedLocale): string {
   if (locale === 'en') return hint;
   if (id === 'node') return '请安装 Node.js 20 或更高版本';
-  if (id === 'codex') return '请安装 Codex CLI，然后运行：panerelay setup';
+  if (id === 'codex') return '请安装 Codex CLI，然后运行：npx --yes @panerelay/setup';
   if (id === 'agent-browser') {
     return hint.startsWith('Upgrade ')
       ? '请将 agent-browser 升级到 0.33.0 或更高版本'
-      : '请安装可正常运行的 agent-browser 0.33.0 或更高版本，然后运行：panerelay setup';
+      : '请安装可正常运行的 agent-browser 0.33.0 或更高版本，然后运行：npx --yes @panerelay/setup';
   }
   if (id === 'qoder') {
-    return '请安装 Qoder CLI 或设置 PANERELAY_QODER_PATH，然后运行：panerelay setup';
+    return '请安装 Qoder CLI 或设置 PANERELAY_QODER_PATH，然后运行：npx --yes @panerelay/setup';
   }
   if (id === 'extension') return '请加载或重新加载扩展，然后打开侧边栏';
   if (id === 'extension-id') return '请使用仅包含 a 到 p 的 32 位 Chrome 扩展 ID';
-  if (id === 'global-provider') return '请运行：panerelay setup --global-provider';
+  if (id === 'global-provider') return '请运行：npx --yes @panerelay/setup --global-provider';
   if (id === 'project-provider' || id === 'project-skill') {
-    return '请运行：panerelay setup --project';
+    return '请运行：npx --yes @panerelay/setup --project-provider';
   }
-  return '请运行：panerelay setup';
+  return '请运行：npx --yes @panerelay/setup';
 }
 
 function printDoctor(report: DoctorReport, locale: SupportedLocale): void {
-  for (const check of report.checks) {
-    const marker =
-      check.status === 'pass'
-        ? translate(locale, 'statusPass')
-        : check.status === 'warn'
-          ? translate(locale, 'statusWarn')
-          : translate(locale, 'statusFail');
-    const label = doctorLabels[check.id]?.[locale] ?? check.label;
-    console.log(`${marker}  ${label}: ${doctorDetail(check.detail, locale)}`);
-    if (check.hint) console.log(`      ${doctorHint(check.id, check.hint, locale)}`);
+  const renderedIds = new Set<string>();
+  const renderGroup = (
+    title: Parameters<typeof translate>[1],
+    checks: DoctorReport['checks'],
+  ): void => {
+    if (checks.length === 0) return;
+    console.log('');
+    console.log(translate(locale, title));
+    for (const check of checks) {
+      renderedIds.add(check.id);
+      const marker = check.status === 'pass' ? '✅' : check.status === 'warn' ? '⚠️' : '❌';
+      const label = doctorLabels[check.id]?.[locale] ?? check.label;
+      console.log(`  ${marker} ${label} — ${doctorDetail(check.detail, locale)}`);
+      if (check.hint) {
+        const hintLabel = translate(locale, check.status === 'fail' ? 'doctorFix' : 'doctorTip');
+        console.log(`     ${hintLabel}: ${doctorHint(check.id, check.hint, locale)}`);
+      }
+    }
+  };
+
+  console.log(translate(locale, 'doctorTitle'));
+  for (const group of doctorGroups) {
+    renderGroup(
+      group.title,
+      group.ids.flatMap(id => report.checks.filter(check => check.id === id)),
+    );
   }
-  console.log(translate(locale, report.ok ? 'doctorReady' : 'doctorAttention'));
+  renderGroup(
+    'doctorGroupOther',
+    report.checks.filter(check => !renderedIds.has(check.id)),
+  );
+
+  const failed = report.checks.filter(check => check.status === 'fail').length;
+  const warnings = report.checks.filter(check => check.status === 'warn').length;
+  console.log('');
+  if (failed > 0) {
+    console.log(`❌ ${translate(locale, 'doctorAttention')}`);
+    const counts = [translate(locale, 'doctorFailureCount', { count: String(failed) })];
+    if (warnings > 0) {
+      counts.push(translate(locale, 'doctorWarningCount', { count: String(warnings) }));
+    }
+    console.log(`   ${counts.join(' · ')}`);
+    console.log(`   ${translate(locale, 'doctorRerun')}`);
+  } else {
+    console.log(`${warnings > 0 ? '✅' : '🎉'} ${translate(locale, 'doctorReady')}`);
+    if (warnings > 0) {
+      console.log(`   ${translate(locale, 'doctorWarningCount', { count: String(warnings) })}`);
+    }
+  }
 }
 
 async function confirmUninstall(locale: SupportedLocale): Promise<boolean> {
@@ -231,11 +295,11 @@ async function confirmUninstall(locale: SupportedLocale): Promise<boolean> {
 
 export interface CliDependencies {
   confirm?: () => Promise<boolean>;
-  doctor?: typeof doctorPaneRelay;
+  doctor?: typeof doctorPanerelay;
   environment?: NodeJS.ProcessEnv;
-  setup?: typeof setupPaneRelay;
+  setup?: typeof setupPanerelay;
   systemLocale?: string;
-  uninstall?: typeof uninstallPaneRelay;
+  uninstall?: typeof uninstallPanerelay;
 }
 
 function localizeArgumentError(error: unknown, locale: SupportedLocale): string {
@@ -296,7 +360,7 @@ export async function main(
 
   try {
     if (parsed.operation === 'doctor') {
-      const report = await (dependencies.doctor ?? doctorPaneRelay)({
+      const report = await (dependencies.doctor ?? doctorPanerelay)({
         environment: dependencies.environment,
         extensionId: parsed.extensionId,
         globalProvider: parsed.globalProvider,
@@ -317,12 +381,12 @@ export async function main(
         );
         return 2;
       }
-      await (dependencies.uninstall ?? uninstallPaneRelay)({ project: parsed.project });
+      await (dependencies.uninstall ?? uninstallPanerelay)({ project: parsed.project });
       console.log(translate(locale, 'uninstallComplete'));
       return 0;
     }
 
-    const result = await (dependencies.setup ?? setupPaneRelay)({
+    const result = await (dependencies.setup ?? setupPanerelay)({
       environment: dependencies.environment,
       extensionId: parsed.extensionId,
       globalProvider: parsed.globalProvider,

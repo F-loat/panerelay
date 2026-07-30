@@ -1,13 +1,13 @@
 ## Purpose
 
 Define the observable release identity, compatibility policy, documentation, and verification
-gates for PaneRelay's first stable `0.1.0` distribution.
+gates for Panerelay's first stable `0.1.0` distribution.
 
 ## ADDED Requirements
 
 ### Requirement: Stable artifacts have one release identity
 
-PaneRelay SHALL assign the stable version `0.1.0` to every publishable package and expose the same
+Panerelay SHALL assign the stable version `0.1.0` to every publishable package and expose the same
 human-readable release identity in the Extension and retained candidate inventory.
 
 #### Scenario: Stable candidate metadata is aligned
@@ -25,12 +25,12 @@ human-readable release identity in the Extension and retained candidate inventor
 
 ### Requirement: Stable Extension identity is consistent
 
-PaneRelay SHALL retain the Extension manifest's public `key`, derive its Chrome Extension ID during
+Panerelay SHALL retain the Extension manifest's public `key`, derive its Chrome Extension ID during
 release validation, and require that the official source and packaged Extension ID equal
 `panplnkjlkoceaonlmpdekjphgmbggmi`. Setup SHALL also accept one user-configured Extension ID,
 validate it before writing state, persist it as the effective installation identity, and use that
 identity consistently in setup diagnostics, Bridge registration, and Native Messaging
-`allowed_origins`. PaneRelay SHALL NOT store or package a private signing key.
+`allowed_origins`. Panerelay SHALL NOT store or package a private signing key.
 
 #### Scenario: Public key produces the official ID
 
@@ -43,7 +43,7 @@ identity consistently in setup diagnostics, Bridge registration, and Native Mess
 
 - **GIVEN** the user supplies a syntactically valid 32-character Chrome Extension ID
 - **WHEN** setup or update resolves the effective Extension identity
-- **THEN** PaneRelay persists the custom ID and writes exactly its
+- **THEN** Panerelay persists the custom ID and writes exactly its
   `chrome-extension://<id>/` origin to each managed Native Messaging manifest
 
 #### Scenario: Multiple Extension ID sources exist
@@ -57,14 +57,14 @@ identity consistently in setup diagnostics, Bridge registration, and Native Mess
 
 - **GIVEN** a prior setup persisted a custom Extension ID
 - **WHEN** the user runs update without an explicit or environment override
-- **THEN** PaneRelay reuses the persisted ID instead of reverting to the official default
+- **THEN** Panerelay reuses the persisted ID instead of reverting to the official default
 
 #### Scenario: Custom Extension ID is malformed
 
 - **GIVEN** an Extension ID is not exactly 32 lowercase letters in the Chrome `a` through `p`
   alphabet
 - **WHEN** setup, update, or doctor evaluates it
-- **THEN** PaneRelay rejects it before writing installation files or registry state
+- **THEN** Panerelay rejects it before writing installation files or registry state
 
 #### Scenario: Extension identity drifts
 
@@ -82,7 +82,7 @@ identity consistently in setup diagnostics, Bridge registration, and Native Mess
 
 ### Requirement: Stable preparation remains non-publishing
 
-PaneRelay SHALL produce and validate inspectable npm tarballs, an unpacked-Extension archive,
+Panerelay SHALL produce and validate inspectable npm tarballs, an unpacked-Extension archive,
 checksums, and an inventory without publishing, tagging, uploading, or requiring release
 credentials.
 
@@ -101,7 +101,7 @@ credentials.
 
 ### Requirement: Stable setup declares and diagnoses supported dependencies
 
-PaneRelay SHALL require Node.js 20 or newer and agent-browser 0.33.0 or newer, report detected
+Panerelay SHALL require Node.js 20 or newer and agent-browser 0.33.0 or newer, report detected
 versions, and treat Qoder CLI as an optional Agent provider rather than a prerequisite for browser
 automation or Codex conversations.
 
@@ -116,30 +116,30 @@ automation or Codex conversations.
 - **GIVEN** Native Messaging, agent-browser, and Codex are otherwise ready
 - **WHEN** Qoder CLI is not installed or does not expose compatible ACP capabilities
 - **THEN** doctor and the side panel report Qoder as unavailable without making the complete
-  PaneRelay installation unhealthy
+  Panerelay installation unhealthy
 
 ### Requirement: Provider selection is documented as configuration
 
-PaneRelay SHALL document explicit `--provider panerelay`, project-default, and user-default
+Panerelay SHALL document explicit `--provider panerelay`, project-default, and user-default
 agent-browser selection, including their precedence and their independence from browser
 authorization.
 
 #### Scenario: User does not change the default Provider
 
-- **GIVEN** PaneRelay is registered but is not the project or user default
+- **GIVEN** Panerelay is registered but is not the project or user default
 - **WHEN** the user follows the stable documentation
 - **THEN** the documented command explicitly selects `--provider panerelay`
 
 #### Scenario: User chooses a default Provider scope
 
-- **GIVEN** the user wants PaneRelay selected without a command-line flag
+- **GIVEN** the user wants Panerelay selected without a command-line flag
 - **WHEN** they follow the project or user setup command
 - **THEN** documentation explains the affected configuration scope and states that no browser tab
   becomes authorized
 
 ### Requirement: Stable guidance distinguishes constraints from limitations
 
-PaneRelay SHALL describe daily-Chrome browser-process ownership as an architectural boundary,
+Panerelay SHALL describe daily-Chrome browser-process ownership as an architectural boundary,
 bounded memory-only activity as a privacy and lifecycle design, and lockstep component versions as
 a distribution compatibility rule.
 
@@ -160,7 +160,7 @@ a distribution compatibility rule.
 
 ### Requirement: Stable acceptance covers every supported platform and adapter
 
-PaneRelay SHALL require automated packed-artifact checks on macOS, Linux, and Windows plus
+Panerelay SHALL require automated packed-artifact checks on macOS, Linux, and Windows plus
 representative real-runtime evidence for agent-browser 0.33.0, Codex, Qoder ACP, and Windows Native
 Messaging before the stable candidate is declared releasable.
 

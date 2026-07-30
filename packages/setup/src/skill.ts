@@ -23,7 +23,7 @@ function bundledSkillPath(): string {
   return fileURLToPath(new URL(`../skills/${PANERELAY_SKILL_NAME}`, import.meta.url));
 }
 
-export async function installPaneRelaySkill(
+export async function installPanerelaySkill(
   scope: 'global' | 'project',
   options: SkillPathOptions = {},
 ): Promise<string> {
@@ -36,7 +36,7 @@ export async function installPaneRelaySkill(
   return target;
 }
 
-export async function uninstallPaneRelaySkill(
+export async function uninstallPanerelaySkill(
   scope: 'global' | 'project',
   options: SkillPathOptions = {},
 ): Promise<string> {

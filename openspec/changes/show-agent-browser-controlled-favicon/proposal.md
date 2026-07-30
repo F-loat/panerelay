@@ -1,6 +1,6 @@
 ## Why
 
-PaneRelay shows a global controlled-tab count and external-control details in the side panel, but a
+Panerelay shows a global controlled-tab count and external-control details in the side panel, but a
 user looking across normal Chrome tabs cannot tell which individual pages agent-browser currently
 controls. Chrome's debugger indicator is not attached to the page identity and does not identify
 the controlling automation engine.

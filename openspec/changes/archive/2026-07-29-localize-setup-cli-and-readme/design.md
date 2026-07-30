@@ -40,7 +40,7 @@ surface small and ensures the catalog is included automatically in the setup pac
 
 ### Localize doctor presentation, not doctor data
 
-`doctorPaneRelay` continues returning stable IDs and its current JSON values. The human formatter
+`doctorPanerelay` continues returning stable IDs and its current JSON values. The human formatter
 maps known check IDs, status markers, details, and hints to the selected language. Unknown details
 remain unchanged, preserving useful operating-system and path information.
 

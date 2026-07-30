@@ -103,12 +103,12 @@ const copy = {
     emptyBody: 'Chat with a local agent and let it work in the browser scope you authorize.',
     emptyBridgeTitle: 'Connect the local Bridge',
     emptyBridgeBody:
-      'PaneRelay needs its local Native Host before agents can start a conversation.',
+      'Panerelay needs its local Native Host before agents can start a conversation.',
     emptyProviderTitle: 'Set up {agent}',
     emptyProviderBody: 'Install or reconnect the selected Agent, then retry provider discovery.',
     codexSetupBody: 'Install or reconnect Codex, then retry provider discovery.',
     qoderSetupBody:
-      'Install Qoder CLI, run qodercli to sign in, then run panerelay setup and retry.',
+      'Install Qoder CLI, run qodercli to sign in, then run npx --yes @panerelay/setup and retry.',
     providerInstallCommand: 'Install',
     providerLoginCommand: 'Sign in',
     providerSetupDocs: 'Open setup documentation',
@@ -143,7 +143,7 @@ const copy = {
     allTabsEligible: 'All web tabs authorized',
     chromeAccessDeniedAll: 'Chrome access to all web origins was not granted',
     chromeAccessDeniedSite: 'Chrome site access was not granted',
-    unsupportedBrowserPage: 'PaneRelay cannot control this browser page',
+    unsupportedBrowserPage: 'Panerelay cannot control this browser page',
     controlling: 'Controlling',
     controllingTabs: 'Controlling {count} tabs',
     authorized: 'Authorized',
@@ -218,11 +218,12 @@ const copy = {
     emptyTitle: '想让 {agent} 做什么？',
     emptyBody: '和本地 Agent 对话，并让它在你授权的浏览器范围内工作。',
     emptyBridgeTitle: '连接本地 Bridge',
-    emptyBridgeBody: 'PaneRelay 需要连接本地 Native Host 后才能启动 Agent 会话。',
+    emptyBridgeBody: 'Panerelay 需要连接本地 Native Host 后才能启动 Agent 会话。',
     emptyProviderTitle: '配置 {agent}',
     emptyProviderBody: '安装或重新连接所选 Agent，然后重试 Provider 检测。',
     codexSetupBody: '安装或重新连接 Codex，然后重试 Provider 检测。',
-    qoderSetupBody: '安装 Qoder CLI，运行 qodercli 完成登录，再运行 panerelay setup 后重试。',
+    qoderSetupBody:
+      '安装 Qoder CLI，运行 qodercli 完成登录，再运行 npx --yes @panerelay/setup 后重试。',
     providerInstallCommand: '安装',
     providerLoginCommand: '登录',
     providerSetupDocs: '打开配置文档',
@@ -255,7 +256,7 @@ const copy = {
     allTabsEligible: '已授权所有网页标签页',
     chromeAccessDeniedAll: '未获得 Chrome 的所有网站访问权限',
     chromeAccessDeniedSite: '未获得 Chrome 的站点访问权限',
-    unsupportedBrowserPage: 'PaneRelay 无法控制这个浏览器页面',
+    unsupportedBrowserPage: 'Panerelay 无法控制这个浏览器页面',
     controlling: '正在控制',
     controllingTabs: '正在控制 {count} 个标签页',
     authorized: '已授权',
@@ -464,7 +465,7 @@ function applyTheme(): void {
 
 async function request(message: SidePanelRequest): Promise<SidePanelSuccessResponse> {
   const response = await chrome.runtime.sendMessage(message);
-  if (!response?.success) throw new Error(response?.error || 'PaneRelay request failed');
+  if (!response?.success) throw new Error(response?.error || 'Panerelay request failed');
   return response as SidePanelSuccessResponse;
 }
 
@@ -1248,7 +1249,7 @@ async function startConversation(): Promise<ConversationDetail> {
       type: 'panerelay.conversation.start',
       providerId: currentProviderId,
     });
-    if (!response.conversation) throw new Error('PaneRelay did not create a conversation');
+    if (!response.conversation) throw new Error('Panerelay did not create a conversation');
     conversations = [
       response.conversation.conversation,
       ...conversations.filter(item => item.id !== response.conversation?.conversation.id),
@@ -1272,7 +1273,7 @@ async function resumeConversation(conversationId: string): Promise<void> {
         currentProviderId,
       conversationId,
     });
-    if (!response.conversation) throw new Error('PaneRelay did not load the conversation');
+    if (!response.conversation) throw new Error('Panerelay did not load the conversation');
     await loadConversation(response.conversation);
   } finally {
     loadingConversation = false;

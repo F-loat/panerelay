@@ -1,6 +1,6 @@
 ## Why
 
-PaneRelay's alpha browser relay, setup flow, agent-browser integration, and Codex side panel are
+Panerelay's alpha browser relay, setup flow, agent-browser integration, and Codex side panel are
 ready to graduate into the first stable `0.1.0` release. Stable release preparation must replace
 alpha-only platform and Agent gaps with supported Windows Native Messaging and a second Qoder CLI
 adapter, while presenting compatibility and architectural boundaries accurately.

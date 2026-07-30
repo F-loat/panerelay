@@ -1,8 +1,8 @@
 ## Why
 
-PaneRelay's Extension already supports Chinese and English, but the repository entry point and
+Panerelay's Extension already supports Chinese and English, but the repository entry point and
 setup CLI are English-only. Chinese users should be able to evaluate, install, diagnose, and
-remove PaneRelay without translating the primary documentation or interactive output themselves.
+remove Panerelay without translating the primary documentation or interactive output themselves.
 
 ## What Changes
 
@@ -20,7 +20,7 @@ Non-goals:
   payloads, paths, commands, or product identifiers.
 - Do not persist a language preference or add more than English and Simplified Chinese.
 - Do not localize errors originating from the operating system or third-party executables when no
-  stable PaneRelay error classification exists.
+  stable Panerelay error classification exists.
 
 ## Capabilities
 

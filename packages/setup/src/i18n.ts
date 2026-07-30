@@ -4,11 +4,22 @@ export type SupportedLocale = 'en' | 'zh-CN';
 
 const englishMessages = {
   agentBrowserMissing: 'Warning: agent-browser was not found.',
-  agentCommand: 'Agent command: agent-browser --provider panerelay snapshot -i',
+  agentCommand: 'Agent command: agent-browser --provider panerelay tab list',
   agentSkill: 'Agent Skill: {path}',
   codexMissing: 'Warning: Codex CLI was not found.',
-  doctorAttention: 'PaneRelay needs attention.',
-  doctorReady: 'PaneRelay is ready.',
+  doctorAttention: 'Panerelay needs attention.',
+  doctorFailureCount: 'Failed checks: {count}',
+  doctorFix: 'Fix',
+  doctorGroupBrowser: 'Browser connection',
+  doctorGroupDefaultProvider: 'Default Provider',
+  doctorGroupEnvironment: 'Environment',
+  doctorGroupIntegration: 'Local integration',
+  doctorGroupOther: 'Other checks',
+  doctorReady: 'Panerelay is ready.',
+  doctorRerun: 'After applying the fixes, run: npx --yes @panerelay/setup doctor',
+  doctorTip: 'Tip',
+  doctorTitle: 'Panerelay doctor',
+  doctorWarningCount: 'Warnings: {count}',
   errorGlobalProviderUninstall: '--global-provider is not needed with uninstall',
   errorExtensionIdMissing: '--extension-id requires a Chrome Extension ID',
   errorExtensionIdRepeated: '--extension-id can only be provided once',
@@ -21,22 +32,22 @@ const englishMessages = {
   errorUnknownOption: 'Unknown option: {option}',
   extensionIdentity: 'Extension ID: {id}',
   globalProvider: 'Global default provider: {path}',
-  help: `PaneRelay Setup
+  help: `Panerelay Setup
 
 Usage:
-  npx @panerelay/setup [setup] [--project] [--global-provider] [--extension-id <id>] [--lang <language>]
-  npx @panerelay/setup doctor [--project] [--global-provider] [--extension-id <id>] [--json] [--lang <language>]
-  npx @panerelay/setup uninstall [--project] [--yes] [--lang <language>]
+  npx --yes @panerelay/setup [--project-provider] [--global-provider] [--extension-id <id>] [--lang <language>]
+  npx --yes @panerelay/setup doctor [--project-provider] [--global-provider] [--extension-id <id>] [--json] [--lang <language>]
+  npx --yes @panerelay/setup uninstall [--project-provider] [--yes] [--lang <language>]
 
 Commands:
-  setup       Install the Native Host, agent-browser provider, and Agent Skill
-  doctor      Diagnose the local PaneRelay integration
-  uninstall   Remove PaneRelay-managed local integration files
+  setup       Install the Native Host, agent-browser provider, and Agent Skill (default)
+  doctor      Diagnose the local Panerelay integration
+  uninstall   Remove Panerelay-managed local integration files
 
 Options:
-  --project   Also configure the current project to default to PaneRelay
+  --project-provider   Also configure the current project to default to Panerelay
   --global-provider
-              Set PaneRelay as the user-level default agent-browser provider
+              Set Panerelay as the user-level default agent-browser provider
   --extension-id
               Use a custom 32-character Chrome Extension ID for this installation
   --json      Print a machine-readable doctor report
@@ -45,28 +56,36 @@ Options:
   --help, -h  Show this help
 
 Agent usage after setup:
-  agent-browser --provider panerelay snapshot -i`,
+  agent-browser --provider panerelay tab list`,
   nativeHost: 'Native Host: {path}',
   nonInteractiveUninstall: 'Non-interactive input detected. Re-run with --yes.',
   projectProvider: 'Project provider: {path}',
-  setupComplete: 'PaneRelay setup complete.',
-  statusFail: 'FAIL',
-  statusPass: 'PASS',
-  statusWarn: 'WARN',
+  setupComplete: 'Panerelay setup complete.',
   uninstallCancelled: 'Uninstall cancelled.',
-  uninstallComplete: 'PaneRelay local integration removed.',
-  uninstallPrompt: 'Uninstall PaneRelay local integration? [y/N] ',
+  uninstallComplete: 'Panerelay local integration removed.',
+  uninstallPrompt: 'Uninstall Panerelay local integration? [y/N] ',
 } as const;
 
 type MessageKey = keyof typeof englishMessages;
 
 const chineseMessages: Record<MessageKey, string> = {
   agentBrowserMissing: '警告：未找到 agent-browser。',
-  agentCommand: 'Agent 命令：agent-browser --provider panerelay snapshot -i',
+  agentCommand: 'Agent 命令：agent-browser --provider panerelay tab list',
   agentSkill: 'Agent Skill：{path}',
   codexMissing: '警告：未找到 Codex CLI。',
-  doctorAttention: 'PaneRelay 需要处理以下问题。',
-  doctorReady: 'PaneRelay 已就绪。',
+  doctorAttention: 'Panerelay 需要处理以下问题。',
+  doctorFailureCount: '失败项：{count}',
+  doctorFix: '修复',
+  doctorGroupBrowser: '浏览器连接',
+  doctorGroupDefaultProvider: '默认 Provider',
+  doctorGroupEnvironment: '运行环境',
+  doctorGroupIntegration: '本地集成',
+  doctorGroupOther: '其他检查',
+  doctorReady: 'Panerelay 已就绪。',
+  doctorRerun: '修复后重新运行：npx --yes @panerelay/setup doctor',
+  doctorTip: '提示',
+  doctorTitle: 'Panerelay 诊断',
+  doctorWarningCount: '警告项：{count}',
   errorGlobalProviderUninstall: 'uninstall 无需使用 --global-provider',
   errorExtensionIdMissing: '--extension-id 后需要指定 Chrome 扩展 ID',
   errorExtensionIdRepeated: '--extension-id 只能指定一次',
@@ -79,22 +98,22 @@ const chineseMessages: Record<MessageKey, string> = {
   errorUnknownOption: '未知选项：{option}',
   extensionIdentity: '扩展 ID：{id}',
   globalProvider: '全局默认 Provider：{path}',
-  help: `PaneRelay 安装工具
+  help: `Panerelay 安装工具
 
 用法：
-  npx @panerelay/setup [setup] [--project] [--global-provider] [--extension-id <id>] [--lang <语言>]
-  npx @panerelay/setup doctor [--project] [--global-provider] [--extension-id <id>] [--json] [--lang <语言>]
-  npx @panerelay/setup uninstall [--project] [--yes] [--lang <语言>]
+  npx --yes @panerelay/setup [--project-provider] [--global-provider] [--extension-id <id>] [--lang <语言>]
+  npx --yes @panerelay/setup doctor [--project-provider] [--global-provider] [--extension-id <id>] [--json] [--lang <语言>]
+  npx --yes @panerelay/setup uninstall [--project-provider] [--yes] [--lang <语言>]
 
 命令：
-  setup       安装 Native Host、agent-browser Provider 和 Agent Skill
-  doctor      诊断本地 PaneRelay 集成
-  uninstall   移除由 PaneRelay 管理的本地集成文件
+  setup       安装 Native Host、agent-browser Provider 和 Agent Skill（默认）
+  doctor      诊断本地 Panerelay 集成
+  uninstall   移除由 Panerelay 管理的本地集成文件
 
 选项：
-  --project   同时将当前项目的默认 Provider 配置为 PaneRelay
+  --project-provider   同时将当前项目的默认 Provider 配置为 Panerelay
   --global-provider
-              将 PaneRelay 设为用户级默认 agent-browser Provider
+              将 Panerelay 设为用户级默认 agent-browser Provider
   --extension-id
               为当前安装指定 32 位 Chrome 扩展 ID
   --json      输出机器可读的 doctor 报告
@@ -103,17 +122,14 @@ const chineseMessages: Record<MessageKey, string> = {
   --help, -h  显示帮助
 
 安装后的 Agent 用法：
-  agent-browser --provider panerelay snapshot -i`,
+  agent-browser --provider panerelay tab list`,
   nativeHost: 'Native Host：{path}',
   nonInteractiveUninstall: '检测到非交互式输入，请添加 --yes 后重试。',
   projectProvider: '项目 Provider：{path}',
-  setupComplete: 'PaneRelay 安装完成。',
-  statusFail: '失败',
-  statusPass: '通过',
-  statusWarn: '警告',
+  setupComplete: 'Panerelay 安装完成。',
   uninstallCancelled: '已取消卸载。',
-  uninstallComplete: '已移除 PaneRelay 本地集成。',
-  uninstallPrompt: '确定卸载 PaneRelay 本地集成吗？[y/N] ',
+  uninstallComplete: '已移除 Panerelay 本地集成。',
+  uninstallPrompt: '确定卸载 Panerelay 本地集成吗？[y/N] ',
 };
 
 export interface LocaleResolutionOptions {

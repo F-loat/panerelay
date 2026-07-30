@@ -1,6 +1,6 @@
 ## Why
 
-PaneRelay 目前已通过 agent-browser 0.33.0 的浏览器级连接、页面操作、标签页和基础网络验收，但大量高级命令仍停留在“理论可透传”状态。下一阶段需要用真实日常 Chrome 逐组验证、补齐实现缺口，并把可支持与必须拒绝的边界变成稳定契约。
+Panerelay 目前已通过 agent-browser 0.33.0 的浏览器级连接、页面操作、标签页和基础网络验收，但大量高级命令仍停留在“理论可透传”状态。下一阶段需要用真实日常 Chrome 逐组验证、补齐实现缺口，并把可支持与必须拒绝的边界变成稳定契约。
 
 ## What Changes
 
@@ -20,7 +20,7 @@ PaneRelay 目前已通过 agent-browser 0.33.0 的浏览器级连接、页面操
 
 ### New Capabilities
 
-- `agent-browser-advanced-commands`: 定义 PaneRelay 对 agent-browser 0.33.0 高级页面级命令的支持、验证、授权和显式不支持行为。
+- `agent-browser-advanced-commands`: 定义 Panerelay 对 agent-browser 0.33.0 高级页面级命令的支持、验证、授权和显式不支持行为。
 
 ### Modified Capabilities
 

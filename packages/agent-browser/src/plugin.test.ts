@@ -19,7 +19,7 @@ test('publishes the browser provider manifest', async () => {
   assert.deepEqual(response.manifest, {
     name: 'panerelay',
     capabilities: ['browser.provider'],
-    description: "Connect agent-browser to a user's authorized Chrome targets through PaneRelay.",
+    description: "Connect agent-browser to a user's authorized Chrome targets through Panerelay.",
   });
 });
 

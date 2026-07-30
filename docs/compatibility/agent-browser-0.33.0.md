@@ -1,23 +1,23 @@
 # agent-browser 0.33.0 compatibility
 
-- PaneRelay release: stable `0.1.0`
+- Panerelay release: stable `0.1.0`
 - agent-browser: 0.33.0
 - Support policy: minimum supported version and initial version-specific verified baseline
 - Connection: browser-level Provider over Native Messaging
 - Last verified: 2026-07-29
 
-agent-browser versions newer than 0.33.0 satisfy PaneRelay's minimum-version check, but they do not
+agent-browser versions newer than 0.33.0 satisfy Panerelay's minimum-version check, but they do not
 inherit this file's `Verified` classifications. Record a separate version-specific compatibility
 report before describing a newer version as verified.
 
 ## Status meanings
 
-- **Verified**: covered by automated tests and exercised against an unpacked PaneRelay Extension in
+- **Verified**: covered by automated tests and exercised against an unpacked Panerelay Extension in
   an existing Chrome profile.
-- **Forwarded**: uses page-scoped CDP that PaneRelay routes without a command allowlist, but does not
+- **Forwarded**: uses page-scoped CDP that Panerelay routes without a command allowlist, but does not
   yet have a dedicated daily-Chrome acceptance scenario.
 - **Partial**: the main command works, with a documented browser-ownership limitation.
-- **Unsupported**: PaneRelay rejects the operation or the option cannot apply to an already running
+- **Unsupported**: Panerelay rejects the operation or the option cannot apply to an already running
   daily browser.
 
 ## Connection and page automation
@@ -35,7 +35,7 @@ report before describing a newer version as verified.
 | annotated screenshot                        | Forwarded | Uses the same screenshot and DOM surface; dedicated evidence is pending.                        |
 | PDF                                         | Verified  | A 4.3 MB PDF passed Native Messaging chunking and was written as a readable local artifact.     |
 | upload                                      | Verified  | Agent-local file selection and page-observed metadata pass without Extension filesystem access. |
-| download                                    | Partial   | Agent-selected paths require `Browser.setDownloadBehavior`; PaneRelay rejects it explicitly.    |
+| download                                    | Partial   | Agent-selected paths require `Browser.setDownloadBehavior`; Panerelay rejects it explicitly.    |
 | dialogs                                     | Forwarded | Page dialog events and handling are routed for controlled targets.                              |
 | init scripts                                | Forwarded | Applies only after the Agent connects; it cannot affect a page load that already happened.      |
 
@@ -47,10 +47,10 @@ report before describing a newer version as verified.
 | JavaScript popups                               | Verified    | Newly created eligible page targets are discovered and can be selected.         |
 | cross-origin iframe and worker sessions         | Partial     | Flattened child sessions are routed; auto-attach does not pause child startup.  |
 | cookies: get, set, single-cookie expiry         | Verified    | Explicit URLs and domains are limited to the selected authorized target origin. |
-| cookies: clear or whole-profile access          | Unsupported | PaneRelay rejects methods that read or clear the daily Chrome profile globally. |
+| cookies: clear or whole-profile access          | Unsupported | Panerelay rejects methods that read or clear the daily Chrome profile globally. |
 | local/session storage                           | Verified    | Implemented by Runtime evaluation in the selected tab.                          |
 | new isolated window / browser context           | Unsupported | A normal Chrome window is not an isolated CDP browser context.                  |
-| closing Chrome                                  | Unsupported | PaneRelay never maps `Browser.close` to the user's daily browser.               |
+| closing Chrome                                  | Unsupported | Panerelay never maps `Browser.close` to the user's daily browser.               |
 | concurrent automation leases                    | Unsupported | One Agent owns the browser mutation lease at a time.                            |
 | internal Chrome, Web Store, and Extension pages | Unsupported | Only debugger-compatible authorized HTTP(S) targets are exposed.                |
 
@@ -94,12 +94,12 @@ commands remain automated-test scenarios to avoid perturbing the user's daily br
 
 | option                                       | Status      | Notes                                                                                           |
 | -------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------- |
-| `--allowed-domains`                          | Unsupported | An Extension cannot pause a new top-level tab before its first request; PaneRelay fails closed. |
-| `--profile`, `--state`, `--restore`          | Unsupported | PaneRelay reuses the running profile and does not replace or replay its state.                  |
+| `--allowed-domains`                          | Unsupported | An Extension cannot pause a new top-level tab before its first request; Panerelay fails closed. |
+| `--profile`, `--state`, `--restore`          | Unsupported | Panerelay reuses the running profile and does not replace or replay its state.                  |
 | `--proxy`, `--proxy-bypass`                  | Unsupported | Browser launch networking cannot be changed after Chrome starts.                                |
-| `--executable-path`, `--args`, `--extension` | Unsupported | PaneRelay connects to the existing browser instead of launching one.                            |
+| `--executable-path`, `--args`, `--extension` | Unsupported | Panerelay connects to the existing browser instead of launching one.                            |
 | `--headed`, engine selection                 | Unsupported | The connected Chrome instance determines the browser and display mode.                          |
-| `--download-path`                            | Partial     | PaneRelay rejects Chrome-wide download behavior instead of writing to an uncontrolled location. |
+| `--download-path`                            | Partial     | Panerelay rejects Chrome-wide download behavior instead of writing to an uncontrolled location. |
 
 `agent-browser mcp`, `chat`, and the dashboard use the same underlying command surface, so their
 browser-control coverage follows this matrix rather than defining a separate transport capability.
@@ -107,7 +107,7 @@ browser-control coverage follows this matrix rather than defining a separate tra
 ## Stable distribution boundaries
 
 - The Extension, protocol, Provider, Bridge, and setup CLI are one lockstep compatibility unit;
-  `0.1.0` does not negotiate with a different PaneRelay build.
+  `0.1.0` does not negotiate with a different Panerelay build.
 - Candidate validation packs all four npm packages, installs them outside the workspace, and runs
   setup, doctor, update, and uninstall in disposable user state.
 - Native Messaging setup supports macOS, Linux, and current-user Windows Chrome registration.

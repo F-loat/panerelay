@@ -7,7 +7,7 @@ locale-dependent.
 
 ### Requirement: Primary documentation is available in English and Simplified Chinese
 
-PaneRelay SHALL provide equivalent root README entry points in English and Simplified Chinese.
+Panerelay SHALL provide equivalent root README entry points in English and Simplified Chinese.
 
 #### Scenario: Reader changes documentation language
 
@@ -40,7 +40,7 @@ invocation.
 
 ### Requirement: Human-readable setup operations are localized
 
-PaneRelay SHALL localize CLI-owned help, argument errors, setup results, uninstall interaction, and
+Panerelay SHALL localize CLI-owned help, argument errors, setup results, uninstall interaction, and
 doctor presentation in the selected language.
 
 #### Scenario: Chinese help is requested
@@ -58,7 +58,7 @@ doctor presentation in the selected language.
 
 ### Requirement: Machine-readable diagnostics are locale-independent
 
-PaneRelay SHALL keep `doctor --json` independent of the selected human language.
+Panerelay SHALL keep `doctor --json` independent of the selected human language.
 
 #### Scenario: Agent requests JSON diagnostics
 

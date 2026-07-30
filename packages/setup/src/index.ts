@@ -2,24 +2,24 @@ export {
   configureGlobalProvider,
   configureProjectProvider,
   projectAgentBrowserConfigPath,
-  registerPaneRelayProvider,
+  registerPanerelayProvider,
   removeProjectProvider,
-  unregisterPaneRelayProvider,
+  unregisterPanerelayProvider,
   userAgentBrowserConfigPath,
 } from './config.js';
-export { doctorPaneRelay } from './doctor.js';
+export { doctorPanerelay } from './doctor.js';
 export type { DoctorCheck, DoctorOptions, DoctorReport, DoctorStatus } from './doctor.js';
-export { setupPaneRelay, uninstallPaneRelay } from './lifecycle.js';
+export { setupPanerelay, uninstallPanerelay } from './lifecycle.js';
 export type {
   LifecycleDependencies,
-  PaneRelaySetupOptions,
-  PaneRelaySetupResult,
-  PaneRelayUninstallResult,
+  PanerelaySetupOptions,
+  PanerelaySetupResult,
+  PanerelayUninstallResult,
 } from './lifecycle.js';
 export {
   globalSkillPath,
-  installPaneRelaySkill,
+  installPanerelaySkill,
   PANERELAY_SKILL_NAME,
   projectSkillPath,
-  uninstallPaneRelaySkill,
+  uninstallPanerelaySkill,
 } from './skill.js';

@@ -1,6 +1,6 @@
-# Contributing to PaneRelay
+# Contributing to Panerelay
 
-PaneRelay is in its RFC phase. Contributions that clarify product scope, protocol boundaries, browser compatibility, security invariants, and user-control behavior are especially valuable.
+Panerelay is in its RFC phase. Contributions that clarify product scope, protocol boundaries, browser compatibility, security invariants, and user-control behavior are especially valuable.
 
 ## RFC workflow
 

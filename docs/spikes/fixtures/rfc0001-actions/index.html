@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PaneRelay RFC-0001 Action Matrix</title>
+    <title>Panerelay RFC-0001 Action Matrix</title>
     <style>
       body {
         max-width: 42rem;
@@ -88,7 +88,7 @@
   </head>
   <body>
     <main>
-      <h1>PaneRelay action matrix</h1>
+      <h1>Panerelay action matrix</h1>
       <p>
         This local fixture verifies extension-backed agent-browser commands without touching
         unrelated sites.
@@ -134,7 +134,7 @@
 
         <fieldset>
           <legend>Same-origin accessibility frame</legend>
-          <iframe src="./frame.html" title="PaneRelay accessibility fixture"></iframe>
+          <iframe src="./frame.html" title="Panerelay accessibility fixture"></iframe>
         </fieldset>
       </form>
     </main>
@@ -168,7 +168,7 @@
       document.querySelector('#request').addEventListener('click', async () => {
         const response = await fetch('./data.json');
         const data = await response.json();
-        console.info('PaneRelay fixture request completed', data);
+        console.info('Panerelay fixture request completed', data);
         diagnosticResult.textContent = data.message;
       });
 

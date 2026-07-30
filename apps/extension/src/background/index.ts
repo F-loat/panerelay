@@ -111,7 +111,7 @@ async function broadcastStatus(): Promise<void> {
 }
 
 function sendNative(message: unknown): void {
-  if (!nativePort) throw new Error('PaneRelay Bridge is disconnected');
+  if (!nativePort) throw new Error('Panerelay Bridge is disconnected');
   const frames = encodeNativeTransfer(message);
   const transferFrame = frames.find(isNativeTransferEnvelope);
   try {
@@ -221,7 +221,7 @@ function connectNativeHost(): void {
       if (nativePort !== port) return;
       const error = chrome.runtime.lastError;
       nativePort = null;
-      lastError = error?.message || 'PaneRelay Bridge disconnected';
+      lastError = error?.message || 'Panerelay Bridge disconnected';
       nativeTransferReceiver.cancelAll();
       if (nativeTransferCleanupTimer) {
         clearTimeout(nativeTransferCleanupTimer);
@@ -233,7 +233,7 @@ function connectNativeHost(): void {
       }
       authorizedTab = null;
       rejectPendingAgentRequests(lastError);
-      void releaseControl('PaneRelay Bridge disconnected', false);
+      void releaseControl('Panerelay Bridge disconnected', false);
       void broadcastStatus();
       scheduleReconnect();
     });
@@ -381,9 +381,9 @@ async function targetInfo(tab: TabSummary, preferredActiveTabId?: number): Promi
 
 async function tabForTarget(targetId: string): Promise<TabSummary> {
   const tabId = tabIdsByTargetId.get(targetId);
-  if (tabId === undefined) throw new Error('PaneRelay target is no longer available');
+  if (tabId === undefined) throw new Error('Panerelay target is no longer available');
   const tab = summarizeTab(await chrome.tabs.get(tabId));
-  if (!tab) throw new Error('PaneRelay target is no longer available');
+  if (!tab) throw new Error('Panerelay target is no longer available');
   return tab;
 }
 
@@ -490,7 +490,7 @@ async function handleTargetRequest(message: CdpTargetRequestMessage): Promise<vo
       }
       case 'activate': {
         const tabId = tabIdsByTargetId.get(message.operation.targetId);
-        if (tabId === undefined) throw new Error('PaneRelay target is no longer available');
+        if (tabId === undefined) throw new Error('Panerelay target is no longer available');
         const tab = await chrome.tabs.get(tabId);
         await chrome.tabs.update(tabId, { active: true });
         if (typeof tab.windowId === 'number') {
@@ -662,7 +662,7 @@ async function setAuthorization(mode: AuthorizationMode): Promise<ExtensionStatu
     if (!tab) throw new Error('No active browser tab is available');
     const origin = originAuthorizationForUrl(tab.url);
     if (!origin) {
-      throw new Error(`PaneRelay cannot control ${tab.url || 'this page'}`);
+      throw new Error(`Panerelay cannot control ${tab.url || 'this page'}`);
     }
     if (!(await chrome.permissions.contains({ origins: [origin.permissionPattern] }))) {
       throw new Error(`Chrome site access for ${origin.origin} was not granted`);
