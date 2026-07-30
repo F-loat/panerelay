@@ -168,22 +168,14 @@ function qoderBrowserSession(
 export function qoderBrowserMcpServers(
   config: PanerelayRuntimeConfig,
   sessionLabel: string,
-  platform: NodeJS.Platform = process.platform,
-  environment: NodeJS.ProcessEnv = process.env,
 ): acp.McpServer[] {
   const browserSession = qoderBrowserSession(config, sessionLabel);
   if (!browserSession) return [];
-  const launch = resolveSpawnCommand(
-    browserSession.executable,
-    ['mcp', '--tools', 'core,tabs'],
-    platform,
-    environment.ComSpec,
-  );
   return [
     {
       name: 'panerelay_browser',
-      command: launch.command,
-      args: launch.args,
+      command: browserSession.executable,
+      args: ['mcp', '--tools', 'core,tabs'],
       env: [
         { name: 'AGENT_BROWSER_CONFIG', value: browserSession.configPath },
         { name: 'AGENT_BROWSER_PROVIDER', value: 'panerelay' },
@@ -217,6 +209,7 @@ export async function closeQoderBrowserSession(
   const result = await (options.runner ?? runCommand)(launch.command, launch.args, {
     environment,
     timeoutMs: options.timeoutMs ?? BROWSER_CLEANUP_TIMEOUT_MS,
+    windowsVerbatimArguments: launch.windowsVerbatimArguments,
   });
   if (result.code !== 0) {
     throw new Error(`agent-browser cleanup exited with code ${result.code}`);
@@ -298,6 +291,7 @@ export class QoderProcessRuntime implements QoderRuntime {
     const child = spawn(launch.command, launch.args, {
       env: environment,
       stdio: ['pipe', 'pipe', 'pipe'],
+      windowsVerbatimArguments: launch.windowsVerbatimArguments,
       windowsHide: true,
     });
     this.child = child;

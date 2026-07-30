@@ -7,6 +7,7 @@ import { spawn } from 'node:child_process';
 export interface SpawnCommand {
   args: string[];
   command: string;
+  windowsVerbatimArguments?: boolean;
 }
 
 export interface CommandResult {
@@ -18,6 +19,7 @@ export interface CommandResult {
 export interface RunCommandOptions {
   environment?: NodeJS.ProcessEnv;
   timeoutMs?: number;
+  windowsVerbatimArguments?: boolean;
 }
 
 export type CommandRunner = (
@@ -49,6 +51,18 @@ export interface VersionProbeOptions {
 }
 
 const MAX_CAPTURE_LENGTH = 64 * 1024;
+const WINDOWS_COMMAND_META_CHARACTERS = /([()%!^"`<>&|;, *?])/g;
+
+function escapeWindowsCommand(value: string): string {
+  return value.replace(WINDOWS_COMMAND_META_CHARACTERS, '^$1');
+}
+
+function escapeWindowsArgument(value: string): string {
+  const escapedQuotes = value
+    .replace(/(?=(\\+?)?)\1"/g, '$1$1\\"')
+    .replace(/(?=(\\+?)?)\1$/, '$1$1');
+  return `"${escapedQuotes}"`.replace(WINDOWS_COMMAND_META_CHARACTERS, '^$1');
+}
 
 function platformPath(platform: NodeJS.Platform): typeof path.posix {
   return platform === 'win32' ? path.win32 : path.posix;
@@ -126,9 +140,15 @@ export function resolveSpawnCommand(
   commandInterpreter: string | undefined = process.env.ComSpec,
 ): SpawnCommand {
   if (platform === 'win32' && /\.(?:cmd|bat)$/i.test(executable)) {
+    // cmd.exe must receive one pre-escaped command string or paths containing spaces are reparsed.
+    const shellCommand = [
+      escapeWindowsCommand(executable),
+      ...args.map(argument => escapeWindowsArgument(argument)),
+    ].join(' ');
     return {
       command: commandInterpreter || 'cmd.exe',
-      args: ['/d', '/s', '/c', `"${executable}"`, ...args],
+      args: ['/d', '/s', '/c', `"${shellCommand}"`],
+      windowsVerbatimArguments: true,
     };
   }
   return { command: executable, args };
@@ -139,6 +159,7 @@ export const runCommand: CommandRunner = (command, args, options: RunCommandOpti
     const child = spawn(command, args, {
       env: options.environment,
       stdio: ['ignore', 'pipe', 'pipe'],
+      windowsVerbatimArguments: options.windowsVerbatimArguments,
       windowsHide: true,
     });
     let stdout = '';
@@ -191,6 +212,7 @@ export async function probeExecutableVersion(
   const result = await (options.runner ?? runCommand)(launch.command, launch.args, {
     environment: options.environment,
     timeoutMs: options.timeoutMs ?? 5_000,
+    windowsVerbatimArguments: launch.windowsVerbatimArguments,
   });
   if (result.code !== 0) {
     throw new Error(`Version probe exited with code ${result.code}`);

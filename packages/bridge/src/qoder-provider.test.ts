@@ -528,22 +528,12 @@ test('builds Windows MCP and cleanup commands without widening Provider scope', 
       agentBrowserPath: 'C:\\npm wrappers\\agent-browser.cmd',
     },
     'qoder-session-1',
-    'win32',
-    { ComSpec: 'C:\\Windows\\System32\\cmd.exe' },
   );
   assert.deepEqual(servers, [
     {
       name: 'panerelay_browser',
-      command: 'C:\\Windows\\System32\\cmd.exe',
-      args: [
-        '/d',
-        '/s',
-        '/c',
-        '"C:\\npm wrappers\\agent-browser.cmd"',
-        'mcp',
-        '--tools',
-        'core,tabs',
-      ],
+      command: 'C:\\npm wrappers\\agent-browser.cmd',
+      args: ['mcp', '--tools', 'core,tabs'],
       env: [
         {
           name: 'AGENT_BROWSER_CONFIG',
@@ -561,6 +551,7 @@ test('builds Windows MCP and cleanup commands without widening Provider scope', 
         command: string;
         environment?: NodeJS.ProcessEnv;
         timeoutMs?: number;
+        windowsVerbatimArguments?: boolean;
       }
     | undefined;
   await closeQoderBrowserSession(
@@ -578,6 +569,7 @@ test('builds Windows MCP and cleanup commands without widening Provider scope', 
           command,
           environment: options?.environment,
           timeoutMs: options?.timeoutMs,
+          windowsVerbatimArguments: options?.windowsVerbatimArguments,
         };
         return { code: 0, stderr: '', stdout: '' };
       },
@@ -588,12 +580,7 @@ test('builds Windows MCP and cleanup commands without widening Provider scope', 
     '/d',
     '/s',
     '/c',
-    '"C:\\npm wrappers\\agent-browser.cmd"',
-    '--session',
-    'qoder-session-1',
-    '--provider',
-    'panerelay',
-    'close',
+    '"C:\\npm^ wrappers\\agent-browser.cmd ^"--session^" ^"qoder-session-1^" ^"--provider^" ^"panerelay^" ^"close^""',
   ]);
   assert.equal(
     cleanup?.environment?.AGENT_BROWSER_CONFIG,
@@ -602,4 +589,5 @@ test('builds Windows MCP and cleanup commands without widening Provider scope', 
   assert.equal(cleanup?.environment?.AGENT_BROWSER_PROVIDER, 'panerelay');
   assert.equal(cleanup?.environment?.AGENT_BROWSER_SESSION, 'qoder-session-1');
   assert.equal(cleanup?.timeoutMs, 5_000);
+  assert.equal(cleanup?.windowsVerbatimArguments, true);
 });

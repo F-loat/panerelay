@@ -76,7 +76,8 @@ test('launches Windows command wrappers through ComSpec without shell interpolat
     ),
     {
       command: 'C:\\Windows\\System32\\cmd.exe',
-      args: ['/d', '/s', '/c', '"C:\\Program Files\\Qoder & Tools\\qodercli.cmd"', '--acp'],
+      args: ['/d', '/s', '/c', '"C:\\Program^ Files\\Qoder^ ^&^ Tools\\qodercli.cmd ^"--acp^""'],
+      windowsVerbatimArguments: true,
     },
   );
   assert.deepEqual(resolveSpawnCommand('/usr/bin/codex', ['app-server'], 'linux'), {
@@ -90,12 +91,20 @@ test('probes and compares semantic versions', async () => {
   assert.equal(compareVersions('0.34.1', '0.33.0'), 1);
   assert.equal(compareVersions('0.33.0', '0.33.0'), 0);
   assert.equal(compareVersions('0.32.9', '0.33.0'), -1);
-  const calls: Array<{ args: string[]; command: string }> = [];
+  const calls: Array<{
+    args: string[];
+    command: string;
+    options: {
+      environment?: NodeJS.ProcessEnv;
+      timeoutMs?: number;
+      windowsVerbatimArguments?: boolean;
+    };
+  }> = [];
   const version = await probeExecutableVersion('C:\\npm\\agent-browser.cmd', {
     environment: { ComSpec: 'cmd.exe' },
     platform: 'win32',
-    runner: async (command, args) => {
-      calls.push({ args, command });
+    runner: async (command, args, options = {}) => {
+      calls.push({ args, command, options });
       return { code: 0, stderr: '', stdout: 'agent-browser 0.33.0' };
     },
   });
@@ -103,7 +112,12 @@ test('probes and compares semantic versions', async () => {
   assert.deepEqual(calls, [
     {
       command: 'cmd.exe',
-      args: ['/d', '/s', '/c', '"C:\\npm\\agent-browser.cmd"', '--version'],
+      args: ['/d', '/s', '/c', '"C:\\npm\\agent-browser.cmd ^"--version^""'],
+      options: {
+        environment: { ComSpec: 'cmd.exe' },
+        timeoutMs: 5_000,
+        windowsVerbatimArguments: true,
+      },
     },
   ]);
 });

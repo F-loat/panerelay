@@ -113,6 +113,7 @@ export class CodexAppServer {
     const child = spawn(launch.command, launch.args, {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: environment,
+      windowsVerbatimArguments: launch.windowsVerbatimArguments,
       windowsHide: true,
     });
     this.process = child;
