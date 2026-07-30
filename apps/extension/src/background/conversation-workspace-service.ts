@@ -1,4 +1,9 @@
-import type { AgentRequest, ConversationDetail } from '@panerelay/protocol';
+import type {
+  AgentRequest,
+  ConversationDetail,
+  ConversationImageInput,
+  ConversationPageContext,
+} from '@panerelay/protocol';
 import type { ConversationWorkspaceSnapshot } from '../shared/conversation-workspaces.js';
 import {
   ConversationWorkspaceStore,
@@ -7,6 +12,7 @@ import {
 
 export interface ConversationWorkspaceServiceOptions {
   activeTabId: () => Promise<number | null>;
+  activeTabContext?: (tabId: number) => Promise<ConversationPageContext>;
   onChanged?: (tabId: number, workspace: ConversationWorkspaceSnapshot) => void | Promise<void>;
   requestAgent: (request: AgentRequest) => Promise<unknown>;
   store: ConversationWorkspaceStore;
@@ -37,6 +43,16 @@ export class ConversationWorkspaceService {
   ): Promise<ConversationWorkspaceSnapshot> {
     const tabId = await this.requireActiveTabId();
     const workspace = await this.options.store.reset(tabId, expectedRevision, providerId);
+    await this.changed(tabId, workspace);
+    return workspace;
+  }
+
+  async setDirectory(
+    expectedRevision: string,
+    cwd?: string,
+  ): Promise<ConversationWorkspaceSnapshot> {
+    const tabId = await this.requireActiveTabId();
+    const workspace = await this.options.store.setDirectory(tabId, expectedRevision, cwd);
     await this.changed(tabId, workspace);
     return workspace;
   }
@@ -72,6 +88,7 @@ export class ConversationWorkspaceService {
     expectedRevision: string,
     text: string,
     conversationId?: string,
+    images?: ConversationImageInput[],
   ): Promise<WorkspaceSendResult> {
     const tabId = await this.requireActiveTabId();
     if (conversationId) {
@@ -85,36 +102,42 @@ export class ConversationWorkspaceService {
         providerId,
         conversationId,
         text,
+        ...(images?.length ? { images } : {}),
       })) as { turnId: string };
       return { turnId: result.turnId, workspace };
     }
 
     const reservation = await this.options.store.reserve(tabId, expectedRevision);
-    let conversation: ConversationDetail;
     try {
-      conversation = (await this.options.requestAgent({
+      const initialPage = await this.initialPage(tabId);
+      const conversation = (await this.options.requestAgent({
         method: 'conversation.start',
         providerId,
+        options: {
+          ...(reservation.previous.cwd ? { cwd: reservation.previous.cwd } : {}),
+          ...(initialPage ? { initialPage } : {}),
+        },
       })) as ConversationDetail;
+      const createdId = conversation.conversation.id;
+      const result = (await this.options.requestAgent({
+        method: 'conversation.send',
+        providerId,
+        conversationId: createdId,
+        text,
+        ...(images?.length ? { images } : {}),
+      })) as { turnId: string };
+      const workspace = await this.options.store.commit(reservation, {
+        ...(reservation.previous.cwd ? { cwd: reservation.previous.cwd } : {}),
+        kind: 'conversation',
+        providerId,
+        conversationId: createdId,
+      });
+      await this.changed(tabId, workspace);
+      return { conversation, turnId: result.turnId, workspace };
     } catch (error) {
       await this.rollback(reservation);
       throw error;
     }
-
-    const createdId = conversation.conversation.id;
-    const workspace = await this.options.store.commit(reservation, {
-      kind: 'conversation',
-      providerId,
-      conversationId: createdId,
-    });
-    await this.changed(tabId, workspace);
-    const result = (await this.options.requestAgent({
-      method: 'conversation.send',
-      providerId,
-      conversationId: createdId,
-      text,
-    })) as { turnId: string };
-    return { conversation, turnId: result.turnId, workspace };
   }
 
   private async rollback(reservation: ConversationWorkspaceReservation): Promise<void> {
@@ -128,6 +151,19 @@ export class ConversationWorkspaceService {
 
   private async changed(tabId: number, workspace: ConversationWorkspaceSnapshot): Promise<void> {
     await this.options.onChanged?.(tabId, workspace);
+  }
+
+  private async initialPage(tabId: number): Promise<ConversationPageContext | undefined> {
+    try {
+      const context = await this.options.activeTabContext?.(tabId);
+      if (!context?.url && !context?.title) return undefined;
+      return {
+        ...(context.url ? { url: context.url } : {}),
+        ...(context.title ? { title: context.title } : {}),
+      };
+    } catch {
+      return undefined;
+    }
   }
 
   private async requireActiveTabId(): Promise<number> {

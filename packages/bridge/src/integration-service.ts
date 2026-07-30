@@ -10,11 +10,13 @@ import {
   setPanerelayUserDefaultProvider,
   type UserDefaultProviderState,
 } from './agent-browser-config.js';
+import { pickWorkspaceDirectory } from './workspace-directory.js';
 
 export interface IntegrationServiceOptions {
   clearDefaultProvider?: typeof clearPanerelayUserDefaultProvider;
   readDefaultProvider?: typeof readUserDefaultProvider;
   setDefaultProvider?: typeof setPanerelayUserDefaultProvider;
+  pickDirectory?: typeof pickWorkspaceDirectory;
 }
 
 function result(state: UserDefaultProviderState): IntegrationDefaultProviderResult {
@@ -29,6 +31,7 @@ export class IntegrationService {
   readonly #readDefaultProvider: typeof readUserDefaultProvider;
   readonly #send: (message: HostToExtensionMessage) => void;
   readonly #setDefaultProvider: typeof setPanerelayUserDefaultProvider;
+  readonly #pickDirectory: typeof pickWorkspaceDirectory;
 
   constructor(
     send: (message: HostToExtensionMessage) => void,
@@ -38,29 +41,55 @@ export class IntegrationService {
     this.#clearDefaultProvider = options.clearDefaultProvider ?? clearPanerelayUserDefaultProvider;
     this.#readDefaultProvider = options.readDefaultProvider ?? readUserDefaultProvider;
     this.#setDefaultProvider = options.setDefaultProvider ?? setPanerelayUserDefaultProvider;
+    this.#pickDirectory = options.pickDirectory ?? pickWorkspaceDirectory;
   }
 
   async handle(message: IntegrationRequestMessage): Promise<void> {
     try {
-      let state: UserDefaultProviderState;
       switch (message.request.method) {
-        case 'default-provider.get':
-          state = await this.#readDefaultProvider();
+        case 'default-provider.get': {
+          const state = await this.#readDefaultProvider();
+          this.#send({
+            type: 'integration.response',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            result: result(state),
+          });
           break;
-        case 'default-provider.set':
-          state = await this.#setDefaultProvider();
+        }
+        case 'default-provider.set': {
+          const state = await this.#setDefaultProvider();
+          this.#send({
+            type: 'integration.response',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            result: result(state),
+          });
           break;
-        case 'default-provider.clear':
-          state = await this.#clearDefaultProvider();
+        }
+        case 'default-provider.clear': {
+          const state = await this.#clearDefaultProvider();
+          this.#send({
+            type: 'integration.response',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            result: result(state),
+          });
+          break;
+        }
+        case 'workspace.pick-directory':
+          this.#send({
+            type: 'integration.response',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            result: { path: await this.#pickDirectory() },
+          });
           break;
       }
-      this.#send({
-        type: 'integration.response',
-        protocol: PANERELAY_PROTOCOL_VERSION,
-        requestId: message.requestId,
-        success: true,
-        result: result(state),
-      });
     } catch (error) {
       this.#send({
         type: 'integration.response',

@@ -7,7 +7,9 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { ExtensionStatus, SidePanelRequest } from '../../shared/messages.js';
 import type { ConversationWorkspaceSnapshot } from '../../shared/conversation-workspaces.js';
+import type { PageElementComment } from '../../shared/page-comments.js';
 import {
+  AUTO_APPROVE_KEY,
   createInitialSidepanelState,
   sidepanelReducer,
   useSidepanelController,
@@ -36,12 +38,14 @@ const providers: AgentProviderSummary[] = [
     name: 'Codex',
     status: 'ready',
     description: 'Codex fixture',
+    capabilities: { imageInput: true },
   },
   {
     id: 'qoder',
     name: 'Qoder',
     status: 'ready',
     description: 'Qoder fixture',
+    capabilities: { imageInput: true },
   },
 ];
 
@@ -79,6 +83,9 @@ class FakeSidepanelClient implements SidepanelClient {
     revision: 'workspace-1',
   };
   nextWorkspace = 1;
+  projectCancelled = false;
+  projectError = '';
+  sendError = '';
   resumeHandler:
     | ((message: Extract<SidePanelRequest, { type: 'panerelay.conversation.resume' }>) => Promise<{
         success: true;
@@ -114,6 +121,23 @@ class FakeSidepanelClient implements SidepanelClient {
           revision: `workspace-${++this.nextWorkspace}`,
         };
         return { success: true as const, workspace: this.workspace };
+      case 'panerelay.workspace.pick-directory':
+        if (this.projectError) throw new Error(this.projectError);
+        if (this.projectCancelled) return { success: true as const };
+        this.workspace = {
+          ...this.workspace,
+          cwd: '/workspace/project',
+          revision: `workspace-${++this.nextWorkspace}`,
+        };
+        return { success: true as const, workspace: this.workspace };
+      case 'panerelay.workspace.clear-directory': {
+        const { cwd: _cwd, ...workspace } = this.workspace;
+        this.workspace = {
+          ...workspace,
+          revision: `workspace-${++this.nextWorkspace}`,
+        } as ConversationWorkspaceSnapshot;
+        return { success: true as const, workspace: this.workspace };
+      }
       case 'panerelay.conversation.list': {
         const detail = conversation(message.providerId);
         return { success: true as const, conversations: [detail.conversation] };
@@ -158,8 +182,22 @@ class FakeSidepanelClient implements SidepanelClient {
         };
       case 'panerelay.controlled-tab.activate':
       case 'panerelay.controlled-tab.close':
+      case 'panerelay.page-comments.start':
+      case 'panerelay.page-comments.stop':
+      case 'panerelay.page-comments.edit':
+      case 'panerelay.page-comments.remove':
+      case 'panerelay.page-comments.clear':
         return { success: true as const };
       case 'panerelay.conversation.send': {
+        if (this.sendError) {
+          if (!message.conversationId) {
+            this.workspace = {
+              ...this.workspace,
+              revision: `workspace-${++this.nextWorkspace}`,
+            };
+          }
+          throw new Error(this.sendError);
+        }
         if (!message.conversationId) {
           const created = conversation(message.providerId);
           this.workspace = {
@@ -399,6 +437,210 @@ describe('Side Panel controller', () => {
           request.type === 'panerelay.conversation.resume',
       ),
     ).toBe(false);
+  });
+
+  it('selects and clears a project only while the workspace is a draft', async () => {
+    const { client, hook } = await readyController();
+    client.requests.length = 0;
+
+    await act(() => hook.result.current.selectProject());
+    expect(hook.result.current.state.workspace?.cwd).toBe('/workspace/project');
+    expect(client.requests).toContainEqual({
+      type: 'panerelay.workspace.pick-directory',
+      expectedRevision: 'workspace-1',
+    });
+
+    await act(() => hook.result.current.clearProject());
+    expect(hook.result.current.state.workspace?.cwd).toBeUndefined();
+    expect(client.requests).toContainEqual({
+      type: 'panerelay.workspace.clear-directory',
+      expectedRevision: 'workspace-2',
+    });
+
+    client.projectCancelled = true;
+    await act(() => hook.result.current.selectProject());
+    expect(hook.result.current.state.workspace?.cwd).toBeUndefined();
+    expect(hook.result.current.state.selectingProject).toBe(false);
+
+    client.projectCancelled = false;
+    client.projectError = 'Project picker failed';
+    await act(() => hook.result.current.selectProject());
+    expect(hook.result.current.state.error).toBe('Project picker failed');
+    expect(hook.result.current.state.selectingProject).toBe(false);
+
+    await act(() => hook.result.current.setHistoryOpen(true));
+    await act(() => hook.result.current.selectConversation('codex-conversation'));
+    client.requests.length = 0;
+    await act(() => hook.result.current.selectProject());
+    expect(client.requests).toEqual([]);
+  });
+
+  it('collects page comments, sends them as untrusted context, and preserves them on failure', async () => {
+    const { client, hook } = await readyController();
+    const comment: PageElementComment = {
+      id: 'comment-1',
+      comment: 'Make this button clearer',
+      page: { url: 'https://example.com/page', title: 'Fixture' },
+      element: {
+        tagName: 'button',
+        selector: 'main > button.primary',
+        text: 'Continue',
+        rect: { left: 10, top: 20, width: 100, height: 30 },
+      },
+    };
+
+    await act(() => hook.result.current.togglePageComments());
+    expect(hook.result.current.state.commentMode).toBe(true);
+    await act(() => hook.result.current.startContinuousPageComments());
+    expect(client.requests).toContainEqual({
+      type: 'panerelay.page-comments.start',
+      continuous: true,
+      locale: 'en',
+      theme: 'light',
+    });
+    act(() => {
+      client.emit({
+        type: 'panerelay.page-comment.changed',
+        source: 'panerelay-page-comments',
+        comment,
+      });
+    });
+    expect(hook.result.current.state.pageComments).toEqual([comment]);
+
+    await act(() => hook.result.current.sendMessage());
+    const sent = client.requests.find(request => request.type === 'panerelay.conversation.send');
+    expect(sent).toEqual(
+      expect.objectContaining({
+        text: expect.stringContaining('Untrusted page evidence'),
+      }),
+    );
+    if (sent?.type === 'panerelay.conversation.send') {
+      expect(sent.text).toContain('Make this button clearer');
+      expect(sent.text).not.toContain('tabId');
+    }
+    expect(hook.result.current.state.pageComments).toEqual([]);
+    expect(client.requests).toContainEqual({ type: 'panerelay.page-comments.clear' });
+
+    await act(() => hook.result.current.newConversation());
+    client.sendError = 'Agent send failed';
+    act(() => {
+      client.emit({
+        type: 'panerelay.page-comment.changed',
+        source: 'panerelay-page-comments',
+        comment,
+      });
+      hook.result.current.setComposerText('Please fix this');
+    });
+    await act(() => hook.result.current.sendMessage());
+    expect(hook.result.current.state.composerText).toBe('Please fix this');
+    expect(hook.result.current.state.pageComments).toEqual([comment]);
+    expect(hook.result.current.state.error).toBe('Agent send failed');
+    expect(hook.result.current.state.workspace?.revision).toBe(client.workspace.revision);
+  });
+
+  it('sends pasted images and preserves them with the draft after failure', async () => {
+    const { client, hook } = await readyController();
+    const file = new File([new Uint8Array([1, 2, 3])], 'screenshot.png', {
+      type: 'image/png',
+    });
+
+    await act(() => hook.result.current.addPastedImages([file]));
+    expect(hook.result.current.state.pastedImages).toEqual([
+      expect.objectContaining({
+        data: 'AQID',
+        mimeType: 'image/png',
+        name: 'screenshot.png',
+        size: 3,
+      }),
+    ]);
+    await act(() => hook.result.current.sendMessage());
+    expect(client.requests).toContainEqual({
+      type: 'panerelay.conversation.send',
+      providerId: 'codex',
+      expectedRevision: 'workspace-1',
+      text: '',
+      images: [{ data: 'AQID', mimeType: 'image/png', name: 'screenshot.png' }],
+    });
+    expect(hook.result.current.state.pastedImages).toEqual([]);
+
+    await act(() => hook.result.current.newConversation());
+    await act(() => hook.result.current.addPastedImages([file]));
+    client.sendError = 'Agent send failed';
+    await act(() => hook.result.current.sendMessage());
+    expect(hook.result.current.state.pastedImages).toHaveLength(1);
+    expect(hook.result.current.state.error).toBe('Agent send failed');
+  });
+
+  it('persists auto approval and only chooses a one-shot accept for the current conversation', async () => {
+    const { client, hook } = await readyController();
+    await act(() => hook.result.current.setHistoryOpen(true));
+    await act(() => hook.result.current.selectConversation('codex-conversation'));
+    client.requests.length = 0;
+
+    const approval: ConversationApproval = {
+      id: 'approval-auto',
+      conversationId: 'codex-conversation',
+      turnId: 'turn-auto',
+      kind: 'tool',
+      title: 'Run tool',
+      decisions: ['accept', 'acceptForSession', 'decline'],
+    };
+    act(() => {
+      client.emit({
+        type: 'panerelay.conversation.event',
+        event: {
+          kind: 'approval.requested',
+          conversationId: 'codex-conversation',
+          turnId: 'turn-auto',
+          approval,
+        },
+      });
+    });
+    expect(client.requests.some(request => request.type === 'panerelay.conversation.respond')).toBe(
+      false,
+    );
+
+    await act(() => hook.result.current.setAutoApprove(true));
+    await waitFor(() =>
+      expect(client.requests).toContainEqual({
+        type: 'panerelay.conversation.respond',
+        providerId: 'codex',
+        conversationId: 'codex-conversation',
+        approvalId: 'approval-auto',
+        decision: 'accept',
+      }),
+    );
+    expect(client.storedWrites).toContainEqual({ [AUTO_APPROVE_KEY]: true });
+
+    client.requests.length = 0;
+    const unsupported: ConversationApproval = {
+      ...approval,
+      id: 'approval-session-only',
+      decisions: ['acceptForSession', 'decline'],
+    };
+    act(() => {
+      client.emit({
+        type: 'panerelay.conversation.event',
+        event: {
+          kind: 'approval.requested',
+          conversationId: 'codex-conversation',
+          turnId: 'turn-auto',
+          approval: unsupported,
+        },
+      });
+    });
+    await new Promise<void>(resolve => setImmediate(resolve));
+    expect(client.requests.some(request => request.type === 'panerelay.conversation.respond')).toBe(
+      false,
+    );
+  });
+
+  it('restores the saved auto-approval preference', async () => {
+    const client = new FakeSidepanelClient();
+    client.stored[AUTO_APPROVE_KEY] = true;
+    const hook = renderHook(() => useSidepanelController(client));
+    await waitFor(() => expect(hook.result.current.state.initializing).toBe(false));
+    expect(hook.result.current.state.autoApprove).toBe(true);
   });
 
   it('restores cached tab conversations and discards a delayed resume after activation changes', async () => {

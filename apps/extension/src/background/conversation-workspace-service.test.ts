@@ -40,6 +40,10 @@ function harness() {
   };
   const service = new ConversationWorkspaceService({
     activeTabId: async () => activeTabId,
+    activeTabContext: async tabId => ({
+      url: `https://example.com/tab-${tabId}?token=secret`,
+      title: `Tab ${tabId}`,
+    }),
     onChanged(tabId, workspace) {
       changes.push({ tabId, revision: workspace.revision });
     },
@@ -62,7 +66,8 @@ function harness() {
 
 test('creates, binds, and sends exactly once for a draft first message', async () => {
   const { calls, service } = harness();
-  const draft = await service.get('codex');
+  const initialDraft = await service.get('codex');
+  const draft = await service.setDirectory(initialDraft.revision, '/workspace/project');
 
   const result = await service.send('codex', draft.revision, 'Hello');
 
@@ -72,6 +77,28 @@ test('creates, binds, and sends exactly once for a draft first message', async (
     calls.map(request => request.method),
     ['conversation.start', 'conversation.send'],
   );
+  assert.deepEqual(calls[0], {
+    method: 'conversation.start',
+    providerId: 'codex',
+    options: {
+      cwd: '/workspace/project',
+      initialPage: {
+        url: 'https://example.com/tab-11?token=secret',
+        title: 'Tab 11',
+      },
+    },
+  });
+  assert.equal(result.workspace.cwd, '/workspace/project');
+});
+
+test('clears a draft project without creating a conversation', async () => {
+  const { calls, service } = harness();
+  const draft = await service.get('codex');
+  const selected = await service.setDirectory(draft.revision, '/workspace/project');
+  const cleared = await service.setDirectory(selected.revision);
+
+  assert.equal(cleared.cwd, undefined);
+  assert.deepEqual(calls, []);
 });
 
 test('sends an existing conversation only when the rendered revision still owns the tab', async () => {
@@ -88,6 +115,32 @@ test('sends an existing conversation only when the rendered revision still owns 
     calls.map(request => request.method),
     ['conversation.send'],
   );
+});
+
+test('forwards images through both draft and bound conversation sends', async () => {
+  const { calls, service, store } = harness();
+  const draft = await service.get('codex');
+  const images = [{ data: 'AQID', mimeType: 'image/png', name: 'screenshot.png' }];
+
+  await service.send('codex', draft.revision, '', undefined, images);
+  assert.deepEqual(calls[1], {
+    method: 'conversation.send',
+    providerId: 'codex',
+    conversationId: 'thread-new',
+    text: '',
+    images,
+  });
+
+  const nextDraft = await service.reset('codex', (await store.get(11))!.revision);
+  const bound = await store.bindConversation(11, nextDraft.revision, 'codex', 'thread-bound');
+  await service.send('codex', bound.revision, '', 'thread-bound', images);
+  assert.deepEqual(calls.at(-1), {
+    method: 'conversation.send',
+    providerId: 'codex',
+    conversationId: 'thread-bound',
+    text: '',
+    images,
+  });
 });
 
 test('commits a delayed resume to its captured tab instead of the newly active tab', async () => {
@@ -128,4 +181,34 @@ test('rolls back a reservation after resume failure and rejects an older revisio
   assert.equal(restored.kind, 'draft');
   assert.notEqual(restored.revision, draft.revision);
   await assert.rejects(service.reset('qoder', draft.revision), WorkspaceRevisionConflictError);
+});
+
+test('rolls a failed first send back to a retryable draft with its project', async () => {
+  const { calls, service, setResponder, store } = harness();
+  const initial = await service.get('codex');
+  const draft = await service.setDirectory(initial.revision, '/workspace/project');
+  setResponder(async request => {
+    calls.push(request);
+    if (request.method === 'conversation.start') return detail('thread-failed', request.providerId);
+    if (request.method === 'conversation.send') throw new Error('send failed');
+    return {};
+  });
+
+  await assert.rejects(service.send('codex', draft.revision, 'Retry me'), /send failed/);
+
+  const restored = await store.get(11);
+  assert.deepEqual(restored, {
+    kind: 'draft',
+    providerId: 'codex',
+    cwd: '/workspace/project',
+    revision: 'id-5',
+  });
+  assert.deepEqual(
+    calls.map(request => request.method),
+    ['conversation.start', 'conversation.send'],
+  );
+  await assert.rejects(
+    service.send('codex', draft.revision, 'Stale retry'),
+    WorkspaceRevisionConflictError,
+  );
 });

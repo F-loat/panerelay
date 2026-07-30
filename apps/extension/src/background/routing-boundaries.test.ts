@@ -28,6 +28,10 @@ test('keeps target-scoped automation failures out of the global error banner', a
 
 test('marks the current document on Agent commands without persisting across navigation', async () => {
   const source = await readFile(join(process.cwd(), 'src/background/index.ts'), 'utf8');
+  const attachHandler = source.slice(
+    source.indexOf('async function attachTarget'),
+    source.indexOf('async function runCdpCommand'),
+  );
   const commandHandler = source.slice(
     source.indexOf('async function runCdpCommand'),
     source.indexOf('async function detachTarget'),
@@ -38,9 +42,12 @@ test('marks the current document on Agent commands without persisting across nav
   );
 
   assert.ok(
-    commandHandler.indexOf('await applyControlledFavicon(current.id)') <
-      commandHandler.indexOf('await chrome.debugger.sendCommand'),
+    commandHandler.indexOf('cdpCommandTouchesDocument(message.method)') <
+      commandHandler.indexOf('await applyControlledFavicon(current.id)') &&
+      commandHandler.indexOf('await applyControlledFavicon(current.id)') <
+        commandHandler.indexOf('await chrome.debugger.sendCommand'),
   );
+  assert.doesNotMatch(attachHandler, /applyControlledFavicon/);
   assert.doesNotMatch(tabUpdatedHandler, /applyControlledFavicon/);
 });
 
@@ -94,4 +101,24 @@ test('validates controlled-tab membership before activating or closing a Chrome 
     controlledActions.lastIndexOf('controlledTargetIdForTab(tabId)') <
       controlledActions.indexOf('chrome.tabs.remove'),
   );
+});
+
+test('injects and coordinates page comments across authorized reachable frames', async () => {
+  const source = await readFile(join(process.cwd(), 'src/background/index.ts'), 'utf8');
+  const pageCommentSetup = source.slice(
+    source.indexOf('const pageCommentService'),
+    source.indexOf('async function updateActionBadge'),
+  );
+  const runtimeRouter = source.slice(
+    source.indexOf('chrome.runtime.onMessage.addListener'),
+    source.indexOf('chrome.debugger.onEvent.addListener'),
+  );
+
+  assert.match(pageCommentSetup, /target: \{ tabId, allFrames: true \}/);
+  assert.match(runtimeRouter, /panerelay\.page-comment\.frame-active/);
+  assert.match(runtimeRouter, /panerelay\.page-comments\.frame-active/);
+  assert.match(runtimeRouter, /panerelay\.page-comments\.pause/);
+  assert.match(runtimeRouter, /panerelay\.page-comments\.resume/);
+  assert.match(runtimeRouter, /panerelay\.page-comments\.stop/);
+  assert.doesNotMatch(runtimeRouter, /sender\.frameId/);
 });

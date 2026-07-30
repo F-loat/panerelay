@@ -359,10 +359,19 @@ test('keeps create, activate, and bring-to-front in the Agent background', async
     assert.deepEqual(
       await command(client, {
         id: 4,
+        method: 'Target.setAutoAttach',
+        sessionId: pageSessionId,
+        params: { autoAttach: true, waitForDebuggerOnStart: true, flatten: true },
+      }),
+      { id: 4, result: {}, sessionId: pageSessionId },
+    );
+    assert.deepEqual(
+      await command(client, {
+        id: 5,
         method: 'Page.bringToFront',
         sessionId: pageSessionId,
       }),
-      { id: 4, result: {}, sessionId: pageSessionId },
+      { id: 5, result: {}, sessionId: pageSessionId },
     );
     assert.equal(
       extensionMessages.some(
@@ -372,7 +381,7 @@ test('keeps create, activate, and bring-to-front in the Agent background', async
     );
 
     await command(client, {
-      id: 5,
+      id: 6,
       method: 'Target.setDiscoverTargets',
       params: { discover: true },
     });
@@ -398,11 +407,11 @@ test('keeps create, activate, and bring-to-front in the Agent background', async
 
     assert.deepEqual(
       await command(client, {
-        id: 6,
+        id: 7,
         method: 'Target.closeTarget',
         params: { targetId: 'target-created' },
       }),
-      { id: 6, result: { success: true } },
+      { id: 7, result: { success: true } },
     );
   } finally {
     await closeClient(client);
@@ -468,6 +477,48 @@ test('routes flattened child-target sessions through the owning tab', async () =
       sessionId: pageSessionId,
       params: { autoAttach: true, waitForDebuggerOnStart: true, flatten: true },
     });
+    assert.equal(
+      extensionMessages.some(
+        message => message.type === 'cdp.attach' || message.type === 'cdp.command',
+      ),
+      false,
+    );
+    assert.equal(
+      extensionMessages
+        .filter(
+          (message): message is ControlSessionChangedMessage =>
+            message.type === 'control.session.changed',
+        )
+        .some(message => message.session.controlledTargetCount > 0),
+      false,
+    );
+
+    assert.deepEqual(
+      await command(client, {
+        id: 4,
+        method: 'Runtime.evaluate',
+        sessionId: pageSessionId,
+        params: { expression: 'document.title' },
+      }),
+      { id: 4, result: {}, sessionId: pageSessionId },
+    );
+    assert.deepEqual(
+      extensionMessages
+        .filter((message): message is CdpCommandMessage => message.type === 'cdp.command')
+        .map(message => message.method),
+      ['Target.setAutoAttach', 'Runtime.evaluate'],
+    );
+    assert.ok(
+      extensionMessages
+        .filter(
+          (message): message is ControlSessionChangedMessage =>
+            message.type === 'control.session.changed',
+        )
+        .some(
+          message =>
+            message.session.state === 'active' && message.session.controlledTargetCount === 1,
+        ),
+    );
 
     const attachedEvent = waitForMessage(client);
     await relay.handleExtensionMessage({
@@ -503,11 +554,11 @@ test('routes flattened child-target sessions through the owning tab', async () =
 
     assert.deepEqual(
       await command(client, {
-        id: 4,
+        id: 5,
         method: 'Runtime.runIfWaitingForDebugger',
         sessionId: 'chrome-child-session',
       }),
-      { id: 4, result: {}, sessionId: 'chrome-child-session' },
+      { id: 5, result: {}, sessionId: 'chrome-child-session' },
     );
     const childCommand = extensionMessages.filter(message => message.type === 'cdp.command').at(-1);
     assert.equal(childCommand?.targetId, 'target-1');

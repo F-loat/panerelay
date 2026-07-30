@@ -16,7 +16,10 @@ import {
   type ConversationSummary,
   type HostToExtensionMessage,
   type IntegrationRequest,
+  type IntegrationDefaultProviderResult,
   type IntegrationResponseMessage,
+  type IntegrationResult,
+  type IntegrationWorkspaceDirectoryResult,
 } from '@panerelay/protocol';
 import { controlBadgeText } from './action-badge.js';
 import { createControlActivityState, reduceControlActivity } from './control-activity-state.js';
@@ -38,12 +41,15 @@ import {
   originAuthorizationForUrl,
 } from '../shared/authorization.js';
 import { applyControlledFavicon, releaseControlledFavicon } from './controlled-favicon.js';
+import { cdpCommandTouchesDocument } from './cdp-document-activity.js';
 import { debuggerDetachReason } from './debugger-detach.js';
 import { installConversationWorkspaceObservers } from './conversation-workspace-observers.js';
 import { ConversationWorkspaceService } from './conversation-workspace-service.js';
 import { createChromeConversationWorkspaceStore } from './conversation-workspaces.js';
 import type { ConversationWorkspaceSnapshot } from '../shared/conversation-workspaces.js';
 import { nativeHostDisconnectState } from './native-host-readiness.js';
+import { installPageCommentsRuntime } from '../content/page-comments-runtime.js';
+import { PageCommentService } from './page-comments.js';
 
 const BROWSER_ID_KEY = 'panerelay.browserId';
 const ALL_TABS_AUTHORIZATION_KEY = 'panerelay.authorization.allTabs';
@@ -58,7 +64,7 @@ interface PendingRequest<T> {
 }
 
 type PendingAgentRequest = PendingRequest<unknown>;
-type PendingIntegrationRequest = PendingRequest<DefaultProviderState>;
+type PendingIntegrationRequest = PendingRequest<IntegrationResult>;
 
 let nativePort: chrome.runtime.Port | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -82,8 +88,36 @@ let controlActivityState = createControlActivityState();
 const conversationWorkspaceStore = createChromeConversationWorkspaceStore();
 const conversationWorkspaceService = new ConversationWorkspaceService({
   activeTabId: async () => (await activeTab())?.id ?? null,
+  activeTabContext: async tabId => {
+    const tab = await chrome.tabs.get(tabId);
+    return {
+      ...(tab.url ? { url: tab.url.slice(0, 4_000) } : {}),
+      ...(tab.title ? { title: tab.title.slice(0, 500) } : {}),
+    };
+  },
   requestAgent,
   store: conversationWorkspaceStore,
+});
+const pageCommentService = new PageCommentService({
+  broadcastReset: async () => {
+    await chrome.runtime
+      .sendMessage({ type: 'panerelay.page-comment.reset' })
+      .catch(() => undefined);
+  },
+  ensureRuntime: async tabId => {
+    try {
+      const results = await chrome.scripting.executeScript({
+        target: { tabId, allFrames: true },
+        func: installPageCommentsRuntime,
+      });
+      return results.length > 0 && results.every(result => result.result === true);
+    } catch {
+      return false;
+    }
+  },
+  isAuthorized: isTabOriginAuthorized,
+  resolveActiveTab: activeTab,
+  sendToTab: (tabId, message) => chrome.tabs.sendMessage(tabId, message),
 });
 
 async function updateActionBadge(): Promise<void> {
@@ -395,9 +429,15 @@ function handleIntegrationResponse(message: IntegrationResponseMessage): void {
   }
 }
 
-function requestIntegration(request: IntegrationRequest): Promise<DefaultProviderState> {
+function requestIntegration(
+  request: Extract<IntegrationRequest, { method: `default-provider.${string}` }>,
+): Promise<IntegrationDefaultProviderResult>;
+function requestIntegration(
+  request: Extract<IntegrationRequest, { method: 'workspace.pick-directory' }>,
+): Promise<IntegrationWorkspaceDirectoryResult>;
+function requestIntegration(request: IntegrationRequest): Promise<IntegrationResult> {
   const requestId = crypto.randomUUID();
-  const result = new Promise<DefaultProviderState>((resolve, reject) => {
+  const result = new Promise<IntegrationResult>((resolve, reject) => {
     const timer = setTimeout(() => {
       pendingIntegrationRequests.delete(requestId);
       reject(new Error(`Timed out waiting for ${request.method}`));
@@ -623,7 +663,6 @@ async function attachTarget(requestId: string, targetId: string): Promise<void> 
       await chrome.debugger.attach({ tabId: summary.id }, '1.3');
       controlledTabs.set(targetId, summary);
     }
-    await applyControlledFavicon(summary.id);
     await updateActionBadge();
     sendNative({
       type: 'cdp.attached',
@@ -685,7 +724,9 @@ async function runCdpCommand(message: CdpCommandMessage): Promise<void> {
       tabId: current.id,
       ...(message.sessionId ? { sessionId: message.sessionId } : {}),
     } as chrome.debugger.Debuggee;
-    await applyControlledFavicon(current.id);
+    if (cdpCommandTouchesDocument(message.method)) {
+      await applyControlledFavicon(current.id);
+    }
     const result = await chrome.debugger.sendCommand(
       debuggee,
       message.method as never,
@@ -874,6 +915,37 @@ async function handleSidePanelRequest(message: SidePanelRequest): Promise<SidePa
           message.expectedRevision,
         ),
       };
+    case 'panerelay.workspace.pick-directory': {
+      const selected = await requestIntegration({ method: 'workspace.pick-directory' });
+      if (!selected.path) return { success: true };
+      return {
+        success: true,
+        workspace: await conversationWorkspaceService.setDirectory(
+          message.expectedRevision,
+          selected.path,
+        ),
+      };
+    }
+    case 'panerelay.workspace.clear-directory':
+      return {
+        success: true,
+        workspace: await conversationWorkspaceService.setDirectory(message.expectedRevision),
+      };
+    case 'panerelay.page-comments.start':
+      await pageCommentService.start(message.continuous === true, message.locale, message.theme);
+      return { success: true };
+    case 'panerelay.page-comments.stop':
+      await pageCommentService.stop();
+      return { success: true };
+    case 'panerelay.page-comments.edit':
+      await pageCommentService.edit(message.commentId);
+      return { success: true };
+    case 'panerelay.page-comments.remove':
+      await pageCommentService.remove(message.commentId);
+      return { success: true };
+    case 'panerelay.page-comments.clear':
+      await pageCommentService.clear();
+      return { success: true };
     case 'panerelay.conversation.list':
       return {
         success: true,
@@ -899,6 +971,7 @@ async function handleSidePanelRequest(message: SidePanelRequest): Promise<SidePa
           message.expectedRevision,
           message.text,
           message.conversationId,
+          message.images,
         )),
       };
     }
@@ -922,14 +995,43 @@ async function handleSidePanelRequest(message: SidePanelRequest): Promise<SidePa
   }
 }
 
-chrome.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
   if (!message || typeof message !== 'object' || !('type' in message)) return false;
   const type = (message as { type?: unknown }).type;
   if (typeof type !== 'string' || !type.startsWith('panerelay.')) return false;
+  const runtimeMessage = message as Record<string, unknown>;
+  if (runtimeMessage.source === 'panerelay-page-comments' && typeof sender.tab?.id === 'number') {
+    const tabId = sender.tab.id;
+    if (type === 'panerelay.page-comment.picker-paused') {
+      void chrome.tabs
+        .sendMessage(tabId, { type: 'panerelay.page-comments.pause' })
+        .catch(() => undefined);
+    } else if (type === 'panerelay.page-comment.picker-resumed') {
+      void chrome.tabs
+        .sendMessage(tabId, { type: 'panerelay.page-comments.resume' })
+        .catch(() => undefined);
+    } else if (
+      type === 'panerelay.page-comment.frame-active' &&
+      typeof runtimeMessage.frameToken === 'string' &&
+      runtimeMessage.frameToken.length <= 100
+    ) {
+      void chrome.tabs
+        .sendMessage(tabId, {
+          type: 'panerelay.page-comments.frame-active',
+          frameToken: runtimeMessage.frameToken,
+        })
+        .catch(() => undefined);
+    } else if (type === 'panerelay.page-comment.mode' && runtimeMessage.active === false) {
+      void chrome.tabs
+        .sendMessage(tabId, { type: 'panerelay.page-comments.stop' })
+        .catch(() => undefined);
+    }
+  }
   if (
     type === 'panerelay.status.changed' ||
     type === 'panerelay.conversation.event' ||
-    type === 'panerelay.workspace.changed'
+    type === 'panerelay.workspace.changed' ||
+    type.startsWith('panerelay.page-comment.')
   ) {
     return false;
   }
@@ -1015,6 +1117,7 @@ async function publishTargetForTab(tab: chrome.tabs.Tab): Promise<void> {
 
 chrome.tabs.onRemoved.addListener(tabId => {
   void (async () => {
+    await pageCommentService.resetIfDocumentEnded(tabId);
     const targetId = targetIdsByTabId.get(tabId);
     if (authorizedTab?.id === tabId) {
       authorizedTab = null;
@@ -1038,6 +1141,7 @@ chrome.tabs.onRemoved.addListener(tabId => {
 });
 chrome.tabs.onCreated.addListener(tab => void publishTargetForTab(tab));
 chrome.tabs.onActivated.addListener(({ tabId }) => {
+  void pageCommentService.resetIfTabChanged(tabId);
   void chrome.tabs
     .get(tabId)
     .then(publishTargetForTab)
@@ -1047,6 +1151,9 @@ chrome.tabs.onActivated.addListener(({ tabId }) => {
 });
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   void (async () => {
+    if (changeInfo.status === 'loading' || changeInfo.url) {
+      await pageCommentService.resetIfDocumentEnded(tabId);
+    }
     const summary = summarizeTab(tab);
     if (authorizedTab?.id === tabId) {
       if (summary && (await isTabOriginAuthorized(summary))) {
@@ -1094,6 +1201,7 @@ chrome.permissions.onRemoved.addListener(() => {
     } else {
       return;
     }
+    await pageCommentService.reset();
     await releaseControl('Chrome site access was revoked', true);
   })();
 });

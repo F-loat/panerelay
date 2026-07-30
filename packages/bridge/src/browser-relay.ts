@@ -38,6 +38,7 @@ interface PendingCommand {
   sessionId?: string;
   releaseTarget: () => void;
   timer: NodeJS.Timeout;
+  onResult?: (message: CdpResultMessage) => void;
 }
 
 interface TargetCommandWaiter {
@@ -73,6 +74,10 @@ interface PageSession {
   id: string;
   targetId: string;
   client: WebSocket;
+  autoAttach?: {
+    params: Record<string, unknown>;
+    applied: boolean;
+  };
 }
 
 interface ClientState {
@@ -140,6 +145,10 @@ export class BrowserRelay {
     PendingExtensionResult<CdpTargetResultMessage>
   >();
   private readonly pendingCommands = new Map<string, PendingCommand>();
+  private readonly pendingSetupCommands = new Map<
+    string,
+    PendingExtensionResult<CdpResultMessage>
+  >();
   private readonly targetCommandQueues = new Map<string, TargetCommandQueue>();
   private readonly clientActivities = new Map<WebSocket, Map<number, string>>();
   private readonly activities: AutomationActivity[] = [];
@@ -226,7 +235,7 @@ export class BrowserRelay {
         this.resolveAttach(message);
         return;
       case 'cdp.result':
-        this.forwardResult(message);
+        if (!this.resolveSetupCommand(message)) this.forwardResult(message);
         return;
       case 'cdp.event':
         this.forwardEvent(message);
@@ -894,6 +903,24 @@ export class BrowserRelay {
       return;
     }
 
+    const forwardedParams =
+      pageSession &&
+      method === 'Target.setAutoAttach' &&
+      params.autoAttach === true &&
+      params.waitForDebuggerOnStart === true
+        ? { ...params, waitForDebuggerOnStart: false }
+        : params;
+    if (pageSession && method === 'Target.setAutoAttach') {
+      pageSession.autoAttach = {
+        params: forwardedParams,
+        applied: this.attachedTargets.has(targetId),
+      };
+      if (!this.attachedTargets.has(targetId)) {
+        this.sendResult(client, cdpId, {}, sessionId);
+        return;
+      }
+    }
+
     try {
       await this.ensureTargetAttached(targetId);
     } catch (error) {
@@ -927,6 +954,28 @@ export class BrowserRelay {
       return;
     }
 
+    try {
+      if (pageSession?.autoAttach && !pageSession.autoAttach.applied) {
+        await this.runSetupCommand(targetId, 'Target.setAutoAttach', pageSession.autoAttach.params);
+        pageSession.autoAttach.applied = true;
+      }
+    } catch (error) {
+      releaseTarget();
+      this.sendCdpError(
+        client,
+        cdpId,
+        -32000,
+        error instanceof Error ? error.message : String(error),
+        sessionId,
+        'browser-error',
+      );
+      return;
+    }
+    if (!this.clients.has(client)) {
+      releaseTarget();
+      return;
+    }
+
     const requestId = randomUUID();
     const timeoutMs = this.options.extensionRequestTimeoutMs ?? EXTENSION_REQUEST_TIMEOUT_MS;
     const timer = setTimeout(() => {
@@ -944,14 +993,20 @@ export class BrowserRelay {
       );
     }, timeoutMs);
     timer.unref();
-    const forwardedParams =
-      pageSession &&
-      method === 'Target.setAutoAttach' &&
-      params.autoAttach === true &&
-      params.waitForDebuggerOnStart === true
-        ? { ...params, waitForDebuggerOnStart: false }
-        : params;
-    this.pendingCommands.set(requestId, { client, cdpId, sessionId, releaseTarget, timer });
+    this.pendingCommands.set(requestId, {
+      client,
+      cdpId,
+      sessionId,
+      releaseTarget,
+      timer,
+      ...(pageSession && method === 'Target.setAutoAttach'
+        ? {
+            onResult: (message: CdpResultMessage) => {
+              if (pageSession.autoAttach) pageSession.autoAttach.applied = !message.error;
+            },
+          }
+        : {}),
+    });
     try {
       this.options.sendToExtension({
         type: 'cdp.command',
@@ -1113,12 +1168,59 @@ export class BrowserRelay {
     pending.resolve(message);
   }
 
+  private runSetupCommand(
+    targetId: string,
+    method: string,
+    params: Record<string, unknown>,
+  ): Promise<void> {
+    const requestId = randomUUID();
+    const timeoutMs = this.options.extensionRequestTimeoutMs ?? EXTENSION_REQUEST_TIMEOUT_MS;
+    const result = new Promise<CdpResultMessage>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingSetupCommands.delete(requestId);
+        reject(new Error(`Timed out applying deferred target setup ${method}`));
+      }, timeoutMs);
+      timer.unref();
+      this.pendingSetupCommands.set(requestId, { resolve, reject, timer });
+    });
+    try {
+      this.options.sendToExtension({
+        type: 'cdp.command',
+        protocol: PANERELAY_PROTOCOL_VERSION,
+        requestId,
+        targetId,
+        method,
+        ...(Object.keys(params).length > 0 ? { params } : {}),
+      });
+    } catch (error) {
+      const pending = this.pendingSetupCommands.get(requestId);
+      if (pending) {
+        this.pendingSetupCommands.delete(requestId);
+        clearTimeout(pending.timer);
+        pending.reject(error instanceof Error ? error : new Error(String(error)));
+      }
+    }
+    return result.then(message => {
+      if (message.error) throw new Error(message.error.message);
+    });
+  }
+
+  private resolveSetupCommand(message: CdpResultMessage): boolean {
+    const pending = this.pendingSetupCommands.get(message.requestId);
+    if (!pending) return false;
+    this.pendingSetupCommands.delete(message.requestId);
+    clearTimeout(pending.timer);
+    pending.resolve(message);
+    return true;
+  }
+
   private forwardResult(message: CdpResultMessage): void {
     const pending = this.pendingCommands.get(message.requestId);
     if (!pending) return;
     this.pendingCommands.delete(message.requestId);
     clearTimeout(pending.timer);
     pending.releaseTarget();
+    pending.onResult?.(message);
     this.finishClientActivity(
       pending.client,
       pending.cdpId,
@@ -1252,6 +1354,11 @@ export class BrowserRelay {
   private handleDetached(message: CdpDetachedMessage): void {
     if (message.scope === 'target' && message.targetId) {
       const wasAttached = this.attachedTargets.delete(message.targetId);
+      for (const pageSession of this.pageSessions.values()) {
+        if (pageSession.targetId === message.targetId && pageSession.autoAttach) {
+          pageSession.autoAttach.applied = false;
+        }
+      }
       for (const [sessionId, session] of [...this.childSessions]) {
         if (session.targetId === message.targetId) this.childSessions.delete(sessionId);
       }
@@ -1359,6 +1466,11 @@ export class BrowserRelay {
       pending.releaseTarget();
     }
     this.pendingCommands.clear();
+    for (const pending of this.pendingSetupCommands.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error(reason));
+    }
+    this.pendingSetupCommands.clear();
     for (const queue of this.targetCommandQueues.values()) {
       for (const waiter of queue.waiters) waiter.reject(new Error(reason));
     }
@@ -1391,6 +1503,11 @@ export class BrowserRelay {
       pending.reject(error);
     }
     this.pendingTargetRequests.clear();
+    for (const pending of this.pendingSetupCommands.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(error);
+    }
+    this.pendingSetupCommands.clear();
   }
 
   private sendBrowserVersion(client: WebSocket, id: number): void {

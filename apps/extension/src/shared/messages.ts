@@ -4,6 +4,7 @@ import type {
   ConversationApprovalDecision,
   ConversationDetail,
   ConversationEvent,
+  ConversationImageInput,
   ConversationSummary,
   ControlSessionSummary,
 } from '@panerelay/protocol';
@@ -11,6 +12,7 @@ import type {
   ConversationWorkspaceChangedMessage,
   ConversationWorkspaceSnapshot,
 } from './conversation-workspaces.js';
+import type { PageCommentRuntimeMessage } from './page-comments.js';
 
 export type { ConversationWorkspaceChangedMessage } from './conversation-workspaces.js';
 
@@ -64,6 +66,24 @@ export type SidePanelRequest =
       providerId: string;
       expectedRevision: string;
     }
+  | {
+      type: 'panerelay.workspace.pick-directory';
+      expectedRevision: string;
+    }
+  | {
+      type: 'panerelay.workspace.clear-directory';
+      expectedRevision: string;
+    }
+  | {
+      type: 'panerelay.page-comments.start';
+      continuous?: boolean;
+      locale?: 'en' | 'zh-CN';
+      theme?: 'dark' | 'light';
+    }
+  | { type: 'panerelay.page-comments.stop' }
+  | { type: 'panerelay.page-comments.edit'; commentId: string }
+  | { type: 'panerelay.page-comments.remove'; commentId: string }
+  | { type: 'panerelay.page-comments.clear' }
   | { type: 'panerelay.conversation.list'; providerId: string }
   | {
       type: 'panerelay.conversation.resume';
@@ -77,6 +97,7 @@ export type SidePanelRequest =
       conversationId?: string;
       expectedRevision: string;
       text: string;
+      images?: ConversationImageInput[];
     }
   | {
       type: 'panerelay.conversation.interrupt';
@@ -120,4 +141,7 @@ export interface SidePanelErrorResponse {
 export type SidePanelResponse = SidePanelSuccessResponse | SidePanelErrorResponse;
 
 export type SidePanelRuntimeMessage =
-  StatusChangedMessage | ConversationChangedMessage | ConversationWorkspaceChangedMessage;
+  | StatusChangedMessage
+  | ConversationChangedMessage
+  | ConversationWorkspaceChangedMessage
+  | PageCommentRuntimeMessage;

@@ -73,3 +73,20 @@ test('returns a correlated error when configuration cannot be read', async () =>
     },
   ]);
 });
+
+test('returns a validated workspace directory or cancellation', async () => {
+  const sent: HostToExtensionMessage[] = [];
+  let selected: string | null = '/workspace/project';
+  const service = new IntegrationService(message => sent.push(message), {
+    pickDirectory: async () => selected,
+  });
+
+  await service.handle(request('workspace.pick-directory', 'workspace-1'));
+  selected = null;
+  await service.handle(request('workspace.pick-directory', 'workspace-2'));
+
+  assert.deepEqual(
+    sent.map(message => (message.type === 'integration.response' ? message.result : undefined)),
+    [{ path: '/workspace/project' }, { path: null }],
+  );
+});

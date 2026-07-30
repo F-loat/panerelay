@@ -266,6 +266,51 @@ test('lists, starts, and loads Qoder sessions with isolated browser MCP definiti
   );
 });
 
+test('uses a validated project and prepends bounded page context only to the first prompt', async () => {
+  const { provider, runtimes } = harness();
+  await provider.startConversation({
+    cwd: process.cwd(),
+    initialPage: {
+      url: 'https://example.com/app?token=secret',
+      title: 'Example app',
+    },
+  });
+  await provider.sendMessage('qoder-new', 'Inspect this page');
+  await flush();
+
+  const newRequest = runtimes[0]?.requests.find(
+    request => request.method === acp.methods.agent.session.new,
+  );
+  assert.equal((newRequest?.params as acp.NewSessionRequest).cwd, process.cwd());
+  const firstPrompt = runtimes[0]?.requests.find(
+    request => request.method === acp.methods.agent.session.prompt,
+  )?.params as acp.PromptRequest;
+  const firstText = firstPrompt.prompt[0];
+  assert.equal(firstText?.type, 'text');
+  assert.match(firstText?.type === 'text' ? firstText.text : '', /Example app/);
+  assert.match(firstText?.type === 'text' ? firstText.text : '', /Inspect this page/);
+  assert.doesNotMatch(firstText?.type === 'text' ? firstText.text : '', /secret/);
+  assert.doesNotMatch(firstText?.type === 'text' ? firstText.text : '', /"tabId"/);
+
+  await provider.sendMessage('qoder-new', 'Continue');
+  await flush();
+  const prompts = runtimes[0]?.requests.filter(
+    request => request.method === acp.methods.agent.session.prompt,
+  );
+  const secondText = (prompts?.[1]?.params as acp.PromptRequest).prompt[0];
+  assert.equal(secondText?.type === 'text' ? secondText.text : '', 'Continue');
+
+  await provider.sendMessage('qoder-new', '', [
+    { data: 'AQID', mimeType: 'image/png', name: 'screenshot.png' },
+  ]);
+  await flush();
+  const imagePrompt = (
+    runtimes[0]?.requests.filter(request => request.method === acp.methods.agent.session.prompt)[2]
+      ?.params as acp.PromptRequest
+  ).prompt;
+  assert.deepEqual(imagePrompt, [{ type: 'image', data: 'AQID', mimeType: 'image/png' }]);
+});
+
 test('normalizes streaming, reasoning, plan, tools, usage, completion, and unknown updates', async () => {
   const { diagnostics, events, provider, runtimes } = harness();
   await provider.startConversation();

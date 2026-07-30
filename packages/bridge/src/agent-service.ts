@@ -10,6 +10,7 @@ import {
 } from '@panerelay/protocol';
 import type { AgentProvider } from './agent-provider.js';
 import { CodexProvider } from './codex-provider.js';
+import { validateConversationImages } from './conversation-images.js';
 import { QoderProvider } from './qoder-provider.js';
 
 export interface AgentServiceOptions {
@@ -103,7 +104,7 @@ export class AgentService {
         return conversations;
       }
       case 'conversation.start': {
-        const detail = await provider.startConversation();
+        const detail = await provider.startConversation(request.options);
         this.acceptConversationDetail(provider.id, detail);
         return detail;
       }
@@ -115,7 +116,11 @@ export class AgentService {
       }
       case 'conversation.send':
         this.assertConversationOwned(provider.id, request.conversationId);
-        return provider.sendMessage(request.conversationId, request.text);
+        return provider.sendMessage(
+          request.conversationId,
+          request.text,
+          validateConversationImages(request.images),
+        );
       case 'conversation.interrupt':
         this.assertConversationOwned(provider.id, request.conversationId);
         return provider.interrupt(request.conversationId, request.turnId);

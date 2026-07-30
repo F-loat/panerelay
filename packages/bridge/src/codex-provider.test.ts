@@ -92,6 +92,14 @@ test('exposes Codex through provider-neutral conversation results', async () => 
       name: 'Codex',
       status: 'ready',
       description: 'Local Codex app-server with streamed turns, tools, and approvals.',
+      capabilities: {
+        approvals: true,
+        imageInput: true,
+        interrupt: true,
+        listConversations: true,
+        resume: true,
+        streaming: true,
+      },
       setup: {
         installCommand: 'npm install -g @openai/codex',
         loginCommand: 'codex login',
@@ -119,6 +127,13 @@ test('exposes Codex through provider-neutral conversation results', async () => 
   const detail = await provider.handle({
     method: 'conversation.start',
     providerId: 'codex',
+    options: {
+      cwd: process.cwd(),
+      initialPage: {
+        url: 'https://example.com/app?token=secret',
+        title: 'Example app',
+      },
+    },
   });
   assert.equal((detail as { conversation: { id: string } }).conversation.id, 'thread-new');
   const startRequest = client.requests.find(request => request.method === 'thread/start');
@@ -129,6 +144,20 @@ test('exposes Codex through provider-neutral conversation results', async () => 
   assert.deepEqual(config['mcp_servers.panerelay_browser.args'], ['mcp', '--tools', 'core,tabs']);
   assert.equal(params.approvalPolicy, 'on-request');
   assert.equal(params.sandbox, 'read-only');
+  assert.equal(params.cwd, process.cwd());
+  assert.match(String(params.developerInstructions), /Example app/);
+  assert.match(String(params.developerInstructions), /%5BREDACTED%5D/);
+  assert.doesNotMatch(String(params.developerInstructions), /secret/);
+  assert.doesNotMatch(String(params.developerInstructions), /"tabId"/);
+
+  await provider.sendMessage('thread-new', '', [
+    { data: 'AQID', mimeType: 'image/png', name: 'screenshot.png' },
+  ]);
+  const turn = client.requests.find(request => request.method === 'turn/start');
+  assert.deepEqual(turn?.params, {
+    threadId: 'thread-new',
+    input: [{ type: 'image', url: 'data:image/png;base64,AQID' }],
+  });
 });
 
 test('prepares Codex once for concurrent warmups without creating a conversation', async () => {

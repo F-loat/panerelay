@@ -9,11 +9,17 @@ import type {
   ConversationApprovalDecision,
   ConversationDetail,
   ConversationEvent,
+  ConversationImageInput,
   ConversationMessage,
+  ConversationStartOptions,
   ConversationStatus,
   ConversationSummary,
 } from '@panerelay/protocol';
 import type { AgentProvider } from './agent-provider.js';
+import {
+  createConversationContextInstructions,
+  resolveConversationStartOptions,
+} from './agent-context.js';
 import { CodexAppServer, type CodexRpcMessage } from './codex-app-server.js';
 import { readRuntimeConfig, type PanerelayRuntimeConfig } from './runtime-config.js';
 
@@ -231,11 +237,11 @@ export class CodexProvider implements AgentProvider {
       case 'conversation.list':
         return this.listConversations();
       case 'conversation.start':
-        return this.startConversation();
+        return this.startConversation(request.options);
       case 'conversation.resume':
         return this.resumeConversation(request.conversationId);
       case 'conversation.send':
-        return this.sendMessage(request.conversationId, request.text);
+        return this.sendMessage(request.conversationId, request.text, request.images);
       case 'conversation.interrupt':
         return this.interrupt(request.conversationId, request.turnId);
       case 'conversation.respond':
@@ -265,6 +271,14 @@ export class CodexProvider implements AgentProvider {
       name: 'Codex',
       status: config.codexPath ? 'ready' : 'unavailable',
       description: 'Local Codex app-server with streamed turns, tools, and approvals.',
+      capabilities: {
+        approvals: true,
+        imageInput: true,
+        interrupt: true,
+        listConversations: true,
+        resume: true,
+        streaming: true,
+      },
       setup: {
         installCommand: 'npm install -g @openai/codex',
         loginCommand: 'codex login',
@@ -343,9 +357,10 @@ export class CodexProvider implements AgentProvider {
       .map(threadSummary);
   }
 
-  async startConversation(): Promise<ConversationDetail> {
+  async startConversation(options: ConversationStartOptions = {}): Promise<ConversationDetail> {
     const client = await this.ensureClient();
     const config = this.config;
+    const resolvedOptions = resolveConversationStartOptions(options);
     const browserSession = `panerelay-codex-${randomUUID()}`;
     const browserMcpConfig =
       config?.agentBrowserPath && config.agentBrowserConfigPath
@@ -361,14 +376,19 @@ export class CodexProvider implements AgentProvider {
             'mcp_servers.panerelay_browser.default_tools_approval_mode': 'auto',
           }
         : {};
+    const contextInstructions = createConversationContextInstructions(resolvedOptions);
     const result = asRecord(
       await client.request('thread/start', {
-        cwd: homedir(),
+        cwd: resolvedOptions.cwd ?? homedir(),
         approvalPolicy: 'on-request',
         sandbox: 'read-only',
         serviceName: 'panerelay',
-        developerInstructions:
+        developerInstructions: [
           'You are running inside the Panerelay browser side panel. Use the panerelay_browser MCP tools for browser interaction when relevant. Browser authorization is controlled by the user in the side panel; never attempt to widen or bypass it. Keep chat responses concise and surface meaningful browser actions.',
+          contextInstructions,
+        ]
+          .filter(Boolean)
+          .join('\n\n'),
         config: browserMcpConfig,
       }),
     );
@@ -393,14 +413,24 @@ export class CodexProvider implements AgentProvider {
     };
   }
 
-  async sendMessage(conversationId: string, text: string): Promise<{ turnId: string }> {
+  async sendMessage(
+    conversationId: string,
+    text: string,
+    images: ConversationImageInput[] = [],
+  ): Promise<{ turnId: string }> {
     const trimmed = text.trim();
-    if (!trimmed) throw new Error('Message cannot be empty');
+    if (!trimmed && images.length === 0) throw new Error('Message cannot be empty');
     const client = await this.ensureClient();
     const result = asRecord(
       await client.request('turn/start', {
         threadId: conversationId,
-        input: [{ type: 'text', text: trimmed }],
+        input: [
+          ...(trimmed ? [{ type: 'text', text: trimmed }] : []),
+          ...images.map(image => ({
+            type: 'image',
+            url: `data:${image.mimeType};base64,${image.data}`,
+          })),
+        ],
       }),
     );
     const turn = asRecord(result.turn);

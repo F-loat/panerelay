@@ -1,9 +1,14 @@
-import type {
+import {
+  CONVERSATION_IMAGE_MIME_TYPES,
+  CONVERSATION_MAX_IMAGE_BYTES,
+  CONVERSATION_MAX_IMAGES,
+  CONVERSATION_MAX_TOTAL_IMAGE_BYTES,
   AgentProviderSummary,
   ConversationApproval,
   ConversationApprovalDecision,
   ConversationDetail,
   ConversationEvent,
+  type ConversationImageInput,
   ConversationMessage,
   ConversationSummary,
 } from '@panerelay/protocol';
@@ -11,6 +16,7 @@ import { useCallback, useEffect, useLayoutEffect, useReducer, useRef } from 'rea
 import { ALL_WEB_ORIGIN_PATTERNS, originAuthorizationForUrl } from '../../shared/authorization.js';
 import type { ConversationWorkspaceSnapshot } from '../../shared/conversation-workspaces.js';
 import type { AuthorizationMode, ExtensionStatus } from '../../shared/messages.js';
+import type { PageElementComment } from '../../shared/page-comments.js';
 import {
   defaultLocale,
   formatCopy,
@@ -27,6 +33,7 @@ import {
   supportedProviders,
 } from './provider-selection.js';
 import type { SidepanelClient } from './sidepanel-client.js';
+import { appendPageCommentsContext, pageCommentsDisplayMessage } from './page-comment-context.js';
 
 export type TimelineItem =
   | { type: 'message'; message: ConversationMessage; streaming?: boolean }
@@ -36,6 +43,33 @@ export type TimelineItem =
   | { type: 'error'; id: string; message: string };
 
 export type TurnFeedbackPhase = 'starting' | 'working';
+export const AUTO_APPROVE_KEY = 'panerelay.agentAutoApprove';
+const SUPPORTED_IMAGE_MIME_TYPES = new Set<string>(CONVERSATION_IMAGE_MIME_TYPES);
+
+export interface PastedImage extends ConversationImageInput {
+  id: string;
+  size: number;
+}
+
+function readImageData(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.addEventListener('load', () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      const comma = result.indexOf(',');
+      if (comma < 0) reject(new Error('Image data could not be read'));
+      else resolve(result.slice(comma + 1));
+    });
+    reader.addEventListener('error', () => reject(reader.error || new Error('Image read failed')));
+    reader.readAsDataURL(file);
+  });
+}
+
+export function automaticApprovalDecision(
+  approval: ConversationApproval,
+): ConversationApprovalDecision | null {
+  return approval.decisions.includes('accept') ? 'accept' : null;
+}
 
 export interface SidepanelState {
   locale: Locale;
@@ -55,11 +89,18 @@ export interface SidepanelState {
   >;
   workspace: ConversationWorkspaceSnapshot | null;
   currentConversation: ConversationSummary | null;
+  pageComments: PageElementComment[];
+  commentMode: boolean;
+  pageCommentsPending: boolean;
+  pastedImages: PastedImage[];
+  imageError: string;
+  autoApprove: boolean;
   timeline: TimelineItem[];
   runningTurnId: string | null;
   turnFeedback: TurnFeedbackPhase | null;
   activeReasoning: { id: string; text: string } | null;
   loadingConversation: boolean;
+  selectingProject: boolean;
   submitting: boolean;
   initializing: boolean;
   authorizationPending: boolean;
@@ -100,11 +141,18 @@ export function createInitialSidepanelState(language?: string): SidepanelState {
     providerPreparations: {},
     workspace: null,
     currentConversation: null,
+    pageComments: [],
+    commentMode: false,
+    pageCommentsPending: false,
+    pastedImages: [],
+    imageError: '',
+    autoApprove: false,
     timeline: [],
     runningTurnId: null,
     turnFeedback: null,
     activeReasoning: null,
     loadingConversation: false,
+    selectingProject: false,
     submitting: false,
     initializing: true,
     authorizationPending: false,
@@ -305,6 +353,15 @@ export interface SidepanelController {
   activateControlledTab(tabId: number): Promise<void>;
   closeControlledTab(tabId: number): Promise<void>;
   setComposerText(text: string): void;
+  selectProject(): Promise<void>;
+  clearProject(): Promise<void>;
+  togglePageComments(): Promise<void>;
+  startContinuousPageComments(): Promise<void>;
+  editPageComment(commentId: string): Promise<void>;
+  removePageComment(commentId: string): Promise<void>;
+  addPastedImages(files: File[]): Promise<void>;
+  removePastedImage(imageId: string): void;
+  setAutoApprove(enabled: boolean): Promise<void>;
   useSuggestion(kind: 'summarize' | 'inspect' | 'find'): void;
   sendMessage(text?: string): Promise<void>;
   interrupt(): Promise<void>;
@@ -324,6 +381,8 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
   );
   const stateRef = useRef(state);
   const activationGenerationRef = useRef(0);
+  const pastedImageGenerationRef = useRef(0);
+  const autoApprovingApprovalIdsRef = useRef(new Set<string>());
   const conversationViewsRef = useRef(
     new Map<
       string,
@@ -397,7 +456,9 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
       });
       try {
         await client.request({ type: 'panerelay.agent.prepare', providerId });
+        const providerResponse = await client.request({ type: 'panerelay.agent.providers' });
         patch({
+          providers: supportedProviders(providerResponse.providers ?? stateRef.current.providers),
           providerPreparations: {
             ...stateRef.current.providerPreparations,
             [providerId]: { status: 'ready' },
@@ -418,6 +479,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
   const activateWorkspace = useCallback(
     async (workspace: ConversationWorkspaceSnapshot, generation: number) => {
       if (generation !== activationGenerationRef.current) return;
+      pastedImageGenerationRef.current += 1;
       const provider = stateRef.current.providers.find(item => item.id === workspace.providerId);
       if (provider?.status === 'ready') void prepareProvider(workspace.providerId);
 
@@ -433,6 +495,8 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
           loadingConversation: false,
           submitting: false,
           composerText: draftTextRef.current.get(workspace.revision) ?? '',
+          pastedImages: [],
+          imageError: '',
           error: '',
         });
         return;
@@ -452,6 +516,8 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
           loadingConversation: false,
           submitting: false,
           composerText: '',
+          pastedImages: [],
+          imageError: '',
           error: '',
         });
         return;
@@ -468,6 +534,8 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
         loadingConversation: provider?.status === 'ready',
         submitting: false,
         composerText: '',
+        pastedImages: [],
+        imageError: '',
       });
       if (provider?.status !== 'ready') return;
       try {
@@ -542,7 +610,12 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
     patch({ initializing: true, error: '' });
     let providerDiscoveryCompleted = false;
     try {
-      const stored = await client.getStored([LOCALE_KEY, PROVIDER_KEY, THEME_KEY]);
+      const stored = await client.getStored([
+        LOCALE_KEY,
+        PROVIDER_KEY,
+        THEME_KEY,
+        AUTO_APPROVE_KEY,
+      ]);
       const locale =
         stored[LOCALE_KEY] === 'en' || stored[LOCALE_KEY] === 'zh-CN'
           ? stored[LOCALE_KEY]
@@ -553,7 +626,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
         stored[THEME_KEY] === 'light'
           ? stored[THEME_KEY]
           : stateRef.current.themeSetting;
-      patch({ locale, themeSetting });
+      patch({ locale, themeSetting, autoApprove: stored[AUTO_APPROVE_KEY] === true });
 
       const statusResponse = await client.request({ type: 'panerelay.status.get' });
       const extensionStatus = statusResponse.status ?? null;
@@ -820,6 +893,200 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
 
   const setComposerText = useCallback((composerText: string) => patch({ composerText }), [patch]);
 
+  const selectProject = useCallback(async () => {
+    const workspace = stateRef.current.workspace;
+    if (!workspace || workspace.kind !== 'draft' || stateRef.current.selectingProject) return;
+    const generation = activationGenerationRef.current;
+    patch({ selectingProject: true, error: '' });
+    try {
+      const response = await client.request({
+        type: 'panerelay.workspace.pick-directory',
+        expectedRevision: workspace.revision,
+      });
+      if (generation !== activationGenerationRef.current || !response.workspace) return;
+      patch({ workspace: response.workspace });
+    } catch (error) {
+      if (generation === activationGenerationRef.current) patch({ error: errorText(error) });
+    } finally {
+      if (generation === activationGenerationRef.current) patch({ selectingProject: false });
+    }
+  }, [client, patch]);
+
+  const clearProject = useCallback(async () => {
+    const workspace = stateRef.current.workspace;
+    if (
+      !workspace ||
+      workspace.kind !== 'draft' ||
+      !workspace.cwd ||
+      stateRef.current.selectingProject
+    ) {
+      return;
+    }
+    const generation = activationGenerationRef.current;
+    patch({ selectingProject: true, error: '' });
+    try {
+      const response = await client.request({
+        type: 'panerelay.workspace.clear-directory',
+        expectedRevision: workspace.revision,
+      });
+      if (generation !== activationGenerationRef.current || !response.workspace) return;
+      patch({ workspace: response.workspace });
+    } catch (error) {
+      if (generation === activationGenerationRef.current) patch({ error: errorText(error) });
+    } finally {
+      if (generation === activationGenerationRef.current) patch({ selectingProject: false });
+    }
+  }, [client, patch]);
+
+  const togglePageComments = useCallback(async () => {
+    if (stateRef.current.pageCommentsPending) return;
+    const wasActive = stateRef.current.commentMode;
+    patch({ pageCommentsPending: true, error: '' });
+    try {
+      await client.request({
+        type: wasActive ? 'panerelay.page-comments.stop' : 'panerelay.page-comments.start',
+        ...(!wasActive
+          ? {
+              locale: stateRef.current.locale,
+              theme:
+                stateRef.current.themeSetting === 'system'
+                  ? client.prefersLightTheme()
+                    ? 'light'
+                    : 'dark'
+                  : stateRef.current.themeSetting,
+            }
+          : {}),
+      });
+      patch({ commentMode: !wasActive });
+    } catch (error) {
+      patch({ error: errorText(error) });
+    } finally {
+      patch({ pageCommentsPending: false });
+    }
+  }, [client, patch]);
+
+  const startContinuousPageComments = useCallback(async () => {
+    patch({ pageCommentsPending: true, error: '' });
+    try {
+      await client.request({
+        type: 'panerelay.page-comments.start',
+        continuous: true,
+        locale: stateRef.current.locale,
+        theme:
+          stateRef.current.themeSetting === 'system'
+            ? client.prefersLightTheme()
+              ? 'light'
+              : 'dark'
+            : stateRef.current.themeSetting,
+      });
+      patch({ commentMode: true });
+    } catch (error) {
+      patch({ error: errorText(error) });
+    } finally {
+      patch({ pageCommentsPending: false });
+    }
+  }, [client, patch]);
+
+  const editPageComment = useCallback(
+    async (commentId: string) => {
+      try {
+        await client.request({ type: 'panerelay.page-comments.edit', commentId });
+      } catch (error) {
+        patch({ error: errorText(error) });
+      }
+    },
+    [client, patch],
+  );
+
+  const removePageComment = useCallback(
+    async (commentId: string) => {
+      try {
+        await client.request({ type: 'panerelay.page-comments.remove', commentId });
+        patch({
+          pageComments: stateRef.current.pageComments.filter(comment => comment.id !== commentId),
+        });
+      } catch (error) {
+        patch({ error: errorText(error) });
+      }
+    },
+    [client, patch],
+  );
+
+  const addPastedImages = useCallback(
+    async (files: File[]) => {
+      const provider = stateRef.current.providers.find(
+        item => item.id === stateRef.current.currentProviderId,
+      );
+      if (provider?.capabilities?.imageInput === false) {
+        patch({ imageError: translate(stateRef.current.locale, 'providerImageUnsupported') });
+        return;
+      }
+
+      const current = stateRef.current.pastedImages;
+      let totalBytes = current.reduce((total, image) => total + image.size, 0);
+      const accepted: File[] = [];
+      let imageError = '';
+      for (const file of files) {
+        if (current.length + accepted.length >= CONVERSATION_MAX_IMAGES) {
+          imageError = formatCopy(stateRef.current.locale, 'tooManyImages', {
+            count: String(CONVERSATION_MAX_IMAGES),
+          });
+          break;
+        }
+        if (!SUPPORTED_IMAGE_MIME_TYPES.has(file.type)) {
+          imageError = translate(stateRef.current.locale, 'unsupportedImage');
+          continue;
+        }
+        if (file.size > CONVERSATION_MAX_IMAGE_BYTES) {
+          imageError = formatCopy(stateRef.current.locale, 'imageTooLarge', {
+            size: String(CONVERSATION_MAX_IMAGE_BYTES / 1024 / 1024),
+          });
+          continue;
+        }
+        if (totalBytes + file.size > CONVERSATION_MAX_TOTAL_IMAGE_BYTES) {
+          imageError = formatCopy(stateRef.current.locale, 'imagesTooLarge', {
+            size: String(CONVERSATION_MAX_TOTAL_IMAGE_BYTES / 1024 / 1024),
+          });
+          continue;
+        }
+        accepted.push(file);
+        totalBytes += file.size;
+      }
+      patch({ imageError });
+      if (accepted.length === 0) return;
+
+      const generation = pastedImageGenerationRef.current;
+      try {
+        const images = await Promise.all(
+          accepted.map(async (file, index): Promise<PastedImage> => ({
+            id: `pasted-image-${Date.now()}-${index}-${randomId()}`,
+            data: await readImageData(file),
+            mimeType: file.type,
+            ...(file.name ? { name: file.name } : {}),
+            size: file.size,
+          })),
+        );
+        if (generation !== pastedImageGenerationRef.current) return;
+        patch({ pastedImages: [...stateRef.current.pastedImages, ...images] });
+      } catch {
+        if (generation === pastedImageGenerationRef.current) {
+          patch({ imageError: translate(stateRef.current.locale, 'imageReadFailed') });
+        }
+      }
+    },
+    [patch],
+  );
+
+  const removePastedImage = useCallback(
+    (imageId: string) => {
+      patch({
+        pastedImages: stateRef.current.pastedImages.filter(image => image.id !== imageId),
+        imageError: '',
+      });
+    },
+    [patch],
+  );
+
   const useSuggestion = useCallback(
     (kind: 'summarize' | 'inspect' | 'find') => {
       const key =
@@ -836,18 +1103,47 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
   const sendMessage = useCallback(
     async (value?: string) => {
       const message = (value ?? stateRef.current.composerText).trim();
-      if (!message || stateRef.current.submitting) return;
+      const pageComments = [...stateRef.current.pageComments];
+      const pastedImages = [...stateRef.current.pastedImages];
+      if (
+        (!message && pageComments.length === 0 && pastedImages.length === 0) ||
+        stateRef.current.submitting
+      ) {
+        return;
+      }
       const workspace = stateRef.current.workspace;
       if (!workspace) return;
       const generation = activationGenerationRef.current;
       const conversation = stateRef.current.currentConversation;
+      const providerMessage = appendPageCommentsContext(
+        message,
+        pageComments,
+        selectedAgentName(stateRef.current),
+        translate(stateRef.current.locale, 'pageCommentsDefaultRequest'),
+      );
+      const displayMessage = [
+        pageCommentsDisplayMessage(message, pageComments),
+        ...(pastedImages.length > 0
+          ? [
+              formatCopy(stateRef.current.locale, 'attachedImages', {
+                count: String(pastedImages.length),
+              }),
+            ]
+          : []),
+      ]
+        .filter(Boolean)
+        .join('\n');
       const optimisticMessageId = randomId();
       patch({
         submitting: true,
+        commentMode: false,
         turnFeedback: conversation ? 'working' : 'starting',
         activeReasoning: null,
         error: '',
       });
+      if (pageComments.length > 0) {
+        void client.request({ type: 'panerelay.page-comments.stop' }).catch(() => undefined);
+      }
       patch({
         composerText: '',
         timeline: [
@@ -857,7 +1153,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
             message: {
               id: optimisticMessageId,
               role: 'user',
-              text: message,
+              text: displayMessage,
               createdAt: new Date().toISOString(),
             },
           },
@@ -869,7 +1165,12 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
           providerId: conversationProviderId(conversation, stateRef.current.currentProviderId),
           ...(conversation ? { conversationId: conversation.id } : {}),
           expectedRevision: workspace.revision,
-          text: message,
+          text: providerMessage,
+          ...(pastedImages.length
+            ? {
+                images: pastedImages.map(({ id: _id, size: _size, ...image }) => image),
+              }
+            : {}),
         });
         if (generation !== activationGenerationRef.current) return;
         const created = response.conversation?.conversation;
@@ -887,9 +1188,30 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
               }
             : {}),
         });
+        if (pageComments.length > 0) {
+          patch({ pageComments: [] });
+          void client.request({ type: 'panerelay.page-comments.clear' }).catch(() => undefined);
+        }
+        if (pastedImages.length > 0) {
+          pastedImageGenerationRef.current += 1;
+          patch({ pastedImages: [], imageError: '' });
+        }
       } catch (error) {
         if (generation === activationGenerationRef.current) {
+          let restoredWorkspace: ConversationWorkspaceSnapshot | undefined;
+          try {
+            restoredWorkspace = (
+              await client.request({
+                type: 'panerelay.workspace.get',
+                providerId: stateRef.current.currentProviderId,
+              })
+            ).workspace;
+          } catch {
+            // Preserve the send error and the user's retry context.
+          }
+          if (generation !== activationGenerationRef.current) return;
           patch({
+            ...(restoredWorkspace ? { workspace: restoredWorkspace } : {}),
             composerText: message,
             timeline: stateRef.current.timeline.filter(
               item => item.type !== 'message' || item.message.id !== optimisticMessageId,
@@ -942,6 +1264,32 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
     [client, patch],
   );
 
+  const automaticallyApprove = useCallback(
+    async (approval: ConversationApproval) => {
+      const decision = automaticApprovalDecision(approval);
+      if (!decision || autoApprovingApprovalIdsRef.current.has(approval.id)) return;
+      autoApprovingApprovalIdsRef.current.add(approval.id);
+      try {
+        await respondToApproval(approval, decision);
+      } finally {
+        autoApprovingApprovalIdsRef.current.delete(approval.id);
+      }
+    },
+    [respondToApproval],
+  );
+
+  const setAutoApprove = useCallback(
+    async (autoApprove: boolean) => {
+      patch({ autoApprove });
+      await client.setStored({ [AUTO_APPROVE_KEY]: autoApprove });
+      if (!autoApprove) return;
+      for (const item of stateRef.current.timeline) {
+        if (item.type === 'approval') void automaticallyApprove(item.approval);
+      }
+    },
+    [automaticallyApprove, client, patch],
+  );
+
   const setLocale = useCallback(
     async (locale: Locale) => {
       patch({ locale });
@@ -984,6 +1332,36 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
   useEffect(
     () =>
       client.subscribe(message => {
+        if (message.type === 'panerelay.page-comment.changed' && message.comment) {
+          const existingIndex = stateRef.current.pageComments.findIndex(
+            comment => comment.id === message.comment?.id,
+          );
+          patch({
+            pageComments:
+              existingIndex < 0
+                ? [...stateRef.current.pageComments, message.comment]
+                : stateRef.current.pageComments.map(comment =>
+                    comment.id === message.comment?.id ? message.comment : comment,
+                  ),
+          });
+          return;
+        }
+        if (message.type === 'panerelay.page-comment.removed' && message.commentId) {
+          patch({
+            pageComments: stateRef.current.pageComments.filter(
+              comment => comment.id !== message.commentId,
+            ),
+          });
+          return;
+        }
+        if (message.type === 'panerelay.page-comment.mode') {
+          patch({ commentMode: message.active === true });
+          return;
+        }
+        if (message.type === 'panerelay.page-comment.reset') {
+          patch({ pageComments: [], commentMode: false, pageCommentsPending: false });
+          return;
+        }
         if (message.type === 'panerelay.status.changed' && message.status) {
           const wasConnected = stateRef.current.extensionStatus?.bridgeConnected ?? false;
           patch({
@@ -1041,9 +1419,12 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
             interruptedMessage: translate(stateRef.current.locale, 'interrupted'),
             failedMessage: translate(stateRef.current.locale, 'failed'),
           });
+          if (message.event.kind === 'approval.requested' && stateRef.current.autoApprove) {
+            void automaticallyApprove(message.event.approval);
+          }
         }
       }),
-    [client, commit, initialize, patch, restoreWorkspace],
+    [automaticallyApprove, client, commit, initialize, patch, restoreWorkspace],
   );
 
   useEffect(() => {
@@ -1066,6 +1447,15 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
     activateControlledTab,
     closeControlledTab,
     setComposerText,
+    selectProject,
+    clearProject,
+    togglePageComments,
+    startContinuousPageComments,
+    editPageComment,
+    removePageComment,
+    addPastedImages,
+    removePastedImage,
+    setAutoApprove,
     useSuggestion,
     sendMessage,
     interrupt,

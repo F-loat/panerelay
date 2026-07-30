@@ -39,6 +39,27 @@ test('creates a draft and replaces every related tab with one conversation', asy
   assert.deepEqual(await store.get(22), conversation);
 });
 
+test('updates, inherits, preserves, and clears draft project directories by revision', async () => {
+  const { store } = harness();
+  const draft = await store.getOrCreate(11, 'codex');
+  const selected = await store.setDirectory(11, draft.revision, '/workspace/project');
+  assert.equal(selected.cwd, '/workspace/project');
+  assert.deepEqual(await store.inherit(11, 22), selected);
+
+  const bound = await store.bindConversation(22, selected.revision, 'codex', 'thread-1');
+  assert.equal(bound.cwd, '/workspace/project');
+  await assert.rejects(
+    store.setDirectory(11, bound.revision, '/workspace/other'),
+    /only change before a conversation starts/,
+  );
+
+  const reset = await store.reset(11, bound.revision, 'qoder');
+  assert.equal(reset.cwd, '/workspace/project');
+  const cleared = await store.setDirectory(22, reset.revision);
+  assert.equal(cleared.cwd, undefined);
+  assert.equal((await store.get(11))?.cwd, undefined);
+});
+
 test('leaves unrelated and conflicting target tabs isolated', async () => {
   const { store } = harness();
   await store.getOrCreate(11, 'codex');

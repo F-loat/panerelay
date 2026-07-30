@@ -8,6 +8,7 @@ import {
   type ConversationApprovalDecision,
   type ConversationDetail,
   type ConversationEvent,
+  type ConversationStartOptions,
   type ConversationSummary,
   type HostToExtensionMessage,
 } from '@panerelay/protocol';
@@ -48,8 +49,8 @@ class FakeProvider implements AgentProvider {
     return [this.summary()];
   }
 
-  async startConversation(): Promise<ConversationDetail> {
-    this.calls.push('start');
+  async startConversation(options?: ConversationStartOptions): Promise<ConversationDetail> {
+    this.calls.push(`start:${JSON.stringify(options ?? {})}`);
     return { conversation: this.summary(), messages: [] };
   }
 
@@ -200,6 +201,29 @@ test('prepares only the explicitly selected provider without creating a conversa
     success: true,
     result: {},
   });
+});
+
+test('routes project and initial page context only to conversation start', async () => {
+  const messages: HostToExtensionMessage[] = [];
+  const codex = new FakeProvider('codex', 'codex-1');
+  const service = new AgentService(message => messages.push(message), {
+    providers: [codex],
+  });
+  const options: ConversationStartOptions = {
+    cwd: '/workspace/project',
+    initialPage: { url: 'https://example.com/app', title: 'Example app' },
+  };
+
+  await service.handle(
+    request('start-codex', {
+      method: 'conversation.start',
+      providerId: 'codex',
+      options,
+    }),
+  );
+
+  assert.deepEqual(codex.calls, [`start:${JSON.stringify(options)}`]);
+  assert.equal(messages[0]?.type, 'agent.response');
 });
 
 test('correlates provider events and closes every adapter', async () => {

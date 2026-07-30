@@ -3,7 +3,11 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     environment: 'happy-dom',
-    include: ['src/**/*.component.test.tsx'],
+    include: [
+      'src/**/*.component.test.tsx',
+      'src/content/page-comments-runtime.test.ts',
+      'src/pages/sidepanel/page-comment-context.test.ts',
+    ],
     setupFiles: ['./src/test/setup.ts'],
   },
 });

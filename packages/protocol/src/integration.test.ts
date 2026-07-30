@@ -6,6 +6,7 @@ import {
   isHostToExtensionMessage,
   type IntegrationRequestMessage,
   type IntegrationResponseMessage,
+  type AgentRequestMessage,
 } from './index.js';
 
 test('accepts correlated integration requests from the Extension', () => {
@@ -14,6 +15,42 @@ test('accepts correlated integration requests from the Extension', () => {
     protocol: PANERELAY_PROTOCOL_VERSION,
     requestId: 'integration-1',
     request: { method: 'default-provider.clear' },
+  };
+
+  assert.equal(isExtensionToHostMessage(request), true);
+});
+
+test('accepts conversation start context without a raw tab identifier', () => {
+  const request = {
+    type: 'agent.request',
+    protocol: PANERELAY_PROTOCOL_VERSION,
+    requestId: 'agent-1',
+    request: {
+      method: 'conversation.start',
+      providerId: 'codex',
+      options: {
+        cwd: '/workspace/project',
+        initialPage: { url: 'https://example.com/app', title: 'Example app' },
+      },
+    },
+  };
+
+  assert.equal(isExtensionToHostMessage(request), true);
+  assert.equal(JSON.stringify(request).includes('tabId'), false);
+});
+
+test('accepts bounded image input on a conversation send request', () => {
+  const request: AgentRequestMessage = {
+    type: 'agent.request',
+    protocol: PANERELAY_PROTOCOL_VERSION,
+    requestId: 'agent-image-1',
+    request: {
+      method: 'conversation.send',
+      providerId: 'codex',
+      conversationId: 'conversation-1',
+      text: '',
+      images: [{ data: 'AQID', mimeType: 'image/png', name: 'screenshot.png' }],
+    },
   };
 
   assert.equal(isExtensionToHostMessage(request), true);
@@ -31,6 +68,25 @@ test('accepts integration responses from the Native Host', () => {
     },
   };
 
+  assert.equal(isHostToExtensionMessage(response), true);
+});
+
+test('accepts workspace directory picker requests and results', () => {
+  const request: IntegrationRequestMessage = {
+    type: 'integration.request',
+    protocol: PANERELAY_PROTOCOL_VERSION,
+    requestId: 'workspace-1',
+    request: { method: 'workspace.pick-directory' },
+  };
+  const response: IntegrationResponseMessage = {
+    type: 'integration.response',
+    protocol: PANERELAY_PROTOCOL_VERSION,
+    requestId: 'workspace-1',
+    success: true,
+    result: { path: '/workspace/project' },
+  };
+
+  assert.equal(isExtensionToHostMessage(request), true);
   assert.equal(isHostToExtensionMessage(response), true);
 });
 

@@ -3,6 +3,7 @@ import type { ConversationWorkspaceSnapshot } from '../shared/conversation-works
 const STORAGE_KEY = 'conversationWorkspacesV1';
 
 interface ConversationWorkspaceRecord {
+  cwd?: string;
   groupId: string;
   kind: ConversationWorkspaceSnapshot['kind'];
   providerId: string;
@@ -16,6 +17,7 @@ interface WorkspaceStorage {
 }
 
 interface WorkspacePayload {
+  cwd?: string;
   kind: ConversationWorkspaceSnapshot['kind'];
   providerId: string;
   conversationId?: string;
@@ -63,6 +65,7 @@ function validRecord(value: unknown): value is ConversationWorkspaceRecord {
   ) {
     return false;
   }
+  if (record.cwd !== undefined && (typeof record.cwd !== 'string' || !record.cwd)) return false;
   if (record.kind === 'draft') return record.conversationId === undefined;
   return (
     record.kind === 'conversation' &&
@@ -82,22 +85,29 @@ function cloneRecords(
 function payload(record: ConversationWorkspaceRecord): WorkspacePayload {
   return record.kind === 'conversation'
     ? {
+        ...(record.cwd ? { cwd: record.cwd } : {}),
         kind: 'conversation',
         providerId: record.providerId,
         conversationId: record.conversationId,
       }
-    : { kind: 'draft', providerId: record.providerId };
+    : {
+        ...(record.cwd ? { cwd: record.cwd } : {}),
+        kind: 'draft',
+        providerId: record.providerId,
+      };
 }
 
 function snapshot(record: ConversationWorkspaceRecord): ConversationWorkspaceSnapshot {
   return record.kind === 'conversation'
     ? {
+        ...(record.cwd ? { cwd: record.cwd } : {}),
         kind: 'conversation',
         providerId: record.providerId,
         revision: record.revision,
         conversationId: record.conversationId!,
       }
     : {
+        ...(record.cwd ? { cwd: record.cwd } : {}),
         kind: 'draft',
         providerId: record.providerId,
         revision: record.revision,
@@ -107,6 +117,7 @@ function snapshot(record: ConversationWorkspaceRecord): ConversationWorkspaceSna
 function samePayload(record: ConversationWorkspaceRecord, next: WorkspacePayload): boolean {
   return (
     record.kind === next.kind &&
+    record.cwd === next.cwd &&
     record.providerId === next.providerId &&
     record.conversationId === next.conversationId
   );
@@ -155,7 +166,26 @@ export class ConversationWorkspaceStore {
     expectedRevision: string,
     providerId: string,
   ): Promise<ConversationWorkspaceSnapshot> {
-    return this.replace(tabId, expectedRevision, { kind: 'draft', providerId });
+    return this.replace(tabId, expectedRevision, { kind: 'draft', providerId }, true);
+  }
+
+  async setDirectory(
+    tabId: number,
+    expectedRevision: string,
+    cwd?: string,
+  ): Promise<ConversationWorkspaceSnapshot> {
+    this.assertTabId(tabId);
+    return this.transact(async records => {
+      const existing = this.assertRevision(records, tabId, expectedRevision);
+      if (existing.kind !== 'draft') {
+        throw new Error('The project directory can only change before a conversation starts');
+      }
+      return this.replaceRecords(records, existing, {
+        kind: 'draft',
+        providerId: existing.providerId,
+        ...(cwd ? { cwd } : {}),
+      });
+    });
   }
 
   async assertCurrent(
@@ -184,11 +214,16 @@ export class ConversationWorkspaceStore {
     conversationId: string,
   ): Promise<ConversationWorkspaceSnapshot> {
     if (!conversationId) throw new Error('conversationId is required');
-    return this.replace(tabId, expectedRevision, {
-      kind: 'conversation',
-      providerId,
-      conversationId,
-    });
+    return this.replace(
+      tabId,
+      expectedRevision,
+      {
+        kind: 'conversation',
+        providerId,
+        conversationId,
+      },
+      true,
+    );
   }
 
   async inherit(sourceTabId: number, tabId: number): Promise<ConversationWorkspaceSnapshot | null> {
@@ -268,21 +303,33 @@ export class ConversationWorkspaceStore {
     tabId: number,
     expectedRevision: string,
     next: WorkspacePayload,
+    preserveDirectory = false,
   ): Promise<ConversationWorkspaceSnapshot> {
     this.assertTabId(tabId);
     if (!next.providerId) throw new Error('providerId is required');
     return this.transact(async records => {
       const existing = this.assertRevision(records, tabId, expectedRevision);
-      if (samePayload(existing, next)) {
+      const resolvedNext =
+        preserveDirectory && existing.cwd ? { ...next, cwd: existing.cwd } : next;
+      if (samePayload(existing, resolvedNext)) {
         return { result: snapshot(existing), changed: false };
       }
-      const revision = this.createId();
-      this.updateGroup(records, existing.groupId, next, revision);
-      return {
-        result: snapshot(records[String(tabId)]!),
-        changed: true,
-      };
+      return this.replaceRecords(records, existing, resolvedNext);
     });
+  }
+
+  private replaceRecords(
+    records: Record<string, ConversationWorkspaceRecord>,
+    existing: ConversationWorkspaceRecord,
+    next: WorkspacePayload,
+  ): { changed: boolean; result: ConversationWorkspaceSnapshot } {
+    const revision = this.createId();
+    this.updateGroup(records, existing.groupId, next, revision);
+    const record = Object.values(records).find(
+      candidate => candidate.groupId === existing.groupId && candidate.revision === revision,
+    );
+    if (!record) throw new WorkspaceRevisionConflictError();
+    return { result: snapshot(record), changed: true };
   }
 
   private async finishReservation(
@@ -323,6 +370,7 @@ export class ConversationWorkspaceStore {
     for (const [tabId, record] of Object.entries(records)) {
       if (record.groupId !== groupId) continue;
       records[tabId] = {
+        ...(next.cwd ? { cwd: next.cwd } : {}),
         groupId,
         kind: next.kind,
         providerId: next.providerId,

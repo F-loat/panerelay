@@ -62,7 +62,7 @@ agent-browser versions newer than 0.33.0 satisfy Panerelay's minimum-version che
 | Expiry and stale reconnect cleanup | Verified | Deterministic tests cover closed transport, target detach, pending failure, and rejected stale credentials. |
 | Normal Provider release | Verified | Closing one of two daily-Chrome participants preserved the other participant and its page access; the final close released the shared lease without changing tab authorization. |
 | Immediate user release | Verified | The settings panel exposes release while active; automated integration coverage verifies terminal cleanup. |
-| Per-tab controlled favicon | Forwarded | Extension tests cover command-triggered icon injection, SPA resistance, refresh clearing, and restoration; daily-Chrome verification is pending. |
+| Per-tab controlled favicon | Forwarded | Bridge and Extension tests keep discovery, virtual attach, and page-scoped auto-attach bootstrap from changing the controlled count or favicon; document-command injection, SPA resistance, refresh clearing, and restoration are covered. Daily-Chrome verification is pending. |
 | Sanitized activity lifecycle | Verified | Real page and tab commands rendered localized completed rows; protocol tests reject raw sensitive fields. |
 | Bounded replay and history gaps | Verified | Bridge and Extension tests cover ring limits, epochs, sequence gaps, and reconnect snapshots. |
 | Durable activity history | Unsupported | Activity is intentionally memory-only and is cleared across process histories. |
@@ -109,16 +109,21 @@ The side-panel providers create scoped agent-browser `0.33.0` MCP connections wh
 
 | capability | Status | Notes |
 | --- | --- | --- |
-| Selected-provider preparation | Automated | Codex app-server and Qoder ACP initialize idempotently without listing history or creating a conversation. |
-| Lazy recent-conversation history | Automated | History loads on explicit open and covers loading, search, empty, error, retry, and resume states. |
-| Draft-first conversation creation | Automated | “New” stays local until the first non-empty message, then starts, binds, and sends exactly once. |
-| Active-tab conversation restoration | Automated | Opaque revisions reject stale async results and restore cached or provider-native conversation state. |
-| Trusted related-tab workspace inheritance | Automated | Only Chrome-reported opener/navigation-target relationships inherit; authorization and leases stay separate. |
+| Selected-provider preparation | Verified | Codex app-server and Qoder ACP initialize idempotently without listing history or creating a conversation. |
+| Lazy recent-conversation history | Verified | History loads on explicit open and covers loading, search, empty, error, retry, and resume states. |
+| Draft-first conversation creation | Verified | “New” stays local until the first non-empty message, then starts, binds, and sends exactly once. |
+| Active-tab conversation restoration | Verified | Opaque revisions reject stale async results and restore cached or provider-native conversation state. |
+| Trusted related-tab workspace inheritance | Verified | Only Chrome-reported opener/navigation-target relationships inherit; authorization and leases stay separate. |
+| Draft project directory | Verified | A native picker returns one canonical directory; the draft inherits it across trusted related tabs, starts the provider in it, and makes it immutable once the conversation is bound. |
+| New-session page orientation | Verified | Bounded, redacted URL/title context is passed without raw Chrome tab IDs. Codex uses developer instructions; Qoder prepends it to the first prompt because ACP has no equivalent field. |
+| Page comments, including authorized iframes | Verified | Single-click one-shot and double-click continuous selection coordinate the picker across currently reachable frames and use an anchored compact editor, reversible style previews, pencil markers, and Side Panel annotation pills. Subframe evidence includes bounded frame metadata without a raw Chrome frame ID. Evidence excludes form values, is delimited as untrusted, and clears on send or tab/document/permission lifecycle changes. Frames outside current Chrome host permissions remain untouched. |
+| Clipboard image input | Verified | The two-line composer previews and removes PNG/JPEG/WebP/GIF inputs, supports image-only turns, preserves failed sends, and enforces 4-image/10-MiB-each/20-MiB-total bounds in both Extension and Bridge. Codex uses data URLs; Qoder uses negotiated ACP image blocks. |
+| Automatic Agent approvals | Verified | The persisted preference defaults off and responds only to current-conversation requests offering one-shot `accept`; session-wide decisions, Chrome permissions, and browser leases remain manual and separate. |
 | User-level default Agent controls | Automated | Extension settings read, set, and conditionally clear only a current Panerelay default through the Native Host; setup CLI scope options remain available. |
 | Native Host and Provider recovery guidance | Automated | Recognized missing-host and Panerelay plugin signatures show bounded setup or retry guidance while preserving original diagnostics. |
 | Agent-requested all-tabs guidance | Automated | A denied target creation publishes an Extension action; Chrome permission acquisition still requires the user's click. |
 
-Daily-Chrome verification of provider warm-up, lazy history, draft-first send, active-tab restoration, and related-tab inheritance remains pending.
+Daily-Chrome verification of provider warm-up, lazy history, draft-first send, active-tab restoration, related-tab inheritance, project selection, page comments, clipboard image input, automatic Agent approval, authorization isolation, and narrow and wide layouts passed on 2026-07-30.
 
 ## Stable distribution boundaries
 

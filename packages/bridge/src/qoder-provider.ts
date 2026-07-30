@@ -10,10 +10,16 @@ import type {
   ConversationApprovalDecision,
   ConversationDetail,
   ConversationEvent,
+  ConversationImageInput,
   ConversationMessage,
+  ConversationStartOptions,
   ConversationSummary,
 } from '@panerelay/protocol';
 import type { AgentProvider } from './agent-provider.js';
+import {
+  createConversationContextInstructions,
+  resolveConversationStartOptions,
+} from './agent-context.js';
 import { resolveSpawnCommand, runCommand, type CommandRunner } from './platform.js';
 import {
   qoderInstallCommand,
@@ -68,6 +74,7 @@ interface QoderSession {
   browserCleanup?: Promise<void>;
   browserSession?: QoderBrowserSession;
   cwd: string;
+  initialContext?: string;
   summary: ConversationSummary;
 }
 
@@ -473,10 +480,11 @@ export class QoderProvider implements AgentProvider {
     return result.sessions.map(summaryFromSession);
   }
 
-  async startConversation(): Promise<ConversationDetail> {
+  async startConversation(options: ConversationStartOptions = {}): Promise<ConversationDetail> {
     await this.ensureRuntime();
     const config = this.getRuntimeConfig();
-    const cwd = (this.options.cwd ?? homedir)();
+    const resolvedOptions = resolveConversationStartOptions(options);
+    const cwd = resolvedOptions.cwd ?? (this.options.cwd ?? homedir)();
     const sessionLabel = `panerelay-qoder-${randomUUID()}`;
     const browserSession = qoderBrowserSession(config, sessionLabel);
     let result: acp.NewSessionResponse;
@@ -504,7 +512,13 @@ export class QoderProvider implements AgentProvider {
       createdAt: now,
       updatedAt: now,
     };
-    this.sessions.set(result.sessionId, { browserSession, cwd, summary });
+    const initialContext = createConversationContextInstructions(resolvedOptions);
+    this.sessions.set(result.sessionId, {
+      browserSession,
+      cwd,
+      ...(initialContext ? { initialContext } : {}),
+      summary,
+    });
     return { conversation: summary, messages: [] };
   }
 
@@ -559,10 +573,20 @@ export class QoderProvider implements AgentProvider {
     return { conversation: summary, messages };
   }
 
-  async sendMessage(conversationId: string, text: string): Promise<{ turnId: string }> {
+  async sendMessage(
+    conversationId: string,
+    text: string,
+    images: ConversationImageInput[] = [],
+  ): Promise<{ turnId: string }> {
     const trimmed = text.trim();
-    if (!trimmed) throw new Error('Message cannot be empty');
+    if (!trimmed && images.length === 0) throw new Error('Message cannot be empty');
     await this.ensureRuntime();
+    if (
+      images.length > 0 &&
+      this.initializeResponse?.agentCapabilities?.promptCapabilities?.image !== true
+    ) {
+      throw new Error('Qoder does not support image input');
+    }
     const session = this.sessions.get(conversationId);
     if (!session) throw new Error(`Unknown Qoder conversation: ${conversationId}`);
     if (session.activeTurn) throw new Error('The current Qoder turn has not finished');
@@ -575,7 +599,19 @@ export class QoderProvider implements AgentProvider {
     };
     session.activeTurn = turn;
     this.emit({ kind: 'turn.started', conversationId, turnId });
-    void this.runPrompt(conversationId, session, turn, trimmed);
+    const prompt = session.initialContext
+      ? `${session.initialContext}${trimmed ? `\n\n${trimmed}` : ''}`
+      : trimmed;
+    delete session.initialContext;
+    const promptContent: acp.ContentBlock[] = [
+      ...(prompt ? [{ type: 'text' as const, text: prompt }] : []),
+      ...images.map(image => ({
+        type: 'image' as const,
+        data: image.data,
+        mimeType: image.mimeType,
+      })),
+    ];
+    void this.runPrompt(conversationId, session, turn, promptContent);
     return { turnId };
   }
 
@@ -723,7 +759,7 @@ export class QoderProvider implements AgentProvider {
     conversationId: string,
     session: QoderSession,
     turn: QoderTurn,
-    text: string,
+    prompt: acp.ContentBlock[],
   ): Promise<void> {
     let terminalEvent: ConversationEvent;
     try {
@@ -731,7 +767,7 @@ export class QoderProvider implements AgentProvider {
         acp.methods.agent.session.prompt,
         {
           sessionId: conversationId,
-          prompt: [{ type: 'text', text }],
+          prompt,
         },
         'Qoder prompt',
       )) as acp.PromptResponse;

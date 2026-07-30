@@ -150,14 +150,19 @@ The side panel is a client of the same Bridge session model used by external age
 
 - provider discovery and setup guidance;
 - conversation start, resume, and close;
+- an optional project directory selected with a native chooser before a draft starts;
 - streaming text, reasoning summaries when provided, tool activity, and completion state;
 - interruption and approval responses;
+- a visible, default-off automatic Agent-approval preference;
 - current-tab and related-tab binding;
-- explicit attachment of selected elements, screenshots, or page context;
+- explicit page comments and style annotations in the top document or currently authorized reachable frames, with one-shot or continuous selection, element-anchored editing, page markers, and review before sending;
+- bounded clipboard-image attachments with removable previews for providers that advertise image input;
 - a live view of which actor controls each bound tab;
 - release and handoff actions.
 
 Agent-provider-specific wire events will be normalized before reaching the side panel.
+
+Automatic Agent approval applies only to a normalized approval request for the currently displayed conversation. It may choose the one-request `accept` decision when the provider offers it; it never chooses a session-wide decision, grants Chrome site access, acquires a browser control lease, or answers an approval for an inactive conversation.
 
 ## Extension-backed CDP
 
@@ -247,9 +252,13 @@ transport.cancel
 
 `agent.request` carries a provider-neutral operation (`agent.providers`, `agent.prepare`, `conversation.list`, `conversation.start`, `conversation.resume`, `conversation.send`, `conversation.interrupt`, or `conversation.respond`). `agent.response` correlates the bounded result or error. Streaming and unsolicited updates use `conversation.event`.
 
-`integration.request` carries a local Panerelay integration operation. The initial operations read, set, or conditionally clear the user-level agent-browser default Provider. `integration.response` returns the resulting current value or a correlated error. Clearing removes the value only when it currently selects Panerelay; it does not uninstall the Provider, remove the Native Host, or edit project-level configuration.
+`integration.request` carries a local Panerelay integration operation. The initial operations read, set, or conditionally clear the user-level agent-browser default Provider, and open a platform-native project-directory chooser. `integration.response` returns the resulting current value, one canonical absolute directory, a cancelled-selection result, or a correlated error. Clearing the default removes the value only when it currently selects Panerelay; it does not uninstall the Provider, remove the Native Host, or edit project-level configuration.
 
 The normalized conversation event union currently covers turn lifecycle, assistant message deltas and completion, reasoning-summary deltas, tool activity, approval requests and resolution, interruption, failure, and provider errors. Provider-native event objects do not cross the Bridge boundary.
+
+`conversation.start` may include one validated project directory and bounded initial-page metadata. Initial-page metadata contains a sanitized URL and title, not a raw Chrome tab ID. These fields orient the new Agent session and do not establish a tab binding, Chrome authorization, or control lease.
+
+`conversation.send` may include user-selected image inputs alongside text. Supported inputs are PNG, JPEG, WebP, and GIF, limited to four images, 10 MiB per image, and 20 MiB total. The Extension validates for immediate feedback and the Bridge repeats count, MIME, base64, name, and decoded-byte validation before provider dispatch.
 
 ## Browser and tab identity
 
@@ -300,13 +309,14 @@ An external or side-panel agent performs actions through an acquired relay sessi
 
 The user explicitly sends context from the browser to a conversation. Supported context will begin with:
 
-- current URL and title;
-- selected element metadata and accessible text;
+- bounded current URL and title when a draft conversation starts;
+- selected element metadata, visible text, and rectangle from the top document or one explicitly selected authorized frame;
 - an optional screenshot;
+- user-pasted image files that remain visible and removable before send;
 - a user-authored comment;
 - IDs of explicitly bound tabs.
 
-Page bodies, cookies, storage, request headers, and browser history are not attached automatically.
+Sensitive URL fields are redacted, form values are not collected as element text, and selected page evidence is delimited as untrusted webpage data before it reaches the Agent. A subframe selection carries bounded frame URL, title, and viewport metadata in addition to top-page metadata; raw Chrome frame IDs stay Extension-private. Pasted image bytes are not written to workspace state, conversation previews, activity events, or logs. Page bodies, cookies, storage, request headers, browser history, raw Chrome tab IDs, automatically captured screenshots, and frame contents beyond the explicitly selected element are not attached automatically.
 
 ### Human handoff
 
@@ -336,13 +346,19 @@ For browser work, each new Codex or Qoder session receives a uniquely scoped Pan
 
 The relationship between a side-panel agent and browser tools must be explicit. A provider receives a scoped relay session or scoped agent-browser MCP endpoint; it does not inherit unrestricted access to all registered browsers.
 
+For a new session, Codex receives the validated project directory as its working directory and the bounded page orientation as developer instructions. Qoder receives the same working directory through ACP and prepends the orientation to the first user prompt because ACP does not expose an equivalent developer-instruction field. Resumed provider-native sessions are not retroactively reoriented.
+
+Codex maps validated images to `turn/start` data URLs. Qoder maps them to ACP image content blocks only after runtime preparation negotiates `promptCapabilities.image`; the Extension refreshes the provider descriptor after preparation so the composer reflects that result.
+
 ## Extension-private conversation workspaces
 
-The Extension background service worker owns the current Chrome session's relationship between a side-panel conversation and its related tabs. It stores only an opaque group identifier, an opaque revision, the provider identifier, and either a local draft state or provider conversation identifier in `chrome.storage.session`. Raw Chrome tab IDs and workspace group identifiers do not cross the shared protocol or provider boundary.
+The Extension background service worker owns the current Chrome session's relationship between a side-panel conversation and its related tabs. It stores only an opaque group identifier, an opaque revision, the provider identifier, an optional draft project directory, and either a local draft state or provider conversation identifier in `chrome.storage.session`. Raw Chrome tab IDs and workspace group identifiers do not cross the shared protocol or provider boundary.
 
-Side-panel mutations include the revision they were rendered from. The background captures the active tab before asynchronous provider work, serializes workspace mutations, and rejects stale revisions. Selecting “new conversation” creates only an Extension-local draft; the first non-empty message performs one provider start, binds the resulting conversation, and sends once. Provider history remains lazy and is loaded only when the user opens it.
+Side-panel mutations include the revision they were rendered from. The background captures the active tab before asynchronous provider work, serializes workspace mutations, and rejects stale revisions. Selecting “new conversation” creates only an Extension-local draft; the first text, pasted-image set, or reviewed page-comment batch performs one provider start, binds the resulting conversation, and sends once. A project can be selected, replaced, or cleared only while the workspace is a draft; it is immutable after binding. Provider history remains lazy and is loaded only when the user opens it.
 
 A new tab inherits a workspace only when Chrome reports a trusted opener relationship through `tabs.onCreated` or `webNavigation.onCreatedNavigationTarget`. Focus, timing, origin equality, and ordinary navigation never create a relationship. These workspaces select UI/provider context only: they grant no Chrome site permission, tab authorization, debugger attachment, or control lease.
+
+The page-comment runtime is injected into the authorized active tab's currently reachable frames only after an explicit user action. Chrome host permissions continue to decide which same-origin or cross-origin frames are reachable; inaccessible frames remain untouched. Extension-private frame tokens coordinate one active picker highlight and pause or resume selection across installed frames. A single Side Panel click starts one-shot selection; a double click starts continuous selection. Each frame keeps its own element outline, compact anchored editor, optional live and reversible style preview, and editable pencil markers in isolated Shadow DOM. Pending annotations appear as compact Side Panel pills. It prevents the selection click from activating the site and clears its document-local state on send, tab switch, navigation, close, or permission revocation. Commenting requires site authorization but never requires or grants an automation control lease, and frame selection never widens that authorization.
 
 ## Security and privacy
 
@@ -358,6 +374,9 @@ A new tab inherits a workspace only when Chrome reports a trusted opener relatio
 8. Unsupported or unauthorized actions fail closed.
 9. Sensitive browser data is not included in logs by default.
 10. Agent providers receive only the browser sessions and context explicitly bound to them.
+11. Automatic Agent approval remains separate from Chrome permissions and browser control ownership.
+12. Page evidence is bounded, user-selected, treated as untrusted, and cleared at document boundaries.
+13. Image inputs are explicit, bounded at both Extension and Bridge boundaries, capability-gated, and excluded from logs and durable workspace state.
 
 ### Native Messaging
 
@@ -493,7 +512,7 @@ RFC-0001 can move from `Draft` to `Accepted` when:
 | Denied browser targets and missing leases fail closed. | Pass | Exact-origin matching, Chrome permission removal, unsupported targets, invalid credentials, and lease conflicts are covered; a real all-tabs grant also survived Extension reload. |
 | Disconnect and user revocation reliably detach the debugger and invalidate credentials. | Pass | Relay tests cover provider cleanup, credential expiry, and immediate extension revocation. |
 | Large messages support bounded chunks, integrity checks, cancellation, timeout, and cleanup. | Pass | Protocol tests cover UTF-8 reassembly, sub-1 MiB frames, corruption rejection, explicit cancellation, timeout, and released receiver state. |
-| The browser visibly identifies controlled state and offers immediate release. | Pass | The Extension shows a controlled-tab count in its action badge, marks each attached page favicon with the agent-browser icon and a green status dot, and keeps release in the side panel. |
+| The browser visibly identifies controlled state and offers immediate release. | Pass | The Extension shows a substantively controlled-tab count in its action badge, marks each document touched by an Agent page command with the agent-browser favicon and a green status dot, and keeps release in the side panel. Virtual target discovery and page-session bootstrap remain unmarked. |
 | Codex uses the provider-neutral conversation contract for lifecycle, streaming, approvals, and interruption. | Pass | Bridge contract tests cover provider discovery, normalized events, and approval requests. |
 | Qoder ACP uses the same provider-neutral boundary without becoming a prerequisite. | Pass | Qoder CLI 1.1.2 completed two consecutive daily-Chrome browser turns; each terminal turn closed its scoped agent-browser connection before another Agent acquired control. Adapter tests cover capabilities, streaming, permissions, interruption, process restart, MCP scoping, and cleanup. |
 | Local setup installs, diagnoses, and removes the Native Host, Provider configuration, and Agent guidance. | Pass | Setup and packed-consumer tests cover project/global selection, custom Extension IDs, doctor, Skill installation, scoped uninstall, and the Windows registry/launcher contract. |

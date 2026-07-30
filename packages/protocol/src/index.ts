@@ -188,6 +188,32 @@ export interface ConversationDetail {
   messages: ConversationMessage[];
 }
 
+export interface ConversationPageContext {
+  title?: string;
+  url?: string;
+}
+
+export interface ConversationStartOptions {
+  cwd?: string;
+  initialPage?: ConversationPageContext;
+}
+
+export const CONVERSATION_MAX_IMAGES = 4;
+export const CONVERSATION_MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+export const CONVERSATION_MAX_TOTAL_IMAGE_BYTES = 20 * 1024 * 1024;
+export const CONVERSATION_IMAGE_MIME_TYPES = [
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'image/gif',
+] as const;
+
+export interface ConversationImageInput {
+  data: string;
+  mimeType: string;
+  name?: string;
+}
+
 export type ConversationApprovalDecision =
   'accept' | 'acceptForSession' | 'decline' | 'declineForSession' | 'cancel';
 
@@ -286,13 +312,18 @@ export type AgentRequest =
   | { method: 'agent.providers' }
   | { method: 'agent.prepare'; providerId: string }
   | { method: 'conversation.list'; providerId: string }
-  | { method: 'conversation.start'; providerId: string }
+  | {
+      method: 'conversation.start';
+      providerId: string;
+      options?: ConversationStartOptions;
+    }
   | { method: 'conversation.resume'; providerId: string; conversationId: string }
   | {
       method: 'conversation.send';
       providerId: string;
       conversationId: string;
       text: string;
+      images?: ConversationImageInput[];
     }
   | {
       method: 'conversation.interrupt';
@@ -327,12 +358,20 @@ export interface AgentResponseMessage {
 export type IntegrationRequest =
   | { method: 'default-provider.get' }
   | { method: 'default-provider.set' }
-  | { method: 'default-provider.clear' };
+  | { method: 'default-provider.clear' }
+  | { method: 'workspace.pick-directory' };
 
 export interface IntegrationDefaultProviderResult {
   provider: string | null;
   isPanerelay: boolean;
 }
+
+export interface IntegrationWorkspaceDirectoryResult {
+  path: string | null;
+}
+
+export type IntegrationResult =
+  IntegrationDefaultProviderResult | IntegrationWorkspaceDirectoryResult;
 
 export interface IntegrationRequestMessage {
   type: 'integration.request';
@@ -346,7 +385,7 @@ export interface IntegrationResponseMessage {
   protocol: typeof PANERELAY_PROTOCOL_VERSION;
   requestId: string;
   success: boolean;
-  result?: IntegrationDefaultProviderResult;
+  result?: IntegrationResult;
   error?: string;
 }
 

@@ -49,7 +49,7 @@ The Extension owns a session-local map between Chrome tab IDs and random opaque 
 - A single-tab session cannot create additional tabs.
 - Agent-created tabs open with `active: false`. Agent target selection is participant-local and does not change Chrome's user-visible active tab or focused window.
 
-The active eligible tab is returned first. agent-browser attaches a flattened CDP session to every reported page during initialization, but Panerelay treats those as virtual Bridge sessions. `chrome.debugger.attach` occurs only when the first target-scoped command reaches a tab.
+The active eligible tab is returned first. agent-browser attaches a flattened CDP session to every reported page during initialization, but Panerelay treats those as virtual Bridge sessions. Page-scoped `Target.setAutoAttach` is also virtual bootstrap: the Bridge stores its latest parameters without attaching Chrome's debugger. `chrome.debugger.attach` occurs only when the first substantive page command reads, navigates, or interacts with a tab; the Bridge then replays deferred auto-attach setup before forwarding that command.
 
 ## Browser-level CDP surface
 
@@ -82,7 +82,7 @@ A browser connection can contain three identifier layers:
 
 The Bridge maps page sessions to targets. The Extension forwards the `sessionId` supplied by `chrome.debugger` events for child targets, and accepts it on later commands. Main-frame events are copied to each Bridge page session for their owning target.
 
-agent-browser normally requests page-scoped auto-attach with `waitForDebuggerOnStart: true`. Panerelay keeps flattened child discovery enabled but forwards that request with waiting disabled. This prevents a newly navigated renderer from remaining paused when the Extension cannot establish the same browser-process-wide interception guarantees. Panerelay still rejects the equivalent top-level request instead of claiming `--allowed-domains` containment.
+agent-browser normally requests page-scoped auto-attach with `waitForDebuggerOnStart: true`. While the owning target remains virtual, Panerelay defers that setup. On first substantive page use it keeps flattened child discovery enabled but replays the request with waiting disabled before the triggering command. This prevents a newly opened or discovered tab from becoming controlled solely because of protocol initialization, and prevents a newly navigated renderer from remaining paused when the Extension cannot establish the same browser-process-wide interception guarantees. Panerelay still rejects the equivalent top-level request instead of claiming `--allowed-domains` containment.
 
 Virtual page and child-session identifiers are participant-local and discarded when their target, transport, participant, lease, Extension, or Bridge disconnects.
 
@@ -90,7 +90,7 @@ Virtual page and child-session identifiers are participant-local and discarded w
 
 One exclusive Panerelay automation lease may contain bounded, independently authenticated relay participants. Participants reuse the lease-wide target inventory and Chrome debugger attachment, but receive distinct flattened page sessions, pending-command correlation, logical target selection, heartbeat, and cleanup. Complete target-scoped command lifecycles are processed FIFO per target, so two participants never forward overlapping commands to the same target. Releasing one participant preserves a target attachment while another participant still references it; releasing authorization detaches every controlled target and invalidates every participant credential.
 
-The Extension action badge reports the number of controlled tabs. Each attached page temporarily uses the agent-browser favicon with a green control-status dot after an Agent command touches its current document. Navigation or refresh restores the new document's page-owned favicon; the next target-scoped Agent command reapplies the indicator. Normal target detach and lease release restore the page-owned favicon when the marked document survives. This favicon is a document-local activity cue, not the authoritative lease state. The side panel reports participant and controlled-tab counts and keeps immediate release available through browser authorization.
+The Extension action badge reports the number of substantively controlled tabs, not virtual target or page-session bootstrap. Each attached page temporarily uses the agent-browser favicon with a green control-status dot after an Agent command touches its current document. Target-domain setup and child-session wake-up do not mark the top-level document. Navigation or refresh restores the new document's page-owned favicon; the next document-touching Agent command reapplies the indicator. Normal target detach and lease release restore the page-owned favicon when the marked document survives. This favicon is a document-local activity cue, not the authoritative lease state. The side panel reports participant and controlled-tab counts and keeps immediate release available through browser authorization.
 
 A debugger displacement or target-specific authorization failure clears the affected debugger attachment without invalidating unrelated targets. A normal agent-requested target close removes only that target. Releasing browser authorization revokes the complete lease and every participant.
 

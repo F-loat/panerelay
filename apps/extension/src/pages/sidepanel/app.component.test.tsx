@@ -3,7 +3,7 @@ import type {
   ConversationApproval,
   ConversationDetail,
 } from '@panerelay/protocol';
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { ExtensionStatus, SidePanelRequest } from '../../shared/messages.js';
@@ -33,6 +33,7 @@ const readyProviders: AgentProviderSummary[] = [
     name: 'Codex',
     status: 'ready',
     description: 'Codex fixture',
+    capabilities: { imageInput: true },
   },
   {
     id: 'qoder',
@@ -117,6 +118,21 @@ class AppClient implements SidepanelClient {
           revision: `workspace-${++this.nextWorkspace}`,
         };
         return { success: true as const, workspace: this.workspace };
+      case 'panerelay.workspace.pick-directory':
+        this.workspace = {
+          ...this.workspace,
+          cwd: '/workspace/project',
+          revision: `workspace-${++this.nextWorkspace}`,
+        };
+        return { success: true as const, workspace: this.workspace };
+      case 'panerelay.workspace.clear-directory': {
+        const { cwd: _cwd, ...workspace } = this.workspace;
+        this.workspace = {
+          ...workspace,
+          revision: `workspace-${++this.nextWorkspace}`,
+        } as ConversationWorkspaceSnapshot;
+        return { success: true as const, workspace: this.workspace };
+      }
       case 'panerelay.conversation.list':
         if (this.historyError) throw new Error(this.historyError);
         return {
@@ -177,6 +193,11 @@ class AppClient implements SidepanelClient {
         return { success: true as const, status: this.status };
       case 'panerelay.controlled-tab.activate':
       case 'panerelay.controlled-tab.close':
+      case 'panerelay.page-comments.start':
+      case 'panerelay.page-comments.stop':
+      case 'panerelay.page-comments.edit':
+      case 'panerelay.page-comments.remove':
+      case 'panerelay.page-comments.clear':
         return { success: true as const };
       case 'panerelay.conversation.interrupt':
       case 'panerelay.conversation.respond':
@@ -413,6 +434,7 @@ describe('React Side Panel', () => {
   it('creates and sends a draft atomically on the first message', async () => {
     const { client, user } = await renderReady();
     const input = screen.getByRole('textbox');
+    expect(input).toHaveAttribute('rows', '2');
     await user.type(input, 'Inspect the page');
     await user.click(screen.getByRole('button', { name: 'Send' }));
 
@@ -423,6 +445,144 @@ describe('React Side Panel', () => {
       expectedRevision: 'workspace-1',
       text: 'Inspect the page',
     });
+  });
+
+  it('selects and clears a project before a conversation starts', async () => {
+    const { client, user } = await renderReady();
+
+    await user.click(screen.getByRole('button', { name: 'Select project' }));
+    expect(await screen.findByText('project')).toBeVisible();
+    expect(client.requests).toContainEqual({
+      type: 'panerelay.workspace.pick-directory',
+      expectedRevision: 'workspace-1',
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Clear project' }));
+    expect(await screen.findByRole('button', { name: 'Select project' })).toBeVisible();
+    expect(client.requests).toContainEqual({
+      type: 'panerelay.workspace.clear-directory',
+      expectedRevision: 'workspace-2',
+    });
+  });
+
+  it('shows page comments and automatic approval controls in the composer', async () => {
+    const { client, user } = await renderReady();
+
+    const commentButton = screen.getByRole('button', { name: 'Comment on page' });
+    await user.click(commentButton);
+    expect(client.requests).toContainEqual({
+      type: 'panerelay.page-comments.start',
+      locale: 'en',
+      theme: 'light',
+    });
+    expect(screen.getByRole('button', { name: 'Stop commenting' })).toBeVisible();
+    fireEvent.doubleClick(commentButton);
+    await waitFor(() =>
+      expect(client.requests).toContainEqual({
+        type: 'panerelay.page-comments.start',
+        continuous: true,
+        locale: 'en',
+        theme: 'light',
+      }),
+    );
+
+    act(() => {
+      client.emit({
+        type: 'panerelay.page-comment.changed',
+        source: 'panerelay-page-comments',
+        comment: {
+          id: 'comment-1',
+          comment: 'Make this action clearer',
+          page: { url: 'https://example.com/page', title: 'Fixture page' },
+          element: {
+            tagName: 'button',
+            selector: 'main > button.primary',
+            text: 'Continue',
+            rect: { left: 10, top: 10, width: 100, height: 30 },
+          },
+        },
+      });
+    });
+    expect(screen.getByText('Annotation 1')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Edit page comment' })).toHaveAttribute(
+      'title',
+      expect.stringContaining('Make this action clearer'),
+    );
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+    const send = client.requests.find(request => request.type === 'panerelay.conversation.send');
+    if (send?.type !== 'panerelay.conversation.send') {
+      throw new Error('Expected a conversation send request');
+    }
+    expect(send.text).toContain('Untrusted page evidence');
+    expect(send.text).toContain('Make this action clearer');
+
+    await user.click(screen.getByRole('button', { name: 'Enable automatic Agent approvals' }));
+    expect(client.stored['panerelay.agentAutoApprove']).toBe(true);
+    expect(screen.getByRole('button', { name: 'Disable automatic Agent approvals' })).toBeVisible();
+  });
+
+  it('pastes, previews, removes, and sends images without requiring text', async () => {
+    const { client, user } = await renderReady();
+    const input = screen.getByRole('textbox');
+    const file = new File([new Uint8Array([1, 2, 3])], 'screenshot.png', {
+      type: 'image/png',
+    });
+    const clipboardData = {
+      items: [
+        {
+          kind: 'file',
+          type: 'image/png',
+          getAsFile: () => file,
+        },
+      ],
+    };
+
+    fireEvent.paste(input, { clipboardData });
+    expect(await screen.findByAltText('screenshot.png')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Remove image' }));
+    expect(screen.queryByAltText('screenshot.png')).toBeNull();
+
+    fireEvent.paste(input, { clipboardData });
+    expect(await screen.findByAltText('screenshot.png')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+    expect(client.requests).toContainEqual({
+      type: 'panerelay.conversation.send',
+      providerId: 'codex',
+      expectedRevision: 'workspace-1',
+      text: '',
+      images: [{ data: 'AQID', mimeType: 'image/png', name: 'screenshot.png' }],
+    });
+    expect(screen.queryByAltText('screenshot.png')).toBeNull();
+  });
+
+  it('rejects pasted images when the prepared provider does not support them', async () => {
+    const client = new AppClient();
+    client.providers = readyProviders.map(provider =>
+      provider.id === 'codex'
+        ? { ...provider, capabilities: { ...provider.capabilities, imageInput: false } }
+        : provider,
+    );
+    await renderReady(client);
+    const file = new File([new Uint8Array([1, 2, 3])], 'screenshot.png', {
+      type: 'image/png',
+    });
+
+    fireEvent.paste(screen.getByRole('textbox'), {
+      clipboardData: {
+        items: [
+          {
+            kind: 'file',
+            type: 'image/png',
+            getAsFile: () => file,
+          },
+        ],
+      },
+    });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'The selected Agent does not support image input.',
+    );
+    expect(screen.queryByAltText('screenshot.png')).toBeNull();
   });
 
   it('shows live feedback while a draft conversation starts and while its turn is pending', async () => {
