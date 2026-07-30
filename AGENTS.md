@@ -59,6 +59,7 @@ For non-trivial work:
 4. Add or update an RFC when the work introduces or changes a durable cross-package architecture, protocol, security, permission, or ownership decision. Link the OpenSpec change and RFC instead of duplicating their full content.
 5. Implement and validate against explicit acceptance criteria. Update compatibility matrices for version-dependent integrations.
 6. Archive an OpenSpec change only after its implementation and verification are complete. Mark an RFC `Implemented` only when its code has been released, not merely merged or tested locally.
+7. When the user asks to commit a completed OpenSpec-backed change, sync its delta specs into the main specs, archive the change, and include the archive result in the commit unless the user explicitly asks to keep the change active.
 
 Small fixes, dependency maintenance, formatting, and documentation corrections do not require an OpenSpec change or a new RFC unless they alter specified behavior or an accepted decision.
 
