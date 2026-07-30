@@ -1,106 +1,104 @@
 # Panerelay
 
-[简体中文](README.zh-CN.md)
+English ｜ [简体中文](README.zh-CN.md)
 
-Panerelay connects AI agents to explicitly authorized tabs in the Chrome browser a user already has open. External agents can use standard `agent-browser` commands, while the Extension sidepanel provides agent conversations, activity visibility, approvals, and immediate control release.
+**Let AI agents work in the Chrome you already use.**
 
-The current release target is `0.1.0`. Candidate validation never publishes packages, creates Git
-tags, or uploads artifacts.
+Panerelay is an open-source local bridge between AI agents and your existing Chrome session. It solves two problems while keeping browser access explicit and revocable:
+
+1. **Let Agents work directly in your Chrome.** Any Agent that can use [agent-browser](https://github.com/vercel-labs/agent-browser) through CLI or MCP can control the tabs you authorize with your current browser profile and login state—no separate browser, repeated login, or cookie export.
+2. **Bring local Agents into the Chrome side panel.** After one Panerelay setup, the Extension discovers supported local Agents and gives them a browser-native chat surface with conversation history, approvals, activity, and immediate control release.
+
+Credentials stay in Chrome. Panerelay works only in tabs you explicitly authorize.
 
 ## How it works
 
 ```text
-External Agent → agent-browser → Panerelay Bridge
-                                      ↕ Native Messaging
-Side-panel Agent ← Panerelay Extension ↔ Authorized Chrome tabs
+Any AI Agent → agent-browser CLI / MCP → Panerelay Bridge
+                                              ↕ Native Messaging
+Local Agents ← Chrome side panel ← Panerelay Extension ↔ Authorized tabs
 ```
 
-The local Bridge is the routing and policy boundary. The Extension does not store model
-credentials or start native agent processes, and browser access remains limited to tabs the user
-authorizes.
-
-## Requirements
-
-- Chrome on macOS, Linux, or Windows
-- Node.js 20 or newer
-- agent-browser 0.33.0 or newer
-- The matching Panerelay Extension and npm package version
-
-Codex and Qoder are optional side-panel Agent providers. The selector always shows both, defaults
-to an installed provider, and falls back to Codex when neither is installed.
+- **agent-browser keeps browser automation semantics** such as snapshots, locators, input, waits, tabs, and screenshots.
+- **The local Bridge handles routing and policy** between agent-browser, local Agent runtimes, and the Extension.
+- **The Extension owns user authorization and visibility.** It does not store model credentials or start native Agent processes.
 
 ## Quickstart
 
-1. Extract `panerelay-extension-0.1.0.zip`, open `chrome://extensions`, enable Developer mode, and
-   load the extracted directory.
-2. Install the local integration and set Panerelay as the user-level default Provider:
+Requirements: Chrome on macOS, Linux, or Windows; Node.js 20+; and a compatible agent-browser.
+
+1. Download and extract the Extension archive from [Panerelay Releases](https://github.com/F-loat/panerelay/releases). Open `chrome://extensions`, enable Developer mode, and load the extracted directory.
+2. Install the local integration and make Panerelay the user-level default agent-browser Provider:
 
    ```bash
    npx --yes @panerelay/setup --global-provider
    ```
 
-3. Open Panerelay from the Chrome toolbar and authorize the current web tab or all supported web
-   tabs.
-4. Verify the registered Provider:
+3. Open Panerelay from the Chrome toolbar and authorize the current web tab or all supported web tabs.
+4. Verify that any Agent can reach the authorized browser through agent-browser:
 
    ```bash
    agent-browser --provider panerelay tab list
    ```
 
-Omitting an action runs setup. Use `--project-provider` instead of `--global-provider` when the default
-should apply only to the current project. Provider selection changes routing only; it never grants
-Chrome permission or authorizes a tab.
+5. To work from Chrome, open the side panel and select an installed local Agent. Panerelay automatically discovers supported local Agents; each Agent CLI must already be installed and signed in.
 
-### Update, uninstall, and diagnose issues
+`--global-provider` lets later agent-browser commands omit `--provider panerelay`. Use `--project-provider` instead when the default should apply only to the current project. Provider selection changes routing only—it never grants Chrome permission or authorizes a tab.
+
+## What Panerelay provides
+
+- agent-browser workflows in authorized tabs: page interaction, screenshots, navigation, tabs and popups, diagnostics, network inspection, and request mocking.
+- Side-panel conversations with supported local Agents, including history, approvals, interruption, activity, and tab-linked workspaces.
+- User-scoped Native Messaging setup on macOS, Linux, and Windows.
+- Local-first routing: no Panerelay cloud service is required.
+
+See each release's notes for available side-panel Agents and the [compatibility records](docs/compatibility) for exact agent-browser coverage.
+
+## Manage the installation
+
+Running without an action installs or updates the local integration:
 
 ```bash
-npx --yes @panerelay/setup update
-npx --yes @panerelay/setup uninstall
+npx --yes @panerelay/setup
 npx --yes @panerelay/setup doctor
+npx --yes @panerelay/setup uninstall
 ```
 
-### Custom Extension ID
+Set Panerelay as the user-level or current-project agent-browser default Provider:
 
-Official builds use Extension ID `panplnkjlkoceaonlmpdekjphgmbggmi`. Self-built or differently
-signed Extensions can pass their actual ID:
+```bash
+npx --yes @panerelay/setup --global-provider
+npx --yes @panerelay/setup --project-provider
+```
+
+agent-browser reads the user default from `~/.agent-browser/config.json` and the project override from `./agent-browser.json`. Change the `provider` field to another configured Provider, or remove it to use agent-browser's built-in default. Panerelay remains installed and can still be selected with `--provider panerelay`.
+
+Official builds use Extension ID `panplnkjlkoceaonlmpdekjphgmbggmi`. A self-built Extension can register its own 32-character ID:
 
 ```bash
 npx --yes @panerelay/setup --extension-id <32-character-id>
 ```
 
-The value must be 32 lowercase letters from `a` through `p`; `PANERELAY_EXTENSION_ID` is the
-environment alternative.
+The ID must contain 32 lowercase letters from `a` through `p`.
 
-## Operating boundaries
+## Safety and operating boundaries
 
-- Chrome permission, tab authorization, and the exclusive control lease are separate and
-  revocable.
-- The `webNavigation` permission is used only to recognize tabs Chrome reports as opened from
-  another tab so they can share conversation context; it does not read browsing history or page
-  content and does not grant site access.
-- Panerelay reuses the running Chrome profile. Browser-process operations such as isolated
-  contexts, launch-time proxy/profile changes, and closing Chrome are unsupported and fail
-  explicitly.
-- Activity is sanitized, bounded, and memory-only. Page content, cookies, credentials, prompts,
-  screenshots, and request bodies are not logged by default.
-- agent-browser 0.33.0 is the minimum and initial verified baseline. Newer versions do not inherit
-  version-specific verification without recorded evidence.
-- `0.1.0` components are a lockstep compatibility unit.
+- Chrome site permission, tab authorization, and the exclusive automation lease are separate. Focus never grants authorization; mutating actions require the current lease.
+- Reusing login state means operating inside an authorized existing tab. Panerelay does not export or log cookies, credentials, prompts, screenshots, page content, or request bodies by default.
+- Panerelay cannot own browser-process features such as isolated profiles, launch-time proxy changes, or closing the user's Chrome process.
+- `webNavigation` is used only to recognize Chrome-reported related tabs so they can share conversation context. It does not read browsing history or grant site access.
+- The Extension, protocol, Bridge, Provider, and setup CLI form one lockstep compatibility unit.
 
-See the [agent-browser compatibility matrix](docs/compatibility/agent-browser-0.33.0.md) for
-command coverage and [the release checklist](docs/releasing.md) for the remaining candidate gates.
+## Development and release checks
 
-## Development
-
-Workspace development requires Node.js 20.19 or newer and pnpm:
+Workspace development requires Node.js `20.19` or newer and pnpm:
 
 ```bash
 pnpm install
 pnpm run check
 ```
 
-Run `pnpm run dev`, then load `apps/extension/dist` as an unpacked Extension. For local Provider
-testing:
+Run `pnpm run dev`, then load `apps/extension/dist` as an unpacked Extension. For local Provider testing:
 
 ```bash
 pnpm build
@@ -108,7 +106,7 @@ node packages/setup/dist/cli.js --project-provider
 agent-browser --provider panerelay tab list
 ```
 
-Build or validate unpublished artifacts with:
+Build and validate unpublished candidates with:
 
 ```bash
 pnpm package
@@ -116,10 +114,7 @@ pnpm run release:check
 pnpm run release:pack
 ```
 
-Generated candidates stay under the ignored `.artifacts/` directory. None of these commands
-publishes, tags, or uploads.
-
-Architecture and security decisions are recorded in [`docs/rfcs`](docs/rfcs).
+These commands create ignored local artifacts; they do not publish packages, create tags, or upload assets. See the [release checklist](docs/releasing.md) and [RFCs](docs/rfcs).
 
 ## License
 

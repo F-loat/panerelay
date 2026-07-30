@@ -1,14 +1,12 @@
 ## Purpose
 
-Define how Panerelay produces a lockstep, locally verifiable alpha distribution without publishing
-artifacts or widening the browser access granted by the user.
+Define how Panerelay produces a lockstep, locally verifiable alpha distribution without publishing artifacts or widening the browser access granted by the user.
 
 ## ADDED Requirements
 
 ### Requirement: Alpha artifacts have one release identity
 
-Panerelay SHALL assign one semantic prerelease version to every publishable package and expose the
-same human-readable version in the Extension.
+Panerelay SHALL assign one semantic prerelease version to every publishable package and expose the same human-readable version in the Extension.
 
 #### Scenario: Release metadata is aligned
 
@@ -18,22 +16,19 @@ same human-readable version in the Extension.
 
 #### Scenario: Metadata drifts
 
-- **GIVEN** one package, internal dependency, or Extension version no longer matches the release
-  identity
+- **GIVEN** one package, internal dependency, or Extension version no longer matches the release identity
 - **WHEN** the release check runs
 - **THEN** it fails before producing an accepted candidate
 
 ### Requirement: Candidate creation is local and non-publishing
 
-Panerelay SHALL build inspectable npm tarballs, an unpacked-Extension archive, and checksums without
-contacting a package publication or release API.
+Panerelay SHALL build inspectable npm tarballs, an unpacked-Extension archive, and checksums without contacting a package publication or release API.
 
 #### Scenario: Maintainer builds a candidate
 
 - **GIVEN** the repository passes normal quality checks
 - **WHEN** the maintainer runs the release packaging command
-- **THEN** Panerelay writes a versioned candidate directory with the expected package tarballs,
-  Extension archive, inventory, and checksums
+- **THEN** Panerelay writes a versioned candidate directory with the expected package tarballs, Extension archive, inventory, and checksums
 
 #### Scenario: Candidate contents are incomplete
 
@@ -43,27 +38,23 @@ contacting a package publication or release API.
 
 ### Requirement: Packed setup works outside the workspace
 
-Panerelay SHALL verify the setup package and its internal dependencies from packed tarballs in an
-isolated consumer environment.
+Panerelay SHALL verify the setup package and its internal dependencies from packed tarballs in an isolated consumer environment.
 
 #### Scenario: Fresh local install
 
 - **GIVEN** all Panerelay npm tarballs were produced from one candidate
 - **WHEN** an isolated consumer installs them without workspace links
-- **THEN** the setup CLI can display help and install, diagnose, update, and uninstall its
-  user-scoped integration
+- **THEN** the setup CLI can display help and install, diagnose, update, and uninstall its user-scoped integration
 
 #### Scenario: Packed dependency would require workspace state
 
-- **GIVEN** a packed package still references a workspace-only path or an unavailable Panerelay
-  dependency
+- **GIVEN** a packed package still references a workspace-only path or an unavailable Panerelay dependency
 - **WHEN** the isolated smoke test installs the candidate
 - **THEN** the release check fails instead of accepting the tarball
 
 ### Requirement: Distribution preserves browser authorization boundaries
 
-Panerelay SHALL keep Extension installation, Native Host setup, Provider registration, and browser
-tab authorization as separate user-controlled steps.
+Panerelay SHALL keep Extension installation, Native Host setup, Provider registration, and browser tab authorization as separate user-controlled steps.
 
 #### Scenario: Local integration is installed
 
@@ -79,8 +70,7 @@ tab authorization as separate user-controlled steps.
 
 ### Requirement: Alpha operation and limitations are documented
 
-Panerelay SHALL document one end-to-end alpha workflow covering Extension loading, setup, Provider
-selection, diagnosis, update, rollback, and uninstall.
+Panerelay SHALL document one end-to-end alpha workflow covering Extension loading, setup, Provider selection, diagnosis, update, rollback, and uninstall.
 
 #### Scenario: User follows the alpha quickstart
 
@@ -92,13 +82,11 @@ selection, diagnosis, update, rollback, and uninstall.
 
 - **GIVEN** the alpha reuses a daily Chrome profile
 - **WHEN** the user reads the release limitations
-- **THEN** browser-process ownership, isolation, download, platform, protocol lockstep, and
-  multi-Agent limitations remain explicit
+- **THEN** browser-process ownership, isolation, download, platform, protocol lockstep, and multi-Agent limitations remain explicit
 
 ### Requirement: CI checks release readiness without releasing
 
-Panerelay SHALL run candidate validation on supported Node.js versions without publishing,
-tagging, or uploading artifacts.
+Panerelay SHALL run candidate validation on supported Node.js versions without publishing, tagging, or uploading artifacts.
 
 #### Scenario: Pull request changes distributable files
 
@@ -114,15 +102,13 @@ tagging, or uploading artifacts.
 
 ### Requirement: npm publication is explicit and rebuilds packages
 
-Panerelay SHALL expose one explicitly invoked alpha publication command that publishes the four
-public packages through pnpm with the `alpha` dist-tag.
+Panerelay SHALL expose one explicitly invoked alpha publication command that publishes the four public packages through pnpm with the `alpha` dist-tag.
 
 #### Scenario: Maintainer publishes the accepted alpha
 
 - **GIVEN** the release commit is clean, pushed, and accepted
 - **WHEN** an authorized maintainer runs the alpha publication command with npm authentication
-- **THEN** protocol, agent-browser, Bridge, and setup build through their package lifecycle and
-  publish in dependency order
+- **THEN** protocol, agent-browser, Bridge, and setup build through their package lifecycle and publish in dependency order
 
 #### Scenario: Candidate validation runs without publication authority
 

@@ -1,8 +1,7 @@
 ## 1. Source boundaries
 
 - [x] 1.1 Move service-worker code and tests under `src/background`
-- [x] 1.2 Move the side-panel document, script, styles, menu, and structural test under
-      `src/pages/sidepanel`
+- [x] 1.2 Move the side-panel document, script, styles, menu, and structural test under `src/pages/sidepanel`
 - [x] 1.3 Move shared message types under `src/shared` and icons under `public/icons`
 - [x] 1.4 Move the Extension manifest to the package root with source entry paths
 
@@ -28,6 +27,4 @@
 - [ ] 4.4 Reload the Extension in daily Chrome and complete the controlled-favicon acceptance
 - [ ] 4.5 Sync evidence and archive both completed OpenSpec changes
 
-> Stable-release reconciliation: 4.4 is deferred to
-> `prepare-first-stable-release` task 8.4. Task 4.5 is deferred to stable tasks 8.7 and 8.8.
-> This change remains active until the shared daily-Chrome acceptance is recorded.
+> Stable-release reconciliation: 4.4 is deferred to `prepare-first-stable-release` task 8.4. Task 4.5 is deferred to stable tasks 8.7 and 8.8. This change remains active until the shared daily-Chrome acceptance is recorded.

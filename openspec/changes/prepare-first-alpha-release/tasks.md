@@ -30,6 +30,4 @@
 - [ ] 4.4 Reinstall from the packed setup candidate, reload the unpacked Extension candidate, and verify doctor plus one agent-browser 0.33.0 local-fixture control session in the daily Chrome profile
 - [ ] 4.5 Remove temporary consumer, browser, and candidate state; record remaining alpha gaps; sync and archive the completed OpenSpec change
 
-> Stable-release reconciliation: 4.4 is deferred to
-> `prepare-first-stable-release` task 8.4. Task 4.5 is deferred to stable tasks 8.7 and 8.8.
-> This change remains active until that real-browser evidence and cleanup are complete.
+> Stable-release reconciliation: 4.4 is deferred to `prepare-first-stable-release` task 8.4. Task 4.5 is deferred to stable tasks 8.7 and 8.8. This change remains active until that real-browser evidence and cleanup are complete.

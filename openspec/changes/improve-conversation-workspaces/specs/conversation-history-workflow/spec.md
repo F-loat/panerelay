@@ -1,15 +1,12 @@
 ## Purpose
 
-Define an explicit conversation workflow in which history is user-selected and new conversations
-remain local drafts until the first message requires an Agent session.
+Define an explicit conversation workflow in which history is user-selected and new conversations remain local drafts until the first message requires an Agent session.
 
 ## ADDED Requirements
 
 ### Requirement: History is loaded on demand
 
-The Side Panel SHALL load a provider's conversation history when the user opens the history picker
-and SHALL NOT automatically resume a conversation when the Side Panel opens or the provider
-changes.
+The Side Panel SHALL load a provider's conversation history when the user opens the history picker and SHALL NOT automatically resume a conversation when the Side Panel opens or the provider changes.
 
 #### Scenario: Opening the Side Panel
 
@@ -33,8 +30,7 @@ changes.
 
 ### Requirement: Users explicitly select history
 
-The Side Panel SHALL let the user search the loaded conversation metadata and resume only the
-conversation they explicitly select.
+The Side Panel SHALL let the user search the loaded conversation metadata and resume only the conversation they explicitly select.
 
 #### Scenario: Searching loaded history
 
@@ -53,8 +49,7 @@ conversation they explicitly select.
 
 ### Requirement: New conversations begin as drafts
 
-Starting a new conversation SHALL clear the active tab workspace into a local draft and SHALL defer
-provider conversation creation until the first non-empty message is sent.
+Starting a new conversation SHALL clear the active tab workspace into a local draft and SHALL defer provider conversation creation until the first non-empty message is sent.
 
 #### Scenario: Starting fresh while idle
 
@@ -78,8 +73,7 @@ provider conversation creation until the first non-empty message is sent.
 
 ### Requirement: Pending sends remain visibly active
 
-The Side Panel SHALL show a transient live status while a message is waiting for conversation
-creation or an Agent turn is running, without persisting that status as conversation content.
+The Side Panel SHALL show a transient live status while a message is waiting for conversation creation or an Agent turn is running, without persisting that status as conversation content.
 
 #### Scenario: First send waits for conversation creation
 

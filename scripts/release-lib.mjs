@@ -179,9 +179,26 @@ export async function readJson(path) {
   return JSON.parse(await readFile(path, 'utf8'));
 }
 
+export function commandInvocation(
+  command,
+  args,
+  { environment = process.env, platform = process.platform } = {},
+) {
+  if (platform !== 'win32' || (command !== 'npm' && command !== 'pnpm')) {
+    return { args, command };
+  }
+  return {
+    args: ['/d', '/c', `${command}.cmd`, ...args],
+    command: environment.ComSpec ?? environment.COMSPEC ?? 'cmd.exe',
+  };
+}
+
 export function run(command, args, options = {}) {
   return new Promise((resolvePromise, reject) => {
-    const child = spawn(command, args, {
+    const invocation = commandInvocation(command, args, {
+      environment: options.env ?? process.env,
+    });
+    const child = spawn(invocation.command, invocation.args, {
       cwd: options.cwd,
       env: options.env,
       stdio: ['ignore', 'pipe', 'pipe'],

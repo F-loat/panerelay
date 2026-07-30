@@ -13,6 +13,5 @@
 ## 3. Verification
 
 - [x] 3.1 Add focused tests for locale normalization, precedence, argument placement, and help
-- [x] 3.2 Run setup package tests and typecheck, full workspace checks, strict OpenSpec validation,
-      and package-content validation
+- [x] 3.2 Run setup package tests and typecheck, full workspace checks, strict OpenSpec validation, and package-content validation
 - [x] 3.3 Manually inspect English and Chinese CLI output for help, setup, doctor, and uninstall

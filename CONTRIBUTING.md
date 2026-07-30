@@ -18,8 +18,7 @@ Implementation pull requests should reference the accepted RFC or issue that aut
 - Keep browser- and agent-specific integrations outside the shared protocol.
 - Treat user authorization, visible control state, and revocation as product requirements.
 - Add tests for protocol compatibility and trust-boundary behavior alongside implementation.
-- Run `pnpm run check` before submitting a pull request. CI checks formatting, lint,
-  types, tests, and production builds on supported Node.js versions.
+- Run `pnpm run check` before submitting a pull request. CI checks formatting, lint, types, tests, and production builds on supported Node.js versions.
 - Use Conventional Commit messages.
 
 ## Reporting security issues

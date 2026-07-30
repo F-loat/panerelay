@@ -1,21 +1,16 @@
 ## Why
 
-The Extension currently keeps background logic, the side-panel page, shared types, tests, icons,
-and static build inputs in one flat `src` directory. A custom esbuild script separately bundles two
-entry points, copies a fixed file list, and implements its own watcher. Adding popup, options,
-content-script, or additional side-panel modules would multiply manual entry and copy rules.
+The Extension currently keeps background logic, the side-panel page, shared types, tests, icons, and static build inputs in one flat `src` directory. A custom esbuild script separately bundles two entry points, copies a fixed file list, and implements its own watcher. Adding popup, options, content-script, or additional side-panel modules would multiply manual entry and copy rules.
 
 ## What Changes
 
 - Organize source by runtime boundary: background, pages, and shared Extension code.
 - Move immutable browser assets to `public/` and keep the manifest at the Extension package root.
-- Replace the custom esbuild/copy watcher with Vite and CRXJS using manifest-discovered MV3 entry
-  points.
+- Replace the custom esbuild/copy watcher with Vite and CRXJS using manifest-discovered MV3 entry points.
 - Keep `apps/extension/dist` as the unpacked Chrome directory and local release input.
 - Add a lightweight Extension-only zip command for review and manual installation.
 - Make release validation follow built manifest and HTML references instead of fixed bundle names.
-- Preserve the current Chrome 116 target, Extension identity, permissions, functionality, and
-  package version.
+- Preserve the current Chrome 116 target, Extension identity, permissions, functionality, and package version.
 
 Non-goals:
 
@@ -27,8 +22,7 @@ Non-goals:
 
 ### New Capabilities
 
-- `extension-build-pipeline`: Defines the manifest-driven Extension source layout, development
-  build, production build, and distributable validation contract.
+- `extension-build-pipeline`: Defines the manifest-driven Extension source layout, development build, production build, and distributable validation contract.
 
 ### Modified Capabilities
 

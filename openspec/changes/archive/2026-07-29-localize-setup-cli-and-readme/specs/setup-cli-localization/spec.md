@@ -1,7 +1,6 @@
 ## Purpose
 
-Define bilingual documentation and setup CLI behavior without making machine-readable diagnostics
-locale-dependent.
+Define bilingual documentation and setup CLI behavior without making machine-readable diagnostics locale-dependent.
 
 ## ADDED Requirements
 
@@ -17,8 +16,7 @@ Panerelay SHALL provide equivalent root README entry points in English and Simpl
 
 ### Requirement: CLI language follows explicit and device preferences
 
-The setup CLI SHALL support English and Simplified Chinese and SHALL select one locale for each
-invocation.
+The setup CLI SHALL support English and Simplified Chinese and SHALL select one locale for each invocation.
 
 #### Scenario: Device locale is Chinese
 
@@ -40,8 +38,7 @@ invocation.
 
 ### Requirement: Human-readable setup operations are localized
 
-Panerelay SHALL localize CLI-owned help, argument errors, setup results, uninstall interaction, and
-doctor presentation in the selected language.
+Panerelay SHALL localize CLI-owned help, argument errors, setup results, uninstall interaction, and doctor presentation in the selected language.
 
 #### Scenario: Chinese help is requested
 
@@ -53,8 +50,7 @@ doctor presentation in the selected language.
 
 - **GIVEN** the selected language is Simplified Chinese
 - **WHEN** doctor prints a human-readable report
-- **THEN** known check labels, statuses, details, and remediation hints are localized while paths
-  and executable names remain intact
+- **THEN** known check labels, statuses, details, and remediation hints are localized while paths and executable names remain intact
 
 ### Requirement: Machine-readable diagnostics are locale-independent
 

@@ -1,14 +1,12 @@
 ## Purpose
 
-Define a page-local visual indicator for active agent-browser control without changing tab
-authorization or automation semantics.
+Define a page-local visual indicator for active agent-browser control without changing tab authorization or automation semantics.
 
 ## ADDED Requirements
 
 ### Requirement: Actively controlled pages are identifiable
 
-Panerelay SHALL replace the favicon of an actively controlled supported page with the agent-browser
-mark and a green control-status dot.
+Panerelay SHALL replace the favicon of an actively controlled supported page with the agent-browser mark and a green control-status dot.
 
 #### Scenario: Agent attaches an authorized target
 
@@ -24,9 +22,7 @@ mark and a green control-status dot.
 
 ### Requirement: The indicator describes Agent activity in the current document
 
-Panerelay SHALL allow navigation to clear the current-document favicon, SHALL reapply it before the
-next target-scoped Agent command, and SHALL prevent page runtime updates from replacing it while
-that document remains controlled.
+Panerelay SHALL allow navigation to clear the current-document favicon, SHALL reapply it before the next target-scoped Agent command, and SHALL prevent page runtime updates from replacing it while that document remains controlled.
 
 #### Scenario: Controlled target navigates or refreshes
 
@@ -36,11 +32,9 @@ that document remains controlled.
 
 #### Scenario: Agent operates on the new document
 
-- **GIVEN** navigation cleared the agent-browser control favicon from an authorized controlled
-  target
+- **GIVEN** navigation cleared the agent-browser control favicon from an authorized controlled target
 - **WHEN** agent-browser sends the next target-scoped command
-- **THEN** Panerelay reapplies the control favicon to the current top-level document on a
-  best-effort basis
+- **THEN** Panerelay reapplies the control favicon to the current top-level document on a best-effort basis
 
 #### Scenario: Controlled SPA rewrites its icon
 
@@ -50,8 +44,7 @@ that document remains controlled.
 
 ### Requirement: Release restores page identity
 
-Panerelay SHALL remove its controlled favicon and restore the page-owned favicon nodes when control
-of a surviving page ends.
+Panerelay SHALL remove its controlled favicon and restore the page-owned favicon nodes when control of a surviving page ends.
 
 #### Scenario: Provider releases its target
 
@@ -67,8 +60,7 @@ of a surviving page ends.
 
 ### Requirement: Indicator failure does not grant or deny control
 
-Panerelay SHALL treat favicon injection and restoration as best-effort presentation operations
-bounded by existing Chrome origin permissions.
+Panerelay SHALL treat favicon injection and restoration as best-effort presentation operations bounded by existing Chrome origin permissions.
 
 #### Scenario: Chrome rejects script injection
 

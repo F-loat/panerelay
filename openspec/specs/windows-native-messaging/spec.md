@@ -2,23 +2,19 @@
 
 ## Purpose
 
-Define safe, user-scoped Chrome Native Messaging installation and lifecycle behavior for Panerelay
-on supported Windows systems.
+Define safe, user-scoped Chrome Native Messaging installation and lifecycle behavior for Panerelay on supported Windows systems.
 
 ## Requirements
 
 ### Requirement: Windows setup installs a launchable user-scoped Native Host
 
-Panerelay SHALL install its bundled Native Host and a Windows launcher in user-owned state, write a
-valid Chrome Native Messaging manifest, and register that manifest under the current user's Chrome
-Native Messaging registry key.
+Panerelay SHALL install its bundled Native Host and a Windows launcher in user-owned state, write a valid Chrome Native Messaging manifest, and register that manifest under the current user's Chrome Native Messaging registry key.
 
 #### Scenario: Fresh Windows setup
 
 - **GIVEN** a supported Windows user can write Panerelay's user data and HKCU registry locations
 - **WHEN** they run setup
-- **THEN** Chrome can resolve the registered manifest and launch the bundled Host through its
-  Windows launcher without administrator privileges
+- **THEN** Chrome can resolve the registered manifest and launch the bundled Host through its Windows launcher without administrator privileges
 
 #### Scenario: Native Host paths contain spaces
 
@@ -28,16 +24,13 @@ Native Messaging registry key.
 
 ### Requirement: Windows setup uses safe process and registry operations
 
-Panerelay SHALL invoke Windows command wrappers and registry tools without interpolating
-user-controlled paths into an unquoted shell command, and SHALL keep allowed Extension origins
-explicit in the manifest.
+Panerelay SHALL invoke Windows command wrappers and registry tools without interpolating user-controlled paths into an unquoted shell command, and SHALL keep allowed Extension origins explicit in the manifest.
 
 #### Scenario: Registry path contains command metacharacters
 
 - **GIVEN** a resolved user path contains characters meaningful to a command interpreter
 - **WHEN** setup registers or removes the Native Host
-- **THEN** Panerelay passes the registry key and manifest path as structured process arguments
-  rather than executing them as shell syntax
+- **THEN** Panerelay passes the registry key and manifest path as structured process arguments rather than executing them as shell syntax
 
 #### Scenario: Unrecognized Extension connects
 
@@ -47,15 +40,13 @@ explicit in the manifest.
 
 ### Requirement: Windows setup configures launchable local tools
 
-Panerelay SHALL discover Windows executable and command-wrapper forms for Node-based tools and
-write agent-browser Provider and Agent runtime configuration that can be spawned on Windows.
+Panerelay SHALL discover Windows executable and command-wrapper forms for Node-based tools and write agent-browser Provider and Agent runtime configuration that can be spawned on Windows.
 
 #### Scenario: npm installs command wrappers
 
 - **GIVEN** agent-browser, Codex, or Qoder is exposed through a `.cmd` wrapper
 - **WHEN** setup discovers and later launches that tool
-- **THEN** Panerelay uses the Windows command interpreter safely and preserves the intended
-  argument vector
+- **THEN** Panerelay uses the Windows command interpreter safely and preserves the intended argument vector
 
 #### Scenario: Tool is not executable on Windows
 
@@ -65,9 +56,7 @@ write agent-browser Provider and Agent runtime configuration that can be spawned
 
 ### Requirement: Windows doctor verifies registry and manifest agreement
 
-Panerelay SHALL verify that the current-user registry value points to the installed manifest and
-that the manifest names the installed launcher, expected Host name, and persisted effective
-Extension origin.
+Panerelay SHALL verify that the current-user registry value points to the installed manifest and that the manifest names the installed launcher, expected Host name, and persisted effective Extension origin.
 
 #### Scenario: Registry value is stale
 
@@ -79,28 +68,23 @@ Extension origin.
 
 - **GIVEN** the launcher, manifest, registry value, runtime config, and Provider config agree
 - **WHEN** the user runs doctor
-- **THEN** every Windows Native Messaging installation check passes without requiring Chrome to
-  authorize a tab
+- **THEN** every Windows Native Messaging installation check passes without requiring Chrome to authorize a tab
 
 #### Scenario: Windows manifest allows a different Extension ID
 
-- **GIVEN** the registered Native Messaging manifest does not allow the configured effective
-  Panerelay Extension origin
+- **GIVEN** the registered Native Messaging manifest does not allow the configured effective Panerelay Extension origin
 - **WHEN** the user runs doctor
 - **THEN** the Native Messaging check fails and does not claim the Extension connection is ready
 
 ### Requirement: Windows update and uninstall are idempotent
 
-Panerelay SHALL replace Panerelay-managed Windows artifacts on update and remove its current-user
-registry key, manifest, launcher, runtime config, and Provider config on uninstall without
-deleting unrelated user configuration.
+Panerelay SHALL replace Panerelay-managed Windows artifacts on update and remove its current-user registry key, manifest, launcher, runtime config, and Provider config on uninstall without deleting unrelated user configuration.
 
 #### Scenario: Setup is rerun
 
 - **GIVEN** a prior Panerelay Windows installation exists
 - **WHEN** the user runs update or setup again
-- **THEN** managed artifacts point to the new matching version and no duplicate registry ownership
-  is created
+- **THEN** managed artifacts point to the new matching version and no duplicate registry ownership is created
 
 #### Scenario: Uninstall is rerun after partial cleanup
 

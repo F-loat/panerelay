@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
   PACKAGE_DEFINITIONS,
+  commandInvocation,
   requiredExtensionHtmlEntries,
   requiredExtensionManifestEntries,
   validateExtensionEntries,
@@ -58,6 +59,32 @@ function releaseFixture() {
     rootPackage: { version, private: true, repository },
   };
 }
+
+test('invokes npm and pnpm through the Windows command processor', () => {
+  const environment = { ComSpec: 'C:\\Windows\\System32\\cmd.exe' };
+  assert.deepEqual(
+    commandInvocation('pnpm', ['run', 'build'], { environment, platform: 'win32' }),
+    {
+      args: ['/d', '/c', 'pnpm.cmd', 'run', 'build'],
+      command: environment.ComSpec,
+    },
+  );
+  assert.deepEqual(
+    commandInvocation('npm', ['install', '--no-audit'], { environment, platform: 'win32' }),
+    {
+      args: ['/d', '/c', 'npm.cmd', 'install', '--no-audit'],
+      command: environment.ComSpec,
+    },
+  );
+  assert.deepEqual(commandInvocation('git', ['status'], { environment, platform: 'win32' }), {
+    args: ['status'],
+    command: 'git',
+  });
+  assert.deepEqual(commandInvocation('pnpm', ['run', 'build'], { platform: 'linux' }), {
+    args: ['run', 'build'],
+    command: 'pnpm',
+  });
+});
 
 test('accepts one lockstep release identity and rejects version drift', () => {
   const fixture = releaseFixture();

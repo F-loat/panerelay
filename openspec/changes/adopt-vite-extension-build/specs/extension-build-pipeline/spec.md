@@ -1,14 +1,12 @@
 ## Purpose
 
-Define a maintainable, manifest-driven build and source layout for Panerelay's Chrome Extension
-without changing its runtime permissions or browser behavior.
+Define a maintainable, manifest-driven build and source layout for Panerelay's Chrome Extension without changing its runtime permissions or browser behavior.
 
 ## ADDED Requirements
 
 ### Requirement: Extension source reflects runtime boundaries
 
-Panerelay SHALL organize Extension implementation by background, page, shared, and public-asset
-ownership.
+Panerelay SHALL organize Extension implementation by background, page, shared, and public-asset ownership.
 
 #### Scenario: Maintainer changes browser control
 
@@ -24,27 +22,23 @@ ownership.
 
 ### Requirement: Manifest defines build entry points
 
-Panerelay SHALL use the MV3 manifest as the source of truth for Extension background and page entry
-points.
+Panerelay SHALL use the MV3 manifest as the source of truth for Extension background and page entry points.
 
 #### Scenario: Production Extension is built
 
 - **GIVEN** the root manifest references TypeScript and HTML source entries
 - **WHEN** the maintainer runs the Extension build
-- **THEN** Vite and CRXJS emit a self-contained `dist` with a valid module service worker and
-  side-panel page
+- **THEN** Vite and CRXJS emit a self-contained `dist` with a valid module service worker and side-panel page
 
 #### Scenario: Extension is developed locally
 
 - **GIVEN** the unpacked development Extension is loaded from `dist`
 - **WHEN** a source entry changes under the Vite development command
-- **THEN** CRXJS rebuilds or reloads the affected Extension runtime without a custom file-copy
-  watcher
+- **THEN** CRXJS rebuilds or reloads the affected Extension runtime without a custom file-copy watcher
 
 ### Requirement: Static assets remain stable
 
-Panerelay SHALL copy public icon assets without content hashing and SHALL preserve all manifest
-icon references in the built Extension.
+Panerelay SHALL copy public icon assets without content hashing and SHALL preserve all manifest icon references in the built Extension.
 
 #### Scenario: Manifest declares an icon
 
@@ -54,8 +48,7 @@ icon references in the built Extension.
 
 ### Requirement: Candidate validation follows declared resources
 
-Panerelay SHALL validate built Extension resources from manifest and HTML references rather than
-assuming fixed JavaScript or CSS bundle names.
+Panerelay SHALL validate built Extension resources from manifest and HTML references rather than assuming fixed JavaScript or CSS bundle names.
 
 #### Scenario: Vite hashes an implementation asset
 
@@ -77,17 +70,14 @@ Panerelay SHALL provide a command that builds and archives only the Chrome Exten
 
 - **GIVEN** the maintainer wants to inspect or manually install the current Extension
 - **WHEN** the maintainer runs the Extension packaging command
-- **THEN** Panerelay writes one versioned Extension zip without producing npm tarballs, inventory,
-  or checksum files
+- **THEN** Panerelay writes one versioned Extension zip without producing npm tarballs, inventory, or checksum files
 
 ### Requirement: Build migration preserves runtime scope
 
-Panerelay SHALL preserve the Extension identity, Chrome version floor, permissions, optional host
-patterns, side-panel path, and browser-control behavior during the build migration.
+Panerelay SHALL preserve the Extension identity, Chrome version floor, permissions, optional host patterns, side-panel path, and browser-control behavior during the build migration.
 
 #### Scenario: Built manifest is compared
 
 - **GIVEN** the Vite-built Extension candidate
 - **WHEN** maintainers inspect its manifest
-- **THEN** its identity, version, permissions, and optional host access match the source manifest
-  after entry-path rewriting
+- **THEN** its identity, version, permissions, and optional host access match the source manifest after entry-path rewriting

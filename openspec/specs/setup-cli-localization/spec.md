@@ -2,8 +2,7 @@
 
 ## Purpose
 
-Define bilingual documentation and setup CLI behavior without making machine-readable diagnostics
-locale-dependent.
+Define bilingual documentation and setup CLI behavior without making machine-readable diagnostics locale-dependent.
 
 ## Requirements
 
@@ -19,8 +18,7 @@ Panerelay SHALL provide equivalent root README entry points in English and Simpl
 
 ### Requirement: CLI language follows explicit and device preferences
 
-The setup CLI SHALL support English and Simplified Chinese and SHALL select one locale for each
-invocation.
+The setup CLI SHALL support English and Simplified Chinese and SHALL select one locale for each invocation.
 
 #### Scenario: Device locale is Chinese
 
@@ -42,8 +40,7 @@ invocation.
 
 ### Requirement: Human-readable setup operations are localized
 
-Panerelay SHALL localize CLI-owned help, argument errors, setup results, uninstall interaction, and
-doctor presentation in the selected language.
+Panerelay SHALL localize CLI-owned help, argument errors, setup results, uninstall interaction, and doctor presentation in the selected language.
 
 #### Scenario: Setup action is omitted
 
@@ -61,20 +58,17 @@ doctor presentation in the selected language.
 
 - **GIVEN** the selected language is Simplified Chinese
 - **WHEN** doctor prints a human-readable report
-- **THEN** known check labels, statuses, details, and remediation hints are localized while paths
-  and executable names remain intact
+- **THEN** known check labels, statuses, details, and remediation hints are localized while paths and executable names remain intact
 
 #### Scenario: Doctor presents an actionable human report
 
 - **GIVEN** doctor has passing, warning, and failing checks
 - **WHEN** it prints a human-readable report
-- **THEN** checks are grouped by environment, local integration, browser connection, and default
-  Provider with visual status markers, remediation beside affected checks, and a final summary
+- **THEN** checks are grouped by environment, local integration, browser connection, and default Provider with visual status markers, remediation beside affected checks, and a final summary
 
 ### Requirement: Default Provider flags use symmetric scope names
 
-Panerelay SHALL expose `--project-provider` and `--global-provider` for project-level and
-user-level default Provider configuration, and SHALL NOT accept `--project` as an alias.
+Panerelay SHALL expose `--project-provider` and `--global-provider` for project-level and user-level default Provider configuration, and SHALL NOT accept `--project` as an alias.
 
 #### Scenario: Project default Provider is requested
 
