@@ -20,6 +20,10 @@ const releaseWorkflow = readFileSync(
   new URL('../.github/workflows/release.yml', import.meta.url),
   'utf8',
 );
+const prepareReleaseWorkflow = readFileSync(
+  new URL('../.github/workflows/prepare-release.yml', import.meta.url),
+  'utf8',
+);
 const rootLicense = readFileSync(new URL('../LICENSE', import.meta.url), 'utf8');
 
 function releaseFixture() {
@@ -115,6 +119,36 @@ test('keeps release publication manual, protected, and channel-scoped', () => {
   assert.ok(stableReleaseOffset > 0);
   assert.doesNotMatch(releaseWorkflow.slice(0, stableReleaseOffset), /contents: write/);
   assert.doesNotMatch(releaseWorkflow, /NPM_TOKEN|git push|git tag/);
+});
+
+test('keeps next-minor preparation reviewable and non-publishing', () => {
+  assert.match(prepareReleaseWorkflow, /^name: Prepare Release$/m);
+  assert.match(prepareReleaseWorkflow, /workflow_dispatch:/);
+  assert.match(
+    prepareReleaseWorkflow,
+    /group: panerelay-prepare-release\n\s+cancel-in-progress: false/,
+  );
+  assert.match(prepareReleaseWorkflow, /contents: write/);
+  assert.match(prepareReleaseWorkflow, /pull-requests: write/);
+  assert.match(prepareReleaseWorkflow, /pnpm run release:prepare/);
+  assert.match(prepareReleaseWorkflow, /refs\/tags\/\$base_tag/);
+  assert.match(prepareReleaseWorkflow, /refs\/heads\/\$PREPARE_BRANCH/);
+  assert.match(prepareReleaseWorkflow, /npm view "\$package_name@\$TARGET_VERSION"/);
+  assert.match(prepareReleaseWorkflow, /pnpm run check/);
+  assert.match(prepareReleaseWorkflow, /pnpm run release:check/);
+  assert.match(
+    prepareReleaseWorkflow,
+    /git commit -m "chore\(release\): prepare \$TARGET_VERSION"/,
+  );
+  assert.match(prepareReleaseWorkflow, /git push --set-upstream origin "\$PREPARE_BRANCH"/);
+  assert.match(prepareReleaseWorkflow, /gh pr create/);
+  assert.doesNotMatch(
+    prepareReleaseWorkflow,
+    /id-token: write|npm publish|publish-release\.mjs|gh release create|git tag|Chrome Web Store/,
+  );
+  assert.doesNotMatch(prepareReleaseWorkflow, /git push [^\n]*(?:main|\$DEFAULT_BRANCH)/);
+  assert.match(releaseWorkflow, /node scripts\/publish-release\.mjs/);
+  assert.match(releaseWorkflow, /environment: release/);
 });
 
 test('keeps every publishable package license aligned with the repository license', () => {

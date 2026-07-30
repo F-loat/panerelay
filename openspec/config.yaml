@@ -1,8 +1,8 @@
 schema: spec-driven
 
 context: |
-  Panerelay is preparing its first stable release as an open browser relay for bidirectional interoperability between users,
-  browser extensions, agent-browser, and agent runtimes.
+  Panerelay publishes lockstep stable and beta releases as an open browser relay for bidirectional interoperability between
+  users, browser extensions, agent-browser, and agent runtimes.
   Tech stack: TypeScript, Node.js 20+, Chrome Manifest V3, pnpm workspace.
   Architecture: the Bridge is the local routing and policy boundary; the Extension controls only
   explicitly authorized tabs; protocol identifiers are opaque; browser automation semantics stay

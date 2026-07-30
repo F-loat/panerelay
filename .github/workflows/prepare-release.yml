@@ -1,0 +1,225 @@
+name: Prepare Release
+
+run-name: Prepare next minor release from ${{ github.ref_name }}
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: panerelay-prepare-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  prepare:
+    name: Prepare version pull request
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Require the default branch
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          if [[ "$GITHUB_REF" != "refs/heads/$DEFAULT_BRANCH" ]]; then
+            echo "Prepare Release must run from $DEFAULT_BRANCH." >&2
+            exit 1
+          fi
+
+      - name: Check out repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20.19.0
+          package-manager-cache: false
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.34.5 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Prepare next minor metadata
+        id: version
+        run: pnpm run release:prepare -- --github-output "$GITHUB_OUTPUT"
+
+      - name: Check released base and unused target
+        env:
+          BASE_VERSION: ${{ steps.version.outputs.base_version }}
+          GH_TOKEN: ${{ github.token }}
+          PREPARE_BRANCH: ${{ steps.version.outputs.branch }}
+          TARGET_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          base_tag="v$BASE_VERSION"
+          target_tag="v$TARGET_VERSION"
+
+          git ls-remote --exit-code --tags origin "refs/tags/$base_tag" >/dev/null || {
+            echo "Current version $BASE_VERSION has no remote stable tag." >&2
+            exit 1
+          }
+
+          base_release_status="$(
+            curl --silent --show-error --output "$RUNNER_TEMP/panerelay-base-release.json" \
+              --write-out '%{http_code}' \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header "X-GitHub-Api-Version: 2026-03-10" \
+              "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/releases/tags/$base_tag"
+          )"
+          if [[ "$base_release_status" != "200" ]]; then
+            echo "Current version $BASE_VERSION has no readable stable GitHub Release." >&2
+            exit 1
+          fi
+
+          set +e
+          git ls-remote --exit-code --tags origin "refs/tags/$target_tag" >/dev/null
+          target_tag_status=$?
+          git ls-remote --exit-code --heads origin "refs/heads/$PREPARE_BRANCH" >/dev/null
+          target_branch_status=$?
+          set -e
+          if [[ $target_tag_status -eq 0 ]]; then
+            echo "Target tag $target_tag already exists." >&2
+            exit 1
+          fi
+          if [[ $target_tag_status -ne 2 ]]; then
+            echo "Could not verify whether target tag $target_tag exists." >&2
+            exit "$target_tag_status"
+          fi
+          if [[ $target_branch_status -eq 0 ]]; then
+            echo "Preparation branch $PREPARE_BRANCH already exists." >&2
+            exit 1
+          fi
+          if [[ $target_branch_status -ne 2 ]]; then
+            echo "Could not verify whether preparation branch $PREPARE_BRANCH exists." >&2
+            exit "$target_branch_status"
+          fi
+
+          target_release_status="$(
+            curl --silent --show-error --output "$RUNNER_TEMP/panerelay-target-release.json" \
+              --write-out '%{http_code}' \
+              --header "Accept: application/vnd.github+json" \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header "X-GitHub-Api-Version: 2026-03-10" \
+              "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/releases/tags/$target_tag"
+          )"
+          if [[ "$target_release_status" != "404" ]]; then
+            echo "Target GitHub Release lookup returned HTTP $target_release_status." >&2
+            exit 1
+          fi
+
+          existing_pr="$(
+            gh pr list \
+              --repo "$GITHUB_REPOSITORY" \
+              --state all \
+              --head "$PREPARE_BRANCH" \
+              --json url \
+              --jq '.[0].url // ""'
+          )"
+          if [[ -n "$existing_pr" ]]; then
+            echo "Preparation pull request already exists: $existing_pr" >&2
+            exit 1
+          fi
+
+          for package_name in \
+            @panerelay/protocol \
+            @panerelay/agent-browser \
+            @panerelay/bridge \
+            @panerelay/setup; do
+            set +e
+            npm_lookup="$(npm view "$package_name@$TARGET_VERSION" version --json 2>&1)"
+            npm_status=$?
+            set -e
+            if [[ $npm_status -eq 0 ]]; then
+              echo "$package_name@$TARGET_VERSION already exists on npm." >&2
+              exit 1
+            fi
+            if ! grep -q 'E404' <<<"$npm_lookup"; then
+              echo "Could not verify whether $package_name@$TARGET_VERSION exists on npm." >&2
+              exit "$npm_status"
+            fi
+          done
+
+      - name: Run quality and candidate checks
+        run: |
+          pnpm run check
+          pnpm run release:check
+          git diff --check
+
+      - name: Confirm the metadata-only change
+        run: |
+          expected="$RUNNER_TEMP/panerelay-expected-version-paths.txt"
+          actual="$RUNNER_TEMP/panerelay-actual-version-paths.txt"
+          {
+            echo "apps/extension/manifest.json"
+            echo "apps/extension/package.json"
+            echo "package.json"
+            echo "packages/agent-browser/package.json"
+            echo "packages/bridge/package.json"
+            echo "packages/protocol/package.json"
+            echo "packages/setup/package.json"
+            echo "release.config.json"
+          } | sort >"$expected"
+          git diff --name-only | sort >"$actual"
+          diff -u "$expected" "$actual"
+
+      - name: Commit and push preparation branch
+        env:
+          PREPARE_BRANCH: ${{ steps.version.outputs.branch }}
+          TARGET_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$PREPARE_BRANCH"
+          git add \
+            apps/extension/manifest.json \
+            apps/extension/package.json \
+            package.json \
+            packages/agent-browser/package.json \
+            packages/bridge/package.json \
+            packages/protocol/package.json \
+            packages/setup/package.json \
+            release.config.json
+          git diff --cached --check
+          git commit -m "chore(release): prepare $TARGET_VERSION"
+          git push --set-upstream origin "$PREPARE_BRANCH"
+
+      - name: Open version pull request
+        env:
+          BASE_VERSION: ${{ steps.version.outputs.base_version }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ github.token }}
+          PREPARE_BRANCH: ${{ steps.version.outputs.branch }}
+          TARGET_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          body="$RUNNER_TEMP/panerelay-release-pr.md"
+          {
+            echo "Automated next-minor release preparation."
+            echo
+            echo "- Base version: \`$BASE_VERSION\`"
+            echo "- Target version: \`$TARGET_VERSION\`"
+            echo "- Full workspace and retained-candidate checks passed before this commit."
+            echo
+            echo "After review and merge, run **Release** from \`$DEFAULT_BRANCH\` with channel \`stable\`."
+          } >"$body"
+          pr_url="$(
+            gh pr create \
+              --repo "$GITHUB_REPOSITORY" \
+              --base "$DEFAULT_BRANCH" \
+              --head "$PREPARE_BRANCH" \
+              --title "chore(release): prepare $TARGET_VERSION" \
+              --body-file "$body"
+          )"
+          echo "Prepared release pull request: $pr_url"
+          echo "## Prepare Release" >>"$GITHUB_STEP_SUMMARY"
+          echo >>"$GITHUB_STEP_SUMMARY"
+          echo "Created [$TARGET_VERSION]($pr_url) from $BASE_VERSION." >>"$GITHUB_STEP_SUMMARY"

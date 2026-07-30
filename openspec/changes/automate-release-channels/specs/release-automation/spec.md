@@ -4,6 +4,43 @@ Define an explicitly authorized, repeatable publication workflow for stable and 
 
 ## ADDED Requirements
 
+### Requirement: Stable version preparation is reviewable
+
+Panerelay SHALL expose a manually triggered Prepare Release workflow that derives the next minor stable version from the currently released repository version, updates every lockstep package and Extension identity, validates the result, and opens a pull request without publishing or modifying the default branch directly.
+
+#### Scenario: Maintainer prepares the next minor release
+
+- **GIVEN** the default branch identifies released stable version `X.Y.Z`
+- **WHEN** a maintainer runs Prepare Release
+- **THEN** the proposed semantic version is `X.(Y+1).0`
+- **AND** every publishable package, release descriptor, Extension package, and Extension `version_name` uses that semantic version
+- **AND** the Chrome numeric version is `X.(Y+1).0.0`
+
+#### Scenario: Current repository version is not released
+
+- **GIVEN** the default branch's current semantic version has no matching stable tag and GitHub Release
+- **WHEN** a maintainer runs Prepare Release
+- **THEN** preparation fails before changing repository state so repeated preparation cannot skip another minor version
+
+#### Scenario: Target preparation or package version already exists
+
+- **GIVEN** the target version tag, GitHub Release, preparation branch, pull request, or npm package version already exists
+- **WHEN** the workflow attempts to prepare the same version
+- **THEN** it reports the existing state and does not create a conflicting commit or pull request
+
+#### Scenario: Preparation succeeds
+
+- **GIVEN** the derived target version is unused and all local release gates pass
+- **WHEN** Prepare Release completes
+- **THEN** it pushes one version-preparation branch and opens one pull request against the default branch
+- **AND** it does not publish npm packages, create a release tag, create a GitHub Release, or submit to Chrome Web Store
+
+#### Scenario: Prepared pull request is merged
+
+- **GIVEN** the version-preparation pull request passed review and required checks
+- **WHEN** a maintainer merges it and later selects `stable` in the Release workflow
+- **THEN** stable publication uses the exact merged version and commit instead of calculating another version
+
 ### Requirement: Maintainers explicitly select a release channel
 
 Panerelay SHALL expose a manually triggered publication workflow with exactly `stable` and `beta` channels, SHALL run it through a protected release environment, and SHALL serialize publication attempts.

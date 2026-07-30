@@ -9,6 +9,7 @@ The publication path must preserve the security and ownership decisions in RFC-0
 **Goals:**
 
 - Make stable and beta publication one explicit manual GitHub Actions operation.
+- Make the next minor stable identity one explicit, reviewable preparation pull request.
 - Publish the exact tarballs accepted by candidate validation rather than repacking source.
 - Keep beta version edits ephemeral, deterministic, and recoverable on every exit path.
 - Make a partially completed npm publication safe to retry when registry integrity matches.
@@ -16,13 +17,23 @@ The publication path must preserve the security and ownership decisions in RFC-0
 
 **Non-Goals:**
 
-- Automatically choose or bump the next stable version.
+- Automatically merge a version-preparation pull request or publish from an unmerged version.
 - Commit beta metadata, create beta tags or releases, or upload beta builds to Chrome Web Store.
 - Publish from normal CI, pull requests, or pushes.
 - Change browser-process limitations, authorization, control leases, supported Agent behavior, or compatibility labels.
 - Make four npm publications atomic; npm exposes no multi-package transaction.
 
 ## Decisions
+
+### Prepare Release creates a version pull request
+
+Add `.github/workflows/prepare-release.yml` as a separate `workflow_dispatch` workflow. It runs only from the current default branch, verifies that the repository's current version already has both a stable tag and GitHub Release, and derives `X.(Y+1).0` with Chrome version `X.(Y+1).0.0`. Requiring evidence that the current version was released prevents a second preparation run after the new version PR merges from accidentally skipping another minor version. Target tag, Release, branch, pull request, and all four npm versions must remain unused before preparation can write Git state.
+
+A tested Node helper updates only the release metadata allowlist: the root manifest, four publishable package manifests, Extension package manifest, Extension manifest, and release descriptor. The workflow installs the frozen dependency graph, runs the full quality and release gates, creates `release/prepare-<version>` with commit `chore(release): prepare <version>`, and opens a pull request against the default branch.
+
+The preparation job receives only `contents: write` and `pull-requests: write`; it receives no npm OIDC permission and never uses the protected `release` environment. Repository settings must allow GitHub Actions to create pull requests. GitHub-generated pull requests may require a maintainer to approve their CI runs before merge, which preserves a human review boundary without introducing a long-lived PAT.
+
+Directly committing the version to the default branch was rejected because it bypasses pull-request review and branch protection. Bumping inside the stable publication job was rejected because retries could skip a version and the published candidate would not originate from an already merged source commit.
 
 ### One protected manual workflow owns both channels
 
@@ -72,12 +83,16 @@ Chrome Web Store submission remains manual and uses the same downloaded stable E
 - **Action major tags can change implementation over time** → Use official GitHub-maintained actions and keep Dependabot/review responsible for major upgrades; the release scripts retain content and integrity validation.
 - **Artifact upload succeeds but npm publication fails** → The run remains failed, the downloadable diagnostic candidate remains available, and a retry reuses the same beta package version so identical published tarballs can be resumed safely.
 - **Stable npm publication succeeds but GitHub Release creation fails** → Rerun safely integrity-matches npm packages and retries only the missing GitHub release.
+- **Repository settings reject Action-created pull requests** → Fail before publication and document the one-time GitHub Actions permission setting.
+- **Action-created pull-request CI awaits approval** → Keep the PR unmerged until a maintainer approves and reviews its checks.
+- **Preparation runs after an untagged version was merged** → Require a matching tag and GitHub Release for the current version before calculating another minor.
 
 ## Migration Plan
 
-1. Merge the workflow and helpers to the default branch; normal CI remains non-publishing.
-2. Create a protected GitHub environment named `release` and require maintainer approval.
-3. Configure npm trusted publishing for each `@panerelay` package with repository `F-loat/panerelay` and workflow filename `release.yml`.
-4. Run one beta workflow and verify npm `beta`, the downloaded zip, inventory, checksums, provenance, and unchanged Git refs.
-5. Run stable only after the existing release checklist passes; verify npm `latest`, tag, GitHub Release, and assets.
-6. Roll back workflow behavior by disabling manual dispatch. Published npm versions and stable tags remain immutable; fixes use a new version.
+1. Merge the preparation workflow and helpers to the default branch; normal CI remains non-publishing.
+2. Allow GitHub Actions to create pull requests, run Prepare Release, approve its CI if requested, and merge the reviewed version PR.
+3. Create a protected GitHub environment named `release` and require maintainer approval.
+4. Configure npm trusted publishing for each `@panerelay` package with repository `F-loat/panerelay` and workflow filename `release.yml`.
+5. Run one beta workflow and verify npm `beta`, the downloaded zip, inventory, checksums, provenance, and unchanged Git refs.
+6. Run stable only after the existing release checklist passes; verify npm `latest`, tag, GitHub Release, and assets.
+7. Roll back preparation by disabling its manual workflow. Published npm versions and stable tags remain immutable; fixes use a new version.

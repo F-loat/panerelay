@@ -4,7 +4,7 @@ This file provides guidance to coding agents working in Panerelay.
 
 ## Project phase
 
-Panerelay is preparing its first stable `0.1.0` release. Its Extension connection, Codex/Qoder side-panel providers, cross-platform setup flow, and browser-level agent-browser Provider are available for development and release-candidate testing.
+Panerelay publishes lockstep stable and beta releases. Its Extension connection, Codex/Qoder side-panel providers, cross-platform setup flow, and browser-level agent-browser Provider are available for development and release-candidate testing.
 
 Read the relevant documents in `docs/rfcs/` before changing browser attachment, CDP behavior, agent sessions, permissions, control ownership, or other cross-package boundaries. RFC-0001 and RFC-0002 are accepted. Keep accepted decisions stable unless a new RFC explicitly supersedes them.
 
