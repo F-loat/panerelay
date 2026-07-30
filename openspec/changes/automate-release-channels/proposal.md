@@ -1,11 +1,11 @@
 ## Why
 
-Panerelay has verified publication automation, but stable version preparation still requires maintainers to update several lockstep package and Extension fields manually before the Release workflow can run. A separate manually triggered preparation workflow should calculate the next minor version, validate it, and open a reviewable pull request without weakening the existing protected publication boundary.
+Panerelay has verified publication automation, but stable version preparation still requires maintainers to update several lockstep package and Extension fields manually before the Release workflow can run. A separate manually triggered preparation workflow should calculate a selected major, minor, or patch increment, validate it, and open a reviewable pull request without weakening the existing protected publication boundary.
 
 ## What Changes
 
 - Add one manually triggered release workflow with `stable` and `beta` channels.
-- Add a separate manually triggered Prepare Release workflow that advances `X.Y.Z` to `X.(Y+1).0`, validates the complete version change, and opens a pull request.
+- Add a separate manually triggered Prepare Release workflow that selects a major, minor, or patch increment with minor as the default, validates the complete version change, and opens a pull request.
 - Publish all four public `@panerelay` packages in dependency order, using npm `latest` for stable releases and npm `beta` for beta releases.
 - Keep the merged repository version authoritative for stable releases; preparation SHALL NOT publish packages, create a tag, or modify the default branch directly.
 - Derive a unique beta version during the workflow, apply it only to the runner workspace, and never commit or push beta version changes.

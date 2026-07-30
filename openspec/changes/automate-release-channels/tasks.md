@@ -28,8 +28,8 @@
 
 ## 5. Stable version preparation
 
-- [x] 5.1 Add a deterministic next-minor release metadata helper and CLI with lockstep, overflow, and malformed-version tests
-- [x] 5.2 Add a Prepare Release workflow with default-branch, released-base, target-conflict, validation, commit, push, and pull-request gates
+- [x] 5.1 Add a deterministic selectable major, minor, or patch release metadata helper and CLI with a minor default plus lockstep, overflow, malformed-version, and formatting tests
+- [x] 5.2 Add a Prepare Release workflow with an explicit increment choice plus default-branch, released-base, target-conflict, validation, commit, push, and pull-request gates
 - [x] 5.3 Make stable release guidance version-neutral and document Prepare Release, Action-created pull-request permission, CI approval, merge, and publication order
 - [x] 5.4 Add workflow contract tests proving preparation cannot publish, tag, mutate the default branch directly, or weaken the protected Release workflow
 - [x] 5.5 Run focused preparation tests, full repository checks, stable candidate validation, strict OpenSpec validation, and `git diff --check`

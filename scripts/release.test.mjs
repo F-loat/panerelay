@@ -121,16 +121,23 @@ test('keeps release publication manual, protected, and channel-scoped', () => {
   assert.doesNotMatch(releaseWorkflow, /NPM_TOKEN|git push|git tag/);
 });
 
-test('keeps next-minor preparation reviewable and non-publishing', () => {
+test('keeps selectable release preparation reviewable and non-publishing', () => {
   assert.match(prepareReleaseWorkflow, /^name: Prepare Release$/m);
   assert.match(prepareReleaseWorkflow, /workflow_dispatch:/);
+  assert.match(
+    prepareReleaseWorkflow,
+    /increment:\n\s+description:[^\n]+\n\s+required: true\n\s+default: minor\n\s+type: choice\n\s+options:\n\s+- major\n\s+- minor\n\s+- patch/,
+  );
   assert.match(
     prepareReleaseWorkflow,
     /group: panerelay-prepare-release\n\s+cancel-in-progress: false/,
   );
   assert.match(prepareReleaseWorkflow, /contents: write/);
   assert.match(prepareReleaseWorkflow, /pull-requests: write/);
-  assert.match(prepareReleaseWorkflow, /pnpm run release:prepare/);
+  assert.match(
+    prepareReleaseWorkflow,
+    /pnpm run release:prepare -- --increment "\$RELEASE_INCREMENT"/,
+  );
   assert.match(prepareReleaseWorkflow, /refs\/tags\/\$base_tag/);
   assert.match(prepareReleaseWorkflow, /refs\/heads\/\$PREPARE_BRANCH/);
   assert.match(prepareReleaseWorkflow, /npm view "\$package_name@\$TARGET_VERSION"/);

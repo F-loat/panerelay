@@ -6,21 +6,27 @@ Define an explicitly authorized, repeatable publication workflow for stable and 
 
 ### Requirement: Stable version preparation is reviewable
 
-Panerelay SHALL expose a manually triggered Prepare Release workflow that derives the next minor stable version from the currently released repository version, updates every lockstep package and Extension identity, validates the result, and opens a pull request without publishing or modifying the default branch directly.
+Panerelay SHALL expose a manually triggered Prepare Release workflow that derives the next major, minor, or patch stable version from the currently released repository version, defaults to a minor increment, updates every lockstep package and Extension identity, validates the result, and opens a pull request without publishing or modifying the default branch directly.
 
-#### Scenario: Maintainer prepares the next minor release
+#### Scenario: Maintainer selects the release increment
 
 - **GIVEN** the default branch identifies released stable version `X.Y.Z`
-- **WHEN** a maintainer runs Prepare Release
-- **THEN** the proposed semantic version is `X.(Y+1).0`
+- **WHEN** a maintainer runs Prepare Release with increment `major`, `minor`, or `patch`
+- **THEN** the proposed semantic version is respectively `(X+1).0.0`, `X.(Y+1).0`, or `X.Y.(Z+1)`
 - **AND** every publishable package, release descriptor, Extension package, and Extension `version_name` uses that semantic version
-- **AND** the Chrome numeric version is `X.(Y+1).0.0`
+- **AND** the Chrome numeric version appends `.0` to the proposed semantic version
+
+#### Scenario: Maintainer accepts the default increment
+
+- **GIVEN** the default branch identifies released stable version `X.Y.Z`
+- **WHEN** a maintainer runs Prepare Release without changing its increment selection
+- **THEN** the proposed semantic version is `X.(Y+1).0`
 
 #### Scenario: Current repository version is not released
 
 - **GIVEN** the default branch's current semantic version has no matching stable tag and GitHub Release
 - **WHEN** a maintainer runs Prepare Release
-- **THEN** preparation fails before changing repository state so repeated preparation cannot skip another minor version
+- **THEN** preparation fails before changing repository state so repeated preparation cannot advance another version
 
 #### Scenario: Target preparation or package version already exists
 

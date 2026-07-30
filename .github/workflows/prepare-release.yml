@@ -1,9 +1,19 @@
 name: Prepare Release
 
-run-name: Prepare next minor release from ${{ github.ref_name }}
+run-name: Prepare next ${{ inputs.increment }} release from ${{ github.ref_name }}
 
 on:
   workflow_dispatch:
+    inputs:
+      increment:
+        description: Semantic version component to increment
+        required: true
+        default: minor
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
 
 concurrency:
   group: panerelay-prepare-release
@@ -49,9 +59,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Prepare next minor metadata
+      - name: Prepare selected release metadata
         id: version
-        run: pnpm run release:prepare -- --github-output "$GITHUB_OUTPUT"
+        env:
+          RELEASE_INCREMENT: ${{ inputs.increment }}
+        run: pnpm run release:prepare -- --increment "$RELEASE_INCREMENT" --github-output "$GITHUB_OUTPUT"
 
       - name: Check released base and unused target
         env:
@@ -199,13 +211,15 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ github.token }}
           PREPARE_BRANCH: ${{ steps.version.outputs.branch }}
+          RELEASE_INCREMENT: ${{ inputs.increment }}
           TARGET_VERSION: ${{ steps.version.outputs.version }}
         run: |
           body="$RUNNER_TEMP/panerelay-release-pr.md"
           {
-            echo "Automated next-minor release preparation."
+            echo "Automated $RELEASE_INCREMENT release preparation."
             echo
             echo "- Base version: \`$BASE_VERSION\`"
+            echo "- Increment: \`$RELEASE_INCREMENT\`"
             echo "- Target version: \`$TARGET_VERSION\`"
             echo "- Full workspace and retained-candidate checks passed before this commit."
             echo

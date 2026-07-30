@@ -2,12 +2,18 @@
 
 Panerelay candidate creation is deliberately separate from publication. The repository commands below build and validate local artifacts only; they do not publish packages, create tags, upload assets, call release APIs, or require publication credentials.
 
-## Prepare the next minor release
+## Prepare the next release
 
-The manual [Prepare Release workflow](../.github/workflows/prepare-release.yml) advances the current released `X.Y.Z` identity to `X.(Y+1).0`, resets the Chrome numeric identity to `X.(Y+1).0.0`, validates the change, and opens a pull request. It never publishes packages, creates a tag or GitHub Release, submits to Chrome Web Store, or pushes directly to the default branch.
+The manual [Prepare Release workflow](../.github/workflows/prepare-release.yml) accepts a semantic version increment and opens a validated version pull request:
+
+- `major`: `X.Y.Z` → `(X+1).0.0`
+- `minor` (default): `X.Y.Z` → `X.(Y+1).0`
+- `patch`: `X.Y.Z` → `X.Y.(Z+1)`
+
+The Chrome numeric identity appends `.0` to the selected semantic version. Prepare Release never publishes packages, creates a tag or GitHub Release, submits to Chrome Web Store, or pushes directly to the default branch.
 
 1. Confirm the current repository version already has its matching stable tag and GitHub Release.
-2. In GitHub Actions, open **Prepare Release**, choose **Run workflow** from the default branch, and wait for the version pull request.
+2. In GitHub Actions, open **Prepare Release**, choose **Run workflow** from the default branch, select `major`, `minor`, or `patch`, and wait for the version pull request.
 3. If GitHub marks the Action-created pull-request workflows as awaiting approval, approve them from the pull request, then review its version-only diff and checks.
 4. Merge the preparation pull request. Do not run Prepare Release again until that merged version has been published by **Release → stable**.
 

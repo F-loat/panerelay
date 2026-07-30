@@ -1,9 +1,11 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { format, resolveConfig } from 'prettier';
 import { PACKAGE_DEFINITIONS, readJson, validateReleaseIdentity } from './release-lib.mjs';
 
 const STABLE_VERSION_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const CHROME_VERSION_COMPONENT_MAXIMUM = 65535;
+const RELEASE_INCREMENTS = new Set(['major', 'minor', 'patch']);
 
 export const PREPARE_RELEASE_METADATA_PATHS = [
   'package.json',
@@ -19,28 +21,42 @@ const PACKAGE_METADATA_PATHS = [
   'apps/extension/package.json',
 ];
 
-function serializeJson(value) {
-  return `${JSON.stringify(value, null, 2)}\n`;
+async function serializeJson(path, value) {
+  const config = await resolveConfig(path);
+  return format(JSON.stringify(value), {
+    ...config,
+    filepath: path,
+  });
 }
 
-export function deriveNextMinorReleaseIdentity(baseVersion) {
+export function deriveNextReleaseIdentity(baseVersion, increment = 'minor') {
   const match = STABLE_VERSION_PATTERN.exec(baseVersion);
   if (!match) throw new Error('Release preparation requires a plain stable X.Y.Z version');
-  const major = Number(match[1]);
-  const nextMinor = Number(match[2]) + 1;
-  if (major > CHROME_VERSION_COMPONENT_MAXIMUM) {
-    throw new Error(`Release major version must not exceed ${CHROME_VERSION_COMPONENT_MAXIMUM}`);
+  if (!RELEASE_INCREMENTS.has(increment)) {
+    throw new Error(`Unsupported release increment: ${increment}`);
   }
-  if (nextMinor > CHROME_VERSION_COMPONENT_MAXIMUM) {
+
+  const [major, minor, patch] = match.slice(1).map(Number);
+  const components = {
+    major: [major + 1, 0, 0],
+    minor: [major, minor + 1, 0],
+    patch: [major, minor, patch + 1],
+  }[increment];
+  const overflowingComponent = components.find(
+    component => component > CHROME_VERSION_COMPONENT_MAXIMUM,
+  );
+  if (overflowingComponent !== undefined) {
     throw new Error(
-      `Next release minor version must not exceed ${CHROME_VERSION_COMPONENT_MAXIMUM}`,
+      `Next ${increment} release version must not exceed Chrome's ${CHROME_VERSION_COMPONENT_MAXIMUM} component limit`,
     );
   }
-  const version = `${major}.${nextMinor}.0`;
+
+  const version = components.join('.');
   return {
     baseVersion,
     branch: `release/prepare-${version}`,
-    extensionVersion: `${major}.${nextMinor}.0.0`,
+    extensionVersion: `${version}.0`,
+    increment,
     version,
   };
 }
@@ -79,10 +95,10 @@ function validateLockstep(metadata) {
   return descriptor;
 }
 
-export async function prepareNextMinorReleaseMetadata({ root }) {
+export async function prepareNextReleaseMetadata({ increment = 'minor', root }) {
   const metadata = await readMetadata(root);
   const descriptor = validateLockstep(metadata);
-  const identity = deriveNextMinorReleaseIdentity(descriptor.version);
+  const identity = deriveNextReleaseIdentity(descriptor.version, increment);
 
   for (const relativePath of PACKAGE_METADATA_PATHS) {
     metadata.get(relativePath).value.version = identity.version;
@@ -96,7 +112,8 @@ export async function prepareNextMinorReleaseMetadata({ root }) {
 
   try {
     for (const [relativePath, entry] of metadata) {
-      await writeFile(join(root, relativePath), serializeJson(entry.value), 'utf8');
+      const path = join(root, relativePath);
+      await writeFile(path, await serializeJson(path, entry.value), 'utf8');
     }
     validateLockstep(await readMetadata(root));
   } catch (error) {

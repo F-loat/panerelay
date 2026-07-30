@@ -9,7 +9,7 @@ The publication path must preserve the security and ownership decisions in RFC-0
 **Goals:**
 
 - Make stable and beta publication one explicit manual GitHub Actions operation.
-- Make the next minor stable identity one explicit, reviewable preparation pull request.
+- Make the selected next major, minor, or patch stable identity one explicit, reviewable preparation pull request.
 - Publish the exact tarballs accepted by candidate validation rather than repacking source.
 - Keep beta version edits ephemeral, deterministic, and recoverable on every exit path.
 - Make a partially completed npm publication safe to retry when registry integrity matches.
@@ -27,7 +27,7 @@ The publication path must preserve the security and ownership decisions in RFC-0
 
 ### Prepare Release creates a version pull request
 
-Add `.github/workflows/prepare-release.yml` as a separate `workflow_dispatch` workflow. It runs only from the current default branch, verifies that the repository's current version already has both a stable tag and GitHub Release, and derives `X.(Y+1).0` with Chrome version `X.(Y+1).0.0`. Requiring evidence that the current version was released prevents a second preparation run after the new version PR merges from accidentally skipping another minor version. Target tag, Release, branch, pull request, and all four npm versions must remain unused before preparation can write Git state.
+Add `.github/workflows/prepare-release.yml` as a separate `workflow_dispatch` workflow. It runs only from the current default branch, verifies that the repository's current version already has both a stable tag and GitHub Release, and offers `major`, `minor`, and `patch` increments with `minor` selected by default. From `X.Y.Z`, the respective semantic targets are `(X+1).0.0`, `X.(Y+1).0`, and `X.Y.(Z+1)`; the Chrome numeric version appends `.0` to the selected target. Requiring evidence that the current version was released prevents a second preparation run after the new version PR merges from advancing another version before publication. Target tag, Release, branch, pull request, and all four npm versions must remain unused before preparation can write Git state.
 
 A tested Node helper updates only the release metadata allowlist: the root manifest, four publishable package manifests, Extension package manifest, Extension manifest, and release descriptor. The workflow installs the frozen dependency graph, runs the full quality and release gates, creates `release/prepare-<version>` with commit `chore(release): prepare <version>`, and opens a pull request against the default branch.
 
@@ -85,7 +85,7 @@ Chrome Web Store submission remains manual and uses the same downloaded stable E
 - **Stable npm publication succeeds but GitHub Release creation fails** → Rerun safely integrity-matches npm packages and retries only the missing GitHub release.
 - **Repository settings reject Action-created pull requests** → Fail before publication and document the one-time GitHub Actions permission setting.
 - **Action-created pull-request CI awaits approval** → Keep the PR unmerged until a maintainer approves and reviews its checks.
-- **Preparation runs after an untagged version was merged** → Require a matching tag and GitHub Release for the current version before calculating another minor.
+- **Preparation runs after an untagged version was merged** → Require a matching tag and GitHub Release for the current version before calculating another increment.
 
 ## Migration Plan
 
