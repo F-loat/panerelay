@@ -29,7 +29,7 @@ Panerelay 是连接 AI Agent 与用户现有 Chrome 会话的开源本地桥梁�
 
 环境要求：macOS、Linux 或 Windows 上的 Chrome、Node.js 20+ 和兼容的 agent-browser。
 
-1. 从 [Panerelay Releases](https://github.com/F-loat/panerelay/releases) 下载并解压扩展。打开 `chrome://extensions`，启用开发者模式，加载解压后的目录。
+1. 从 [Chrome 应用商店安装 Panerelay](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi)。
 2. 安装本地集成：
 
    ```bash

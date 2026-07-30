@@ -30,7 +30,9 @@ const englishMessages = {
   errorLanguageUnsupported: 'Unsupported language: {language}. Use en or zh-CN.',
   errorUnknownCommand: 'Unknown command: {command}',
   errorUnknownOption: 'Unknown option: {option}',
+  extensionCustomNextStep: 'Extension: Load the build matching ID {id}, then open its side panel.',
   extensionIdentity: 'Extension ID: {id}',
+  extensionStoreNextStep: 'Extension: Install or open Panerelay in the Chrome Web Store: {url}',
   globalProvider: 'Global default provider: {path}',
   help: `Panerelay Setup
 
@@ -96,7 +98,9 @@ const chineseMessages: Record<MessageKey, string> = {
   errorLanguageUnsupported: '不支持的语言：{language}。请使用 en 或 zh-CN。',
   errorUnknownCommand: '未知命令：{command}',
   errorUnknownOption: '未知选项：{option}',
+  extensionCustomNextStep: '扩展：请加载与 ID {id} 匹配的构建，然后打开其侧边栏。',
   extensionIdentity: '扩展 ID：{id}',
+  extensionStoreNextStep: '扩展：请从 Chrome 应用商店安装或打开 Panerelay：{url}',
   globalProvider: '全局默认 Provider：{path}',
   help: `Panerelay 安装工具
 

@@ -24,7 +24,12 @@ const prepareReleaseWorkflow = readFileSync(
   new URL('../.github/workflows/prepare-release.yml', import.meta.url),
   'utf8',
 );
+const rootReadme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
+const rootReadmeZhCn = readFileSync(new URL('../README.zh-CN.md', import.meta.url), 'utf8');
+const setupReadme = readFileSync(new URL('../packages/setup/README.md', import.meta.url), 'utf8');
 const rootLicense = readFileSync(new URL('../LICENSE', import.meta.url), 'utf8');
+const chromeWebStoreUrl =
+  'https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi';
 
 function releaseFixture() {
   const version = '0.1.0';
@@ -117,8 +122,40 @@ test('keeps release publication manual, protected, and channel-scoped', () => {
   assert.match(releaseWorkflow, /gh release create "\$RELEASE_TAG"/);
   const stableReleaseOffset = releaseWorkflow.indexOf('\n  stable-release:');
   assert.ok(stableReleaseOffset > 0);
-  assert.doesNotMatch(releaseWorkflow.slice(0, stableReleaseOffset), /contents: write/);
+  const preparationAndPublication = releaseWorkflow.slice(0, stableReleaseOffset);
+  const stableRelease = releaseWorkflow.slice(stableReleaseOffset);
+  assert.doesNotMatch(preparationAndPublication, /contents: write/);
+  assert.match(
+    preparationAndPublication,
+    /extension_archive[\s\S]+artifact_directory.*inventory\.json[\s\S]+artifact_directory.*SHA256SUMS/,
+  );
+  assert.match(stableRelease, /awk -v archive="\$extension_archive"/);
+  assert.match(stableRelease, /test "\$\(wc -l < release-assets\/SHA256SUMS\.public\)" -eq 1/);
+  assert.match(stableRelease, /release-assets\/panerelay-extension-"\$RELEASE_VERSION"\.zip/);
+  assert.match(stableRelease, /release-assets\/SHA256SUMS/);
+  assert.doesNotMatch(stableRelease, /release-assets\/inventory\.json/);
   assert.doesNotMatch(releaseWorkflow, /NPM_TOKEN|git push|git tag/);
+});
+
+test('keeps official installation guidance Store-first and version-neutral', () => {
+  const englishQuickstart = rootReadme.slice(
+    rootReadme.indexOf('## Quickstart'),
+    rootReadme.indexOf('## What Panerelay provides'),
+  );
+  const chineseQuickstart = rootReadmeZhCn.slice(
+    rootReadmeZhCn.indexOf('## 快速开始'),
+    rootReadmeZhCn.indexOf('## Panerelay 提供什么'),
+  );
+
+  for (const guidance of [englishQuickstart, chineseQuickstart, setupReadme]) {
+    assert.match(guidance, new RegExp(chromeWebStoreUrl.replaceAll('.', '\\.')));
+    assert.match(guidance, /npx --yes @panerelay\/setup/);
+    assert.doesNotMatch(guidance, /@panerelay\/setup@\d+\.\d+\.\d+/);
+  }
+  assert.doesNotMatch(englishQuickstart, /Panerelay Releases|chrome:\/\/extensions/);
+  assert.doesNotMatch(chineseQuickstart, /Panerelay Releases|chrome:\/\/extensions/);
+  assert.match(rootReadme, /load `apps\/extension\/dist` as an unpacked Extension/);
+  assert.match(rootReadmeZhCn, /将 `apps\/extension\/dist` 加载为未打包扩展/);
 });
 
 test('keeps selectable release preparation reviewable and non-publishing', () => {

@@ -127,7 +127,9 @@ Run **Release** from the default branch with channel `stable`, then approve the 
 2. uploads the downloadable Extension artifact;
 3. publishes the exact tarballs under npm tag `latest`;
 4. creates `v<version>` and a GitHub Release for the selected commit; and
-5. attaches the Extension zip, inventory, and checksums to the Release.
+5. attaches the Extension zip and its checksum to the Release.
+
+The complete Actions artifact remains the audit and recovery source for `inventory.json` and full candidate checksums. The [Chrome Web Store listing](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi) is the default end-user installation channel; the GitHub Release zip is retained for manual and offline verification.
 
 Afterward:
 

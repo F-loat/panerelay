@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { PANERELAY_EXTENSION_ID } from '@panerelay/protocol';
 import { realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { stdin, stdout } from 'node:process';
@@ -8,6 +9,9 @@ import { fileURLToPath } from 'node:url';
 import { doctorPanerelay, type DoctorReport } from './doctor.js';
 import { normalizeLocale, resolveLocale, translate, type SupportedLocale } from './i18n.js';
 import { setupPanerelay, uninstallPanerelay } from './lifecycle.js';
+
+const PANERELAY_CHROME_WEB_STORE_URL =
+  'https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi';
 
 export type SetupOperation = 'setup' | 'doctor' | 'uninstall';
 
@@ -395,6 +399,13 @@ export async function main(
     console.log(translate(locale, 'setupComplete'));
     console.log(translate(locale, 'nativeHost', { path: result.host.hostPath }));
     console.log(translate(locale, 'extensionIdentity', { id: result.host.extensionId }));
+    console.log(
+      result.host.extensionId === PANERELAY_EXTENSION_ID
+        ? translate(locale, 'extensionStoreNextStep', {
+            url: PANERELAY_CHROME_WEB_STORE_URL,
+          })
+        : translate(locale, 'extensionCustomNextStep', { id: result.host.extensionId }),
+    );
     console.log(translate(locale, 'agentSkill', { path: result.globalSkillPath }));
     if (!result.host.codexPath) console.log(translate(locale, 'codexMissing'));
     if (!result.host.agentBrowserPath) console.log(translate(locale, 'agentBrowserMissing'));

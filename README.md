@@ -29,7 +29,7 @@ Local Agents ← Chrome side panel ← Panerelay Extension ↔ Authorized tabs
 
 Requirements: Chrome on macOS, Linux, or Windows; Node.js 20+; and a compatible agent-browser.
 
-1. Download and extract the Extension archive from [Panerelay Releases](https://github.com/F-loat/panerelay/releases). Open `chrome://extensions`, enable Developer mode, and load the extracted directory.
+1. Install [Panerelay from the Chrome Web Store](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi).
 2. Install the local integration:
 
    ```bash

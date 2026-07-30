@@ -196,6 +196,16 @@ jobs:
           name: ${{ needs.prepare.outputs.extension_artifact }}
           path: release-assets
 
+      - name: Prepare public Extension checksum
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          extension_archive="panerelay-extension-$RELEASE_VERSION.zip"
+          awk -v archive="$extension_archive" '$2 == archive { print }' \
+            release-assets/SHA256SUMS > release-assets/SHA256SUMS.public
+          test "$(wc -l < release-assets/SHA256SUMS.public)" -eq 1
+          mv release-assets/SHA256SUMS.public release-assets/SHA256SUMS
+
       - name: Create stable GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -204,7 +214,6 @@ jobs:
         run: |
           gh release create "$RELEASE_TAG" \
             release-assets/panerelay-extension-"$RELEASE_VERSION".zip \
-            release-assets/inventory.json \
             release-assets/SHA256SUMS \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \

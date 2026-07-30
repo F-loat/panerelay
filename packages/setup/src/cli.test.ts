@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { PANERELAY_EXTENSION_ID } from '@panerelay/protocol';
 import { main, parseSetupArgs } from './cli.js';
 import type { DoctorReport } from './doctor.js';
+
+const chromeWebStoreUrl =
+  'https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi';
 
 test('parses setup aliases and Provider scope flags', () => {
   assert.deepEqual(parseSetupArgs([]), {
@@ -56,7 +60,7 @@ test('runs setup when the action is omitted', async () => {
             agentBrowserConfigPath: '/tmp/agent-browser.json',
             agentBrowserPath: '/tmp/agent-browser',
             agentBrowserSupported: true,
-            extensionId: 'abcdefghijklmnopabcdefghijklmnop',
+            extensionId: PANERELAY_EXTENSION_ID,
             hostPath: '/tmp/host.mjs',
             launchPath: '/tmp/host',
             legacyHostPath: '/tmp/legacy-host',
@@ -70,9 +74,45 @@ test('runs setup when the action is omitted', async () => {
     assert.equal(code, 0);
     assert.equal(receivedGlobalProvider, true);
     assert.match(output.join('\n'), /Panerelay setup complete/);
+    assert.match(output.join('\n'), new RegExp(chromeWebStoreUrl.replaceAll('.', '\\.')));
   } finally {
     console.log = originalLog;
   }
+});
+
+test('directs custom Extension IDs to their matching build instead of the Store', async () => {
+  const output: string[] = [];
+  const originalLog = console.log;
+  const extensionId = 'abcdefghijklmnopabcdefghijklmnop';
+  console.log = (...values: unknown[]) => output.push(values.join(' '));
+  try {
+    const code = await main(['--extension-id', extensionId, '--lang', 'zh-CN'], {
+      environment: {},
+      setup: async () => ({
+        agentBrowserConfigPath: '/tmp/agent-browser.json',
+        globalProvider: false,
+        globalSkillPath: '/tmp/panerelay-browser',
+        host: {
+          agentBrowserConfigPath: '/tmp/agent-browser.json',
+          agentBrowserPath: '/tmp/agent-browser',
+          agentBrowserSupported: true,
+          extensionId,
+          hostPath: '/tmp/host.mjs',
+          launchPath: '/tmp/host',
+          legacyHostPath: '/tmp/legacy-host',
+          manifestPaths: ['/tmp/manifest.json'],
+          runtimeConfigPath: '/tmp/runtime.json',
+        },
+      }),
+      systemLocale: 'en',
+    });
+    assert.equal(code, 0);
+  } finally {
+    console.log = originalLog;
+  }
+  const rendered = output.join('\n');
+  assert.match(rendered, new RegExp(`请加载与 ID ${extensionId} 匹配的构建`));
+  assert.doesNotMatch(rendered, /chromewebstore\.google\.com/);
 });
 
 test('accepts language options before or after the command', () => {

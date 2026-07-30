@@ -4,6 +4,8 @@ Local setup and diagnostics for Panerelay.
 
 ## Commands
 
+Install the official [Panerelay Extension from the Chrome Web Store](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi), then configure the local integration with the commands below.
+
 Panerelay components are published in lockstep. Use the same version as the Panerelay Extension:
 
 ```bash
