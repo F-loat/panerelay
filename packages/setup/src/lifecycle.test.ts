@@ -6,9 +6,12 @@ import { setupPaneRelay, uninstallPaneRelay } from './lifecycle.js';
 const host: NativeHostInstallationResult = {
   agentBrowserConfigPath: '/home/.panerelay/agent-browser.json',
   agentBrowserPath: '/bin/agent-browser',
+  agentBrowserSupported: true,
+  agentBrowserVersion: '0.33.0',
   codexPath: '/bin/codex',
   extensionId: 'extension-test',
   hostPath: '/home/.panerelay/bin/panerelay-native-host.cjs',
+  launchPath: '/home/.panerelay/bin/panerelay-native-host.cjs',
   legacyHostPath: '/home/.panerelay/bin/panerelay-native-host.mjs',
   manifestPaths: ['/home/native-manifest.json'],
   runtimeConfigPath: '/home/.panerelay/runtime.json',
@@ -16,8 +19,11 @@ const host: NativeHostInstallationResult = {
 
 test('setup can opt into global and project default providers', async () => {
   const calls: string[] = [];
+  const extensionId = 'abcdefghijklmnopabcdefghijklmnop';
   const result = await setupPaneRelay(
     {
+      environment: { PANERELAY_EXTENSION_ID: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
+      extensionId,
       globalProvider: true,
       homeDirectory: '/home',
       project: true,
@@ -32,8 +38,14 @@ test('setup can opt into global and project default providers', async () => {
         calls.push('configure-project');
         return '/project/agent-browser.json';
       },
-      installHost: async () => {
+      installHost: async options => {
         calls.push('install-host');
+        assert.ok(options);
+        assert.equal(options.extensionId, extensionId);
+        assert.equal(
+          options.environment?.PANERELAY_EXTENSION_ID,
+          'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+        );
         return host;
       },
       installSkill: async scope => {

@@ -1,21 +1,21 @@
-import { access, readFile } from 'node:fs/promises';
-import { constants } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { agentBrowserConfigPath, runtimeConfigPath } from '@panerelay/protocol/node';
+import { isExecutableFile } from './platform.js';
+import { probeAgentBrowserCompatibility } from './compatibility.js';
 
 export interface PaneRelayRuntimeConfig {
+  extensionId?: string;
   codexPath?: string;
   agentBrowserPath?: string;
+  agentBrowserVersion?: string;
   agentBrowserConfigPath: string;
+  qoderPath?: string;
+  qoderVersion?: string;
 }
 
 async function executable(path: string | undefined): Promise<boolean> {
   if (!path) return false;
-  try {
-    await access(path, constants.X_OK);
-    return true;
-  } catch {
-    return false;
-  }
+  return isExecutableFile(path);
 }
 
 export async function readRuntimeConfig(): Promise<PaneRelayRuntimeConfig> {
@@ -31,12 +31,29 @@ export async function readRuntimeConfig(): Promise<PaneRelayRuntimeConfig> {
   const configuredCodex = process.env.PANERELAY_CODEX_PATH || stored.codexPath;
   const configuredAgentBrowser =
     process.env.PANERELAY_AGENT_BROWSER_PATH || stored.agentBrowserPath;
+  const configuredQoder = process.env.PANERELAY_QODER_PATH || stored.qoderPath;
+
+  let supportedAgentBrowser: { agentBrowserPath: string; agentBrowserVersion: string } | undefined;
+  if (await executable(configuredAgentBrowser)) {
+    try {
+      const compatibility = await probeAgentBrowserCompatibility(configuredAgentBrowser!);
+      if (compatibility.supported) {
+        supportedAgentBrowser = {
+          agentBrowserPath: configuredAgentBrowser!,
+          agentBrowserVersion: compatibility.version,
+        };
+      }
+    } catch {
+      // Unsupported or unprobeable runtimes stay unavailable to Agent adapters.
+    }
+  }
 
   return {
+    ...(typeof stored.extensionId === 'string' ? { extensionId: stored.extensionId } : {}),
     ...((await executable(configuredCodex)) ? { codexPath: configuredCodex } : {}),
-    ...((await executable(configuredAgentBrowser))
-      ? { agentBrowserPath: configuredAgentBrowser }
-      : {}),
+    ...supportedAgentBrowser,
+    ...((await executable(configuredQoder)) ? { qoderPath: configuredQoder } : {}),
+    ...(typeof stored.qoderVersion === 'string' ? { qoderVersion: stored.qoderVersion } : {}),
     agentBrowserConfigPath: stored.agentBrowserConfigPath || agentBrowserConfigPath(),
   };
 }

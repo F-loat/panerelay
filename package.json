@@ -1,6 +1,6 @@
 {
   "name": "panerelay",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0",
   "private": true,
   "description": "Open browser relay for bidirectional interoperability between users, browsers, and AI agents.",
   "license": "MIT",
@@ -31,8 +31,8 @@
     "acceptance:agent-browser": "node docs/spikes/run-agent-browser-advanced.mjs",
     "release:check": "node scripts/release.mjs",
     "release:pack": "node scripts/release.mjs --retain",
+    "release:smoke": "node scripts/release-smoke.mjs",
     "publish": "pnpm --filter @panerelay/protocol --filter @panerelay/agent-browser --filter @panerelay/bridge --filter @panerelay/setup publish --access public",
-    "publish:alpha": "npm run publish -- --tag alpha",
     "install:host": "pnpm --filter @panerelay/bridge install:host",
     "uninstall:host": "pnpm --filter @panerelay/bridge uninstall:host"
   },

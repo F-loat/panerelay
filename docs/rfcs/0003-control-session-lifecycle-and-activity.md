@@ -5,7 +5,7 @@
 - Status: Draft
 - Authors: F-loat
 - Created: 2026-07-29
-- Updated: 2026-07-29
+- Updated: 2026-07-30
 
 ## Summary
 
@@ -27,8 +27,8 @@ the Provider allocation expiry only limits the initial connection window. A conn
 can otherwise retain the lease indefinitely, and the side panel cannot explain what an external
 agent is doing beyond Chrome's debugger indicator.
 
-This is safe enough for bounded development testing but not for a public alpha. Users need an
-answer to four questions without exposing sensitive browser data:
+This foundation was insufficient for a public release until the activity and liveness work below
+was implemented. Users need an answer to four questions without exposing sensitive browser data:
 
 1. Is an external Agent connected?
 2. Which actor owns control?
@@ -44,7 +44,8 @@ answer to four questions without exposing sensitive browser data:
 3. Expire the lease when every transport becomes unresponsive and detach every controlled target.
 4. Emit coarse action lifecycle events with stable sequencing and bounded retention.
 5. Show external-agent activity and history gaps in the side panel.
-6. Preserve agent-browser 0.33.0 without requiring changes to its CLI or daemon.
+6. Preserve agent-browser 0.33.0 as the minimum supported baseline without requiring changes to its
+   CLI or daemon.
 
 ### Non-goals
 
@@ -202,12 +203,13 @@ credentials never appear in activity events.
 
 ## Compatibility and migration
 
-agent-browser remains pinned to 0.33.0 for initial evidence. WebSocket ping/pong is transparent to
-the Provider and daemon, so no new agent-browser option is required.
+agent-browser 0.33.0 remains the initial version-specific evidence baseline and minimum supported
+version. Newer versions satisfy the version floor but need separate evidence. WebSocket ping/pong
+is transparent to the Provider and daemon, so no new agent-browser option is required.
 
 Existing Extension builds that do not understand the new message types are incompatible with the
-updated Bridge protocol package and must be rebuilt together in the pre-alpha workspace. A future
-published protocol will require additive version negotiation.
+updated Bridge protocol package and must be rebuilt as one lockstep PaneRelay release. A future
+protocol revision will require additive version negotiation.
 
 RFC-0001 and RFC-0002 retain authority over authorization, target routing, and unsupported
 browser-process operations. This RFC adds liveness and visibility without changing those
@@ -264,7 +266,7 @@ consent, and data-model decisions beyond this local-first activity slice.
 
 ## Implementation evidence
 
-The 2026-07-29 pre-alpha build was verified with agent-browser 0.33.0, the unpacked Extension,
+The 2026-07-29 development build was verified with agent-browser 0.33.0, the unpacked Extension,
 and the installed Native Host in the user's existing Chrome profile. Mutating checks stayed on the
 checked-in loopback fixture.
 

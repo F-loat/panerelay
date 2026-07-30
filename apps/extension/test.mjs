@@ -10,7 +10,9 @@ const entryPoints = [
   'src/background/control-activity-state.test.ts',
   'src/background/controlled-favicon.test.ts',
   'src/pages/sidepanel/structure.test.ts',
+  'src/pages/sidepanel/provider-selection.test.ts',
   'src/shared/authorization.test.ts',
+  'src/shared/identity.test.ts',
 ];
 
 try {

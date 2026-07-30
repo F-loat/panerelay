@@ -2,7 +2,16 @@ import { constants } from 'node:fs';
 import { access, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { resolveNativeHostInstallationPaths } from '@panerelay/bridge/install';
+import {
+  readWindowsNativeHostRegistryValue,
+  resolveEffectiveExtensionId,
+  resolveNativeHostInstallationPaths,
+} from '@panerelay/bridge/install';
+import { isExecutableFile, type CommandRunner } from '@panerelay/bridge/platform';
+import {
+  AGENT_BROWSER_MINIMUM_VERSION,
+  probeAgentBrowserCompatibility,
+} from '@panerelay/bridge/compatibility';
 import { PANERELAY_EXTENSION_ID, PANERELAY_NATIVE_HOST_NAME } from '@panerelay/protocol';
 import {
   projectAgentBrowserConfigPath,
@@ -27,11 +36,15 @@ export interface DoctorReport {
 }
 
 export interface DoctorOptions {
+  environment?: NodeJS.ProcessEnv;
+  commandRunner?: CommandRunner;
+  extensionId?: string;
   globalProvider?: boolean;
   homeDirectory?: string;
   platform?: NodeJS.Platform;
   project?: boolean;
   projectDirectory?: string;
+  registryRunner?: CommandRunner;
 }
 
 async function exists(path: string, mode = constants.F_OK): Promise<boolean> {
@@ -45,7 +58,8 @@ async function exists(path: string, mode = constants.F_OK): Promise<boolean> {
 
 async function nativeManifestCheck(
   manifestPaths: string[],
-  hostPath: string,
+  launchPath: string,
+  extensionId: string,
 ): Promise<DoctorCheck> {
   for (const manifestPath of manifestPaths) {
     if (!(await exists(manifestPath))) continue;
@@ -54,8 +68,9 @@ async function nativeManifestCheck(
       const origins = Array.isArray(manifest.allowed_origins) ? manifest.allowed_origins : [];
       if (
         manifest.name === PANERELAY_NATIVE_HOST_NAME &&
-        manifest.path === hostPath &&
-        origins.includes(`chrome-extension://${PANERELAY_EXTENSION_ID}/`)
+        manifest.path === launchPath &&
+        origins.length === 1 &&
+        origins[0] === `chrome-extension://${extensionId}/`
       ) {
         return {
           id: 'native-manifest',
@@ -96,8 +111,9 @@ async function executableCheck(
   label: string,
   path: string | undefined,
   hint: string,
+  platform: NodeJS.Platform,
 ): Promise<DoctorCheck> {
-  const ready = path ? await exists(path, constants.X_OK) : false;
+  const ready = path ? await isExecutableFile(path, platform) : false;
   return {
     id,
     label,
@@ -109,9 +125,10 @@ async function executableCheck(
 
 export async function doctorPaneRelay(options: DoctorOptions = {}): Promise<DoctorReport> {
   const home = options.homeDirectory ?? homedir();
+  const platform = options.platform ?? process.platform;
   const paths = resolveNativeHostInstallationPaths({
     homeDirectory: home,
-    platform: options.platform,
+    platform,
   });
   const checks: DoctorCheck[] = [];
   const nodeMajor = Number.parseInt(process.versions.node.split('.')[0] || '0', 10);
@@ -122,42 +139,123 @@ export async function doctorPaneRelay(options: DoctorOptions = {}): Promise<Doct
     detail: process.version,
     ...(nodeMajor >= 20 ? {} : { hint: 'Install Node.js 20 or newer' }),
   });
-  checks.push(
-    await executableCheck(
-      'native-host',
-      'PaneRelay Native Host',
-      paths.hostPath,
-      'Run: panerelay setup',
-    ),
-  );
-  checks.push(await nativeManifestCheck(paths.manifestPaths, paths.hostPath));
-
   let runtimeConfig: Record<string, unknown> = {};
   try {
     runtimeConfig = await readJsonObject(paths.runtimeConfigPath);
   } catch {
     // The individual executable checks below provide actionable failures.
   }
+  let extensionId: string = PANERELAY_EXTENSION_ID;
+  try {
+    extensionId = resolveEffectiveExtensionId({
+      environment: options.environment,
+      extensionId: options.extensionId,
+      persistedExtensionId: runtimeConfig.extensionId,
+    });
+    checks.push({
+      id: 'extension-id',
+      label: 'Effective Extension ID',
+      status: 'pass',
+      detail: extensionId,
+    });
+  } catch (error) {
+    checks.push({
+      id: 'extension-id',
+      label: 'Effective Extension ID',
+      status: 'fail',
+      detail: error instanceof Error ? error.message : String(error),
+      hint: 'Use a 32-character Chrome Extension ID containing only a through p',
+    });
+  }
+  checks.push(
+    await executableCheck(
+      'native-host',
+      'PaneRelay Native Host',
+      paths.hostPath,
+      'Run: panerelay setup',
+      platform,
+    ),
+  );
+  if (paths.launcherPath) {
+    checks.push(
+      await executableCheck(
+        'native-launcher',
+        'PaneRelay Native Host launcher',
+        paths.launcherPath,
+        'Run: panerelay setup',
+        platform,
+      ),
+    );
+  }
+  checks.push(await nativeManifestCheck(paths.manifestPaths, paths.launchPath, extensionId));
+  if (platform === 'win32') {
+    const registryValue = await readWindowsNativeHostRegistryValue({
+      environment: options.environment,
+      runner: options.registryRunner,
+    });
+    const expectedManifestPath = paths.manifestPaths[0]!;
+    const registryReady = registryValue === expectedManifestPath;
+    checks.push({
+      id: 'windows-registry',
+      label: 'Chrome Native Messaging registry',
+      status: registryReady ? 'pass' : 'fail',
+      detail: registryValue || 'Not found',
+      ...(registryReady ? {} : { hint: 'Run: panerelay setup' }),
+    });
+  }
   const codexPath =
     typeof runtimeConfig.codexPath === 'string' ? runtimeConfig.codexPath : undefined;
   const agentBrowserPath =
     typeof runtimeConfig.agentBrowserPath === 'string' ? runtimeConfig.agentBrowserPath : undefined;
+  const qoderPath =
+    typeof runtimeConfig.qoderPath === 'string' ? runtimeConfig.qoderPath : undefined;
   checks.push(
     await executableCheck(
       'codex',
       'Codex CLI',
       codexPath,
       'Install Codex CLI, then run: panerelay setup',
+      platform,
     ),
   );
-  checks.push(
-    await executableCheck(
-      'agent-browser',
-      'agent-browser CLI',
-      agentBrowserPath,
-      'Install agent-browser, then run: panerelay setup',
-    ),
-  );
+  const qoderReady = qoderPath ? await isExecutableFile(qoderPath, platform) : false;
+  checks.push({
+    id: 'qoder',
+    label: 'Qoder CLI (optional)',
+    status: qoderReady ? 'pass' : 'warn',
+    detail: qoderReady
+      ? `${qoderPath}${
+          typeof runtimeConfig.qoderVersion === 'string' ? ` (${runtimeConfig.qoderVersion})` : ''
+        }`
+      : 'Not found',
+    ...(qoderReady
+      ? {}
+      : { hint: 'Install Qoder CLI or set PANERELAY_QODER_PATH, then run: panerelay setup' }),
+  });
+  let agentBrowserStatus: DoctorStatus = 'fail';
+  let agentBrowserDetail = agentBrowserPath || 'Not found';
+  let agentBrowserHint = 'Install agent-browser, then run: panerelay setup';
+  if (agentBrowserPath && (await isExecutableFile(agentBrowserPath, platform))) {
+    try {
+      const compatibility = await probeAgentBrowserCompatibility(agentBrowserPath, {
+        environment: options.environment,
+        platform,
+        runner: options.commandRunner,
+      });
+      agentBrowserStatus = compatibility.supported ? 'pass' : 'fail';
+      agentBrowserDetail = `${agentBrowserPath} (${compatibility.version})`;
+      agentBrowserHint = `Upgrade agent-browser to ${AGENT_BROWSER_MINIMUM_VERSION} or newer`;
+    } catch {
+      agentBrowserHint = `Install a working agent-browser ${AGENT_BROWSER_MINIMUM_VERSION} or newer, then run: panerelay setup`;
+    }
+  }
+  checks.push({
+    id: 'agent-browser',
+    label: 'agent-browser CLI',
+    status: agentBrowserStatus,
+    detail: agentBrowserDetail,
+    ...(agentBrowserStatus === 'pass' ? {} : { hint: agentBrowserHint }),
+  });
 
   const userConfigPath = userAgentBrowserConfigPath(home);
   let userConfig: Record<string, unknown> = {};
@@ -166,7 +264,7 @@ export async function doctorPaneRelay(options: DoctorOptions = {}): Promise<Doct
   } catch {
     // Report an invalid or missing provider registration below.
   }
-  const providerReady = providerPlugin(userConfig, paths.hostPath);
+  const providerReady = providerPlugin(userConfig, paths.launchPath);
   checks.push({
     id: 'provider',
     label: 'agent-browser PaneRelay provider',
@@ -202,11 +300,19 @@ export async function doctorPaneRelay(options: DoctorOptions = {}): Promise<Doct
   let bridgeStatus: DoctorStatus = 'warn';
   let bridgeDetail = 'Extension is not currently connected';
   try {
-    const state = JSON.parse(await readFile(bridgeStatePath, 'utf8')) as { pid?: unknown };
+    const state = JSON.parse(await readFile(bridgeStatePath, 'utf8')) as {
+      extensionId?: unknown;
+      pid?: unknown;
+    };
     if (typeof state.pid === 'number') {
       process.kill(state.pid, 0);
-      bridgeStatus = 'pass';
-      bridgeDetail = `Connected through process ${state.pid}`;
+      if (state.extensionId === extensionId) {
+        bridgeStatus = 'pass';
+        bridgeDetail = `Connected through process ${state.pid}`;
+      } else {
+        bridgeStatus = 'fail';
+        bridgeDetail = 'Connected Extension ID does not match the effective Extension ID';
+      }
     }
   } catch {
     // An idle extension is a warning because installation can still be complete.

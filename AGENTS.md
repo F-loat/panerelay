@@ -4,8 +4,9 @@ This file provides guidance to coding agents working in PaneRelay.
 
 ## Project phase
 
-PaneRelay is in pre-alpha. Its Extension connection, side-panel Codex slice, setup flow, and
-browser-level agent-browser Provider are available for development testing.
+PaneRelay is preparing its first stable `0.1.0` release. Its Extension connection, Codex/Qoder
+side-panel providers, cross-platform setup flow, and browser-level agent-browser Provider are
+available for development and release-candidate testing.
 
 Read the relevant documents in `docs/rfcs/` before changing browser attachment, CDP behavior, agent
 sessions, permissions, control ownership, or other cross-package boundaries. RFC-0001 and RFC-0002
@@ -103,5 +104,4 @@ an explicit user request, with a clean working tree and an intentionally selecte
 
 ```bash
 pnpm publish
-pnpm publish:alpha
 ```

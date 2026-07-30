@@ -1,9 +1,13 @@
-import { constants } from 'node:fs';
-import { access, chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { delimiter, dirname, isAbsolute, join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PANERELAY_EXTENSION_ID, PANERELAY_NATIVE_HOST_NAME } from '@panerelay/protocol';
+import { resolveExecutablePath, runCommand, type CommandRunner } from './platform.js';
+import { resolveQoderExecutable } from './qoder-executable.js';
+import { probeAgentBrowserCompatibility } from './compatibility.js';
+
+export const CHROME_EXTENSION_ID_PATTERN = /^[a-p]{32}$/;
 
 export interface NativeHostPathOptions {
   dataDirectory?: string;
@@ -17,11 +21,20 @@ export interface NativeHostInstallOptions extends NativeHostPathOptions {
   environment?: NodeJS.ProcessEnv;
   extensionId?: string;
   nodePath?: string;
+  probeRunner?: CommandRunner;
+  registryRunner?: CommandRunner;
+}
+
+export interface NativeHostUninstallOptions extends NativeHostPathOptions {
+  environment?: NodeJS.ProcessEnv;
+  registryRunner?: CommandRunner;
 }
 
 export interface NativeHostInstallationPaths {
   agentBrowserConfigPath: string;
   hostPath: string;
+  launchPath: string;
+  launcherPath?: string;
   legacyHostPath: string;
   manifestPaths: string[];
   runtimeConfigPath: string;
@@ -29,8 +42,110 @@ export interface NativeHostInstallationPaths {
 
 export interface NativeHostInstallationResult extends NativeHostInstallationPaths {
   agentBrowserPath?: string;
+  agentBrowserSupported: boolean;
+  agentBrowserVersion?: string;
   codexPath?: string;
   extensionId: string;
+  qoderPath?: string;
+  qoderVersion?: string;
+}
+
+interface StoredRuntimeConfig {
+  extensionId?: unknown;
+}
+
+export function validateExtensionId(value: string): string {
+  if (!CHROME_EXTENSION_ID_PATTERN.test(value)) {
+    throw new Error('Extension ID must contain exactly 32 lowercase letters from a through p.');
+  }
+  return value;
+}
+
+export function resolveEffectiveExtensionId(options: {
+  environment?: NodeJS.ProcessEnv;
+  extensionId?: string;
+  persistedExtensionId?: unknown;
+}): string {
+  const environment = options.environment ?? process.env;
+  const value =
+    options.extensionId ??
+    environment.PANERELAY_EXTENSION_ID ??
+    (typeof options.persistedExtensionId === 'string'
+      ? options.persistedExtensionId
+      : PANERELAY_EXTENSION_ID);
+  return validateExtensionId(value);
+}
+
+export function windowsNativeHostRegistryKey(hostName = PANERELAY_NATIVE_HOST_NAME): string {
+  return `HKCU\\SOFTWARE\\Google\\Chrome\\NativeMessagingHosts\\${hostName}`;
+}
+
+export async function registerWindowsNativeHost(
+  manifestPath: string,
+  options: {
+    environment?: NodeJS.ProcessEnv;
+    runner?: CommandRunner;
+  } = {},
+): Promise<void> {
+  const result = await (options.runner ?? runCommand)(
+    'reg.exe',
+    ['add', windowsNativeHostRegistryKey(), '/ve', '/t', 'REG_SZ', '/d', manifestPath, '/f'],
+    { environment: options.environment, timeoutMs: 10_000 },
+  );
+  if (result.code !== 0) {
+    throw new Error(`Windows Native Messaging registration failed with code ${result.code}`);
+  }
+}
+
+export async function unregisterWindowsNativeHost(
+  options: {
+    environment?: NodeJS.ProcessEnv;
+    runner?: CommandRunner;
+  } = {},
+): Promise<void> {
+  const result = await (options.runner ?? runCommand)(
+    'reg.exe',
+    ['delete', windowsNativeHostRegistryKey(), '/f'],
+    { environment: options.environment, timeoutMs: 10_000 },
+  );
+  if (result.code !== 0 && result.code !== 1) {
+    throw new Error(`Windows Native Messaging cleanup failed with code ${result.code}`);
+  }
+}
+
+export function parseWindowsRegistryString(output: string): string | undefined {
+  for (const line of output.split(/\r?\n/)) {
+    const marker = line.indexOf('REG_SZ');
+    if (marker < 0) continue;
+    const value = line.slice(marker + 'REG_SZ'.length).trim();
+    if (value) return value;
+  }
+  return undefined;
+}
+
+export async function readWindowsNativeHostRegistryValue(
+  options: {
+    environment?: NodeJS.ProcessEnv;
+    runner?: CommandRunner;
+  } = {},
+): Promise<string | undefined> {
+  const result = await (options.runner ?? runCommand)(
+    'reg.exe',
+    ['query', windowsNativeHostRegistryKey(), '/ve'],
+    { environment: options.environment, timeoutMs: 10_000 },
+  );
+  if (result.code !== 0) return undefined;
+  return parseWindowsRegistryString(result.stdout);
+}
+
+export function windowsLauncherContent(nodePath: string, hostPath: string): string {
+  const escapePercent = (value: string): string => value.replaceAll('%', '%%');
+  return [
+    '@echo off',
+    'setlocal DisableDelayedExpansion',
+    `"${escapePercent(nodePath)}" "${escapePercent(hostPath)}" %*`,
+    '',
+  ].join('\r\n');
 }
 
 export function resolveNativeHostInstallationPaths(
@@ -39,11 +154,17 @@ export function resolveNativeHostInstallationPaths(
   const home = options.homeDirectory ?? homedir();
   const dataDirectory = options.dataDirectory ?? join(home, '.panerelay');
   const hostDirectory = join(dataDirectory, 'bin');
+  const hostPath = join(hostDirectory, 'panerelay-native-host.cjs');
+  const platform = options.platform ?? process.platform;
+  const launcherPath =
+    platform === 'win32' ? join(hostDirectory, 'panerelay-native-host.cmd') : undefined;
   return {
     agentBrowserConfigPath: join(dataDirectory, 'agent-browser.json'),
-    hostPath: join(hostDirectory, 'panerelay-native-host.cjs'),
+    hostPath,
+    launchPath: launcherPath ?? hostPath,
+    ...(launcherPath ? { launcherPath } : {}),
     legacyHostPath: join(hostDirectory, 'panerelay-native-host.mjs'),
-    manifestPaths: nativeHostManifestPaths(options),
+    manifestPaths: nativeHostManifestPaths({ ...options, dataDirectory }),
     runtimeConfigPath: join(dataDirectory, 'runtime.json'),
   };
 }
@@ -51,6 +172,7 @@ export function resolveNativeHostInstallationPaths(
 export function nativeHostManifestPaths(options: NativeHostPathOptions = {}): string[] {
   const home = options.homeDirectory ?? homedir();
   const filename = `${PANERELAY_NATIVE_HOST_NAME}.json`;
+  const dataDirectory = options.dataDirectory ?? join(home, '.panerelay');
   const profilePaths = options.userDataDirectory
     ? [join(options.userDataDirectory, 'NativeMessagingHosts', filename)]
     : [];
@@ -79,6 +201,8 @@ export function nativeHostManifestPaths(options: NativeHostPathOptions = {}): st
       ].map(browser => join(home, '.config', browser, 'NativeMessagingHosts', filename));
       return [...profilePaths, ...browserPaths];
     }
+    case 'win32':
+      return [join(dataDirectory, 'native-messaging', filename)];
     default:
       throw new Error(
         `Native Messaging installation is not implemented for ${options.platform ?? process.platform}`,
@@ -86,61 +210,89 @@ export function nativeHostManifestPaths(options: NativeHostPathOptions = {}): st
   }
 }
 
-async function resolveExecutable(
-  name: string,
-  configuredPath: string | undefined,
-  environment: NodeJS.ProcessEnv,
-): Promise<string | undefined> {
-  const candidates = configuredPath
-    ? [configuredPath]
-    : isAbsolute(name)
-      ? [name]
-      : (environment.PATH || '')
-          .split(delimiter)
-          .filter(Boolean)
-          .map(directory => join(directory, name));
-  for (const candidate of candidates) {
-    try {
-      await access(candidate, constants.X_OK);
-      return candidate;
-    } catch {
-      // Continue through PATH entries until an executable is found.
-    }
+async function persistedRuntimeConfig(path: string): Promise<StoredRuntimeConfig> {
+  try {
+    return JSON.parse(await readFile(path, 'utf8')) as StoredRuntimeConfig;
+  } catch {
+    return {};
   }
-  return undefined;
 }
 
 export async function installNativeHost(
   options: NativeHostInstallOptions = {},
 ): Promise<NativeHostInstallationResult> {
   const environment = options.environment ?? process.env;
+  const platform = options.platform ?? process.platform;
   const paths = resolveNativeHostInstallationPaths(options);
-  const extensionId = options.extensionId ?? PANERELAY_EXTENSION_ID;
+  const stored = await persistedRuntimeConfig(paths.runtimeConfigPath);
+  const extensionId = resolveEffectiveExtensionId({
+    environment,
+    extensionId: options.extensionId,
+    persistedExtensionId: stored.extensionId,
+  });
   const bundledHostPath =
     options.bundledHostPath ?? fileURLToPath(new URL('./native-host.bundle.cjs', import.meta.url));
   const bundledHost = await readFile(bundledHostPath, 'utf8');
-  const installedHost = bundledHost.replace(
-    /^#![^\n]*/,
-    `#!${options.nodePath ?? process.execPath}`,
-  );
+  const installedHost =
+    platform === 'win32'
+      ? bundledHost
+      : bundledHost.replace(/^#![^\n]*/, `#!${options.nodePath ?? process.execPath}`);
 
   await mkdir(dirname(paths.hostPath), { recursive: true, mode: 0o700 });
   await writeFile(paths.hostPath, installedHost, { mode: 0o755 });
-  await chmod(paths.hostPath, 0o755);
+  if (platform !== 'win32') await chmod(paths.hostPath, 0o755);
   await rm(paths.legacyHostPath, { force: true });
+  if (paths.launcherPath) {
+    await writeFile(
+      paths.launcherPath,
+      windowsLauncherContent(options.nodePath ?? process.execPath, paths.hostPath),
+      { mode: 0o700 },
+    );
+  }
 
-  const codexPath = await resolveExecutable('codex', environment.PANERELAY_CODEX_PATH, environment);
-  const agentBrowserPath = await resolveExecutable(
-    'agent-browser',
-    environment.PANERELAY_AGENT_BROWSER_PATH,
+  const codexPath = await resolveExecutablePath('codex', {
+    configuredPath: environment.PANERELAY_CODEX_PATH,
     environment,
-  );
+    platform,
+  });
+  const agentBrowserPath = await resolveExecutablePath('agent-browser', {
+    configuredPath: environment.PANERELAY_AGENT_BROWSER_PATH,
+    environment,
+    platform,
+  });
+  let agentBrowserVersion: string | undefined;
+  let agentBrowserSupported = false;
+  if (agentBrowserPath) {
+    try {
+      const compatibility = await probeAgentBrowserCompatibility(agentBrowserPath, {
+        environment,
+        platform,
+        runner: options.probeRunner,
+      });
+      agentBrowserVersion = compatibility.version;
+      agentBrowserSupported = compatibility.supported;
+    } catch {
+      // Doctor reports the failed bounded version probe with upgrade guidance.
+    }
+  }
+  const qoder = await resolveQoderExecutable({
+    configuredPath: environment.PANERELAY_QODER_PATH,
+    environment,
+    homeDirectory: options.homeDirectory,
+    platform,
+    processExecPath: options.nodePath ?? process.execPath,
+    runner: options.probeRunner,
+  });
   await writeFile(
     paths.runtimeConfigPath,
     `${JSON.stringify(
       {
+        extensionId,
         ...(codexPath ? { codexPath } : {}),
         ...(agentBrowserPath ? { agentBrowserPath } : {}),
+        ...(agentBrowserVersion ? { agentBrowserVersion } : {}),
+        ...(qoder.executable ? { qoderPath: qoder.executable } : {}),
+        ...(qoder.version ? { qoderVersion: qoder.version } : {}),
         agentBrowserConfigPath: paths.agentBrowserConfigPath,
       },
       null,
@@ -148,7 +300,7 @@ export async function installNativeHost(
     )}\n`,
     { mode: 0o600 },
   );
-  await chmod(paths.runtimeConfigPath, 0o600);
+  if (platform !== 'win32') await chmod(paths.runtimeConfigPath, 0o600);
   await writeFile(
     paths.agentBrowserConfigPath,
     `${JSON.stringify(
@@ -156,7 +308,7 @@ export async function installNativeHost(
         plugins: [
           {
             name: 'panerelay',
-            command: paths.hostPath,
+            command: paths.launchPath,
             args: ['--agent-browser-plugin'],
             capabilities: ['browser.provider'],
           },
@@ -167,13 +319,13 @@ export async function installNativeHost(
     )}\n`,
     { mode: 0o600 },
   );
-  await chmod(paths.agentBrowserConfigPath, 0o600);
+  if (platform !== 'win32') await chmod(paths.agentBrowserConfigPath, 0o600);
 
   const manifest = `${JSON.stringify(
     {
       name: PANERELAY_NATIVE_HOST_NAME,
       description: 'PaneRelay local browser and agent bridge',
-      path: paths.hostPath,
+      path: paths.launchPath,
       type: 'stdio',
       allowed_origins: [`chrome-extension://${extensionId}/`],
     },
@@ -184,22 +336,40 @@ export async function installNativeHost(
     await mkdir(dirname(manifestPath), { recursive: true });
     await writeFile(manifestPath, manifest, { mode: 0o644 });
   }
+  if (platform === 'win32') {
+    await registerWindowsNativeHost(paths.manifestPaths[0]!, {
+      environment,
+      runner: options.registryRunner,
+    });
+  }
 
   return {
     ...paths,
     extensionId,
     ...(codexPath ? { codexPath } : {}),
     ...(agentBrowserPath ? { agentBrowserPath } : {}),
+    agentBrowserSupported,
+    ...(agentBrowserVersion ? { agentBrowserVersion } : {}),
+    ...(qoder.executable ? { qoderPath: qoder.executable } : {}),
+    ...(qoder.version ? { qoderVersion: qoder.version } : {}),
   };
 }
 
 export async function uninstallNativeHost(
-  options: NativeHostPathOptions = {},
+  options: NativeHostUninstallOptions = {},
 ): Promise<NativeHostInstallationPaths> {
+  const platform = options.platform ?? process.platform;
   const paths = resolveNativeHostInstallationPaths(options);
+  if (platform === 'win32') {
+    await unregisterWindowsNativeHost({
+      environment: options.environment,
+      runner: options.registryRunner,
+    });
+  }
   await Promise.all(paths.manifestPaths.map(manifestPath => rm(manifestPath, { force: true })));
   await Promise.all([
     rm(paths.hostPath, { force: true }),
+    ...(paths.launcherPath ? [rm(paths.launcherPath, { force: true })] : []),
     rm(paths.legacyHostPath, { force: true }),
     rm(paths.runtimeConfigPath, { force: true }),
     rm(paths.agentBrowserConfigPath, { force: true }),

@@ -44,6 +44,25 @@ test('accepts language options before or after the command', () => {
   assert.throws(() => parseSetupArgs(['--lang', 'en', '--lang', 'zh-CN']), /LANGUAGE_REPEATED/);
 });
 
+test('parses custom Extension IDs for setup and doctor', () => {
+  const extensionId = 'abcdefghijklmnopabcdefghijklmnop';
+  assert.equal(parseSetupArgs(['update', '--extension-id', extensionId]).extensionId, extensionId);
+  assert.equal(
+    parseSetupArgs(['doctor', `--extension-id=${extensionId}`]).extensionId,
+    extensionId,
+  );
+  assert.throws(() => parseSetupArgs(['setup', '--extension-id']), /EXTENSION_ID_MISSING/);
+  assert.throws(
+    () =>
+      parseSetupArgs(['setup', `--extension-id=${extensionId}`, `--extension-id=${extensionId}`]),
+    /EXTENSION_ID_REPEATED/,
+  );
+  assert.throws(
+    () => parseSetupArgs(['uninstall', `--extension-id=${extensionId}`]),
+    /not available with uninstall/,
+  );
+});
+
 test('prints help in the explicit or detected system language', async () => {
   const output: string[] = [];
   const originalLog = console.log;

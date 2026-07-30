@@ -42,3 +42,32 @@ jobs:
 
       - name: Validate release candidate
         run: pnpm run release:check
+
+  windows-packed-consumer:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        node-version:
+          - 20
+          - 22
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.34.5 --activate
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Exercise packed setup lifecycle
+        run: pnpm run release:smoke

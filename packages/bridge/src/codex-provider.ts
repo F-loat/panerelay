@@ -6,12 +6,14 @@ import type {
   AgentRequest,
   ConversationActivity,
   ConversationApproval,
+  ConversationApprovalDecision,
   ConversationDetail,
   ConversationEvent,
   ConversationMessage,
   ConversationStatus,
   ConversationSummary,
 } from '@panerelay/protocol';
+import type { AgentProvider } from './agent-provider.js';
 import { CodexAppServer, type CodexRpcMessage } from './codex-app-server.js';
 import { readRuntimeConfig, type PaneRelayRuntimeConfig } from './runtime-config.js';
 
@@ -67,7 +69,7 @@ export interface CodexClient {
 }
 
 export interface CodexProviderOptions {
-  onEvent: (event: ConversationEvent) => void;
+  onEvent?: (event: ConversationEvent) => void;
   runtimeConfig?: () => Promise<PaneRelayRuntimeConfig>;
   createClient?: (
     config: PaneRelayRuntimeConfig,
@@ -194,34 +196,41 @@ function activityFromItem(item: CodexItem, completed: boolean): ConversationActi
   }
 }
 
-export class CodexProvider {
+export class CodexProvider implements AgentProvider {
+  readonly id = CODEX_PROVIDER_ID;
   private client: CodexClient | null = null;
   private config: PaneRelayRuntimeConfig | null = null;
   private readonly pendingApprovals = new Map<string, PendingApproval>();
   private readonly activeTurns = new Map<string, string>();
+  private readonly listeners = new Set<(event: ConversationEvent) => void>();
 
   constructor(private readonly options: CodexProviderOptions) {}
 
   async handle(request: AgentRequest): Promise<unknown> {
-    if (request.method === 'agent.providers') return this.providers();
+    if (request.method === 'agent.providers') return [await this.getDescriptor()];
     if (request.providerId !== CODEX_PROVIDER_ID) {
       throw new Error(`Unknown agent provider: ${request.providerId}`);
     }
 
     switch (request.method) {
       case 'conversation.list':
-        return this.list();
+        return this.listConversations();
       case 'conversation.start':
         return this.startConversation();
       case 'conversation.resume':
-        return this.resume(request.conversationId);
+        return this.resumeConversation(request.conversationId);
       case 'conversation.send':
-        return this.send(request.conversationId, request.text);
+        return this.sendMessage(request.conversationId, request.text);
       case 'conversation.interrupt':
         return this.interrupt(request.conversationId, request.turnId);
       case 'conversation.respond':
-        return this.respond(request.conversationId, request.approvalId, request.decision);
+        return this.respondToApproval(request.conversationId, request.approvalId, request.decision);
     }
+  }
+
+  onEvent(listener: (event: ConversationEvent) => void): () => void {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
   }
 
   async close(): Promise<void> {
@@ -232,19 +241,22 @@ export class CodexProvider {
     this.activeTurns.clear();
   }
 
-  private async providers(): Promise<AgentProviderSummary[]> {
+  async getDescriptor(): Promise<AgentProviderSummary> {
     const config = await (this.options.runtimeConfig ?? readRuntimeConfig)();
-    return [
-      {
-        id: CODEX_PROVIDER_ID,
-        name: 'Codex',
-        status: config.codexPath ? 'ready' : 'unavailable',
-        description: 'Local Codex app-server with streamed turns, tools, and approvals.',
-        ...(!config.codexPath
-          ? { setupHint: 'Install Codex CLI, then run pnpm install:host again.' }
-          : {}),
+    return {
+      id: CODEX_PROVIDER_ID,
+      name: 'Codex',
+      status: config.codexPath ? 'ready' : 'unavailable',
+      description: 'Local Codex app-server with streamed turns, tools, and approvals.',
+      setup: {
+        installCommand: 'npm install -g @openai/codex',
+        loginCommand: 'codex login',
+        docsUrl: 'https://developers.openai.com/codex/cli',
       },
-    ];
+      ...(!config.codexPath
+        ? { setupHint: 'Install Codex CLI, then run panerelay setup again.' }
+        : {}),
+    };
   }
 
   private async ensureClient(): Promise<CodexClient> {
@@ -260,7 +272,7 @@ export class CodexProvider {
         this.handleServerRequest(message),
       onUnavailable: (message: string) => {
         this.client = null;
-        this.options.onEvent({ kind: 'error', message });
+        this.emit({ kind: 'error', message });
       },
     };
     this.client = this.options.createClient
@@ -274,7 +286,7 @@ export class CodexProvider {
     return this.client;
   }
 
-  private async list(): Promise<ConversationSummary[]> {
+  async listConversations(): Promise<ConversationSummary[]> {
     const client = await this.ensureClient();
     const result = asRecord(
       await client.request('thread/list', {
@@ -291,7 +303,7 @@ export class CodexProvider {
       .map(threadSummary);
   }
 
-  private async startConversation(): Promise<ConversationDetail> {
+  async startConversation(): Promise<ConversationDetail> {
     const client = await this.ensureClient();
     const config = this.config;
     const browserSession = `panerelay-codex-${randomUUID()}`;
@@ -325,7 +337,7 @@ export class CodexProvider {
     return { conversation: threadSummary(thread), messages: [] };
   }
 
-  private async resume(conversationId: string): Promise<ConversationDetail> {
+  async resumeConversation(conversationId: string): Promise<ConversationDetail> {
     const client = await this.ensureClient();
     await client.request('thread/resume', { threadId: conversationId });
     const result = asRecord(
@@ -341,7 +353,7 @@ export class CodexProvider {
     };
   }
 
-  private async send(conversationId: string, text: string): Promise<{ turnId: string }> {
+  async sendMessage(conversationId: string, text: string): Promise<{ turnId: string }> {
     const trimmed = text.trim();
     if (!trimmed) throw new Error('Message cannot be empty');
     const client = await this.ensureClient();
@@ -357,17 +369,20 @@ export class CodexProvider {
     return { turnId: turn.id };
   }
 
-  private async interrupt(conversationId: string, turnId: string): Promise<Record<string, never>> {
+  async interrupt(conversationId: string, turnId: string): Promise<Record<string, never>> {
     const client = await this.ensureClient();
     await client.request('turn/interrupt', { threadId: conversationId, turnId });
     return {};
   }
 
-  private async respond(
+  async respondToApproval(
     conversationId: string,
     approvalId: string,
-    decision: 'accept' | 'acceptForSession' | 'decline' | 'cancel',
+    decision: ConversationApprovalDecision,
   ): Promise<Record<string, never>> {
+    if (decision === 'declineForSession') {
+      throw new Error('Codex does not support declining an approval for the session');
+    }
     const pending = this.pendingApprovals.get(approvalId);
     if (!pending || pending.conversationId !== conversationId) {
       throw new Error('This approval is no longer pending');
@@ -375,7 +390,7 @@ export class CodexProvider {
     const client = await this.ensureClient();
     client.respond(pending.rpcId, { decision });
     this.pendingApprovals.delete(approvalId);
-    this.options.onEvent({
+    this.emit({
       kind: 'approval.resolved',
       conversationId,
       turnId: pending.turnId,
@@ -397,7 +412,7 @@ export class CodexProvider {
 
     if (message.method === 'turn/started' && conversationId && turnId) {
       this.activeTurns.set(conversationId, turnId);
-      this.options.onEvent({ kind: 'turn.started', conversationId, turnId });
+      this.emit({ kind: 'turn.started', conversationId, turnId });
       return;
     }
     if (
@@ -407,7 +422,7 @@ export class CodexProvider {
       typeof params.itemId === 'string' &&
       typeof params.delta === 'string'
     ) {
-      this.options.onEvent({
+      this.emit({
         kind: 'message.delta',
         conversationId,
         turnId,
@@ -423,7 +438,7 @@ export class CodexProvider {
       typeof params.itemId === 'string' &&
       typeof params.delta === 'string'
     ) {
-      this.options.onEvent({
+      this.emit({
         kind: 'reasoning.delta',
         conversationId,
         turnId,
@@ -439,7 +454,7 @@ export class CodexProvider {
     ) {
       const item = asRecord(params.item) as unknown as CodexItem;
       if (message.method === 'item/completed' && item.type === 'agentMessage' && item.id) {
-        this.options.onEvent({
+        this.emit({
           kind: 'message.completed',
           conversationId,
           turnId,
@@ -459,7 +474,7 @@ export class CodexProvider {
       }
       const activity = activityFromItem(item, message.method === 'item/completed');
       if (activity) {
-        this.options.onEvent({
+        this.emit({
           kind: 'activity.updated',
           conversationId,
           turnId,
@@ -477,7 +492,7 @@ export class CodexProvider {
             ? 'failed'
             : 'completed';
       const error = asRecord(turn.error);
-      this.options.onEvent({
+      this.emit({
         kind: 'turn.completed',
         conversationId,
         turnId,
@@ -488,7 +503,7 @@ export class CodexProvider {
     }
     if (message.method === 'error') {
       const error = asRecord(params.error);
-      this.options.onEvent({
+      this.emit({
         kind: 'error',
         ...(conversationId ? { conversationId } : {}),
         message:
@@ -537,11 +552,16 @@ export class CodexProvider {
       conversationId: params.threadId,
       turnId: params.turnId,
     });
-    this.options.onEvent({
+    this.emit({
       kind: 'approval.requested',
       conversationId: params.threadId,
       turnId: params.turnId,
       approval,
     });
+  }
+
+  private emit(event: ConversationEvent): void {
+    this.options.onEvent?.(event);
+    for (const listener of this.listeners) listener(event);
   }
 }

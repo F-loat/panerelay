@@ -14,6 +14,7 @@ import { installPaneRelaySkill, uninstallPaneRelaySkill } from './skill.js';
 
 export interface PaneRelaySetupOptions {
   environment?: NodeJS.ProcessEnv;
+  extensionId?: string;
   globalProvider?: boolean;
   homeDirectory?: string;
   platform?: NodeJS.Platform;
@@ -60,10 +61,11 @@ export async function setupPaneRelay(
   const configureProject = dependencies.configureProject ?? configureProjectProvider;
   const host = await installHost({
     environment: options.environment,
+    extensionId: options.extensionId,
     homeDirectory: options.homeDirectory,
     platform: options.platform,
   });
-  const agentBrowserConfigPath = await registerProvider(host.hostPath, {
+  const agentBrowserConfigPath = await registerProvider(host.launchPath, {
     homeDirectory: options.homeDirectory,
   });
   if (options.globalProvider) {

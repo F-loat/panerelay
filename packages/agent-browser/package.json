@@ -1,6 +1,6 @@
 {
   "name": "@panerelay/agent-browser",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0",
   "description": "agent-browser provider adapter for PaneRelay.",
   "type": "module",
   "license": "MIT",

@@ -11,6 +11,7 @@ import {
 test('uses the agent-browser mark with a green control dot', () => {
   const svg = decodeURIComponent(AGENT_BROWSER_CONTROLLED_FAVICON_DATA_URL.split(',')[1]);
   assert.match(svg, /data-control-engine="agent-browser"/);
+  assert.match(svg, /<rect width="128" height="128" rx="28" fill="#000000"\/>/);
   assert.match(svg, /M64 31L96 88H32L64 31Z/);
   assert.match(svg, /fill="#20E68F"/);
   assert.match(svg, /cx="104" cy="104"/);

@@ -1,7 +1,7 @@
 schema: spec-driven
 
 context: |
-  PaneRelay is a pre-alpha open browser relay for bidirectional interoperability between users,
+  PaneRelay is preparing its first stable release as an open browser relay for bidirectional interoperability between users,
   browser extensions, agent-browser, and agent runtimes.
   Tech stack: TypeScript, Node.js 20+, Chrome Manifest V3, pnpm workspace.
   Architecture: the Bridge is the local routing and policy boundary; the Extension controls only

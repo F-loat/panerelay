@@ -5,7 +5,7 @@
 - Status: Accepted
 - Authors: F-loat
 - Created: 2026-07-29
-- Updated: 2026-07-29
+- Updated: 2026-07-30
 
 ## Summary
 
@@ -338,10 +338,15 @@ Bridge owns the process, initialization, thread lifecycle, streaming-event norma
 responses, and interruption. Codex app-server types remain adapter-private and do not become the
 PaneRelay public conversation protocol.
 
-For browser work, each new Codex thread receives a PaneRelay-scoped agent-browser MCP server. The
-MCP process uses the existing PaneRelay agent-browser provider and therefore must acquire the same
-short-lived direct-page relay session and user-visible control lease as an external automation
-client. Chat availability does not imply browser authorization.
+The same internal registry adapts Qoder CLI over ACP when a compatible optional runtime is
+available. The Bridge negotiates capabilities, keeps ACP option identifiers private, normalizes
+supported streams and permissions, and contains process failure so Qoder availability cannot block
+Codex.
+
+For browser work, each new Codex or Qoder session receives a uniquely scoped PaneRelay
+agent-browser MCP server. The MCP process uses the existing PaneRelay agent-browser provider and
+therefore must acquire the same short-lived browser relay session and user-visible control lease as
+an external automation client. Chat availability does not imply browser authorization.
 
 The relationship between a side-panel agent and browser tools must be explicit. A provider receives a scoped relay session or scoped agent-browser MCP endpoint; it does not inherit unrestricted access to all registered browsers.
 
@@ -362,7 +367,12 @@ The relationship between a side-panel agent and browser tools must be explicit. 
 
 ### Native Messaging
 
-The Bridge installer will register only the PaneRelay extension IDs selected by the user. The Bridge will reject messages that do not complete a versioned registration handshake.
+The Bridge installer registers only the effective PaneRelay Extension ID selected by the user.
+Official builds default to `panplnkjlkoceaonlmpdekjphgmbggmi`, derived from the retained public
+manifest key; a validated custom ID can be persisted for self-built Extensions. The Bridge rejects
+messages that do not complete a versioned registration handshake with the same actual
+`chrome.runtime.id`. On Windows, installation uses a user-owned launcher and the exact current-user
+Chrome Native Messaging registry key.
 
 Large payloads use bounded `transport.chunk` envelopes with transfer IDs, byte counts, ordering, and
 CRC32 integrity metadata. `transport.cancel` abandons incomplete transfers. Receivers cap bytes,
@@ -492,16 +502,18 @@ RFC-0001 can move from `Draft` to `Accepted` when:
 
 ### Reference delivery status
 
-| Assertion                                                                                                    | Status | Evidence or remaining work                                                                                                                                                                |
-| ------------------------------------------------------------------------------------------------------------ | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| An unmodified supported agent-browser client connects through PaneRelay.                                     | Pass   | Spike 0001 passed with agent-browser 0.33.0 in test and daily Chrome profiles.                                                                                                            |
-| Snapshot, click, fill, navigation, wait, and screenshot work on an authorized existing tab.                  | Pass   | A current daily-Chrome run completed the checked-in action fixture through agent-browser 0.33.0, including filled state and post-navigation screenshots.                                  |
-| Denied browser targets and missing leases fail closed.                                                       | Pass   | Exact-origin matching, Chrome permission removal, unsupported targets, invalid credentials, and lease conflicts are covered; a real all-tabs grant also survived Extension reload.        |
-| Disconnect and user revocation reliably detach the debugger and invalidate credentials.                      | Pass   | Relay tests cover provider cleanup, credential expiry, and immediate extension revocation.                                                                                                |
-| Large messages support bounded chunks, integrity checks, cancellation, timeout, and cleanup.                 | Pass   | Protocol tests cover UTF-8 reassembly, sub-1 MiB frames, corruption rejection, explicit cancellation, timeout, and released receiver state.                                               |
-| The browser visibly identifies controlled state and offers immediate release.                                | Pass   | The Extension shows a controlled-tab count in its action badge, marks each attached page favicon with the agent-browser icon and a green status dot, and keeps release in the side panel. |
-| Codex uses the provider-neutral conversation contract for lifecycle, streaming, approvals, and interruption. | Pass   | Bridge contract tests cover provider discovery, normalized events, and approval requests.                                                                                                 |
-| Local setup installs, diagnoses, and removes the Native Host, Provider configuration, and Agent guidance.    | Pass   | Setup tests cover project and global Provider selection, doctor, Skill installation, and scoped uninstall.                                                                                |
+| Assertion                                                                                                    | Status  | Evidence or remaining work                                                                                                                                                                                                                                                                    |
+| ------------------------------------------------------------------------------------------------------------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| An unmodified supported agent-browser client connects through PaneRelay.                                     | Pass    | Spike 0001 passed with agent-browser 0.33.0 in test and daily Chrome profiles.                                                                                                                                                                                                                |
+| Snapshot, click, fill, navigation, wait, and screenshot work on an authorized existing tab.                  | Pass    | A current daily-Chrome run completed the checked-in action fixture through agent-browser 0.33.0, including filled state and post-navigation screenshots.                                                                                                                                      |
+| Denied browser targets and missing leases fail closed.                                                       | Pass    | Exact-origin matching, Chrome permission removal, unsupported targets, invalid credentials, and lease conflicts are covered; a real all-tabs grant also survived Extension reload.                                                                                                            |
+| Disconnect and user revocation reliably detach the debugger and invalidate credentials.                      | Pass    | Relay tests cover provider cleanup, credential expiry, and immediate extension revocation.                                                                                                                                                                                                    |
+| Large messages support bounded chunks, integrity checks, cancellation, timeout, and cleanup.                 | Pass    | Protocol tests cover UTF-8 reassembly, sub-1 MiB frames, corruption rejection, explicit cancellation, timeout, and released receiver state.                                                                                                                                                   |
+| The browser visibly identifies controlled state and offers immediate release.                                | Pass    | The Extension shows a controlled-tab count in its action badge, marks each attached page favicon with the agent-browser icon and a green status dot, and keeps release in the side panel.                                                                                                     |
+| Codex uses the provider-neutral conversation contract for lifecycle, streaming, approvals, and interruption. | Pass    | Bridge contract tests cover provider discovery, normalized events, and approval requests.                                                                                                                                                                                                     |
+| Qoder ACP uses the same provider-neutral boundary without becoming a prerequisite.                           | Pass    | Qoder CLI 1.1.2 completed two consecutive daily-Chrome browser turns; each terminal turn closed its scoped agent-browser connection before another Agent acquired control. Adapter tests cover capabilities, streaming, permissions, interruption, process restart, MCP scoping, and cleanup. |
+| Local setup installs, diagnoses, and removes the Native Host, Provider configuration, and Agent guidance.    | Pass    | Setup and packed-consumer tests cover project/global selection, custom Extension IDs, doctor, Skill installation, scoped uninstall, and the Windows registry/launcher contract.                                                                                                               |
+| Real Windows Chrome launches and removes the installed Native Host.                                          | Pending | Windows path, launcher, registry, update, and uninstall behavior has deterministic coverage; the stable release gate still requires a real Windows Chrome run from a path containing spaces.                                                                                                  |
 
 ## Open questions
 
@@ -517,9 +529,10 @@ The following dispositions keep unresolved ecosystem work from making RFC-0001 i
 5. Rich browser-context objects require a follow-up privacy and data-model RFC.
 6. Direct-page leases belong to relay sessions. A broader principal model is deferred until
    handoff is specified.
-7. Codex app-server is the reference provider; other providers adapt to the normalized contract.
-8. Development setup registers an exact Extension ID selected by the user. Chrome Web Store
-   distribution and pairing policy will be specified before public distribution.
+7. Codex app-server and Qoder ACP are the initial provider adapters; future providers must adapt to
+   the same normalized contract.
+8. Setup registers one exact official or user-selected Extension ID. Broader pairing and managed
+   enterprise distribution remain future policy topics.
 
 ## References
 

@@ -12,6 +12,7 @@ export * from './native-transfer.js';
 export interface BrowserRegistration {
   browserId: string;
   browserName: string;
+  extensionId: string;
   extensionVersion: string;
 }
 
@@ -138,12 +139,28 @@ export interface CdpDetachedMessage {
 
 export type AgentProviderStatus = 'ready' | 'unavailable' | 'error';
 
+export interface AgentProviderSetupGuide {
+  installCommand: string;
+  loginCommand?: string;
+  docsUrl?: string;
+}
+
 export interface AgentProviderSummary {
   id: string;
   name: string;
   status: AgentProviderStatus;
   description: string;
+  setup?: AgentProviderSetupGuide;
   setupHint?: string;
+  version?: string;
+  capabilities?: {
+    approvals?: boolean;
+    imageInput?: boolean;
+    interrupt?: boolean;
+    listConversations?: boolean;
+    resume?: boolean;
+    streaming?: boolean;
+  };
 }
 
 export type ConversationStatus = 'idle' | 'running' | 'waiting' | 'error';
@@ -171,13 +188,14 @@ export interface ConversationDetail {
   messages: ConversationMessage[];
 }
 
-export type ConversationApprovalDecision = 'accept' | 'acceptForSession' | 'decline' | 'cancel';
+export type ConversationApprovalDecision =
+  'accept' | 'acceptForSession' | 'decline' | 'declineForSession' | 'cancel';
 
 export interface ConversationApproval {
   id: string;
   conversationId: string;
   turnId: string;
-  kind: 'command' | 'file-change';
+  kind: 'command' | 'file-change' | 'tool';
   title: string;
   description?: string;
   command?: string;
@@ -247,6 +265,16 @@ export type ConversationEvent =
       turnId: string;
       status: 'completed' | 'interrupted' | 'failed';
       error?: string;
+    }
+  | {
+      kind: 'usage.updated';
+      conversationId: string;
+      turnId: string;
+      contextUsed?: number;
+      contextSize?: number;
+      inputTokens?: number;
+      outputTokens?: number;
+      totalTokens?: number;
     }
   | {
       kind: 'error';
@@ -361,20 +389,26 @@ export interface RelaySessionError {
 export function isExtensionToHostMessage(value: unknown): value is ExtensionToHostMessage {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Record<string, unknown>;
-  return (
-    candidate.protocol === PANERELAY_PROTOCOL_VERSION &&
-    typeof candidate.type === 'string' &&
-    [
-      'browser.register',
-      'cdp.target.result',
-      'cdp.target.event',
-      'cdp.attached',
-      'cdp.result',
-      'cdp.event',
-      'cdp.detached',
-      'agent.request',
-    ].includes(candidate.type)
-  );
+  if (candidate.protocol !== PANERELAY_PROTOCOL_VERSION || typeof candidate.type !== 'string') {
+    return false;
+  }
+  if (candidate.type === 'browser.register') {
+    return (
+      typeof candidate.browserId === 'string' &&
+      typeof candidate.browserName === 'string' &&
+      typeof candidate.extensionId === 'string' &&
+      typeof candidate.extensionVersion === 'string'
+    );
+  }
+  return [
+    'cdp.target.result',
+    'cdp.target.event',
+    'cdp.attached',
+    'cdp.result',
+    'cdp.event',
+    'cdp.detached',
+    'agent.request',
+  ].includes(candidate.type);
 }
 
 export function isHostToExtensionMessage(value: unknown): value is HostToExtensionMessage {

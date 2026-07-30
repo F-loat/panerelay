@@ -23,6 +23,11 @@ import type {
 import { ALL_WEB_ORIGIN_PATTERNS, originAuthorizationForUrl } from '../../shared/authorization.js';
 import { SelectMenu } from './select-menu.js';
 import {
+  conversationProviderId,
+  selectProviderId,
+  supportedProviders,
+} from './provider-selection.js';
+import {
   ArrowUp,
   Bot,
   ChevronDown,
@@ -75,6 +80,7 @@ type TimelineItem =
   | { type: 'error'; id: string; message: string };
 
 const LOCALE_KEY = 'panerelay.locale';
+const PROVIDER_KEY = 'panerelay.agentProvider';
 const THEME_KEY = 'panerelay.theme';
 
 const copy = {
@@ -93,13 +99,19 @@ const copy = {
     themeLight: 'Light',
     language: 'Language',
     connectingAgent: 'Connecting to your local agent…',
-    emptyTitle: 'What should Codex do?',
+    emptyTitle: 'What should {agent} do?',
     emptyBody: 'Chat with a local agent and let it work in the browser scope you authorize.',
     emptyBridgeTitle: 'Connect the local Bridge',
     emptyBridgeBody:
       'PaneRelay needs its local Native Host before agents can start a conversation.',
-    emptyProviderTitle: 'Set up Codex',
-    emptyProviderBody: 'Install or reconnect Codex, then retry provider discovery.',
+    emptyProviderTitle: 'Set up {agent}',
+    emptyProviderBody: 'Install or reconnect the selected Agent, then retry provider discovery.',
+    codexSetupBody: 'Install or reconnect Codex, then retry provider discovery.',
+    qoderSetupBody:
+      'Install Qoder CLI, run qodercli to sign in, then run panerelay setup and retry.',
+    providerInstallCommand: 'Install',
+    providerLoginCommand: 'Sign in',
+    providerSetupDocs: 'Open setup documentation',
     suggestSummarize: 'Summarize this page',
     suggestSummarizeBody: 'Extract the main ideas and useful details',
     suggestInspect: 'Explain the interactions',
@@ -113,16 +125,18 @@ const copy = {
     release: 'Release',
     thisTab: 'This tab',
     allTabs: 'All tabs',
-    scopeHelpNone: 'Authorize a scope before Codex can use agent-browser.',
+    scopeHelpNone: 'Authorize a scope before the selected Agent can use agent-browser.',
     scopeHelpSingle:
       'Only this tab and its current site are eligible for the next control session.',
     scopeHelpAll:
       'All web tabs are eligible after Chrome approval; this choice persists until released.',
-    composerPlaceholder: 'Ask Codex to browse or work…',
+    composerPlaceholder: 'Ask {agent} to browse or work…',
     sendHint: 'Enter to send · Shift+Enter for newline',
     stop: 'Stop',
     bridgeDisconnected: 'Bridge offline',
-    codexUnavailable: 'Codex unavailable',
+    providerUnavailable: '{agent} unavailable',
+    providerReady: 'Ready',
+    providerNotInstalled: 'Not installed',
     connected: 'Connected',
     connecting: 'Connecting…',
     noTabAuthorized: 'No tab authorized',
@@ -145,6 +159,8 @@ const copy = {
     allowOnce: 'Allow once',
     allowSession: 'Allow for session',
     deny: 'Deny',
+    denySession: 'Deny for session',
+    cancelApproval: 'Cancel',
     activityRunning: 'running',
     activityCompleted: 'done',
     activityFailed: 'failed',
@@ -181,7 +197,6 @@ const copy = {
     automationCompleted: 'done',
     automationFailed: 'failed',
     automationDenied: 'denied',
-    noProvider: 'No agent provider is available',
     errorTitle: 'Something went wrong',
     workingDirectory: 'Working directory',
   },
@@ -200,12 +215,17 @@ const copy = {
     themeLight: '亮色',
     language: '语言',
     connectingAgent: '正在连接本地 Agent…',
-    emptyTitle: '想让 Codex 做什么？',
+    emptyTitle: '想让 {agent} 做什么？',
     emptyBody: '和本地 Agent 对话，并让它在你授权的浏览器范围内工作。',
     emptyBridgeTitle: '连接本地 Bridge',
     emptyBridgeBody: 'PaneRelay 需要连接本地 Native Host 后才能启动 Agent 会话。',
-    emptyProviderTitle: '配置 Codex',
-    emptyProviderBody: '安装或重新连接 Codex，然后重试 Provider 检测。',
+    emptyProviderTitle: '配置 {agent}',
+    emptyProviderBody: '安装或重新连接所选 Agent，然后重试 Provider 检测。',
+    codexSetupBody: '安装或重新连接 Codex，然后重试 Provider 检测。',
+    qoderSetupBody: '安装 Qoder CLI，运行 qodercli 完成登录，再运行 panerelay setup 后重试。',
+    providerInstallCommand: '安装',
+    providerLoginCommand: '登录',
+    providerSetupDocs: '打开配置文档',
     suggestSummarize: '总结当前页面',
     suggestSummarizeBody: '提取主要观点和有用细节',
     suggestInspect: '分析页面交互',
@@ -219,14 +239,16 @@ const copy = {
     release: '释放',
     thisTab: '当前标签页',
     allTabs: '所有标签页',
-    scopeHelpNone: '授权一个范围后，Codex 才能使用 agent-browser。',
+    scopeHelpNone: '授权一个范围后，所选 Agent 才能使用 agent-browser。',
     scopeHelpSingle: '下一次控制会话只能选择当前标签页及其当前站点。',
     scopeHelpAll: '经 Chrome 确认后可选择所有网页标签页；该授权会保持到手动释放。',
-    composerPlaceholder: '让 Codex 浏览页面或执行任务…',
+    composerPlaceholder: '让 {agent} 浏览页面或执行任务…',
     sendHint: 'Enter 发送 · Shift+Enter 换行',
     stop: '停止',
     bridgeDisconnected: 'Bridge 未连接',
-    codexUnavailable: 'Codex 不可用',
+    providerUnavailable: '{agent} 不可用',
+    providerReady: '已安装',
+    providerNotInstalled: '未安装',
     connected: '已连接',
     connecting: '连接中…',
     noTabAuthorized: '尚未授权标签页',
@@ -249,6 +271,8 @@ const copy = {
     allowOnce: '仅允许本次',
     allowSession: '本会话内允许',
     deny: '拒绝',
+    denySession: '本会话内拒绝',
+    cancelApproval: '取消',
     activityRunning: '执行中',
     activityCompleted: '完成',
     activityFailed: '失败',
@@ -285,7 +309,6 @@ const copy = {
     automationCompleted: '完成',
     automationFailed: '失败',
     automationDenied: '已拒绝',
-    noProvider: '没有可用的 Agent provider',
     errorTitle: '出现了一点问题',
     workingDirectory: '工作目录',
   },
@@ -329,6 +352,12 @@ const loadingState = element<HTMLElement>('[data-loading]');
 const emptyState = element<HTMLElement>('[data-empty]');
 const emptyTitle = element<HTMLElement>('[data-empty-title]');
 const emptyBody = element<HTMLElement>('[data-empty-body]');
+const providerSetup = element<HTMLElement>('[data-provider-setup]');
+const providerInstallRow = element<HTMLElement>('[data-provider-install-row]');
+const providerInstall = element<HTMLElement>('[data-provider-install]');
+const providerLoginRow = element<HTMLElement>('[data-provider-login-row]');
+const providerLogin = element<HTMLElement>('[data-provider-login]');
+const providerDocs = element<HTMLAnchorElement>('[data-provider-docs]');
 const suggestions = element<HTMLElement>('[data-suggestions]');
 const timelineElement = element<HTMLElement>('[data-timeline]');
 const errorBanner = element<HTMLElement>('[data-error]');
@@ -375,7 +404,7 @@ const languageSelectMenu = new SelectMenu({
 let locale: Locale = navigator.language.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en';
 let themeSetting: ThemeSetting = 'system';
 let extensionStatus: ExtensionStatus | null = null;
-let providers: AgentProviderSummary[] = [];
+let providers: AgentProviderSummary[] = supportedProviders([]);
 let conversations: ConversationSummary[] = [];
 let currentProviderId = 'codex';
 let currentConversation: ConversationSummary | null = null;
@@ -389,6 +418,14 @@ function t(key: CopyKey): string {
   return copy[locale][key];
 }
 
+function tf(key: CopyKey, values: Record<string, string>): string {
+  return t(key).replaceAll(/\{([^}]+)\}/g, (_, name: string) => values[name] ?? `{${name}}`);
+}
+
+function agentName(): string {
+  return provider()?.name || t('assistant');
+}
+
 function applyLocale(): void {
   document.documentElement.lang = locale;
   for (const node of document.querySelectorAll<HTMLElement>('[data-i18n]')) {
@@ -399,6 +436,7 @@ function applyLocale(): void {
     const key = node.dataset.i18nPlaceholder as CopyKey | undefined;
     if (key && key in copy[locale]) node.placeholder = t(key);
   }
+  input.placeholder = tf('composerPlaceholder', { agent: agentName() });
   for (const node of document.querySelectorAll<HTMLElement>('[data-i18n-title]')) {
     const key = node.dataset.i18nTitle as CopyKey | undefined;
     if (key && key in copy[locale]) node.title = t(key);
@@ -447,7 +485,9 @@ function renderConnection(): void {
     connectionLabel.textContent = t('bridgeDisconnected');
     statusDot.dataset.state = 'error';
   } else if (currentProvider?.status === 'unavailable' || currentProvider?.status === 'error') {
-    connectionLabel.textContent = t('codexUnavailable');
+    connectionLabel.textContent = tf('providerUnavailable', {
+      agent: currentProvider.name,
+    });
     statusDot.dataset.state = 'error';
   } else if (currentProvider?.status === 'ready') {
     connectionLabel.textContent = t('connected');
@@ -461,17 +501,16 @@ function renderConnection(): void {
   for (const item of providers) {
     const option = document.createElement('option');
     option.value = item.id;
-    option.textContent = item.name;
-    option.disabled = item.status !== 'ready';
+    option.textContent = `${item.name} · ${t(
+      item.status === 'ready' ? 'providerReady' : 'providerNotInstalled',
+    )}`;
+    option.title = item.setupHint || item.setup?.installCommand || item.description;
     providerSelect.append(option);
   }
-  if (providers.length === 0) {
-    const option = document.createElement('option');
-    option.textContent = 'Codex';
-    option.value = 'codex';
-    providerSelect.append(option);
-  }
-  providerSelect.value = currentProviderId;
+  providerSelect.value = providers.some(item => item.id === currentProviderId)
+    ? currentProviderId
+    : 'codex';
+  providerSelect.disabled = initializing;
   newConversationButton.disabled =
     initializing || !bridgeConnected || currentProvider?.status !== 'ready';
   providerSelectMenu.sync();
@@ -686,16 +725,30 @@ function renderEmptyState(): void {
   const bridgeConnected = extensionStatus?.bridgeConnected ?? false;
   const currentProvider = provider();
   const providerReady = currentProvider?.status === 'ready';
+  const setup = currentProvider?.setup;
+  const setupVisible = bridgeConnected && !providerReady && Boolean(setup);
+  providerSetup.hidden = !setupVisible;
+  providerInstallRow.hidden = !setup?.installCommand;
+  providerInstall.textContent = setup?.installCommand || '';
+  providerLoginRow.hidden = !setup?.loginCommand;
+  providerLogin.textContent = setup?.loginCommand || '';
+  const docsUrl = setup?.docsUrl?.startsWith('https://') ? setup.docsUrl : '';
+  providerDocs.hidden = !docsUrl;
+  if (docsUrl) providerDocs.href = docsUrl;
+  else providerDocs.removeAttribute('href');
   if (!bridgeConnected) {
     emptyTitle.textContent = t('emptyBridgeTitle');
     emptyBody.textContent = extensionStatus?.error || t('emptyBridgeBody');
   } else if (!providerReady) {
-    emptyTitle.textContent = t('emptyProviderTitle');
-    emptyBody.textContent = currentProvider?.setupHint || t('emptyProviderBody');
+    emptyTitle.textContent = tf('emptyProviderTitle', { agent: agentName() });
+    emptyBody.textContent = currentProvider
+      ? t(currentProvider.id === 'qoder' ? 'qoderSetupBody' : 'codexSetupBody')
+      : t('emptyProviderBody');
   } else {
-    emptyTitle.textContent = t('emptyTitle');
+    emptyTitle.textContent = tf('emptyTitle', { agent: agentName() });
     emptyBody.textContent = t('emptyBody');
   }
+  input.placeholder = tf('composerPlaceholder', { agent: agentName() });
   suggestions.hidden = !providerReady;
 }
 
@@ -1012,7 +1065,15 @@ function renderApproval(item: Extract<TimelineItem, { type: 'approval' }>): HTML
   if (item.approval.decisions.includes('acceptForSession')) {
     actions.append(approvalButton(t('allowSession'), 'acceptForSession', item.approval));
   }
-  actions.append(approvalButton(t('deny'), 'decline', item.approval));
+  if (item.approval.decisions.includes('decline')) {
+    actions.append(approvalButton(t('deny'), 'decline', item.approval));
+  }
+  if (item.approval.decisions.includes('declineForSession')) {
+    actions.append(approvalButton(t('denySession'), 'declineForSession', item.approval));
+  }
+  if (item.approval.decisions.includes('cancel')) {
+    actions.append(approvalButton(t('cancelApproval'), 'cancel', item.approval));
+  }
   node.append(actions);
   return node;
 }
@@ -1147,6 +1208,8 @@ function handleConversationEvent(event: ConversationEvent): void {
       }
       void refreshConversations(false);
       break;
+    case 'usage.updated':
+      break;
     case 'error':
       timeline.push({ type: 'error', id: crypto.randomUUID(), message: event.message });
       break;
@@ -1204,7 +1267,9 @@ async function resumeConversation(conversationId: string): Promise<void> {
   try {
     const response = await request({
       type: 'panerelay.conversation.resume',
-      providerId: currentProviderId,
+      providerId:
+        conversations.find(conversation => conversation.id === conversationId)?.providerId ??
+        currentProviderId,
       conversationId,
     });
     if (!response.conversation) throw new Error('PaneRelay did not load the conversation');
@@ -1243,7 +1308,7 @@ async function sendMessage(text: string): Promise<void> {
     scrollToBottom(true);
     const response = await request({
       type: 'panerelay.conversation.send',
-      providerId: currentProviderId,
+      providerId: conversationProviderId(conversation, currentProviderId),
       conversationId: conversation.id,
       text: message,
     });
@@ -1263,7 +1328,7 @@ async function respondToApproval(
   try {
     await request({
       type: 'panerelay.conversation.respond',
-      providerId: currentProviderId,
+      providerId: conversationProviderId(currentConversation, currentProviderId),
       conversationId: approval.conversationId,
       approvalId: approval.id,
       decision,
@@ -1311,10 +1376,11 @@ function resizeInput(): void {
 
 async function initialize(): Promise<void> {
   initializing = true;
+  let providerDiscoveryCompleted = false;
   setError('');
   renderAll();
   try {
-    const stored = await chrome.storage.local.get([LOCALE_KEY, THEME_KEY]);
+    const stored = await chrome.storage.local.get([LOCALE_KEY, PROVIDER_KEY, THEME_KEY]);
     if (stored[LOCALE_KEY] === 'en' || stored[LOCALE_KEY] === 'zh-CN') {
       locale = stored[LOCALE_KEY];
     }
@@ -1331,16 +1397,26 @@ async function initialize(): Promise<void> {
     const statusResponse = await request({ type: 'panerelay.status.get' });
     extensionStatus = statusResponse.status ?? null;
     if (!extensionStatus?.bridgeConnected) {
-      providers = [];
+      providers = supportedProviders([]);
+      currentProviderId = selectProviderId(
+        providers,
+        typeof stored[PROVIDER_KEY] === 'string' ? stored[PROVIDER_KEY] : currentProviderId,
+      );
       return;
     }
     const providerResponse = await request({ type: 'panerelay.agent.providers' });
-    providers = providerResponse.providers ?? [];
-    const firstReady = providers.find(item => item.status === 'ready');
-    if (firstReady) currentProviderId = firstReady.id;
+    providers = supportedProviders(providerResponse.providers ?? []);
+    providerDiscoveryCompleted = true;
+    currentProviderId = selectProviderId(
+      providers,
+      typeof stored[PROVIDER_KEY] === 'string' ? stored[PROVIDER_KEY] : currentProviderId,
+    );
+    const selectedReady = provider()?.status === 'ready';
     renderAll();
-    if (firstReady) await refreshConversations(!currentConversation);
+    if (selectedReady) await refreshConversations(!currentConversation);
   } catch (error) {
+    providers = supportedProviders(providerDiscoveryCompleted ? providers : []);
+    currentProviderId = selectProviderId(providers, currentProviderId);
     setError(error);
   } finally {
     initializing = false;
@@ -1418,6 +1494,7 @@ conversationSelect.addEventListener('change', () => {
 });
 providerSelect.addEventListener('change', () => {
   currentProviderId = providerSelect.value;
+  void chrome.storage.local.set({ [PROVIDER_KEY]: currentProviderId });
   currentConversation = null;
   conversations = [];
   timeline = [];
@@ -1453,7 +1530,7 @@ stopButton.addEventListener('click', () => {
   if (!currentConversation || !runningTurnId) return;
   void request({
     type: 'panerelay.conversation.interrupt',
-    providerId: currentProviderId,
+    providerId: conversationProviderId(currentConversation, currentProviderId),
     conversationId: currentConversation.id,
     turnId: runningTurnId,
   }).catch(setError);

@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, createPublicKey } from 'node:crypto';
 import {
   access,
   chmod,
@@ -49,6 +49,9 @@ export const PACKAGE_DEFINITIONS = [
       'package/dist/host-installation.js',
       'package/dist/install.js',
       'package/dist/native-host.bundle.cjs',
+      'package/dist/platform.js',
+      'package/dist/qoder-executable.js',
+      'package/dist/qoder-provider.js',
       'package/package.json',
     ],
   },
@@ -67,6 +70,12 @@ export const PACKAGE_DEFINITIONS = [
     ],
   },
 ];
+
+const OFFICIAL_EXTENSION_ID = 'panplnkjlkoceaonlmpdekjphgmbggmi';
+const AGENT_BROWSER_MINIMUM_VERSION = '0.33.0';
+const ACP_SDK_MINIMUM_VERSION = '1.2.1';
+const CHROME_EXTENSION_ID_PATTERN = /^[a-p]{32}$/;
+const SEMVER_PATTERN = /^(\d+)\.(\d+)\.(\d+)$/;
 
 function invariant(condition, message) {
   if (!condition) throw new Error(message);
@@ -208,13 +217,41 @@ function publicPackageMap(packageManifests) {
   return new Map(packageManifests.map(manifest => [manifest.name, manifest]));
 }
 
+function compareVersions(left, right) {
+  const leftMatch = SEMVER_PATTERN.exec(left);
+  const rightMatch = SEMVER_PATTERN.exec(right);
+  invariant(leftMatch && rightMatch, `Invalid semantic version comparison: ${left}, ${right}`);
+  for (let index = 1; index <= 3; index += 1) {
+    const difference = Number(leftMatch[index]) - Number(rightMatch[index]);
+    if (difference !== 0) return Math.sign(difference);
+  }
+  return 0;
+}
+
+export function chromeExtensionIdFromPublicKey(key) {
+  invariant(typeof key === 'string' && key.length > 0, 'Extension manifest public key is missing');
+  const der = Buffer.from(key, 'base64');
+  invariant(der.length > 0, 'Extension manifest public key is invalid');
+  createPublicKey({ key: der, format: 'der', type: 'spki' });
+  return [...createHash('sha256').update(der).digest().subarray(0, 16)]
+    .flatMap(byte => [byte >> 4, byte & 0x0f])
+    .map(nibble => String.fromCharCode('a'.charCodeAt(0) + nibble))
+    .join('');
+}
+
 export function validateReleaseMetadata({
+  compatibilityRecords,
   descriptor,
   extensionManifest,
   extensionPackage,
+  implementationSources,
   packageManifests,
   rootPackage,
 }) {
+  invariant(
+    SEMVER_PATTERN.test(descriptor.version),
+    'Stable release version must be a plain semantic version without alpha metadata',
+  );
   invariant(
     descriptor.version === rootPackage.version,
     'Root version does not match release config',
@@ -234,9 +271,45 @@ export function validateReleaseMetadata({
     'Extension version_name does not match release config',
   );
   invariant(
-    descriptor.agentBrowserVersion === '0.33.0',
-    'The alpha release must remain pinned to agent-browser 0.33.0',
+    CHROME_EXTENSION_ID_PATTERN.test(descriptor.extensionId),
+    'Release config has an invalid official Extension ID',
   );
+  invariant(
+    descriptor.extensionId === OFFICIAL_EXTENSION_ID,
+    'Release config does not contain the official Extension ID',
+  );
+  invariant(
+    chromeExtensionIdFromPublicKey(extensionManifest.key) === descriptor.extensionId,
+    'Extension public key does not derive the official Extension ID',
+  );
+  invariant(
+    descriptor.agentBrowserMinimumVersion === AGENT_BROWSER_MINIMUM_VERSION,
+    `The minimum agent-browser version must be ${AGENT_BROWSER_MINIMUM_VERSION}`,
+  );
+  invariant(
+    Array.isArray(descriptor.agentBrowserVerifiedVersions) &&
+      descriptor.agentBrowserVerifiedVersions.length > 0,
+    'Release config must list verified agent-browser versions',
+  );
+  const verifiedVersions = new Set(descriptor.agentBrowserVerifiedVersions);
+  invariant(
+    verifiedVersions.size === descriptor.agentBrowserVerifiedVersions.length,
+    'Verified agent-browser versions must be unique',
+  );
+  invariant(
+    verifiedVersions.has(descriptor.agentBrowserMinimumVersion),
+    'The minimum agent-browser version must have an explicit compatibility record',
+  );
+  for (const version of verifiedVersions) {
+    invariant(
+      compareVersions(version, descriptor.agentBrowserMinimumVersion) >= 0,
+      `Verified agent-browser ${version} is below the supported minimum`,
+    );
+    invariant(
+      compatibilityRecords?.includes(`agent-browser-${version}.md`),
+      `Missing compatibility record for agent-browser ${version}`,
+    );
+  }
 
   const manifests = publicPackageMap(packageManifests);
   invariant(
@@ -267,6 +340,43 @@ export function validateReleaseMetadata({
       );
     }
   }
+
+  const bridgeManifest = manifests.get('@panerelay/bridge');
+  const acpRange = bridgeManifest?.dependencies?.['@agentclientprotocol/sdk'];
+  const acpVersion = typeof acpRange === 'string' ? /^\^(\d+\.\d+\.\d+)$/.exec(acpRange)?.[1] : '';
+  invariant(
+    acpVersion && compareVersions(acpVersion, ACP_SDK_MINIMUM_VERSION) >= 0,
+    `@panerelay/bridge must package @agentclientprotocol/sdk ${ACP_SDK_MINIMUM_VERSION} or newer`,
+  );
+
+  invariant(
+    implementationSources?.protocolConstants.includes(
+      `PANERELAY_EXTENSION_ID = '${descriptor.extensionId}'`,
+    ),
+    'Shared default Extension ID does not match the release descriptor',
+  );
+  invariant(
+    implementationSources?.extensionBackground.includes('extensionId: chrome.runtime.id'),
+    'Extension registration does not include the actual Chrome runtime ID',
+  );
+  invariant(
+    implementationSources?.browserRelay.includes(
+      'message.extensionId !== this.options.expectedExtensionId',
+    ),
+    'Bridge registration does not reject an unexpected Extension ID',
+  );
+  invariant(
+    implementationSources?.hostInstallation.includes(
+      'allowed_origins: [`chrome-extension://${extensionId}/`]',
+    ) &&
+      implementationSources.hostInstallation.includes('setlocal DisableDelayedExpansion') &&
+      implementationSources.hostInstallation.includes("'reg.exe'"),
+    'Native Host installation is missing effective-origin or Windows launcher support',
+  );
+  invariant(
+    implementationSources?.qoderProvider.includes("['--acp']"),
+    'Qoder ACP process support is missing from the Bridge',
+  );
 }
 
 function exportedPaths(value, paths = []) {
@@ -303,6 +413,21 @@ export function validatePackedPackage({
     entries.every(entry => !entry.includes('.test.')),
     `${name} tarball contains compiled test files`,
   );
+  invariant(
+    entries.every(
+      entry => !/(?:^|\/)(?:private[-_.]?key[^/]*|[^/]+\.(?:pem|p12|pfx|crx))$/i.test(entry),
+    ),
+    `${name} tarball contains private signing material`,
+  );
+  if (name === '@panerelay/bridge') {
+    const acpRange = manifest.dependencies?.['@agentclientprotocol/sdk'];
+    const acpVersion =
+      typeof acpRange === 'string' ? /^\^(\d+\.\d+\.\d+)$/.exec(acpRange)?.[1] : '';
+    invariant(
+      acpVersion && compareVersions(acpVersion, ACP_SDK_MINIMUM_VERSION) >= 0,
+      `${name} tarball does not package a supported ACP SDK`,
+    );
+  }
   for (const path of [
     ...exportedPaths(manifest.exports),
     ...Object.values(manifest.bin ?? {}).filter(value => typeof value === 'string'),
@@ -372,6 +497,10 @@ async function createExtensionArchive(root, outputDirectory, descriptor) {
       manifest.version_name === descriptor.version,
     'Built Extension version metadata is not lockstep',
   );
+  invariant(
+    chromeExtensionIdFromPublicKey(manifest.key) === descriptor.extensionId,
+    'Built Extension public key does not derive the official Extension ID',
+  );
   const archive = join(outputDirectory, `panerelay-extension-${descriptor.version}.zip`);
   await run('zip', ['-q', '-r', archive, '.', '-x', '*.map'], { cwd: extensionDirectory });
   const archivedEntries = new Set((await run('unzip', ['-Z1', archive])).stdout.trim().split('\n'));
@@ -379,8 +508,12 @@ async function createExtensionArchive(root, outputDirectory, descriptor) {
   return archive;
 }
 
-async function writeStubExecutable(path) {
-  await writeFile(path, '#!/bin/sh\nexit 0\n');
+async function writeStubExecutable(path, output = '') {
+  if (process.platform === 'win32') {
+    await writeFile(path, `@echo off\r\n${output ? `echo ${output}\r\n` : ''}exit /b 0\r\n`);
+    return;
+  }
+  await writeFile(path, `#!/bin/sh\n${output ? `printf '%s\\n' '${output}'\n` : ''}exit 0\n`);
   await chmod(path, 0o755);
 }
 
@@ -403,7 +536,7 @@ async function packedDoctor(cli, args, options) {
 }
 
 export async function smokePackedSetup(tarballs) {
-  const smokeRoot = await mkdtemp(join(tmpdir(), 'panerelay-release-smoke-'));
+  const smokeRoot = await mkdtemp(join(tmpdir(), 'panerelay release smoke-'));
   const consumerDirectory = join(smokeRoot, 'consumer');
   const homeDirectory = join(smokeRoot, 'home');
   const binDirectory = join(smokeRoot, 'bin');
@@ -420,9 +553,13 @@ export async function smokePackedSetup(tarballs) {
       join(consumerDirectory, 'package.json'),
       `${JSON.stringify({ name: 'panerelay-release-smoke', private: true, dependencies }, null, 2)}\n`,
     );
-    const codexPath = join(binDirectory, 'codex');
-    const agentBrowserPath = join(binDirectory, 'agent-browser');
-    await Promise.all([writeStubExecutable(codexPath), writeStubExecutable(agentBrowserPath)]);
+    const commandSuffix = process.platform === 'win32' ? '.cmd' : '';
+    const codexPath = join(binDirectory, `codex${commandSuffix}`);
+    const agentBrowserPath = join(binDirectory, `agent-browser${commandSuffix}`);
+    await Promise.all([
+      writeStubExecutable(codexPath, 'codex-cli 1.0.0'),
+      writeStubExecutable(agentBrowserPath, 'agent-browser 0.33.0'),
+    ]);
     const environment = {
       ...process.env,
       HOME: homeDirectory,
@@ -436,26 +573,48 @@ export async function smokePackedSetup(tarballs) {
       cwd: consumerDirectory,
       env: environment,
     });
-    const cli = join(consumerDirectory, 'node_modules/.bin/panerelay');
-    await run(cli, ['--help'], { cwd: consumerDirectory, env: environment });
-    const setupArgs = ['setup', '--project', '--global-provider'];
-    await run(cli, setupArgs, { cwd: consumerDirectory, env: environment });
+    const cliScript = join(consumerDirectory, 'node_modules/@panerelay/setup/dist/cli.js');
+    const cliArguments = args => [cliScript, ...args];
+    const extensionId = 'abcdefghijklmnopabcdefghijklmnop';
+    await run(process.execPath, cliArguments(['--help']), {
+      cwd: consumerDirectory,
+      env: environment,
+    });
+    const setupArgs = ['setup', '--project', '--global-provider', '--extension-id', extensionId];
+    await run(process.execPath, cliArguments(setupArgs), {
+      cwd: consumerDirectory,
+      env: environment,
+    });
     const doctorArgs = ['doctor', '--project', '--global-provider', '--json'];
-    const firstDoctor = await packedDoctor(cli, doctorArgs, {
+    const firstDoctor = await packedDoctor(process.execPath, cliArguments(doctorArgs), {
       cwd: consumerDirectory,
       env: environment,
     });
     invariant(firstDoctor.ok === true, 'Packed setup doctor did not report readiness');
-    await run(cli, ['update', '--project', '--global-provider'], {
+    invariant(
+      firstDoctor.checks.some(
+        check =>
+          check.id === 'extension-id' && check.status === 'pass' && check.detail === extensionId,
+      ),
+      'Packed setup doctor did not preserve the custom Extension ID',
+    );
+    await run(process.execPath, cliArguments(['update', '--project', '--global-provider']), {
       cwd: consumerDirectory,
       env: environment,
     });
-    const updatedDoctor = await packedDoctor(cli, doctorArgs, {
+    const updatedDoctor = await packedDoctor(process.execPath, cliArguments(doctorArgs), {
       cwd: consumerDirectory,
       env: environment,
     });
     invariant(updatedDoctor.ok === true, 'Packed setup update did not preserve readiness');
-    await run(cli, ['uninstall', '--project', '--yes'], {
+    invariant(
+      updatedDoctor.checks.some(
+        check =>
+          check.id === 'extension-id' && check.status === 'pass' && check.detail === extensionId,
+      ),
+      'Packed setup update replaced the persisted custom Extension ID',
+    );
+    await run(process.execPath, cliArguments(['uninstall', '--project', '--yes']), {
       cwd: consumerDirectory,
       env: environment,
     });
@@ -472,6 +631,49 @@ export async function smokePackedSetup(tarballs) {
   }
 }
 
+async function validateNoPrivateSigningMaterial(root) {
+  const output = await run('git', ['ls-files', '-co', '--exclude-standard'], { cwd: root });
+  for (const relativePath of output.stdout.split('\n').filter(Boolean)) {
+    invariant(
+      !/(?:^|\/)(?:private[-_.]?key[^/]*|[^/]+\.(?:pem|p12|pfx|crx))$/i.test(relativePath),
+      `Repository contains private signing material: ${relativePath}`,
+    );
+    let source;
+    try {
+      source = await readFile(join(root, relativePath), 'utf8');
+    } catch {
+      continue;
+    }
+    invariant(
+      !/-----BEGIN (?:RSA |EC )?PRIVATE KEY-----/.test(source),
+      `Repository contains private signing material: ${relativePath}`,
+    );
+  }
+}
+
+async function validateStableDistributionSources(root) {
+  const distributionFiles = [
+    'README.md',
+    'README.zh-CN.md',
+    'docs/releasing.md',
+    'docs/compatibility/agent-browser-0.33.0.md',
+    ...PACKAGE_DEFINITIONS.map(definition => `${definition.directory}/README.md`),
+    'packages/setup/skills/panerelay-browser/SKILL.md',
+  ];
+  for (const relativePath of distributionFiles) {
+    const source = await readFile(join(root, relativePath), 'utf8');
+    invariant(
+      !source.includes('0.1.0-alpha'),
+      `Stable distribution guidance retains alpha metadata: ${relativePath}`,
+    );
+  }
+  const rootManifest = await readFile(join(root, 'package.json'), 'utf8');
+  invariant(
+    !rootManifest.includes('publish:alpha'),
+    'Stable release scripts retain the alpha publication command',
+  );
+}
+
 export async function loadReleaseMetadata(root) {
   const packageManifests = await Promise.all(
     PACKAGE_DEFINITIONS.map(definition =>
@@ -479,9 +681,23 @@ export async function loadReleaseMetadata(root) {
     ),
   );
   return {
+    compatibilityRecords: await readdir(join(root, 'docs/compatibility')),
     descriptor: await readJson(join(root, 'release.config.json')),
     extensionManifest: await readJson(join(root, 'apps/extension/manifest.json')),
     extensionPackage: await readJson(join(root, 'apps/extension/package.json')),
+    implementationSources: {
+      browserRelay: await readFile(join(root, 'packages/bridge/src/browser-relay.ts'), 'utf8'),
+      extensionBackground: await readFile(
+        join(root, 'apps/extension/src/background/index.ts'),
+        'utf8',
+      ),
+      hostInstallation: await readFile(
+        join(root, 'packages/bridge/src/host-installation.ts'),
+        'utf8',
+      ),
+      protocolConstants: await readFile(join(root, 'packages/protocol/src/constants.ts'), 'utf8'),
+      qoderProvider: await readFile(join(root, 'packages/bridge/src/qoder-provider.ts'), 'utf8'),
+    },
     packageManifests,
     rootPackage: await readJson(join(root, 'package.json')),
   };
@@ -490,6 +706,8 @@ export async function loadReleaseMetadata(root) {
 export async function createReleaseCandidate({ outputDirectory, root }) {
   const metadata = await loadReleaseMetadata(root);
   validateReleaseMetadata(metadata);
+  await validateNoPrivateSigningMaterial(root);
+  await validateStableDistributionSources(root);
   await mkdir(outputDirectory, { recursive: true });
   await run('pnpm', ['run', 'build'], { cwd: root, echo: true });
 
@@ -513,7 +731,9 @@ export async function createReleaseCandidate({ outputDirectory, root }) {
     schemaVersion: 1,
     version: metadata.descriptor.version,
     extensionVersion: metadata.descriptor.extensionVersion,
-    agentBrowserVersion: metadata.descriptor.agentBrowserVersion,
+    extensionId: metadata.descriptor.extensionId,
+    agentBrowserMinimumVersion: metadata.descriptor.agentBrowserMinimumVersion,
+    agentBrowserVerifiedVersions: metadata.descriptor.agentBrowserVerifiedVersions,
     source: { commit, dirty },
     artifacts,
   };
@@ -526,4 +746,24 @@ export async function createReleaseCandidate({ outputDirectory, root }) {
     `${artifacts.map(artifact => `${artifact.sha256}  ${artifact.file}`).join('\n')}\n`,
   );
   return inventory;
+}
+
+export async function smokePackedConsumer({ root }) {
+  const metadata = await loadReleaseMetadata(root);
+  validateReleaseMetadata(metadata);
+  await validateNoPrivateSigningMaterial(root);
+  await validateStableDistributionSources(root);
+  const outputDirectory = await mkdtemp(join(tmpdir(), 'panerelay-packed-consumer-'));
+  try {
+    await run('pnpm', ['run', 'build'], { cwd: root, echo: true });
+    const tarballs = [];
+    for (const definition of PACKAGE_DEFINITIONS) {
+      tarballs.push(
+        await packPackage(root, outputDirectory, definition, metadata.descriptor.version),
+      );
+    }
+    await smokePackedSetup(tarballs);
+  } finally {
+    await rm(outputDirectory, { force: true, recursive: true });
+  }
 }

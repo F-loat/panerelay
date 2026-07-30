@@ -1,6 +1,6 @@
 {
   "name": "@panerelay/bridge",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0",
   "description": "PaneRelay Native Messaging host and local browser-level CDP relay.",
   "type": "module",
   "license": "MIT",
@@ -23,6 +23,14 @@
     "./install": {
       "types": "./dist/host-installation.d.ts",
       "import": "./dist/host-installation.js"
+    },
+    "./platform": {
+      "types": "./dist/platform.d.ts",
+      "import": "./dist/platform.js"
+    },
+    "./compatibility": {
+      "types": "./dist/compatibility.d.ts",
+      "import": "./dist/compatibility.js"
     }
   },
   "bin": {
@@ -44,6 +52,7 @@
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "^1.3.0",
     "@panerelay/agent-browser": "workspace:*",
     "@panerelay/protocol": "workspace:*",
     "ws": "^8.21.1"

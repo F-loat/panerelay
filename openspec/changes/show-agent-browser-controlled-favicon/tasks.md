@@ -25,3 +25,8 @@
       agent-browser favicon
 - [ ] 4.2 Verify navigation keeps the indicator and Provider cleanup restores the fixture favicon
 - [ ] 4.3 Remove temporary browser state, sync completed evidence, and archive the OpenSpec change
+
+> Stable-release reconciliation: 4.1 and 4.2 are deferred to
+> `prepare-first-stable-release` task 8.4. Task 4.3 is deferred to stable tasks 8.7 and 8.8.
+> This change remains active because automated coverage does not replace the required daily-Chrome
+> observation.

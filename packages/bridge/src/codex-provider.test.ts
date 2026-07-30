@@ -87,6 +87,11 @@ test('exposes Codex through provider-neutral conversation results', async () => 
       name: 'Codex',
       status: 'ready',
       description: 'Local Codex app-server with streamed turns, tools, and approvals.',
+      setup: {
+        installCommand: 'npm install -g @openai/codex',
+        loginCommand: 'codex login',
+        docsUrl: 'https://developers.openai.com/codex/cli',
+      },
     },
   ]);
 

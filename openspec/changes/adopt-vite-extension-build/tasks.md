@@ -27,3 +27,7 @@
 - [x] 4.3 Build and verify the retained alpha candidate without publishing
 - [ ] 4.4 Reload the Extension in daily Chrome and complete the controlled-favicon acceptance
 - [ ] 4.5 Sync evidence and archive both completed OpenSpec changes
+
+> Stable-release reconciliation: 4.4 is deferred to
+> `prepare-first-stable-release` task 8.4. Task 4.5 is deferred to stable tasks 8.7 and 8.8.
+> This change remains active until the shared daily-Chrome acceptance is recorded.

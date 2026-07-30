@@ -1,10 +1,14 @@
 # agent-browser 0.33.0 compatibility
 
-- PaneRelay baseline: pre-alpha / RFC-0003
+- PaneRelay release: stable `0.1.0`
 - agent-browser: 0.33.0
+- Support policy: minimum supported version and initial version-specific verified baseline
 - Connection: browser-level Provider over Native Messaging
-- Alpha distribution: lockstep `0.1.0-alpha.1` candidate
 - Last verified: 2026-07-29
+
+agent-browser versions newer than 0.33.0 satisfy PaneRelay's minimum-version check, but they do not
+inherit this file's `Verified` classifications. Record a separate version-specific compatibility
+report before describing a newer version as verified.
 
 ## Status meanings
 
@@ -57,15 +61,17 @@
 | Transparent heartbeat renewal      | Verified    | An idle Provider session remained usable after 38 seconds with a 35-second lease deadline.                                                     |
 | Multi-transport liveness           | Verified    | Automated Bridge coverage keeps the lease while any authenticated transport remains responsive.                                                |
 | Expiry and stale reconnect cleanup | Verified    | Deterministic tests cover closed transport, target detach, pending failure, and rejected stale credentials.                                    |
-| Normal Provider release            | Verified    | Closing the real agent-browser session released its control lease without changing tab authorization.                                          |
+| Normal Provider release            | Verified    | Direct close and terminal Qoder ACP turns released their scoped control leases without changing tab authorization.                             |
 | Immediate user release             | Verified    | The settings panel exposes release while active; automated integration coverage verifies terminal cleanup.                                     |
 | Per-tab controlled favicon         | Forwarded   | Extension tests cover agent-browser icon injection, SPA resistance, navigation reapply, and restoration; daily-Chrome verification is pending. |
 | Sanitized activity lifecycle       | Verified    | Real page and tab commands rendered localized completed rows; protocol tests reject raw sensitive fields.                                      |
 | Bounded replay and history gaps    | Verified    | Bridge and Extension tests cover ring limits, epochs, sequence gaps, and reconnect snapshots.                                                  |
 | Durable activity history           | Unsupported | Activity is intentionally memory-only and is cleared across process histories.                                                                 |
 
-Real-browser evidence covers active heartbeat, completed page activity, tab activity, and normal
-Provider release. Forced heartbeat expiry, Bridge-restart gaps, and injected failed or denied CDP
+Real-browser evidence covers active heartbeat, completed page activity, tab activity, direct
+Provider release, and two consecutive Qoder CLI 1.1.2 browser turns. Each Qoder terminal event was
+followed by an inactive browser connection, and a separate agent-browser session immediately
+acquired control. Forced heartbeat expiry, Bridge-restart gaps, and injected failed or denied CDP
 commands remain automated-test scenarios to avoid perturbing the user's daily browser profile.
 
 ## Diagnostics, network, and emulation
@@ -98,13 +104,30 @@ commands remain automated-test scenarios to avoid perturbing the user's daily br
 `agent-browser mcp`, `chat`, and the dashboard use the same underlying command surface, so their
 browser-control coverage follows this matrix rather than defining a separate transport capability.
 
-## Alpha distribution boundaries
+## Stable distribution boundaries
 
 - The Extension, protocol, Provider, Bridge, and setup CLI are one lockstep compatibility unit;
-  `0.1.0-alpha.1` does not negotiate with a different PaneRelay build.
+  `0.1.0` does not negotiate with a different PaneRelay build.
 - Candidate validation packs all four npm packages, installs them outside the workspace, and runs
   setup, doctor, update, and uninstall in disposable user state.
-- Native Messaging setup is supported on macOS and Linux. Windows remains unsupported.
+- Native Messaging setup supports macOS, Linux, and current-user Windows Chrome registration.
 - Installing the candidate does not grant Chrome site permission, authorize a tab, or acquire a
   control lease.
 - The daily-profile ownership limitations recorded in the tables above are unchanged by packaging.
+
+## Deferred final-candidate evidence
+
+The retained `0.1.0` candidate passes the automated source, packed-artifact, and integrity gates.
+After its final rebuild, however, it was not reinstalled into daily Chrome to repeat doctor,
+control-visibility, authorization-revocation, and cleanup acceptance. The real-browser evidence
+above was collected from the corresponding source build rather than the retained package.
+
+Real Windows Chrome acceptance for Native Messaging launch, update, uninstall, and paths containing
+spaces was also not run. Windows coverage for this candidate is limited to deterministic and CI
+checks.
+
+Archiving `prepare-first-stable-release` records implementation completion under these
+maintainer-approved evidence deferrals; it does not declare the candidate releasable. The
+`stable-distribution` acceptance requirement remains unchanged, so the candidate stays not ready
+until the missing evidence passes or a later explicit release decision changes that policy. No
+package publication, Git tag, upload, or external release is part of this closeout.

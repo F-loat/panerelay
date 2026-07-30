@@ -1,6 +1,6 @@
 export function createAgentBrowserControlledFaviconDataUrl(): string {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" data-control-engine="agent-browser">
-  <rect width="128" height="128" fill="#000000"/>
+  <rect width="128" height="128" rx="28" fill="#000000"/>
   <path d="M64 31L96 88H32L64 31Z" fill="#FFFFFF"/>
   <circle cx="104" cy="104" r="21" fill="#FFFFFF"/>
   <circle cx="104" cy="104" r="16" fill="#20E68F"/>

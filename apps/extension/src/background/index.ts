@@ -178,6 +178,7 @@ async function registerBrowser(): Promise<void> {
     protocol: PANERELAY_PROTOCOL_VERSION,
     browserId: await browserId(),
     browserName: `Chrome on ${navigator.platform || 'this device'}`,
+    extensionId: chrome.runtime.id,
     extensionVersion: chrome.runtime.getManifest().version,
   });
 }

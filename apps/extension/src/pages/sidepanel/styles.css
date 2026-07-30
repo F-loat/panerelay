@@ -732,6 +732,50 @@ summary:focus-visible {
   line-height: 1.55;
 }
 
+.provider-setup {
+  display: grid;
+  width: min(330px, 100%);
+  gap: 8px;
+  margin-bottom: 17px;
+  text-align: left;
+}
+
+.provider-setup-step {
+  display: grid;
+  gap: 5px;
+}
+
+.provider-setup-step strong {
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.provider-setup-step code {
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text);
+  padding: 8px 9px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+  line-height: 1.45;
+  white-space: pre;
+}
+
+.provider-setup-docs {
+  width: fit-content;
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.provider-setup-docs:hover {
+  text-decoration: underline;
+}
+
 .suggestions {
   display: grid;
   width: min(330px, 100%);

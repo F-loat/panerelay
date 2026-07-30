@@ -6,8 +6,8 @@ PaneRelay is an open browser relay for bidirectional interoperability between us
 
 The project connects external agents to a user's existing browser through a browser extension, while providing a side panel where people can chat with agents, share browser context, review activity, approve sensitive operations, and take back control.
 
-> Status: pre-alpha. Version `0.1.0-alpha.1` is the first locally verified release candidate; npm
-> packages and a GitHub prerelease have not been published yet.
+> Status: preparing the first stable `0.1.0` release. Candidate creation and publication are
+> separate; this repository does not publish, tag, or upload as part of validation.
 
 ## Product direction
 
@@ -51,8 +51,8 @@ docs/
   rfcs/                Architecture and product decisions
 ```
 
-The current packages implement the first path from `agent-browser` to explicitly
-authorized Chrome tabs and a normalized Codex conversation adapter for the side panel.
+The current packages implement the first path from `agent-browser` to explicitly authorized
+Chrome tabs and normalized Codex and optional Qoder conversation adapters for the side panel.
 
 ## RFCs
 
@@ -62,62 +62,97 @@ Major protocol, security, and architecture decisions are developed in [`docs/rfc
 - [RFC-0002: Browser-level CDP and agent-browser compatibility](docs/rfcs/0002-browser-level-cdp-and-agent-browser-compatibility.md)
 - [RFC-0003: Control session lifecycle and external-agent activity](docs/rfcs/0003-control-session-lifecycle-and-activity.md)
 
-## Alpha quickstart
+## Stable quickstart
 
-The alpha is a lockstep Extension and npm-package release. After `0.1.0-alpha.1` is published,
-download and extract the matching `panerelay-extension-0.1.0-alpha.1.zip`, then:
+PaneRelay `0.1.0` supports macOS, Linux, and current-user Windows Native Messaging installation.
+Use Node.js 20 or newer and agent-browser 0.33.0 or newer. The `0.1.0` Extension and all four npm
+packages form one lockstep compatibility unit.
 
-1. Open `chrome://extensions`, enable Developer mode, and load the extracted directory as an
-   unpacked Extension.
-2. Install the local integration and optionally make PaneRelay the global agent-browser Provider:
-
-   ```bash
-   npx --yes @panerelay/setup@0.1.0-alpha.1 setup --global-provider
-   npx --yes @panerelay/setup@0.1.0-alpha.1 doctor --global-provider
-   ```
-
-3. Open PaneRelay from the Chrome toolbar. In the side panel, explicitly authorize the current
-   web tab or all supported web tabs.
-4. Use standard agent-browser commands:
+1. Download and extract `panerelay-extension-0.1.0.zip`. Open `chrome://extensions`, enable
+   Developer mode, and load the extracted directory. Its retained public manifest key derives the
+   official Extension ID `panplnkjlkoceaonlmpdekjphgmbggmi`; no private signing key is distributed.
+2. Install and diagnose the local integration:
 
    ```bash
-   agent-browser --session panerelay-alpha --provider panerelay snapshot -i
-   agent-browser --session panerelay-alpha --provider panerelay close
+   npx --yes @panerelay/setup@0.1.0 setup
+   npx --yes @panerelay/setup@0.1.0 doctor
    ```
 
-Installing the Native Host or Provider never authorizes a browser tab. Chrome site permission,
-PaneRelay tab authorization, and the external Agent's control lease remain separate.
+3. Open PaneRelay from the Chrome toolbar and explicitly authorize the current web tab or all
+   supported web tabs.
+4. Select the registered Provider explicitly:
 
-The setup CLI follows the device language when it resolves to Chinese or English. Override it with
-`--lang zh-CN`, `--lang en`, or the `PANERELAY_LANG` environment variable. Machine-readable
-`doctor --json` output is not localized.
+   ```bash
+   agent-browser --session panerelay-stable --provider panerelay snapshot -i
+   agent-browser --session panerelay-stable --provider panerelay close
+   ```
 
-To update within the alpha line, run the matching setup version and reload the matching unpacked
-Extension:
+Explicit `--provider panerelay` has command-line precedence. Use `setup --project` to make
+PaneRelay the current project's default, or `setup --global-provider` for the user-level default.
+Provider selection only changes routing; it never grants Chrome site permission, authorizes a tab,
+or acquires the exclusive control lease.
+
+The side panel always lists both Codex and Qoder. It selects an installed provider by default, or
+Codex when neither is installed. Codex remains available independently. Qoder is optional and
+becomes available when a compatible `qodercli --acp` executable is discovered; selecting an
+uninstalled provider shows its install, sign-in, and documentation guidance without making
+`doctor` unhealthy.
+
+### Custom Extension IDs
+
+Official builds use the ID above. For a self-built or differently signed Extension, pass its actual
+ID consistently:
 
 ```bash
-npx --yes @panerelay/setup@0.1.0-alpha.1 update --global-provider
+npx --yes @panerelay/setup@0.1.0 setup --extension-id <32-character-id>
+npx --yes @panerelay/setup@0.1.0 doctor --extension-id <32-character-id>
 ```
 
-To roll back, reinstall an earlier setup version and reload its matching Extension build. Protocol
-builds are lockstep in the first alpha, so do not mix Extension and package versions. To remove the
-local integration:
+The ID must contain exactly 32 lowercase letters from `a` through `p`. Resolution order is CLI
+`--extension-id`, `PANERELAY_EXTENSION_ID`, the persisted installation value, then the official
+default. `update` preserves a persisted custom ID unless a CLI or environment override replaces it.
+The Host accepts only the exact effective Extension origin and also checks the Extension's actual
+`chrome.runtime.id` during registration.
+
+### Update, rollback, and uninstall
 
 ```bash
-npx --yes @panerelay/setup@0.1.0-alpha.1 uninstall --yes
+npx --yes @panerelay/setup@0.1.0 update
+npx --yes @panerelay/setup@0.1.0 doctor --json
+npx --yes @panerelay/setup@0.1.0 uninstall --yes
 ```
 
-### Alpha limitations
+Repeat any project or user-default flags you want setup to maintain. To roll back, install the
+earlier setup package and reload its matching Extension artifact; do not mix PaneRelay component
+versions. On Windows, setup uses user-owned files and the exact current-user Chrome registry key,
+so administrator privileges are not required. Uninstall removes only PaneRelay-managed files and
+registration.
 
-- macOS and Linux Native Messaging paths are supported; Windows is not implemented.
-- PaneRelay reuses the running daily Chrome profile and does not provide an isolated browser
-  context, proxy, executable selection, or permission sandbox.
-- Chrome-wide download paths, browser close, profile-wide cookies, and other browser-process
-  operations fail closed.
-- agent-browser 0.33.0 is the pinned compatibility baseline.
-- Only Codex is implemented in the side panel; multiple Agent adapters and control handoff remain
-  future work.
-- Activity is bounded and memory-only, and alpha protocol builds require matching components.
+The CLI follows Chinese or English system language. Override it with `--lang zh-CN`, `--lang en`,
+or `PANERELAY_LANG`; `doctor --json` remains language-neutral.
+
+## Compatibility and operating boundaries
+
+### Browser ownership
+
+PaneRelay reuses the running daily Chrome profile. It cannot honestly provide an isolated browser
+context, choose the browser executable, change launch-time proxy/profile options, or close the
+browser process. Profile-wide cookies, Chrome-wide download paths, top-level request containment,
+and other browser-process operations fail closed. These are ownership boundaries, not setup
+defects.
+
+### Privacy and retention
+
+Chrome permission, PaneRelay tab authorization, and the control lease are independent and
+revocable. Activity is sanitized, bounded, and memory-only; PaneRelay does not retain page content,
+cookies, credentials, prompts, screenshots, request bodies, or a durable audit history by default.
+
+### Versions
+
+agent-browser 0.33.0 is the minimum supported version and the initial version-specific verified
+baseline. Newer versions satisfy the version floor but do not inherit `Verified` classifications
+until their own evidence is recorded. PaneRelay `0.1.0` components remain lockstep because the
+Native Messaging protocol does not yet negotiate compatibility across releases.
 
 ## Development
 
@@ -169,7 +204,7 @@ to respect browser-side tab authorization. The Codex side panel selects PaneRela
 its private runtime configuration automatically.
 
 See [RFC-0002](docs/rfcs/0002-browser-level-cdp-and-agent-browser-compatibility.md)
-for the current compatibility and security scope. The pinned command coverage is recorded in the
+for the current compatibility and security scope. The initial verified command coverage is recorded in the
 [agent-browser 0.33.0 compatibility matrix](docs/compatibility/agent-browser-0.33.0.md). Use
 `node packages/setup/dist/cli.js uninstall --project --yes` to remove the development integration.
 
@@ -183,8 +218,8 @@ pnpm run release:pack
 `release:check` uses disposable directories. `release:pack` retains npm tarballs, the unpacked
 Extension archive, `inventory.json`, and `SHA256SUMS` under the ignored `.artifacts/` directory.
 Neither command publishes, tags, or uploads anything. After an explicitly authorized release,
-publish the four npm packages with `pnpm publish:alpha --otp=<code>`. Each package builds through
-its `prepublishOnly` hook before pnpm publishes it with the `alpha` dist-tag. See
+publish the four npm packages with `pnpm run publish -- --otp=<code>`. Each package builds through
+its `prepublishOnly` hook. See
 [the release checklist](docs/releasing.md) before publication.
 
 ## License

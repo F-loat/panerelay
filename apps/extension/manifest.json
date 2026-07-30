@@ -3,9 +3,9 @@
   "minimum_chrome_version": "116",
   "name": "PaneRelay",
   "description": "Connect authorized browser tabs to local AI agents.",
-  "version": "0.1.0.1",
-  "version_name": "0.1.0-alpha.1",
-  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA6QDbGiCIdDhbQB6LVhhTOCHReR9fzPwgCw5RKA3j0gFjvzmmB9o86DVLsHNgpcoDpM3XuHKTnn1d+2zf1tQhCtzO9olE8qwvTmTGdWiquSPKFLKLMyyan8/tuFiaOSkSS2DPn/dsZzIZtfOWlmYpTSCWrNPz/Sd5JwE/qc4eNIe5nLoUzgikRlsgDWPjRUuv6FI7nvzktWGEXnkIZoTUR7ZFBn/R6AtQZbLo1IwD5/FPn9iRZu4KErGHU9is0Ur6LiqkNqE8fjLEZSTjFgsXKUIyl1xzp//2oQ1WynLwZpW1a9dydD9uGuj1zIpfGiuYCFJOD+P3qH8J8M9B8aKnJQIDAQAB",
+  "version": "0.1.0.2",
+  "version_name": "0.1.0",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0Ak9MFNl5Olzz+zX3G/sAdaF+rDsGOA2ytCpkWCTnTc8ilPSjg4aILmcwqbi7RA0R3m8md4zpj7Uz24SFUMaNaloVsr6sqeQbAHCO6YpzIe1u3X2bZD3PztSmaKWm7EpEyumBuuzfwamCTLd9AcnbZrSXLmrvI/XWFLVdZojaJV/fqNsjF1SSnuNHs5izCiThw/CHmyBZrEaQRxfN6GQAxO5luuj0akGVsf9Ig5q7bbtvWbT4Ll/CBv56QR1L4iewuy+WpqaI+L5M9tZg9aQt6w6kgzzSvwtXzPyTdd06QLsBDAt3aeAG/i1OFy7G6oNXJJnWDpSjfLIQRFmSJoAWQIDAQAB",
   "action": {
     "default_title": "Open PaneRelay",
     "default_icon": {

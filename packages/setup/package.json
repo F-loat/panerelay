@@ -1,6 +1,6 @@
 {
   "name": "@panerelay/setup",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0",
   "description": "Installer, diagnostics, and Agent integration for PaneRelay.",
   "type": "module",
   "license": "MIT",

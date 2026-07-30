@@ -88,6 +88,7 @@ class RelayHttpError extends Error {
 }
 
 export interface BrowserRelayOptions {
+  expectedExtensionId?: string;
   sendToExtension: (message: HostToExtensionMessage) => void;
   onBrowserRegistered: (browser: BrowserRegistration) => void | Promise<void>;
   onBrowserDisconnected: () => void | Promise<void>;
@@ -167,9 +168,18 @@ export class BrowserRelay {
   async handleExtensionMessage(message: ExtensionToHostMessage): Promise<void> {
     switch (message.type) {
       case 'browser.register':
+        if (
+          this.options.expectedExtensionId &&
+          message.extensionId !== this.options.expectedExtensionId
+        ) {
+          throw new Error(
+            `Extension ID ${message.extensionId} does not match the configured PaneRelay Extension ID`,
+          );
+        }
         this.browser = {
           browserId: message.browserId,
           browserName: message.browserName,
+          extensionId: message.extensionId,
           extensionVersion: message.extensionVersion,
         };
         await this.options.onBrowserRegistered(this.browser);

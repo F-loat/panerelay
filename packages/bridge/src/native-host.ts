@@ -18,6 +18,7 @@ import { AgentService } from './agent-service.js';
 import { NativeMessageDecoder, encodeNativeMessage } from './native-messaging.js';
 import { BrowserRelay } from './browser-relay.js';
 import { removeOwnedBridgeState, writeBridgeState } from './state.js';
+import { readRuntimeConfig } from './runtime-config.js';
 
 function log(message: string): void {
   process.stderr.write(`[PaneRelay] ${message}\n`);
@@ -50,8 +51,11 @@ async function runAgentBrowserPlugin(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  const runtimeConfig = await readRuntimeConfig();
+  const expectedExtensionId = runtimeConfig.extensionId ?? PANERELAY_EXTENSION_ID;
   const agents = new AgentService(sendToExtension);
   const relay = await BrowserRelay.listen({
+    expectedExtensionId,
     sendToExtension,
     onBrowserRegistered: async browser => {
       const state: BridgeState = {
@@ -62,7 +66,7 @@ async function main(): Promise<void> {
         browserId: browser.browserId,
         browserName: browser.browserName,
         extensionVersion: browser.extensionVersion,
-        extensionId: PANERELAY_EXTENSION_ID,
+        extensionId: browser.extensionId,
         updatedAt: new Date().toISOString(),
       };
       await writeBridgeState(state);

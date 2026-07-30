@@ -1,6 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { delimiter, dirname } from 'node:path';
 import { createInterface, type Interface } from 'node:readline';
+import { resolveSpawnCommand } from './platform.js';
 
 interface PendingRequest {
   resolve: (value: unknown) => void;
@@ -99,12 +100,20 @@ export class CodexAppServer {
     ]
       .filter((entry): entry is string => Boolean(entry))
       .join(delimiter);
-    const child = spawn(this.options.codexPath, ['app-server', '--stdio'], {
+    const environment: NodeJS.ProcessEnv = {
+      ...process.env,
+      PATH: runtimePath,
+    };
+    const launch = resolveSpawnCommand(
+      this.options.codexPath,
+      ['app-server', '--stdio'],
+      process.platform,
+      environment.ComSpec,
+    );
+    const child = spawn(launch.command, launch.args, {
       stdio: ['pipe', 'pipe', 'pipe'],
-      env: {
-        ...process.env,
-        PATH: runtimePath,
-      },
+      env: environment,
+      windowsHide: true,
     });
     this.process = child;
     this.stderrTail = '';

@@ -120,9 +120,38 @@ async function register(relay: BrowserRelay): Promise<void> {
     protocol: PANERELAY_PROTOCOL_VERSION,
     browserId: 'browser-1',
     browserName: 'Test Chrome',
+    extensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
     extensionVersion: '0.0.0',
   });
 }
+
+test('rejects a browser registration from a different configured Extension ID', async () => {
+  let registered = false;
+  const relay = await BrowserRelay.listen({
+    expectedExtensionId: 'abcdefghijklmnopabcdefghijklmnop',
+    onBrowserDisconnected: () => {},
+    onBrowserRegistered: () => {
+      registered = true;
+    },
+    sendToExtension: () => {},
+  });
+  try {
+    await assert.rejects(
+      relay.handleExtensionMessage({
+        type: 'browser.register',
+        protocol: PANERELAY_PROTOCOL_VERSION,
+        browserId: 'browser-1',
+        browserName: 'Test Chrome',
+        extensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
+        extensionVersion: '0.1.0.2',
+      }),
+      /does not match the configured PaneRelay Extension ID/,
+    );
+    assert.equal(registered, false);
+  } finally {
+    await relay.close();
+  }
+});
 
 test('implements the browser-level target handshake with lazy debugger attachment', async () => {
   const extensionMessages: HostToExtensionMessage[] = [];

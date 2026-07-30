@@ -5,7 +5,7 @@
 - Status: Accepted
 - Authors: F-loat
 - Created: 2026-07-29
-- Updated: 2026-07-29
+- Updated: 2026-07-30
 
 ## Summary
 
@@ -14,9 +14,11 @@ continuing to attach Chrome's debugger only to authorized tabs. The Bridge synth
 target discovery and lifecycle, maps opaque CDP target and session identifiers, and forwards
 page-scoped commands through the Extension.
 
-The first compatibility baseline is agent-browser 0.33.0. PaneRelay targets broad support for
-normal browser automation without claiming that an Extension connection is equivalent to a Chrome
-process launched and owned by agent-browser.
+The minimum supported and initial version-specific verified baseline is agent-browser 0.33.0.
+Newer versions satisfy the version floor but require their own evidence before inheriting
+`Verified` classifications. PaneRelay targets broad support for normal browser automation without
+claiming that an Extension connection is equivalent to a Chrome process launched and owned by
+agent-browser.
 
 ## Motivation
 

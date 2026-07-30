@@ -7,8 +7,8 @@ PaneRelay 是一个开放的浏览器中继项目，为用户、浏览器与 AI 
 项目通过浏览器扩展把外部 Agent 连接到用户正在使用的浏览器，同时提供侧边栏，让用户可以与
 Agent 对话、共享浏览器上下文、查看活动、批准敏感操作并随时收回控制权。
 
-> 状态：pre-alpha。版本 `0.1.0-alpha.1` 是首个经过本地验证的发布候选；npm 包和 GitHub
-> prerelease 尚未发布。
+> 状态：正在准备首个稳定版 `0.1.0`。候选构建与正式发布相互独立；仓库验证流程不会发布、
+> 打 tag 或上传产物。
 
 ## 产品方向
 
@@ -56,7 +56,7 @@ docs/
 ```
 
 当前包已经实现从 `agent-browser` 到显式授权 Chrome 标签页的首条链路，以及供侧边栏使用的
-Codex 标准化会话适配器。
+Codex 和可选 Qoder 标准化会话适配器。
 
 ## RFC
 
@@ -66,55 +66,86 @@ Codex 标准化会话适配器。
 - [RFC-0002：浏览器级 CDP 与 agent-browser 兼容性](docs/rfcs/0002-browser-level-cdp-and-agent-browser-compatibility.md)
 - [RFC-0003：控制会话生命周期与外部 Agent 活动](docs/rfcs/0003-control-session-lifecycle-and-activity.md)
 
-## Alpha 快速开始
+## 稳定版快速开始
 
-Alpha 版本要求扩展与 npm 包严格匹配。`0.1.0-alpha.1` 发布后，下载并解压对应的
-`panerelay-extension-0.1.0-alpha.1.zip`，然后：
+PaneRelay `0.1.0` 支持 macOS、Linux，以及当前用户范围的 Windows Native Messaging 安装。
+请使用 Node.js 20 或更高版本和 agent-browser 0.33.0 或更高版本。`0.1.0` 扩展与四个 npm
+包共同组成一个锁步兼容单元。
 
-1. 打开 `chrome://extensions`，启用开发者模式，将解压后的目录作为未打包扩展加载。
-2. 安装本地集成；也可以同时把 PaneRelay 设为 agent-browser 的全局默认 Provider：
+1. 下载并解压 `panerelay-extension-0.1.0.zip`，打开 `chrome://extensions`，启用开发者模式
+   并加载解压目录。扩展保留的公开 manifest key 会确定性生成官方 ID
+   `panplnkjlkoceaonlmpdekjphgmbggmi`；发行物不包含私钥。
+2. 安装并诊断本地集成：
 
    ```bash
-   npx --yes @panerelay/setup@0.1.0-alpha.1 setup --global-provider
-   npx --yes @panerelay/setup@0.1.0-alpha.1 doctor --global-provider
+   npx --yes @panerelay/setup@0.1.0 setup
+   npx --yes @panerelay/setup@0.1.0 doctor
    ```
 
 3. 从 Chrome 工具栏打开 PaneRelay，在侧边栏中显式授权当前网页标签页或所有受支持网页标签页。
-4. 使用标准 agent-browser 命令：
+4. 显式选择已注册的 Provider：
 
    ```bash
-   agent-browser --session panerelay-alpha --provider panerelay snapshot -i
-   agent-browser --session panerelay-alpha --provider panerelay close
+   agent-browser --session panerelay-stable --provider panerelay snapshot -i
+   agent-browser --session panerelay-stable --provider panerelay close
    ```
 
-安装 Native Host 或 Provider 不会自动授权任何浏览器标签页。Chrome 站点权限、PaneRelay
-标签页授权以及外部 Agent 的控制租约始终是相互独立的。
+命令行 `--provider panerelay` 优先级最高。运行 `setup --project` 可设为当前项目默认值，
+`setup --global-provider` 可设为用户级默认值。选择 Provider 只改变路由，不会授予 Chrome
+站点权限、授权标签页或取得独占控制租约。
 
-安装 CLI 会在系统语言为中文或英文时自动跟随，也可以通过 `--lang zh-CN`、`--lang en` 或
-`PANERELAY_LANG` 环境变量显式覆盖。机器可读的 `doctor --json` 输出不会被本地化。
+侧边栏始终列出 Codex 与 Qoder，并默认选择一个已安装的 Provider；两者都未安装时选择
+Codex。Codex 可独立使用；Qoder 是可选 Provider。检测到兼容的 `qodercli --acp` 后即可使用
+Qoder；选择未安装的 Provider 时，侧边栏会显示安装、登录和文档引导，但不会让 `doctor`
+整体失败。
 
-在同一 Alpha 版本线内更新时，运行对应版本的 setup，并重新加载对应的未打包扩展：
+### 自定义扩展 ID
 
-```bash
-npx --yes @panerelay/setup@0.1.0-alpha.1 update --global-provider
-```
-
-回滚时，重新安装更早的 setup 版本并加载相匹配的扩展。首个 Alpha 的协议组件采用严格锁步
-版本，不要混用不同版本的扩展和 npm 包。移除本地集成：
+官方构建使用上述 ID。自行构建或用其他签名加载扩展时，请一致传入实际 ID：
 
 ```bash
-npx --yes @panerelay/setup@0.1.0-alpha.1 uninstall --yes
+npx --yes @panerelay/setup@0.1.0 setup --extension-id <32位扩展ID>
+npx --yes @panerelay/setup@0.1.0 doctor --extension-id <32位扩展ID>
 ```
 
-### Alpha 限制
+ID 必须恰好由 32 个 `a` 到 `p` 的小写字母组成。解析优先级依次是 CLI
+`--extension-id`、`PANERELAY_EXTENSION_ID`、已持久化的安装值、官方默认值。不传新覆盖值
+时，`update` 会保留已有自定义 ID。Host 只允许生效 ID 对应的精确扩展来源，并在注册时再次
+核对扩展实际的 `chrome.runtime.id`。
 
-- Native Messaging 目前支持 macOS 和 Linux，尚未实现 Windows。
-- PaneRelay 复用正在运行的日常 Chrome Profile，不提供隔离浏览器上下文、代理、浏览器可执行
-  文件选择或独立权限沙箱。
-- Chrome 全局下载路径、关闭浏览器、Profile 全局 Cookie 等浏览器进程级操作会失败关闭。
-- agent-browser 0.33.0 是当前固定的兼容性基线。
-- 侧边栏目前只实现 Codex；多 Agent Adapter 与控制权交接仍是后续工作。
-- 活动记录有数量上限且仅保存在内存中；Alpha 协议组件必须使用匹配版本。
+### 更新、回滚与卸载
+
+```bash
+npx --yes @panerelay/setup@0.1.0 update
+npx --yes @panerelay/setup@0.1.0 doctor --json
+npx --yes @panerelay/setup@0.1.0 uninstall --yes
+```
+
+需要继续维护项目或用户默认 Provider 时，请重复对应 flag。回滚时安装更早的 setup 包并加载
+其匹配的扩展产物，不要混用 PaneRelay 组件版本。Windows 安装使用用户自有目录和精确的
+当前用户 Chrome 注册表项，不需要管理员权限；卸载只删除 PaneRelay 管理的文件与注册信息。
+
+CLI 会跟随中文或英文系统语言，也可通过 `--lang zh-CN`、`--lang en` 或
+`PANERELAY_LANG` 覆盖；`doctor --json` 保持语言无关。
+
+## 兼容性与运行边界
+
+### 浏览器所有权
+
+PaneRelay 复用正在运行的日常 Chrome Profile，因此不能真实提供隔离浏览器上下文、选择浏览器
+可执行文件、修改启动期代理/Profile 参数或关闭浏览器进程。Profile 全局 Cookie、Chrome
+全局下载路径、顶层请求拦截等浏览器进程级操作会失败关闭。这些是所有权边界，不是安装缺陷。
+
+### 隐私与保留
+
+Chrome 权限、PaneRelay 标签页授权与控制租约相互独立且可撤销。活动信息经过脱敏、有数量上限
+且仅保存在内存中；默认不会持久化页面内容、Cookie、凭证、Prompt、截图、请求体或审计历史。
+
+### 版本
+
+agent-browser 0.33.0 是最低支持版本，也是首个有版本专项证据的 Verified 基线。更高版本满足
+版本下限，但在记录自身验证证据前不会继承 `Verified` 分类。PaneRelay `0.1.0` 组件仍需锁步，
+因为 Native Messaging 协议尚未协商跨版本兼容性。
 
 ## 开发
 
@@ -169,7 +200,7 @@ setup 包也会安装 `panerelay-browser` Agent Skill。它会引导兼容 Agent
 私有 Runtime 配置自动选择 PaneRelay。
 
 当前兼容和安全范围见
-[RFC-0002](docs/rfcs/0002-browser-level-cdp-and-agent-browser-compatibility.md)，固定版本的命令
+[RFC-0002](docs/rfcs/0002-browser-level-cdp-and-agent-browser-compatibility.md)，首个 Verified 版本的命令
 覆盖情况见
 [agent-browser 0.33.0 兼容性矩阵](docs/compatibility/agent-browser-0.33.0.md)。开发环境可通过
 `node packages/setup/dist/cli.js uninstall --project --yes` 移除集成。
@@ -186,10 +217,10 @@ tarball、未打包扩展 zip、`inventory.json` 和 `SHA256SUMS`。这两个命
 或上传任何内容。获得明确发布授权后，可运行：
 
 ```bash
-pnpm publish:alpha --otp=<验证码>
+pnpm run publish -- --otp=<验证码>
 ```
 
-每个包都会通过 `prepublishOnly` 在 pnpm 使用 `alpha` dist-tag 发布前自动构建。发布前请查看
+每个包都会在发布前通过 `prepublishOnly` 自动构建。发布前请查看
 [发布清单](docs/releasing.md)。
 
 ## License
