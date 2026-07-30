@@ -299,6 +299,52 @@ test('normalizes streaming, reasoning, plan, tools, usage, completion, and unkno
     handlers.onUpdate({
       sessionId: 'qoder-new',
       update: {
+        sessionUpdate: 'tool_call_update',
+        toolCallId: 'tool-1',
+        title: 'Panerelay browser snapshot',
+        status: 'failed',
+        content: [
+          {
+            type: 'content',
+            content: {
+              type: 'text',
+              text: 'CDP error: all-tabs authorization is required',
+            },
+          },
+          {
+            type: 'content',
+            content: {
+              type: 'image',
+              data: 'not-displayed',
+              mimeType: 'image/png',
+            },
+          },
+        ],
+        rawOutput: {
+          secret: 'must not be rendered',
+        },
+      },
+    });
+    handlers.onUpdate({
+      sessionId: 'qoder-new',
+      update: {
+        sessionUpdate: 'tool_call_update',
+        toolCallId: 'tool-bounded',
+        status: 'failed',
+        content: [
+          {
+            type: 'content',
+            content: {
+              type: 'text',
+              text: 'x'.repeat(9_000),
+            },
+          },
+        ],
+      },
+    });
+    handlers.onUpdate({
+      sessionId: 'qoder-new',
+      update: {
         sessionUpdate: 'usage_update',
         used: 100,
         size: 10_000,
@@ -330,6 +376,23 @@ test('normalizes streaming, reasoning, plan, tools, usage, completion, and unkno
   assert.ok(events.some(event => event.kind === 'reasoning.delta'));
   assert.ok(
     events.some(event => event.kind === 'activity.updated' && event.activity.kind === 'browser'),
+  );
+  assert.ok(
+    events.some(
+      event =>
+        event.kind === 'activity.updated' &&
+        event.activity.status === 'failed' &&
+        event.activity.detail === 'CDP error: all-tabs authorization is required',
+    ),
+  );
+  assert.ok(!JSON.stringify(events).includes('must not be rendered'));
+  assert.ok(
+    events.some(
+      event =>
+        event.kind === 'activity.updated' &&
+        event.activity.id === 'tool-bounded' &&
+        event.activity.detail?.length === 8 * 1024,
+    ),
   );
   assert.ok(
     events.some(

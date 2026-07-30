@@ -546,6 +546,9 @@ function ExternalControl({ controller }: { controller: SidepanelController }) {
   const metadata = session
     ? [
         controlStateText(state.locale, session.state),
+        ...(session.participantCount > 1
+          ? [tf('controlParticipants', { count: session.participantCount })]
+          : []),
         tf('controlTargets', { count: session.controlledTargetCount }),
         ...(session.heartbeatFreshness === 'fresh' ? [t('heartbeatLive')] : []),
       ]
@@ -624,6 +627,10 @@ function ExternalControl({ controller }: { controller: SidepanelController }) {
                     <small>
                       {automationCategoryText(state.locale, activity.category)} ·{' '}
                       {automationStatusText(state.locale, activity.status)}
+                      {' · '}
+                      {[activity.actor.name, activity.actor.sessionLabel]
+                        .filter(Boolean)
+                        .join(' · ')}
                     </small>
                   </span>
                   <time dateTime={activity.updatedAt}>
@@ -930,10 +937,17 @@ function activityIcon(activity: ConversationActivity): LucideIcon {
   }
 }
 
+function reasoningStatusText(value: string): string {
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  const maximum = 240;
+  return normalized.length > maximum ? `…${normalized.slice(-maximum)}` : normalized;
+}
+
 function TurnFeedback({ state }: { state: SidepanelState }) {
   const { t, tf } = useCopy(state);
   const providerName = selectedAgentName(state);
   const starting = state.turnFeedback === 'starting';
+  const reasoning = starting ? '' : reasoningStatusText(state.activeReasoning?.text ?? '');
 
   if (!state.turnFeedback) return null;
 
@@ -949,7 +963,9 @@ function TurnFeedback({ state }: { state: SidepanelState }) {
                 agent: providerName,
               })}
             </strong>
-            <small>{t(starting ? 'startingConversationDetail' : 'agentWorkingDetail')}</small>
+            <small data-reasoning={reasoning ? 'true' : 'false'}>
+              {reasoning || t(starting ? 'startingConversationDetail' : 'agentWorkingDetail')}
+            </small>
           </span>
           <span aria-hidden="true" className="turn-feedback-dots">
             <i />
@@ -1017,6 +1033,9 @@ function Timeline({
           );
         }
         if (item.type === 'reasoning') {
+          if (state.turnFeedback === 'working' && state.activeReasoning?.id === item.id) {
+            return null;
+          }
           return (
             <details className="reasoning-card" key={`reasoning-${item.id}`}>
               <summary>
@@ -1030,6 +1049,9 @@ function Timeline({
         }
         if (item.type === 'activity') {
           const Icon = activityIcon(item.activity);
+          const expandable =
+            (item.activity.status === 'failed' || item.activity.status === 'declined') &&
+            Boolean(item.activity.detail);
           const setupFailure =
             item.activity.status === 'failed' &&
             isPanerelaySetupFailure(
@@ -1037,18 +1059,38 @@ function Timeline({
             );
           return (
             <div className="activity-stack" key={`activity-${item.activity.id}`}>
-              <article className="activity-card" data-status={item.activity.status}>
-                <Icon aria-hidden="true" className="activity-icon" />
-                <div className="activity-copy">
-                  <div className="activity-title">{activityTitle(item.activity.title)}</div>
-                  {item.activity.detail && (
-                    <div className="activity-detail">{item.activity.detail}</div>
-                  )}
-                </div>
-                <span className="activity-status">
-                  {activityStatus(state.locale, item.activity)}
-                </span>
-              </article>
+              {expandable ? (
+                <details
+                  className="activity-card activity-card-expandable"
+                  data-status={item.activity.status}
+                >
+                  <summary aria-label={t('errorDetails')} className="activity-card-summary">
+                    <ChevronRight aria-hidden="true" className="activity-chevron" />
+                    <Icon aria-hidden="true" className="activity-icon" />
+                    <div className="activity-copy">
+                      <div className="activity-title">{activityTitle(item.activity.title)}</div>
+                      <div className="activity-detail">{item.activity.detail}</div>
+                    </div>
+                    <span className="activity-status">
+                      {activityStatus(state.locale, item.activity)}
+                    </span>
+                  </summary>
+                  <div className="activity-detail-expanded">{item.activity.detail}</div>
+                </details>
+              ) : (
+                <article className="activity-card" data-status={item.activity.status}>
+                  <Icon aria-hidden="true" className="activity-icon" />
+                  <div className="activity-copy">
+                    <div className="activity-title">{activityTitle(item.activity.title)}</div>
+                    {item.activity.detail && (
+                      <div className="activity-detail">{item.activity.detail}</div>
+                    )}
+                  </div>
+                  <span className="activity-status">
+                    {activityStatus(state.locale, item.activity)}
+                  </span>
+                </article>
+              )}
               {setupFailure && <PanerelaySetupGuide controller={controller} />}
             </div>
           );
@@ -1064,13 +1106,17 @@ function Timeline({
         }
         return (
           <div className="timeline-error-stack" key={`error-${item.id}`}>
-            <article className="timeline-error mx-2">
-              <CircleAlert aria-hidden="true" className="timeline-error-icon" />
-              <div className="timeline-error-copy">
-                <strong>{t('errorTitle')}</strong>
-                <span>{item.message}</span>
-              </div>
-            </article>
+            <details className="timeline-error mx-2">
+              <summary aria-label={t('errorDetails')}>
+                <ChevronRight aria-hidden="true" className="timeline-error-chevron" />
+                <CircleAlert aria-hidden="true" className="timeline-error-icon" />
+                <div className="timeline-error-copy">
+                  <strong>{t('errorTitle')}</strong>
+                  <span>{item.message}</span>
+                </div>
+              </summary>
+              <div className="timeline-error-detail">{item.message}</div>
+            </details>
             {isPanerelaySetupFailure(item.message) && (
               <PanerelaySetupGuide controller={controller} />
             )}
@@ -1377,10 +1423,16 @@ export function SidepanelApp({ client = browserSidepanelClient }: AppProps) {
       {state.error && (
         <div className="error-banner" role="alert">
           <CircleAlert aria-hidden="true" className="error-icon" />
-          <div className="error-copy">
-            <strong>{t('errorTitle')}</strong>
-            <span>{state.error}</span>
-          </div>
+          <details className="error-copy">
+            <summary aria-label={t('errorDetails')}>
+              <ChevronRight aria-hidden="true" className="error-chevron" />
+              <span>
+                <strong>{t('errorTitle')}</strong>
+                <small>{state.error}</small>
+              </span>
+            </summary>
+            <div className="error-detail">{state.error}</div>
+          </details>
           <button
             className="error-retry"
             onClick={() => void controller.initialize()}

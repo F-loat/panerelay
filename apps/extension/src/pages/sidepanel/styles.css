@@ -1678,6 +1678,57 @@ summary:focus-visible {
   padding: 6px 8px;
 }
 
+.activity-card-expandable {
+  display: block;
+  padding: 0;
+}
+
+.activity-card-summary {
+  display: grid;
+  min-height: 36px;
+  grid-template-columns: 12px 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  cursor: pointer;
+  list-style: none;
+  padding: 6px 8px;
+}
+
+.activity-card-summary::-webkit-details-marker,
+.timeline-error summary::-webkit-details-marker,
+.error-copy summary::-webkit-details-marker {
+  display: none;
+}
+
+.activity-chevron,
+.timeline-error-chevron,
+.error-chevron {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  color: var(--text-tertiary);
+  stroke-width: 1.7;
+  transition: transform 120ms ease;
+}
+
+.activity-card-expandable[open] .activity-chevron,
+.timeline-error[open] .timeline-error-chevron,
+.error-copy[open] .error-chevron {
+  transform: rotate(90deg);
+}
+
+.activity-detail-expanded {
+  border-top: 1px solid color-mix(in srgb, var(--danger) 22%, var(--border));
+  color: var(--danger);
+  padding: 8px 9px;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 8px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  user-select: text;
+  white-space: pre-wrap;
+}
+
 .activity-icon {
   width: 22px;
   height: 22px;
@@ -1849,13 +1900,21 @@ summary:focus-visible {
 }
 
 .timeline-error {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
+  display: block;
   border-color: color-mix(in srgb, var(--danger) 26%, var(--border));
   background: var(--danger-soft);
-  padding: 9px 10px;
   color: var(--danger);
+}
+
+.timeline-error summary {
+  display: grid;
+  min-height: 42px;
+  grid-template-columns: 12px 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+  padding: 8px 10px;
 }
 
 .timeline-error-icon {
@@ -1884,10 +1943,23 @@ summary:focus-visible {
 
 .timeline-error-copy span {
   margin-top: 2px;
-  overflow-wrap: anywhere;
+  overflow: hidden;
   font-family: 'SFMono-Regular', Consolas, monospace;
   font-size: 9px;
   line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-error-detail {
+  border-top: 1px solid color-mix(in srgb, var(--danger) 20%, var(--border));
+  padding: 8px 10px;
+  overflow-wrap: anywhere;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 9px;
+  line-height: 1.5;
+  user-select: text;
+  white-space: pre-wrap;
 }
 
 .error-banner {
@@ -1954,22 +2026,43 @@ summary:focus-visible {
   min-width: 0;
 }
 
-.error-copy strong,
-.error-copy span {
-  display: block;
+.error-copy summary {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 12px minmax(0, 1fr);
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.error-copy summary > span {
+  display: grid;
+  min-width: 0;
 }
 
 .error-copy strong {
   font-size: 9px;
 }
 
-.error-copy span {
+.error-copy small {
   overflow: hidden;
   margin-top: 1px;
   color: var(--danger);
   font-size: 9px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.error-detail {
+  margin: 6px 0 1px 16px;
+  color: var(--danger);
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 9px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  user-select: text;
+  white-space: pre-wrap;
 }
 
 .error-retry,

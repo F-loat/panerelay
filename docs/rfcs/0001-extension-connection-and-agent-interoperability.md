@@ -64,8 +64,8 @@ The following goals extend the accepted foundation and will be specified indepen
 - **Automation adapter**: an integration that connects a browser automation engine to the Bridge. The first adapter targets agent-browser.
 - **Agent provider**: an adapter for an agent runtime, such as an app-server or an Agent Client Protocol implementation.
 - **Browser registration**: the durable identity and current connection metadata for one extension installation.
-- **Relay session**: a scoped connection between an automation client and one browser registration.
-- **Control lease**: revocable ownership that permits one actor to mutate a tab.
+- **Relay participant**: an independently authenticated automation-client connection within one browser control lease.
+- **Control lease**: revocable Panerelay automation ownership that may contain bounded relay participants and permits serialized mutation of authorized tabs.
 - **Conversation**: a user-visible agent session shown in the side panel.
 - **Tab binding**: an association between a conversation or relay session and one or more browser tabs.
 
@@ -118,7 +118,7 @@ The Bridge:
 
 - is installed as a Chrome Native Messaging host;
 - authenticates the paired extension and local clients;
-- maintains browser registrations, relay sessions, tab bindings, and control leases;
+- maintains browser registrations, relay participants, tab bindings, and control leases;
 - reads and conditionally updates Panerelay-owned user-level integration settings;
 - exposes loopback-only CDP WebSocket endpoints;
 - translates browser-level CDP target operations into extension and tab operations;
@@ -137,10 +137,10 @@ On launch, it will:
 
 1. connect to or start the local Bridge;
 2. select a registered browser according to explicit configuration or recent focus;
-3. create a relay session and acquire the requested tab binding;
+3. create an independently authenticated relay participant and join or create the browser control lease;
 4. return the Bridge's CDP WebSocket URL and cleanup metadata to agent-browser.
 
-On close, it will release the relay session and any leases owned by that session.
+On close, it releases only its relay participant. Target attachments remain while another participant references them; the last participant releases the browser control lease.
 
 The adapter will not implement page actions itself. agent-browser remains responsible for automation behavior.
 
@@ -190,9 +190,10 @@ Unsupported methods must return explicit CDP errors. Panerelay must not report s
 The Bridge will map:
 
 - a relay browser target ID to a Chrome tab ID;
-- a relay CDP session ID to one debugger attachment;
+- each participant's relay CDP session ID to a shared target attachment;
 - target lifecycle events to Chrome tab and navigation events;
-- client disconnects to lease and attachment cleanup.
+- participant disconnects to participant-local command and virtual-session cleanup;
+- final participant disconnect, Extension revocation, or Bridge failure to lease-wide attachment cleanup.
 
 These identifiers are opaque outside the Bridge. Raw Chrome tab IDs are not part of the public protocol.
 
@@ -265,7 +266,7 @@ The side panel exposes two explicit authorization scopes:
 - **single tab** requests Chrome access to the current origin, records the tab selected by the user, and permits the next relay session to attach only to that tab;
 - **all tabs** requests Chrome access to HTTP and HTTPS origins through a user-facing permission prompt and makes every supported web tab eligible, while the active tab selects the target when a direct-page relay session attaches.
 
-These scopes authorize eligibility, not concurrent ownership. Direct-page mode still controls one tab per relay session. Changing or clearing the scope revokes the current control lease and detaches the debugger. Single-tab authorization is memory-only. The all-tabs selection persists in Extension-local storage until the user releases it or removes the corresponding Chrome site permission. Control leases and debugger attachments never persist or revive after a disconnect.
+These scopes authorize eligibility, not control by themselves. Direct-page mode still controls one tab per participant. Changing or clearing the scope revokes the current control lease and detaches the debugger. Single-tab authorization is memory-only. The all-tabs selection persists in Extension-local storage until the user releases it or removes the corresponding Chrome site permission. Control leases and debugger attachments never persist or revive after a Bridge or Extension disconnect.
 
 Navigation is re-evaluated against the authorized origin before further commands run. A single-tab navigation to another origin clears that authorization and detaches the debugger. All-tabs access continues only while Chrome still reports the explicitly requested web-origin permissions.
 
@@ -273,14 +274,17 @@ Navigation is re-evaluated against the authorized origin before further commands
 
 Mutating browser operations require a control lease.
 
-The first version will use one exclusive lease per tab:
+The first version uses one exclusive Panerelay automation lease for the authorized browser:
 
-- a relay session acquires a lease before debugger attachment;
-- the lease has an owner, expiration, and heartbeat;
+- the first relay participant creates the lease before debugger attachment;
+- later independently authenticated participants may join the same lease without another Chrome permission prompt;
+- the lease has a current actor, bounded participant set, expiration, and per-participant heartbeat;
+- each participant owns independent virtual CDP sessions, pending commands, credentials, and cleanup;
+- complete target-scoped command lifecycles are serialized per target;
 - side-panel users can revoke it immediately;
-- disconnect and timeout release it;
-- a conversation can request a handoff but cannot silently steal a lease;
-- read-only observation may be shared only when Chrome's debugger attachment model and the privacy policy permit it.
+- participant disconnect and timeout release only that participant;
+- the last participant ending, user release, Extension disconnect, or Bridge failure releases the lease;
+- another debugger cannot silently steal Panerelay's Chrome attachment.
 
 The user remains the ultimate owner. Manual browser use does not require a lease and the UI must never block the user from navigating, closing a tab, or releasing automation.
 
@@ -328,7 +332,7 @@ The same internal registry adapts Qoder CLI over ACP when a compatible optional 
 
 Provider discovery is side-effect free. It may resolve an executable and version, but it does not start app-server, ACP, or a conversation. The side panel explicitly requests `agent.prepare` for the selected available provider and reports preparation failures as provider-local state rather than as a global Extension failure.
 
-For browser work, each new Codex or Qoder session receives a uniquely scoped Panerelay agent-browser MCP server. The MCP process uses the existing Panerelay agent-browser provider and therefore must acquire the same short-lived browser relay session and user-visible control lease as an external automation client. Chat availability does not imply browser authorization.
+For browser work, each new Codex or Qoder session receives a uniquely scoped Panerelay agent-browser MCP server. The MCP process uses the existing Panerelay agent-browser provider and therefore receives an independently authenticated participant inside the same short-lived, user-visible browser control lease as external automation clients. Chat availability does not imply browser authorization.
 
 The relationship between a side-panel agent and browser tools must be explicit. A provider receives a scoped relay session or scoped agent-browser MCP endpoint; it does not inherit unrestricted access to all registered browsers.
 
@@ -387,7 +391,7 @@ Audit events will not contain raw page HTML, screenshots, cookies, credentials, 
 ## Failure handling
 
 - If the Extension disconnects, the Bridge closes its CDP targets and expires its leases.
-- If the automation client disconnects, the Bridge releases its leases and debugger attachments.
+- If an automation participant disconnects, the Bridge releases its virtual sessions and pending work. Shared debugger attachments remain referenced by other participants; the final participant disconnect releases them.
 - If the Bridge restarts, the Extension reconnects and re-registers, but prior control leases do not revive automatically.
 - If DevTools or another debugger displaces Panerelay, the affected target closes and clients receive an explicit error.
 - If a tab navigates outside authorized origins, mutating commands pause until authorization is re-evaluated.
@@ -455,7 +459,7 @@ This would constrain runtimes, complicate credentials, and place privileged logi
 - Build the Extension, Native Messaging Bridge, and authenticated loopback relay.
 - Expose one explicitly authorized tab as a direct-page CDP endpoint.
 - Integrate unmodified agent-browser through its Provider interface.
-- Enforce one short-lived, exclusive, user-revocable control lease.
+- Enforce one short-lived, user-revocable Panerelay control lease with bounded, independently authenticated participants and serialized target commands.
 - Provide a Codex side-panel vertical slice with conversation lifecycle, streaming, approvals, and interruption.
 - Provide setup, diagnostics, uninstallation, Agent guidance, and optional global Provider selection.
 - Complete direct-page compatibility evidence and bounded large-message cancellation.
@@ -475,7 +479,7 @@ RFC-0001 can move from `Draft` to `Accepted` when:
 
 1. maintainers agree on the Bridge as the trust and routing boundary;
 2. maintainers agree on CDP compatibility as the initial agent-browser integration;
-3. maintainers agree on exclusive, revocable tab control leases;
+3. maintainers agree on one exclusive, revocable Panerelay control lease with explicit participant isolation;
 4. maintainers agree on the provider-neutral side-panel conversation contract;
 5. maintainers agree on local-first deployment and loopback-only endpoints;
 6. the RFC-0001 reference delivery assertions below all pass.
@@ -501,10 +505,10 @@ The following dispositions keep unresolved ecosystem work from making RFC-0001 i
 
 1. RFC-0001's direct-page foundation is extended by [RFC-0002](0002-browser-level-cdp-and-agent-browser-compatibility.md), which defines browser-level target support.
 2. CDP compatibility remains trace-driven. Unsupported methods return explicit errors.
-3. RFC-0001 requires exclusive ownership; shared read-only observation requires a follow-up privacy and ownership decision.
+3. RFC-0001 permits bounded participants inside one Panerelay lease, with independent authentication and per-target command serialization; sharing control with another debugger or transport remains unsupported.
 4. External-agent activity convergence and handoff require a follow-up interoperability RFC.
 5. Rich browser-context objects require a follow-up privacy and data-model RFC.
-6. Direct-page leases belong to relay sessions. A broader principal model is deferred until handoff is specified.
+6. Relay participants belong to one browser control lease. Human handoff and non-automation principals remain deferred.
 7. Codex app-server and Qoder ACP are the initial provider adapters; future providers must adapt to the same normalized contract.
 8. Setup registers one exact official or user-selected Extension ID. Broader pairing and managed enterprise distribution remain future policy topics.
 

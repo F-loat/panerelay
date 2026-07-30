@@ -58,6 +58,7 @@ export interface SidepanelState {
   timeline: TimelineItem[];
   runningTurnId: string | null;
   turnFeedback: TurnFeedbackPhase | null;
+  activeReasoning: { id: string; text: string } | null;
   loadingConversation: boolean;
   submitting: boolean;
   initializing: boolean;
@@ -102,6 +103,7 @@ export function createInitialSidepanelState(language?: string): SidepanelState {
     timeline: [],
     runningTurnId: null,
     turnFeedback: null,
+    activeReasoning: null,
     loadingConversation: false,
     submitting: false,
     initializing: true,
@@ -175,18 +177,25 @@ export function sidepanelReducer(state: SidepanelState, action: SidepanelAction)
 
   switch (event.kind) {
     case 'turn.started':
-      return { ...state, runningTurnId: event.turnId, turnFeedback: 'working' };
+      return {
+        ...state,
+        runningTurnId: event.turnId,
+        turnFeedback: 'working',
+        activeReasoning: null,
+      };
     case 'message.delta':
       return {
         ...state,
         timeline: appendMessageDelta(state.timeline, event),
         turnFeedback: null,
+        activeReasoning: null,
       };
     case 'message.completed':
       return {
         ...state,
         timeline: completeMessage(state.timeline, event.message),
         turnFeedback: null,
+        activeReasoning: null,
       };
     case 'reasoning.delta': {
       const existingIndex = state.timeline.findIndex(
@@ -200,7 +209,11 @@ export function sidepanelReducer(state: SidepanelState, action: SidepanelAction)
                 ? { ...item, text: item.text + event.delta }
                 : item,
             );
-      return { ...state, timeline, turnFeedback: null };
+      const activeReasoning =
+        state.activeReasoning?.id === event.itemId
+          ? { id: event.itemId, text: state.activeReasoning.text + event.delta }
+          : { id: event.itemId, text: event.delta };
+      return { ...state, timeline, turnFeedback: 'working', activeReasoning };
     }
     case 'activity.updated': {
       const existingIndex = state.timeline.findIndex(
@@ -214,7 +227,7 @@ export function sidepanelReducer(state: SidepanelState, action: SidepanelAction)
                 ? { ...item, activity: event.activity }
                 : item,
             );
-      return { ...state, timeline, turnFeedback: null };
+      return { ...state, timeline, turnFeedback: null, activeReasoning: null };
     }
     case 'approval.requested':
       return {
@@ -224,6 +237,7 @@ export function sidepanelReducer(state: SidepanelState, action: SidepanelAction)
           : null,
         timeline: [...state.timeline, { type: 'approval', approval: event.approval }],
         turnFeedback: null,
+        activeReasoning: null,
       };
     case 'approval.resolved':
       return {
@@ -232,6 +246,7 @@ export function sidepanelReducer(state: SidepanelState, action: SidepanelAction)
           item => item.type !== 'approval' || item.approval.id !== event.approvalId,
         ),
         turnFeedback: 'working',
+        activeReasoning: null,
       };
     case 'turn.completed': {
       const timeline = [...state.timeline];
@@ -255,6 +270,7 @@ export function sidepanelReducer(state: SidepanelState, action: SidepanelAction)
         runningTurnId: null,
         timeline,
         turnFeedback: null,
+        activeReasoning: null,
       };
     }
     case 'usage.updated':
@@ -264,6 +280,7 @@ export function sidepanelReducer(state: SidepanelState, action: SidepanelAction)
         ...state,
         timeline: [...state.timeline, { type: 'error', id: randomId(), message: event.message }],
         turnFeedback: null,
+        activeReasoning: null,
       };
   }
 }
@@ -315,6 +332,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
         timeline: TimelineItem[];
         runningTurnId: string | null;
         turnFeedback: TurnFeedbackPhase | null;
+        activeReasoning: { id: string; text: string } | null;
       }
     >(),
   );
@@ -334,6 +352,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
           timeline: next.timeline,
           runningTurnId: next.runningTurnId,
           turnFeedback: next.turnFeedback,
+          activeReasoning: next.activeReasoning,
         },
       );
     } else if (next.workspace?.kind === 'draft') {
@@ -356,6 +375,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
         runningTurnId:
           detail.conversation.status === 'running' ? stateRef.current.runningTurnId : null,
         turnFeedback: null,
+        activeReasoning: null,
         loadingConversation: false,
         error: '',
       });
@@ -409,6 +429,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
           timeline: [],
           runningTurnId: null,
           turnFeedback: null,
+          activeReasoning: null,
           loadingConversation: false,
           submitting: false,
           composerText: draftTextRef.current.get(workspace.revision) ?? '',
@@ -427,6 +448,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
           timeline: cached.timeline,
           runningTurnId: cached.runningTurnId,
           turnFeedback: cached.turnFeedback,
+          activeReasoning: cached.activeReasoning,
           loadingConversation: false,
           submitting: false,
           composerText: '',
@@ -442,6 +464,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
         timeline: [],
         runningTurnId: null,
         turnFeedback: null,
+        activeReasoning: null,
         loadingConversation: provider?.status === 'ready',
         submitting: false,
         composerText: '',
@@ -606,6 +629,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
           conversations: [],
           loadingConversation: true,
           turnFeedback: null,
+          activeReasoning: null,
         });
         const response = await client.request({
           type: 'panerelay.workspace.reset',
@@ -630,7 +654,12 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
         stateRef.current.conversations.find(item => item.id === conversationId)?.providerId ??
         stateRef.current.currentProviderId;
       const generation = ++activationGenerationRef.current;
-      patch({ loadingConversation: true, historyError: '', turnFeedback: null });
+      patch({
+        loadingConversation: true,
+        historyError: '',
+        turnFeedback: null,
+        activeReasoning: null,
+      });
       try {
         const response = await client.request({
           type: 'panerelay.conversation.resume',
@@ -656,7 +685,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
   const newConversation = useCallback(async () => {
     const workspace = stateRef.current.workspace;
     if (!workspace) return;
-    patch({ turnFeedback: null });
+    patch({ turnFeedback: null, activeReasoning: null });
     try {
       await interruptCurrent();
       const generation = ++activationGenerationRef.current;
@@ -816,6 +845,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
       patch({
         submitting: true,
         turnFeedback: conversation ? 'working' : 'starting',
+        activeReasoning: null,
         error: '',
       });
       patch({
@@ -865,6 +895,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
               item => item.type !== 'message' || item.message.id !== optimisticMessageId,
             ),
             turnFeedback: null,
+            activeReasoning: null,
             error: errorText(error),
           });
         }
@@ -878,7 +909,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
   const interrupt = useCallback(async () => {
     try {
       await interruptCurrent();
-      patch({ turnFeedback: null });
+      patch({ turnFeedback: null, activeReasoning: null });
     } catch (error) {
       patch({ error: errorText(error) });
     }
@@ -902,6 +933,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
             item => item.type !== 'approval' || item.approval.id !== approval.id,
           ),
           turnFeedback: 'working',
+          activeReasoning: null,
         });
       } catch (error) {
         patch({ error: errorText(error) });
@@ -984,6 +1016,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
                   timeline: cached.timeline,
                   runningTurnId: cached.runningTurnId,
                   turnFeedback: cached.turnFeedback,
+                  activeReasoning: cached.activeReasoning,
                 },
                 {
                   type: 'conversation-event',
@@ -997,6 +1030,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
                 timeline: cachedState.timeline,
                 runningTurnId: cachedState.runningTurnId,
                 turnFeedback: cachedState.turnFeedback,
+                activeReasoning: cachedState.activeReasoning,
               });
             }
             return;

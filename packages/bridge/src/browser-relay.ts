@@ -36,15 +36,37 @@ interface PendingCommand {
   client: WebSocket;
   cdpId: number;
   sessionId?: string;
+  releaseTarget: () => void;
+  timer: NodeJS.Timeout;
 }
 
-interface ActiveRelaySession {
+interface TargetCommandWaiter {
+  client: WebSocket;
+  resolve: (release: () => void) => void;
+  reject: (error: Error) => void;
+}
+
+interface TargetCommandQueue {
+  owner: WebSocket;
+  waiters: TargetCommandWaiter[];
+}
+
+interface RelayParticipant {
   id: string;
   token: string;
   actor: RelaySessionActor;
   connectExpiresAt: number;
   connectedAt?: number;
   lastHeartbeatAt?: number;
+  expiryTimer?: NodeJS.Timeout;
+  clients: Set<WebSocket>;
+}
+
+interface ActiveControlLease {
+  id: string;
+  participants: Map<string, RelayParticipant>;
+  activeParticipantId: string;
+  actor: RelaySessionActor;
 }
 
 interface PageSession {
@@ -54,6 +76,7 @@ interface PageSession {
 }
 
 interface ClientState {
+  participantId: string;
   discoverTargets: boolean;
   sessions: Set<string>;
   lastSeenAt: number;
@@ -63,7 +86,9 @@ interface ChildSession {
   targetId: string;
 }
 
-const MAX_LEASE_CONNECTIONS = 4;
+const MAX_LEASE_PARTICIPANTS = 8;
+const MAX_PARTICIPANT_CONNECTIONS = 4;
+const MAX_LEASE_CONNECTIONS = MAX_LEASE_PARTICIPANTS * MAX_PARTICIPANT_CONNECTIONS;
 const CDP_PROTOCOL_VERSION = '1.3';
 const DEFAULT_SESSION_CONNECT_TIMEOUT_MS = 30_000;
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 10_000;
@@ -71,6 +96,7 @@ const DEFAULT_HEARTBEAT_TIMEOUT_MS = 35_000;
 const EXTENSION_REQUEST_TIMEOUT_MS = 10_000;
 const MAX_SESSION_REQUEST_BYTES = 16 * 1024;
 const MAX_ACTIVITY_RECORDS = 100;
+const TARGET_LIFECYCLE_QUEUE = 'panerelay:target-lifecycle';
 const BROWSER_COOKIE_METHODS = new Set([
   'Network.getAllCookies',
   'Network.clearBrowserCookies',
@@ -114,12 +140,12 @@ export class BrowserRelay {
     PendingExtensionResult<CdpTargetResultMessage>
   >();
   private readonly pendingCommands = new Map<string, PendingCommand>();
+  private readonly targetCommandQueues = new Map<string, TargetCommandQueue>();
   private readonly clientActivities = new Map<WebSocket, Map<number, string>>();
   private readonly activities: AutomationActivity[] = [];
   private readonly activityEpoch = randomUUID();
   private browser: BrowserRegistration | null = null;
-  private activeSession: ActiveRelaySession | null = null;
-  private sessionExpiryTimer: NodeJS.Timeout | null = null;
+  private activeLease: ActiveControlLease | null = null;
   private heartbeatTimer: NodeJS.Timeout | null = null;
   private controlSequence = 0;
   private lastHeartbeatStatusAt = 0;
@@ -212,7 +238,7 @@ export class BrowserRelay {
   }
 
   async close(reason = 'Bridge shutting down'): Promise<void> {
-    this.revokeActiveSession(reason, 1012, true, 'failed');
+    this.revokeActiveLease(reason, 1012, true, 'failed');
     this.rejectExtensionRequests(new Error(reason));
     await new Promise<void>(resolve => this.server.close(() => resolve()));
     await new Promise<void>(resolve => this.httpServer.close(() => resolve()));
@@ -221,7 +247,8 @@ export class BrowserRelay {
   }
 
   private handleConnection(client: WebSocket, request: IncomingMessage): void {
-    if (!this.isAuthorizedCdpRequest(request)) {
+    const participant = this.authorizedParticipant(request);
+    if (!participant) {
       client.close(1008, 'Invalid Panerelay session token');
       return;
     }
@@ -233,23 +260,31 @@ export class BrowserRelay {
       client.close(1013, 'The Panerelay lease has too many transport connections');
       return;
     }
+    if (participant.clients.size >= MAX_PARTICIPANT_CONNECTIONS) {
+      client.close(1013, 'The Panerelay participant has too many transport connections');
+      return;
+    }
 
     const now = Date.now();
     this.clients.set(client, {
+      participantId: participant.id,
       discoverTargets: false,
       sessions: new Set(),
       lastSeenAt: now,
     });
-    if (this.activeSession) {
-      this.activeSession.connectedAt ??= now;
-      this.activeSession.lastHeartbeatAt = now;
+    participant.clients.add(client);
+    participant.connectedAt ??= now;
+    participant.lastHeartbeatAt = now;
+    this.clearParticipantExpiry(participant);
+    if (this.activeLease) {
+      this.activeLease.activeParticipantId = participant.id;
+      this.activeLease.actor = participant.actor;
     }
     this.lastHeartbeatStatusAt = now;
-    this.clearSessionExpiryTimer();
     this.startHeartbeat();
     this.emitCurrentSessionState('connected');
     client.on('message', data => {
-      this.touchClient(client);
+      this.touchClient(client, true);
       void this.handleClientMessage(client, data.toString()).catch(error => {
         this.sendProtocolError(
           client,
@@ -263,19 +298,23 @@ export class BrowserRelay {
     client.on('error', () => this.handleClientClose(client));
   }
 
-  private isAuthorizedCdpRequest(request: IncomingMessage): boolean {
+  private authorizedParticipant(request: IncomingMessage): RelayParticipant | null {
     try {
       const url = new URL(request.url || '/', 'ws://127.0.0.1');
-      const session = this.activeSession;
-      return (
-        url.pathname === '/cdp' &&
-        session !== null &&
-        (session.connectedAt !== undefined || Date.now() <= session.connectExpiresAt) &&
-        url.searchParams.get('session') === session.id &&
-        url.searchParams.get('token') === session.token
-      );
+      if (url.pathname !== '/cdp') return null;
+      const participantId = url.searchParams.get('session');
+      if (!participantId) return null;
+      const participant = this.activeLease?.participants.get(participantId);
+      if (
+        !participant ||
+        (participant.connectedAt === undefined && Date.now() > participant.connectExpiresAt) ||
+        url.searchParams.get('token') !== participant.token
+      ) {
+        return null;
+      }
+      return participant;
     } catch {
-      return false;
+      return null;
     }
   }
 
@@ -299,9 +338,12 @@ export class BrowserRelay {
 
     const sessionMatch = /^\/sessions\/([^/]+)$/.exec(url.pathname);
     if (request.method === 'DELETE' && sessionMatch?.[1]) {
-      if (this.activeSession?.id === decodeURIComponent(sessionMatch[1])) {
-        this.revokeActiveSession('Automation provider released the session', 1000, true);
-      }
+      this.releaseParticipant(
+        decodeURIComponent(sessionMatch[1]),
+        'Automation provider released the participant',
+        1000,
+        'released',
+      );
       response.writeHead(204);
       response.end();
       return;
@@ -328,10 +370,10 @@ export class BrowserRelay {
       });
       return;
     }
-    if (this.activeSession) {
-      this.sendJson(response, 409, {
+    if ((this.activeLease?.participants.size ?? 0) >= MAX_LEASE_PARTICIPANTS) {
+      this.sendJson(response, 429, {
         protocol: PANERELAY_PROTOCOL_VERSION,
-        error: 'The authorized browser already has an active relay session',
+        error: 'The authorized browser has too many active agent-browser participants',
       });
       return;
     }
@@ -347,21 +389,34 @@ export class BrowserRelay {
 
     const connectExpiresAt =
       Date.now() + (this.options.sessionConnectTimeoutMs ?? DEFAULT_SESSION_CONNECT_TIMEOUT_MS);
-    const session: ActiveRelaySession = {
+    const participant: RelayParticipant = {
       id: randomUUID(),
       token: randomBytes(32).toString('base64url'),
       actor: payload.actor,
       connectExpiresAt,
+      clients: new Set(),
     };
-    this.activeSession = session;
+    if (!this.activeLease) {
+      this.activeLease = {
+        id: randomUUID(),
+        participants: new Map(),
+        activeParticipantId: participant.id,
+        actor: participant.actor,
+      };
+    }
+    this.activeLease.participants.set(participant.id, participant);
+    this.activeLease.activeParticipantId = participant.id;
+    this.activeLease.actor = participant.actor;
     this.lastHeartbeatStatusAt = 0;
-    this.scheduleSessionExpiry(session);
-    this.emitCurrentSessionState('allocated');
+    this.scheduleParticipantExpiry(participant);
+    this.emitCurrentSessionState(
+      this.clients.size > 0 || this.attachedTargets.size > 0 ? undefined : 'allocated',
+    );
 
     const result: RelaySessionCreated = {
       protocol: PANERELAY_PROTOCOL_VERSION,
-      sessionId: session.id,
-      cdpUrl: `ws://127.0.0.1:${this.port}/cdp?session=${encodeURIComponent(session.id)}&token=${encodeURIComponent(session.token)}`,
+      sessionId: participant.id,
+      cdpUrl: `ws://127.0.0.1:${this.port}/cdp?session=${encodeURIComponent(participant.id)}&token=${encodeURIComponent(participant.token)}`,
       connectExpiresAt: new Date(connectExpiresAt).toISOString(),
     };
     this.sendJson(response, 201, result);
@@ -418,22 +473,28 @@ export class BrowserRelay {
     response.end(JSON.stringify(body));
   }
 
-  private scheduleSessionExpiry(session: ActiveRelaySession): void {
-    this.clearSessionExpiryTimer();
-    this.sessionExpiryTimer = setTimeout(
+  private scheduleParticipantExpiry(participant: RelayParticipant): void {
+    this.clearParticipantExpiry(participant);
+    participant.expiryTimer = setTimeout(
       () => {
-        if (this.activeSession?.id !== session.id || this.clients.size > 0) return;
-        this.revokeActiveSession('Relay session connection window expired', 1008, false, 'expired');
+        const current = this.activeLease?.participants.get(participant.id);
+        if (current !== participant || participant.clients.size > 0) return;
+        this.releaseParticipant(
+          participant.id,
+          'Relay participant connection window expired',
+          1008,
+          'expired',
+        );
       },
-      Math.max(0, session.connectExpiresAt - Date.now()),
+      Math.max(0, participant.connectExpiresAt - Date.now()),
     );
-    this.sessionExpiryTimer.unref();
+    participant.expiryTimer.unref();
   }
 
-  private clearSessionExpiryTimer(): void {
-    if (!this.sessionExpiryTimer) return;
-    clearTimeout(this.sessionExpiryTimer);
-    this.sessionExpiryTimer = null;
+  private clearParticipantExpiry(participant: RelayParticipant): void {
+    if (!participant.expiryTimer) return;
+    clearTimeout(participant.expiryTimer);
+    participant.expiryTimer = undefined;
   }
 
   private startHeartbeat(): void {
@@ -450,20 +511,31 @@ export class BrowserRelay {
   }
 
   private checkHeartbeat(): void {
-    const session = this.activeSession;
-    if (!session || this.clients.size === 0) {
+    const lease = this.activeLease;
+    if (!lease || this.clients.size === 0) {
       this.clearHeartbeatTimer();
       return;
     }
 
     const now = Date.now();
     const timeoutMs = this.options.heartbeatTimeoutMs ?? DEFAULT_HEARTBEAT_TIMEOUT_MS;
-    const responsive = [...this.clients.values()].some(
-      state => now - state.lastSeenAt <= timeoutMs,
-    );
-    if (!responsive) {
-      this.revokeActiveSession('Automation lease heartbeat expired', 1011, true, 'expired');
-      return;
+    for (const participant of [...lease.participants.values()]) {
+      if (
+        participant.clients.size > 0 &&
+        ![...participant.clients].some(client => {
+          const state = this.clients.get(client);
+          return state && now - state.lastSeenAt <= timeoutMs;
+        })
+      ) {
+        this.releaseParticipant(
+          participant.id,
+          lease.participants.size === 1
+            ? 'Automation lease heartbeat expired'
+            : 'Automation participant heartbeat expired',
+          1011,
+          'expired',
+        );
+      }
     }
 
     for (const client of this.clients.keys()) {
@@ -471,14 +543,22 @@ export class BrowserRelay {
     }
   }
 
-  private touchClient(client: WebSocket): void {
+  private touchClient(client: WebSocket, active = false): void {
     const state = this.clients.get(client);
     if (!state) return;
     const now = Date.now();
     state.lastSeenAt = now;
-    if (this.activeSession) this.activeSession.lastHeartbeatAt = now;
+    const lease = this.activeLease;
+    const participant = lease?.participants.get(state.participantId);
+    if (!lease || !participant) return;
+    participant.lastHeartbeatAt = now;
+    const actorChanged = active && lease.activeParticipantId !== participant.id;
+    if (active) {
+      lease.activeParticipantId = participant.id;
+      lease.actor = participant.actor;
+    }
     const intervalMs = this.options.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS;
-    if (now - this.lastHeartbeatStatusAt >= intervalMs) {
+    if (actorChanged || now - this.lastHeartbeatStatusAt >= intervalMs) {
       this.lastHeartbeatStatusAt = now;
       this.emitCurrentSessionState();
     }
@@ -610,7 +690,9 @@ export class BrowserRelay {
       }
       case 'Target.createTarget': {
         const url = typeof params.url === 'string' ? params.url : 'about:blank';
-        const result = await this.requestTarget({ kind: 'create', url, active: true });
+        const result = await this.withTargetCommand(client, TARGET_LIFECYCLE_QUEUE, () =>
+          this.requestTarget({ kind: 'create', url, active: false }),
+        );
         if (!result.success || !result.target)
           throw new Error(result.error || 'Tab creation failed');
         this.targets.set(result.target.targetId, result.target);
@@ -620,7 +702,9 @@ export class BrowserRelay {
       case 'Target.closeTarget': {
         const targetId = this.requiredTargetId(params);
         await this.ensureKnownTarget(targetId);
-        const result = await this.requestTarget({ kind: 'close', targetId });
+        const result = await this.withTargetCommand(client, targetId, () =>
+          this.requestTarget({ kind: 'close', targetId }),
+        );
         if (!result.success) throw new Error(result.error || 'Tab close failed');
         this.sendResult(client, id, { success: true });
         return;
@@ -628,9 +712,6 @@ export class BrowserRelay {
       case 'Target.activateTarget': {
         const targetId = this.requiredTargetId(params);
         await this.ensureKnownTarget(targetId);
-        const result = await this.requestTarget({ kind: 'activate', targetId });
-        if (!result.success) throw new Error(result.error || 'Tab activation failed');
-        if (result.target) this.targets.set(targetId, result.target);
         this.sendResult(client, id, {});
         return;
       }
@@ -689,6 +770,70 @@ export class BrowserRelay {
     return result.targets;
   }
 
+  private acquireTargetCommand(client: WebSocket, targetId: string): Promise<() => void> {
+    const existing = this.targetCommandQueues.get(targetId);
+    if (!existing) {
+      this.targetCommandQueues.set(targetId, { owner: client, waiters: [] });
+      return Promise.resolve(this.targetCommandRelease(targetId, client));
+    }
+    return new Promise<() => void>((resolve, reject) => {
+      existing.waiters.push({ client, resolve, reject });
+    });
+  }
+
+  private targetCommandRelease(targetId: string, client: WebSocket): () => void {
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      const queue = this.targetCommandQueues.get(targetId);
+      if (!queue || queue.owner !== client) return;
+      let next = queue.waiters.shift();
+      while (next && !this.clients.has(next.client)) {
+        next.reject(new Error('Automation participant disconnected while waiting for the target'));
+        next = queue.waiters.shift();
+      }
+      if (!next) {
+        this.targetCommandQueues.delete(targetId);
+        return;
+      }
+      queue.owner = next.client;
+      next.resolve(this.targetCommandRelease(targetId, next.client));
+    };
+  }
+
+  private async withTargetCommand<T>(
+    client: WebSocket,
+    targetId: string,
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    const release = await this.acquireTargetCommand(client, targetId);
+    try {
+      if (!this.clients.has(client)) {
+        throw new Error('Automation participant disconnected while waiting for the target');
+      }
+      return await operation();
+    } finally {
+      release();
+    }
+  }
+
+  private cancelQueuedTargetCommands(client: WebSocket): void {
+    for (const queue of this.targetCommandQueues.values()) {
+      const retained: TargetCommandWaiter[] = [];
+      for (const waiter of queue.waiters) {
+        if (waiter.client === client) {
+          waiter.reject(
+            new Error('Automation participant disconnected while waiting for the target'),
+          );
+        } else {
+          retained.push(waiter);
+        }
+      }
+      queue.waiters = retained;
+    }
+  }
+
   private requestTarget(operation: CdpTargetOperation): Promise<CdpTargetResultMessage> {
     const requestId = randomUUID();
     const timeoutMs = this.options.extensionRequestTimeoutMs ?? EXTENSION_REQUEST_TIMEOUT_MS;
@@ -744,6 +889,11 @@ export class BrowserRelay {
       return;
     }
 
+    if (method === 'Page.bringToFront') {
+      this.sendResult(client, cdpId, {}, sessionId);
+      return;
+    }
+
     try {
       await this.ensureTargetAttached(targetId);
     } catch (error) {
@@ -758,7 +908,42 @@ export class BrowserRelay {
       return;
     }
 
+    let releaseTarget: () => void;
+    try {
+      releaseTarget = await this.acquireTargetCommand(client, targetId);
+    } catch (error) {
+      this.sendCdpError(
+        client,
+        cdpId,
+        -32000,
+        error instanceof Error ? error.message : String(error),
+        sessionId,
+        'transport-error',
+      );
+      return;
+    }
+    if (!this.clients.has(client)) {
+      releaseTarget();
+      return;
+    }
+
     const requestId = randomUUID();
+    const timeoutMs = this.options.extensionRequestTimeoutMs ?? EXTENSION_REQUEST_TIMEOUT_MS;
+    const timer = setTimeout(() => {
+      const pending = this.pendingCommands.get(requestId);
+      if (!pending) return;
+      this.pendingCommands.delete(requestId);
+      pending.releaseTarget();
+      this.sendCdpError(
+        pending.client,
+        pending.cdpId,
+        -32000,
+        'Timed out waiting for Extension CDP result',
+        pending.sessionId,
+        'transport-error',
+      );
+    }, timeoutMs);
+    timer.unref();
     const forwardedParams =
       pageSession &&
       method === 'Target.setAutoAttach' &&
@@ -766,16 +951,30 @@ export class BrowserRelay {
       params.waitForDebuggerOnStart === true
         ? { ...params, waitForDebuggerOnStart: false }
         : params;
-    this.pendingCommands.set(requestId, { client, cdpId, sessionId });
-    this.options.sendToExtension({
-      type: 'cdp.command',
-      protocol: PANERELAY_PROTOCOL_VERSION,
-      requestId,
-      targetId,
-      method,
-      ...(Object.keys(forwardedParams).length > 0 ? { params: forwardedParams } : {}),
-      ...(childSession ? { sessionId } : {}),
-    });
+    this.pendingCommands.set(requestId, { client, cdpId, sessionId, releaseTarget, timer });
+    try {
+      this.options.sendToExtension({
+        type: 'cdp.command',
+        protocol: PANERELAY_PROTOCOL_VERSION,
+        requestId,
+        targetId,
+        method,
+        ...(Object.keys(forwardedParams).length > 0 ? { params: forwardedParams } : {}),
+        ...(childSession ? { sessionId } : {}),
+      });
+    } catch (error) {
+      clearTimeout(timer);
+      this.pendingCommands.delete(requestId);
+      releaseTarget();
+      this.sendCdpError(
+        client,
+        cdpId,
+        -32000,
+        error instanceof Error ? error.message : String(error),
+        sessionId,
+        'transport-error',
+      );
+    }
   }
 
   private targetCommandPolicyError(
@@ -918,6 +1117,8 @@ export class BrowserRelay {
     const pending = this.pendingCommands.get(message.requestId);
     if (!pending) return;
     this.pendingCommands.delete(message.requestId);
+    clearTimeout(pending.timer);
+    pending.releaseTarget();
     this.finishClientActivity(
       pending.client,
       pending.cdpId,
@@ -1064,40 +1265,104 @@ export class BrowserRelay {
       if (wasAttached) this.emitCurrentSessionState();
       return;
     }
-    this.revokeActiveSession(message.reason, 1011, false, 'released');
+    this.revokeActiveLease(message.reason, 1011, false, 'released');
   }
 
   private handleClientClose(client: WebSocket): void {
     const state = this.clients.get(client);
     if (!state) return;
-    this.failClientActivities(client, 'transport-error');
+    const participant = this.activeLease?.participants.get(state.participantId);
+    this.cleanupClient(client, 'transport-error');
+    participant?.clients.delete(client);
+    if (participant?.clients.size === 0) {
+      this.releaseParticipant(
+        participant.id,
+        'Automation participant disconnected',
+        1000,
+        'released',
+      );
+      return;
+    }
+    this.emitCurrentSessionState();
+  }
+
+  private cleanupClient(client: WebSocket, failure: AutomationActivityFailure): void {
+    const state = this.clients.get(client);
+    if (!state) return;
+    this.failClientActivities(client, failure);
     for (const sessionId of [...state.sessions]) this.removePageSession(sessionId);
     this.clients.delete(client);
     for (const [requestId, pending] of this.pendingCommands) {
-      if (pending.client === client) this.pendingCommands.delete(requestId);
+      if (pending.client !== client) continue;
+      clearTimeout(pending.timer);
+      pending.releaseTarget();
+      this.pendingCommands.delete(requestId);
     }
-    if (this.clients.size === 0) {
-      this.revokeActiveSession('Automation client disconnected', 1000, true);
-    }
+    this.cancelQueuedTargetCommands(client);
   }
 
-  private revokeActiveSession(
+  private releaseParticipant(
+    participantId: string,
+    reason: string,
+    closeCode: number,
+    terminalState: Extract<ControlSessionState, 'released' | 'expired' | 'failed'>,
+  ): void {
+    const lease = this.activeLease;
+    const participant = lease?.participants.get(participantId);
+    if (!lease || !participant) return;
+
+    this.clearParticipantExpiry(participant);
+    lease.participants.delete(participant.id);
+    if (lease.participants.size === 0) {
+      this.revokeActiveLease(reason, closeCode, true, terminalState);
+      return;
+    }
+
+    for (const client of [...participant.clients]) {
+      this.cleanupClient(client, 'session-ended');
+      this.disconnectClient(client, closeCode, reason);
+    }
+    participant.clients.clear();
+    if (lease.activeParticipantId === participant.id) {
+      const next = [...lease.participants.values()].at(-1);
+      if (next) {
+        lease.activeParticipantId = next.id;
+        lease.actor = next.actor;
+      }
+    }
+    this.emitCurrentSessionState();
+  }
+
+  private revokeActiveLease(
     reason: string,
     closeCode: number,
     notifyExtension: boolean,
     terminalState: Extract<ControlSessionState, 'released' | 'expired' | 'failed'> = 'released',
   ): void {
-    if (!this.activeSession) return;
+    const lease = this.activeLease;
+    if (!lease) return;
     const hadTargets = this.attachedTargets.size > 0 || this.targets.size > 0;
     this.failOutstandingActivities('session-ended');
+    for (const participant of lease.participants.values()) {
+      this.clearParticipantExpiry(participant);
+    }
+    lease.participants.clear();
     this.emitCurrentSessionState(terminalState, 0);
-    this.activeSession = null;
-    this.clearSessionExpiryTimer();
+    this.activeLease = null;
     this.clearHeartbeatTimer();
     for (const client of [...this.clients.keys()]) {
       this.disconnectClient(client, closeCode, reason);
     }
+    this.clients.clear();
+    for (const pending of this.pendingCommands.values()) {
+      clearTimeout(pending.timer);
+      pending.releaseTarget();
+    }
     this.pendingCommands.clear();
+    for (const queue of this.targetCommandQueues.values()) {
+      for (const waiter of queue.waiters) waiter.reject(new Error(reason));
+    }
+    this.targetCommandQueues.clear();
     this.clientActivities.clear();
     this.pageSessions.clear();
     this.childSessions.clear();
@@ -1139,9 +1404,11 @@ export class BrowserRelay {
     });
   }
 
-  private sendResult(client: WebSocket, id: number, result: unknown): void {
+  private sendResult(client: WebSocket, id: number, result: unknown, sessionId?: string): void {
     this.finishClientActivity(client, id, 'completed');
-    if (client.readyState === WebSocket.OPEN) client.send(JSON.stringify({ id, result }));
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify({ id, result, ...(sessionId ? { sessionId } : {}) }));
+    }
   }
 
   private sendCdpError(
@@ -1189,16 +1456,18 @@ export class BrowserRelay {
     method: string,
     targetId?: string,
   ): void {
-    const session = this.activeSession;
-    if (!session) return;
+    const lease = this.activeLease;
+    const state = this.clients.get(client);
+    const participant = state ? lease?.participants.get(state.participantId) : undefined;
+    if (!lease || !participant) return;
     this.finishClientActivity(client, cdpId, 'failed', 'transport-error');
 
     const now = new Date().toISOString();
     const sequence = this.nextControlSequence();
     const activity: AutomationActivity = {
       id: randomUUID(),
-      sessionId: session.id,
-      actor: { ...session.actor },
+      sessionId: lease.id,
+      actor: { ...participant.actor },
       ...(targetId ? { targetId } : {}),
       ...classifyCdpMethod(method),
       status: 'started',
@@ -1281,14 +1550,19 @@ export class BrowserRelay {
     state?: ControlSessionState,
     controlledTargetCount = this.attachedTargets.size,
   ): void {
-    const session = this.activeSession;
-    if (!session) return;
+    const lease = this.activeLease;
+    if (!lease) return;
     const terminal = state === 'released' || state === 'expired' || state === 'failed';
+    const participants = [...lease.participants.values()];
+    const lastHeartbeatAt = participants.reduce(
+      (latest, participant) => Math.max(latest, participant.lastHeartbeatAt ?? 0),
+      0,
+    );
     const resolvedState =
       state ??
       (this.attachedTargets.size > 0 || this.pendingCommands.size > 0
         ? 'active'
-        : session.connectedAt
+        : participants.some(participant => participant.connectedAt !== undefined)
           ? 'connected'
           : 'allocated');
     const heartbeatTimeoutMs = this.options.heartbeatTimeoutMs ?? DEFAULT_HEARTBEAT_TIMEOUT_MS;
@@ -1298,21 +1572,22 @@ export class BrowserRelay {
       epoch: this.activityEpoch,
       sequence: this.nextControlSequence(),
       session: {
-        id: session.id,
-        actor: { ...session.actor },
+        id: lease.id,
+        actor: { ...lease.actor },
         state: resolvedState,
+        participantCount: participants.length,
         controlledTargetCount,
         heartbeatFreshness: terminal
           ? resolvedState === 'expired'
             ? 'stale'
             : 'unknown'
-          : session.lastHeartbeatAt
+          : lastHeartbeatAt > 0
             ? 'fresh'
             : 'unknown',
-        ...(!terminal && session.lastHeartbeatAt
+        ...(!terminal && lastHeartbeatAt > 0
           ? {
-              lastHeartbeatAt: new Date(session.lastHeartbeatAt).toISOString(),
-              leaseExpiresAt: new Date(session.lastHeartbeatAt + heartbeatTimeoutMs).toISOString(),
+              lastHeartbeatAt: new Date(lastHeartbeatAt).toISOString(),
+              leaseExpiresAt: new Date(lastHeartbeatAt + heartbeatTimeoutMs).toISOString(),
             }
           : {}),
         updatedAt: new Date().toISOString(),

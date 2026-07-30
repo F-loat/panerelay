@@ -52,6 +52,7 @@ interface CodexItem {
   server?: string;
   tool?: string;
   query?: string;
+  error?: { message?: string } | null;
 }
 
 interface PendingApproval {
@@ -82,6 +83,7 @@ export interface CodexProviderOptions {
 }
 
 const CODEX_PROVIDER_ID = 'codex';
+const MAX_ACTIVITY_DETAIL_CHARS = 8 * 1024;
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
@@ -89,6 +91,12 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function timestamp(seconds: number | null | undefined): string {
   return new Date((seconds ?? Date.now() / 1_000) * 1_000).toISOString();
+}
+
+function activityErrorDetail(item: CodexItem, failed: boolean): string | undefined {
+  if (!failed) return undefined;
+  const message = item.error?.message?.trim();
+  return message ? message.slice(0, MAX_ACTIVITY_DETAIL_CHARS) : undefined;
 }
 
 function threadStatus(thread: CodexThread): ConversationStatus {
@@ -177,13 +185,16 @@ function activityFromItem(item: CodexItem, completed: boolean): ConversationActi
         ...(item.changes ? { detail: `${item.changes.length} file change(s)` } : {}),
         status: normalizedStatus,
       };
-    case 'mcpToolCall':
+    case 'mcpToolCall': {
+      const detail = activityErrorDetail(item, normalizedStatus === 'failed');
       return {
         id: item.id,
         kind: item.server?.includes('panerelay') ? 'browser' : 'tool',
         title: [item.server, item.tool].filter(Boolean).join(' · ') || 'Use tool',
+        ...(detail ? { detail } : {}),
         status: normalizedStatus,
       };
+    }
     case 'webSearch':
       return {
         id: item.id,

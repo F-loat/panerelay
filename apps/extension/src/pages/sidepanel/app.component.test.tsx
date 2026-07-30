@@ -73,6 +73,7 @@ class AppClient implements SidepanelClient {
   history: ConversationDetail[] = [];
   historyError = '';
   prepareError = '';
+  statusError = '';
   sendHandler:
     | ((message: Extract<SidePanelRequest, { type: 'panerelay.conversation.send' }>) => Promise<{
         success: true;
@@ -100,6 +101,7 @@ class AppClient implements SidepanelClient {
     this.requests.push(message);
     switch (message.type) {
       case 'panerelay.status.get':
+        if (this.statusError) throw new Error(this.statusError);
         return { success: true as const, status: this.status };
       case 'panerelay.agent.providers':
         return { success: true as const, providers: this.providers };
@@ -329,6 +331,7 @@ describe('React Side Panel', () => {
         id: 'control-1',
         actor: { kind: 'automation', name: 'agent-browser' },
         state: 'active',
+        participantCount: 1,
         controlledTargetCount: 1,
         heartbeatFreshness: 'fresh',
         updatedAt: '2026-07-30T05:27:00.000Z',
@@ -374,6 +377,7 @@ describe('React Side Panel', () => {
           sessionLabel: 'panerelay-summary',
         },
         state: 'released',
+        participantCount: 0,
         controlledTargetCount: 0,
         heartbeatFreshness: 'unknown',
         updatedAt: '2026-07-30T05:27:00.000Z',
@@ -460,6 +464,28 @@ describe('React Side Panel', () => {
     });
 
     expect(await screen.findByText('Codex is working…')).toBeVisible();
+    expect(screen.getByText('Progress and results will appear here as they arrive.')).toBeVisible();
+    act(() => {
+      client.emit({
+        type: 'panerelay.conversation.event',
+        event: {
+          kind: 'reasoning.delta',
+          conversationId: conversation.conversation.id,
+          turnId: 'turn-1',
+          itemId: 'reasoning-1',
+          delta: 'Checking the page structure before choosing an action.',
+        },
+      });
+    });
+    const workingStatus = screen.getByRole('status');
+    expect(
+      within(workingStatus).getByText('Checking the page structure before choosing an action.'),
+    ).toBeVisible();
+    expect(
+      screen.queryByText('Progress and results will appear here as they arrive.'),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('Reasoning')).not.toBeInTheDocument();
+
     act(() => {
       client.emit({
         type: 'panerelay.conversation.event',
@@ -474,6 +500,10 @@ describe('React Side Panel', () => {
     });
     expect(await screen.findByText('I am checking the page.')).toBeVisible();
     expect(screen.queryByText('Codex is working…')).not.toBeInTheDocument();
+    expect(screen.getByText('Reasoning')).toBeVisible();
+    expect(
+      screen.getAllByText('Checking the page structure before choosing an action.'),
+    ).toHaveLength(2);
 
     act(() => {
       client.emit({
@@ -539,6 +569,34 @@ describe('React Side Panel', () => {
     });
     expect(screen.getByText('Panerelay setup needed')).toBeVisible();
     expect(screen.getByText('npx --yes @panerelay/setup')).toBeVisible();
+    const activityDetails = screen.getByText('agent-browser').closest('details');
+    expect(activityDetails).not.toHaveAttribute('open');
+    await user.click(within(activityDetails as HTMLElement).getByLabelText('Show error details'));
+    expect(activityDetails).toHaveAttribute('open');
+    expect(
+      within(activityDetails as HTMLElement).getAllByText(
+        "Plugin 'panerelay' returned success=false",
+      ),
+    ).toHaveLength(2);
+
+    act(() => {
+      client.emit({
+        type: 'panerelay.conversation.event',
+        event: {
+          kind: 'activity.updated',
+          conversationId: 'conversation-1',
+          turnId: 'turn-1',
+          activity: {
+            id: 'activity-no-detail',
+            kind: 'browser',
+            title: 'Plain failure',
+            status: 'failed',
+          },
+        },
+      });
+    });
+    expect(screen.getByText('Plain failure').closest('article')).toHaveClass('activity-card');
+    expect(screen.getByText('Plain failure').closest('details')).toBeNull();
 
     act(() => {
       client.emit({
@@ -550,7 +608,14 @@ describe('React Side Panel', () => {
         },
       });
     });
-    expect(screen.getByText('Qoder prompt timed out').closest('article')).toHaveClass('mx-2');
+    const timelineError = document.querySelector('.timeline-error');
+    expect(timelineError).toHaveClass('mx-2');
+    expect(timelineError).not.toHaveAttribute('open');
+    await user.click(within(timelineError as HTMLElement).getByLabelText('Show error details'));
+    expect(timelineError).toHaveAttribute('open');
+    expect(
+      within(timelineError as HTMLElement).getAllByText('Qoder prompt timed out'),
+    ).toHaveLength(2);
 
     const approval: ConversationApproval = {
       id: 'approval-1',
@@ -584,6 +649,22 @@ describe('React Side Panel', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Native Host disconnected');
     await user.click(screen.getByRole('button', { name: 'Dismiss' }));
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('keeps a global error compact until its details are opened', async () => {
+    const client = new AppClient();
+    client.statusError = 'Native Host returned a detailed connection failure';
+    const user = userEvent.setup();
+    render(<SidepanelApp client={client} />);
+
+    const alert = await screen.findByRole('alert');
+    const disclosure = alert.querySelector('details');
+    expect(disclosure).not.toHaveAttribute('open');
+    await user.click(within(alert).getByLabelText('Show error details'));
+    expect(disclosure).toHaveAttribute('open');
+    expect(
+      within(alert).getAllByText('Native Host returned a detailed connection failure'),
+    ).toHaveLength(2);
   });
 
   it('renders indented and compact fenced code blocks', async () => {

@@ -20,7 +20,9 @@ test('installs and removes the bundled Skill in global and project scopes', asyn
     assert.match(projectSkill, /`screenshot` \(viewport or `--full`\)/);
     assert.match(projectSkill, /Do not use `inspect`/);
     assert.match(projectSkill, /Do not use `--allowed-domains`/);
-    assert.match(projectSkill, /active relay session/);
+    assert.match(projectSkill, /Treat `tab <id>` as an Agent-local selection/);
+    assert.match(projectSkill, /share one authorized browser lease/);
+    assert.doesNotMatch(projectSkill, /active relay session/);
     assert.equal(globalPath.endsWith(PANERELAY_SKILL_NAME), true);
 
     await uninstallPanerelaySkill('global', { homeDirectory });

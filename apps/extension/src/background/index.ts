@@ -579,7 +579,7 @@ async function handleTargetRequest(message: CdpTargetRequestMessage): Promise<vo
             throw new Error(`Chrome site access for ${origin?.origin || url} is not granted`);
           }
         }
-        const tab = await chrome.tabs.create({ url, active: message.operation.active });
+        const tab = await chrome.tabs.create({ url, active: false });
         const summary = summarizeTab(tab);
         if (!summary) throw new Error('Chrome did not create a controllable tab');
         sessionOwnedTabIds.add(summary.id);
@@ -596,13 +596,6 @@ async function handleTargetRequest(message: CdpTargetRequestMessage): Promise<vo
         return;
       }
       case 'activate': {
-        const tabId = tabIdsByTargetId.get(message.operation.targetId);
-        if (tabId === undefined) throw new Error('Panerelay target is no longer available');
-        const tab = await chrome.tabs.get(tabId);
-        await chrome.tabs.update(tabId, { active: true });
-        if (typeof tab.windowId === 'number') {
-          await chrome.windows.update(tab.windowId, { focused: true });
-        }
         sendTargetResult(message.requestId, {
           success: true,
           target: await targetInfo(await tabForTarget(message.operation.targetId)),

@@ -15,6 +15,7 @@ export interface ControlSessionSummary {
   id: string;
   actor: ControlSessionActor;
   state: ControlSessionState;
+  participantCount: number;
   controlledTargetCount: number;
   heartbeatFreshness: ControlHeartbeatFreshness;
   lastHeartbeatAt?: string;
@@ -256,6 +257,7 @@ export function isControlSessionSummary(value: unknown): value is ControlSession
         'id',
         'actor',
         'state',
+        'participantCount',
         'controlledTargetCount',
         'heartbeatFreshness',
         'lastHeartbeatAt',
@@ -266,6 +268,8 @@ export function isControlSessionSummary(value: unknown): value is ControlSession
     isNonEmptyString(value.id) &&
     isControlSessionActor(value.actor) &&
     SESSION_STATES.has(value.state as ControlSessionState) &&
+    Number.isSafeInteger(value.participantCount) &&
+    Number(value.participantCount) >= 0 &&
     Number.isSafeInteger(value.controlledTargetCount) &&
     Number(value.controlledTargetCount) >= 0 &&
     HEARTBEAT_FRESHNESS.has(value.heartbeatFreshness as ControlHeartbeatFreshness) &&

@@ -76,6 +76,14 @@ function delay(milliseconds: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, milliseconds));
 }
 
+async function waitForCondition(predicate: () => boolean, timeoutMs = 2_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while (!predicate()) {
+    if (Date.now() >= deadline) throw new Error('Timed out waiting for test condition');
+    await delay(1);
+  }
+}
+
 async function createRelaySession(
   relay: BrowserRelay,
   sessionLabel = 'test-session',
@@ -279,21 +287,15 @@ test('implements the browser-level target handshake with lazy debugger attachmen
   }
 });
 
-test('synthesizes create, activate, update, and close target lifecycle', async () => {
-  const created = target('target-created', 'about:blank', true);
+test('keeps create, activate, and bring-to-front in the Agent background', async () => {
+  const created = target('target-created', 'about:blank');
+  const extensionMessages: HostToExtensionMessage[] = [];
   const relay = await BrowserRelay.listen({
     sendToExtension: message => {
+      extensionMessages.push(message);
       if (message.type !== 'cdp.target.request') return;
       queueMicrotask(() => {
         if (message.operation.kind === 'create') {
-          void relay.handleExtensionMessage({
-            type: 'cdp.target.result',
-            protocol: PANERELAY_PROTOCOL_VERSION,
-            requestId: message.requestId,
-            success: true,
-            target: created,
-          });
-        } else if (message.operation.kind === 'activate') {
           void relay.handleExtensionMessage({
             type: 'cdp.target.result',
             protocol: PANERELAY_PROTOCOL_VERSION,
@@ -328,6 +330,12 @@ test('synthesizes create, activate, update, and close target lifecycle', async (
       { id: 1, result: { targetId: 'target-created' } },
     );
     assert.deepEqual(
+      extensionMessages
+        .filter(message => message.type === 'cdp.target.request')
+        .map(message => message.operation),
+      [{ kind: 'create', url: 'about:blank', active: false }],
+    );
+    assert.deepEqual(
       await command(client, {
         id: 2,
         method: 'Target.activateTarget',
@@ -335,9 +343,36 @@ test('synthesizes create, activate, update, and close target lifecycle', async (
       }),
       { id: 2, result: {} },
     );
+    assert.deepEqual(
+      extensionMessages
+        .filter(message => message.type === 'cdp.target.request')
+        .map(message => message.operation),
+      [{ kind: 'create', url: 'about:blank', active: false }],
+    );
+
+    const attach = await command(client, {
+      id: 3,
+      method: 'Target.attachToTarget',
+      params: { targetId: 'target-created', flatten: true },
+    });
+    const pageSessionId = (attach.result as { sessionId: string }).sessionId;
+    assert.deepEqual(
+      await command(client, {
+        id: 4,
+        method: 'Page.bringToFront',
+        sessionId: pageSessionId,
+      }),
+      { id: 4, result: {}, sessionId: pageSessionId },
+    );
+    assert.equal(
+      extensionMessages.some(
+        message => message.type === 'cdp.attach' || message.type === 'cdp.command',
+      ),
+      false,
+    );
 
     await command(client, {
-      id: 3,
+      id: 5,
       method: 'Target.setDiscoverTargets',
       params: { discover: true },
     });
@@ -356,18 +391,18 @@ test('synthesizes create, activate, update, and close target lifecycle', async (
           type: 'page',
           title: 'Ready',
           url: 'https://example.test/ready',
-          attached: false,
+          attached: true,
         },
       },
     });
 
     assert.deepEqual(
       await command(client, {
-        id: 4,
+        id: 6,
         method: 'Target.closeTarget',
         params: { targetId: 'target-created' },
       }),
-      { id: 4, result: { success: true } },
+      { id: 6, result: { success: true } },
     );
   } finally {
     await closeClient(client);
@@ -760,28 +795,33 @@ test('keeps browser-process and cookie commands inside the authorized target bou
   }
 });
 
-test('rejects invalid credentials and keeps relay sessions exclusive', async () => {
+test('rejects invalid credentials and keeps relay participants independently releasable', async () => {
+  const extensionMessages: HostToExtensionMessage[] = [];
   const relay = await BrowserRelay.listen({
-    sendToExtension: () => undefined,
+    sendToExtension: message => extensionMessages.push(message),
     onBrowserRegistered: () => undefined,
     onBrowserDisconnected: () => undefined,
   });
   await register(relay);
   let invalidClient: WebSocket | null = null;
+  let staleClient: WebSocket | null = null;
+  let firstClient: WebSocket | null = null;
+  let secondClient: WebSocket | null = null;
   try {
     const firstSession = await createRelaySession(relay, 'first-session');
-    const conflict = await fetch(`http://127.0.0.1:${relay.port}/sessions`, {
-      method: 'POST',
-      headers: {
-        authorization: `Bearer ${relay.token}`,
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        protocol: PANERELAY_PROTOCOL_VERSION,
-        actor: { kind: 'automation', name: 'agent-browser', sessionLabel: 'conflict' },
-      }),
-    });
-    assert.equal(conflict.status, 409);
+    const secondSession = await createRelaySession(relay, 'second-session');
+    firstClient = new WebSocket(firstSession.cdpUrl);
+    secondClient = new WebSocket(secondSession.cdpUrl);
+    await Promise.all([waitForOpen(firstClient), waitForOpen(secondClient)]);
+    assert.equal((await command(secondClient, { id: 1, method: 'Browser.getVersion' })).id, 1);
+    assert.ok(
+      extensionMessages.some(
+        message =>
+          message.type === 'control.session.changed' &&
+          message.session.participantCount === 2 &&
+          message.session.actor.sessionLabel === 'second-session',
+      ),
+    );
 
     const invalidUrl = new URL(firstSession.cdpUrl);
     invalidUrl.searchParams.set('token', 'wrong');
@@ -794,8 +834,295 @@ test('rejects invalid credentials and keeps relay sessions exclusive', async () 
       code: 1008,
       reason: 'Invalid Panerelay session token',
     });
+
+    const release = await fetch(
+      `http://127.0.0.1:${relay.port}/sessions/${encodeURIComponent(secondSession.sessionId)}`,
+      {
+        method: 'DELETE',
+        headers: { authorization: `Bearer ${relay.token}` },
+      },
+    );
+    assert.equal(release.status, 204);
+    assert.equal((await command(firstClient, { id: 2, method: 'Browser.getVersion' })).id, 2);
+    assert.ok(
+      extensionMessages.some(
+        message =>
+          message.type === 'control.session.changed' &&
+          message.session.participantCount === 1 &&
+          message.session.actor.sessionLabel === 'first-session',
+      ),
+    );
+
+    staleClient = new WebSocket(secondSession.cdpUrl);
+    assert.deepEqual(await waitForClose(staleClient), {
+      code: 1008,
+      reason: 'Invalid Panerelay session token',
+    });
   } finally {
     if (invalidClient) await closeClient(invalidClient);
+    if (staleClient) await closeClient(staleClient);
+    if (firstClient) await closeClient(firstClient);
+    if (secondClient) await closeClient(secondClient);
+    await relay.close();
+  }
+});
+
+test('reuses target attachments and serializes commands across relay participants', async () => {
+  const fixtureTarget = target('target-shared', 'https://shared.test/', true);
+  const extensionMessages: HostToExtensionMessage[] = [];
+  const forwardedCommands: CdpCommandMessage[] = [];
+  let resolveFirstForwarded: (() => void) | undefined;
+  let resolveSecondForwarded: (() => void) | undefined;
+  const firstForwarded = new Promise<void>(resolve => {
+    resolveFirstForwarded = resolve;
+  });
+  const secondForwarded = new Promise<void>(resolve => {
+    resolveSecondForwarded = resolve;
+  });
+  const relay = await BrowserRelay.listen({
+    sendToExtension: message => {
+      extensionMessages.push(message);
+      if (message.type === 'cdp.target.request' && message.operation.kind === 'list') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.target.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            targets: [fixtureTarget],
+          });
+        });
+      } else if (message.type === 'cdp.attach') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.attached',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            target: { ...fixtureTarget, attached: true },
+          });
+        });
+      } else if (message.type === 'cdp.command') {
+        forwardedCommands.push(message);
+        if (forwardedCommands.length === 1) resolveFirstForwarded?.();
+        if (forwardedCommands.length === 2) resolveSecondForwarded?.();
+      }
+    },
+    onBrowserRegistered: () => undefined,
+    onBrowserDisconnected: () => undefined,
+  });
+  await register(relay);
+
+  const firstSession = await createRelaySession(relay, 'first-participant');
+  const secondSession = await createRelaySession(relay, 'second-participant');
+  const firstClient = new WebSocket(firstSession.cdpUrl);
+  const secondClient = new WebSocket(secondSession.cdpUrl);
+  try {
+    await Promise.all([waitForOpen(firstClient), waitForOpen(secondClient)]);
+    await Promise.all([
+      command(firstClient, { id: 1, method: 'Target.getTargets' }),
+      command(secondClient, { id: 1, method: 'Target.getTargets' }),
+    ]);
+    const [firstAttached, secondAttached] = await Promise.all([
+      command(firstClient, {
+        id: 2,
+        method: 'Target.attachToTarget',
+        params: { targetId: fixtureTarget.targetId, flatten: true },
+      }),
+      command(secondClient, {
+        id: 2,
+        method: 'Target.attachToTarget',
+        params: { targetId: fixtureTarget.targetId, flatten: true },
+      }),
+    ]);
+    const firstPageSession = (firstAttached.result as { sessionId: string }).sessionId;
+    const secondPageSession = (secondAttached.result as { sessionId: string }).sessionId;
+    assert.notEqual(firstPageSession, secondPageSession);
+
+    const firstResult = command(firstClient, {
+      id: 3,
+      method: 'Runtime.evaluate',
+      sessionId: firstPageSession,
+      params: { expression: '1' },
+    });
+    await firstForwarded;
+    const secondResult = command(secondClient, {
+      id: 3,
+      method: 'Runtime.evaluate',
+      sessionId: secondPageSession,
+      params: { expression: '2' },
+    });
+    await delay(20);
+    assert.equal(forwardedCommands.length, 1);
+
+    const firstCommand = forwardedCommands[0];
+    assert.ok(firstCommand);
+    await relay.handleExtensionMessage({
+      type: 'cdp.result',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      requestId: firstCommand.requestId,
+      result: { value: 'first' },
+    });
+    assert.deepEqual(await firstResult, {
+      id: 3,
+      result: { value: 'first' },
+      sessionId: firstPageSession,
+    });
+
+    await secondForwarded;
+    const secondCommand = forwardedCommands[1];
+    assert.ok(secondCommand);
+    await relay.handleExtensionMessage({
+      type: 'cdp.result',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      requestId: secondCommand.requestId,
+      result: { value: 'second' },
+    });
+    assert.deepEqual(await secondResult, {
+      id: 3,
+      result: { value: 'second' },
+      sessionId: secondPageSession,
+    });
+
+    assert.equal(extensionMessages.filter(message => message.type === 'cdp.attach').length, 1);
+    const firstRelease = await fetch(
+      `http://127.0.0.1:${relay.port}/sessions/${encodeURIComponent(firstSession.sessionId)}`,
+      {
+        method: 'DELETE',
+        headers: { authorization: `Bearer ${relay.token}` },
+      },
+    );
+    assert.equal(firstRelease.status, 204);
+    assert.equal(
+      extensionMessages.some(
+        message => message.type === 'cdp.detach' && message.targetId === fixtureTarget.targetId,
+      ),
+      false,
+    );
+    assert.equal((await command(secondClient, { id: 4, method: 'Browser.getVersion' })).id, 4);
+  } finally {
+    await closeClient(firstClient);
+    await closeClient(secondClient);
+    await relay.close();
+  }
+});
+
+test('cancels queued target work when its participant disconnects without blocking others', async () => {
+  const fixtureTarget = target('target-queued', 'https://queued.test/', true);
+  const forwardedCommands: CdpCommandMessage[] = [];
+  const relay = await BrowserRelay.listen({
+    sendToExtension: message => {
+      if (message.type === 'cdp.target.request' && message.operation.kind === 'list') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.target.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            targets: [fixtureTarget],
+          });
+        });
+      } else if (message.type === 'cdp.attach') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.attached',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            target: { ...fixtureTarget, attached: true },
+          });
+        });
+      } else if (message.type === 'cdp.command') {
+        forwardedCommands.push(message);
+      }
+    },
+    onBrowserRegistered: () => undefined,
+    onBrowserDisconnected: () => undefined,
+  });
+  await register(relay);
+
+  const firstSession = await createRelaySession(relay, 'queue-owner');
+  const secondSession = await createRelaySession(relay, 'queue-waiter');
+  const firstClient = new WebSocket(firstSession.cdpUrl);
+  const secondClient = new WebSocket(secondSession.cdpUrl);
+  try {
+    await Promise.all([waitForOpen(firstClient), waitForOpen(secondClient)]);
+    await Promise.all([
+      command(firstClient, { id: 1, method: 'Target.getTargets' }),
+      command(secondClient, { id: 1, method: 'Target.getTargets' }),
+    ]);
+    const firstAttached = await command(firstClient, {
+      id: 2,
+      method: 'Target.attachToTarget',
+      params: { targetId: fixtureTarget.targetId, flatten: true },
+    });
+    const secondAttached = await command(secondClient, {
+      id: 2,
+      method: 'Target.attachToTarget',
+      params: { targetId: fixtureTarget.targetId, flatten: true },
+    });
+    const firstPageSession = (firstAttached.result as { sessionId: string }).sessionId;
+    const secondPageSession = (secondAttached.result as { sessionId: string }).sessionId;
+
+    const firstResult = command(firstClient, {
+      id: 3,
+      method: 'Runtime.evaluate',
+      sessionId: firstPageSession,
+      params: { expression: '1' },
+    });
+    await waitForCondition(() => forwardedCommands.length >= 1);
+    secondClient.send(
+      JSON.stringify({
+        id: 3,
+        method: 'Runtime.evaluate',
+        sessionId: secondPageSession,
+        params: { expression: '2' },
+      }),
+    );
+    await delay(20);
+    assert.equal(forwardedCommands.length, 1);
+    const release = await fetch(
+      `http://127.0.0.1:${relay.port}/sessions/${encodeURIComponent(secondSession.sessionId)}`,
+      {
+        method: 'DELETE',
+        headers: { authorization: `Bearer ${relay.token}` },
+      },
+    );
+    assert.equal(release.status, 204);
+
+    const ownerCommand = forwardedCommands[0];
+    assert.ok(ownerCommand);
+    await relay.handleExtensionMessage({
+      type: 'cdp.result',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      requestId: ownerCommand.requestId,
+      result: { value: 'owner' },
+    });
+    assert.deepEqual(await firstResult, {
+      id: 3,
+      result: { value: 'owner' },
+      sessionId: firstPageSession,
+    });
+
+    const nextResult = command(firstClient, {
+      id: 4,
+      method: 'Runtime.evaluate',
+      sessionId: firstPageSession,
+      params: { expression: '3' },
+    });
+    await waitForCondition(() => forwardedCommands.length >= 2);
+    const nextCommand = forwardedCommands[1];
+    assert.ok(nextCommand);
+    await relay.handleExtensionMessage({
+      type: 'cdp.result',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      requestId: nextCommand.requestId,
+      result: { value: 'next' },
+    });
+    assert.equal((await nextResult).id, 4);
+  } finally {
+    await closeClient(firstClient);
+    await closeClient(secondClient);
     await relay.close();
   }
 });
@@ -1098,6 +1425,42 @@ test('keeps a session live while any authenticated transport responds to heartbe
     assert.equal((await command(responsiveClient, { id: 1, method: 'Browser.getVersion' })).id, 1);
   } finally {
     await closeClient(unresponsiveClient);
+    await closeClient(responsiveClient);
+    await relay.close();
+  }
+});
+
+test('expires only an unresponsive participant while preserving a responsive participant', async () => {
+  const extensionMessages: HostToExtensionMessage[] = [];
+  const relay = await BrowserRelay.listen({
+    sendToExtension: message => extensionMessages.push(message),
+    onBrowserRegistered: () => undefined,
+    onBrowserDisconnected: () => undefined,
+    heartbeatIntervalMs: 10,
+    heartbeatTimeoutMs: 35,
+  });
+  await register(relay);
+  const staleSession = await createRelaySession(relay, 'stale-participant');
+  const responsiveSession = await createRelaySession(relay, 'responsive-participant');
+  const staleClient = new WebSocket(staleSession.cdpUrl, { autoPong: false });
+  const responsiveClient = new WebSocket(responsiveSession.cdpUrl);
+  try {
+    await Promise.all([waitForOpen(staleClient), waitForOpen(responsiveClient)]);
+    assert.deepEqual(await waitForClose(staleClient), {
+      code: 1011,
+      reason: 'Automation participant heartbeat expired',
+    });
+    assert.equal((await command(responsiveClient, { id: 1, method: 'Browser.getVersion' })).id, 1);
+    assert.ok(
+      extensionMessages.some(
+        message =>
+          message.type === 'control.session.changed' &&
+          message.session.participantCount === 1 &&
+          message.session.actor.sessionLabel === 'responsive-participant',
+      ),
+    );
+  } finally {
+    await closeClient(staleClient);
     await closeClient(responsiveClient);
     await relay.close();
   }

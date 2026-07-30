@@ -22,6 +22,7 @@ const session: ControlSessionSummary = {
   id: 'relay-session',
   actor,
   state: 'active',
+  participantCount: 2,
   controlledTargetCount: 1,
   heartbeatFreshness: 'fresh',
   lastHeartbeatAt: '2026-07-29T12:00:00.000Z',
@@ -153,6 +154,16 @@ test('rejects malformed or inconsistent activity envelopes', () => {
       epoch: 'epoch-1',
       sequence: 1,
       session: { ...session, rawTabId: 42 },
+    }),
+    false,
+  );
+  assert.equal(
+    isControlSessionChangedMessage({
+      type: 'control.session.changed',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      epoch: 'epoch-1',
+      sequence: 1,
+      session: { ...session, participantCount: -1 },
     }),
     false,
   );

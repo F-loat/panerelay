@@ -153,6 +153,17 @@ function activityStatus(
   return 'running';
 }
 
+function failedToolDetail(update: acp.ToolCall | acp.ToolCallUpdate): string | undefined {
+  if (update.status !== 'failed') return undefined;
+  const detail = (update.content ?? [])
+    .flatMap(item =>
+      item.type === 'content' && item.content.type === 'text' ? [item.content.text.trim()] : [],
+    )
+    .filter(Boolean)
+    .join('\n');
+  return detail ? bounded(detail, MAX_DELTA_CHARS) : undefined;
+}
+
 function qoderBrowserSession(
   config: PanerelayRuntimeConfig,
   sessionLabel: string,
@@ -817,7 +828,8 @@ export class QoderProvider implements AgentProvider {
         });
         return;
       case 'tool_call':
-      case 'tool_call_update':
+      case 'tool_call_update': {
+        const detail = failedToolDetail(update);
         this.emit({
           kind: 'activity.updated',
           conversationId,
@@ -826,10 +838,12 @@ export class QoderProvider implements AgentProvider {
             id: update.toolCallId,
             kind: activityKind(update),
             title: bounded(update.title || 'Qoder tool', 256),
+            ...(detail ? { detail } : {}),
             status: activityStatus(update.status),
           },
         });
         return;
+      }
       case 'plan':
         this.emit({
           kind: 'activity.updated',

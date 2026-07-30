@@ -62,6 +62,22 @@ test('turns target creation authorization failures into Extension guidance', asy
   );
 });
 
+test('keeps Agent-created and selected targets in the background', async () => {
+  const source = await readFile(join(process.cwd(), 'src/background/index.ts'), 'utf8');
+  const targetRequestHandler = source.slice(
+    source.indexOf('async function handleTargetRequest'),
+    source.indexOf('async function attachTarget'),
+  );
+
+  assert.match(targetRequestHandler, /chrome\.tabs\.create\(\{ url, active: false \}\)/);
+  assert.doesNotMatch(targetRequestHandler, /chrome\.tabs\.update/);
+  assert.doesNotMatch(targetRequestHandler, /chrome\.windows\.update/);
+  assert.match(
+    targetRequestHandler,
+    /case 'activate':[\s\S]*targetInfo\(await tabForTarget\(message\.operation\.targetId\)\)/,
+  );
+});
+
 test('validates controlled-tab membership before activating or closing a Chrome tab', async () => {
   const source = await readFile(join(process.cwd(), 'src/background/index.ts'), 'utf8');
   const controlledActions = source.slice(

@@ -405,6 +405,7 @@ export interface RelaySessionCreateRequest {
 
 export interface RelaySessionCreated {
   protocol: typeof PANERELAY_PROTOCOL_VERSION;
+  /** Opaque participant identifier used to release only this Provider connection. */
   sessionId: string;
   cdpUrl: string;
   connectExpiresAt: string;

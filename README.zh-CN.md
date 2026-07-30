@@ -9,7 +9,9 @@ Panerelay 是连接 AI Agent 与用户现有 Chrome 会话的开源本地桥梁�
 1. **让 Agent 直接控制你的 Chrome。** 任何能通过 CLI 或 MCP 调用 [agent-browser](https://github.com/vercel-labs/agent-browser) 的 Agent，都可以使用当前浏览器 Profile 和登录态控制你授权的标签页，无需启动独立浏览器、重复登录或导出 Cookie。
 2. **把本地 Agent 带进 Chrome 侧边栏。** 完成一次 Panerelay 安装后，扩展会自动发现支持的本地 Agent，并提供浏览器原生的对话、会话历史、审批、活动展示和立即释放控制。
 
-登录凭证始终留在 Chrome 中；Panerelay 只操作你明确授权的标签页。
+登录凭证始终留在 Chrome 中；Panerelay 只操作你明确授权的标签页。Agent 选择和操作后台标签页时，不会切走你当前正在浏览的 Chrome 标签页。
+
+![Panerelay](https://github.com/user-attachments/assets/a54dfbaa-1c9f-45a3-b3ab-aa2e6ec4a5f6)
 
 ## 工作方式
 

@@ -231,6 +231,56 @@ test('normalizes streaming, activity, completion, and approval events', async ()
   });
   assert.equal(events[3]?.kind, 'approval.requested');
 
+  handlers().onNotification({
+    method: 'item/completed',
+    params: {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      item: {
+        type: 'mcpToolCall',
+        id: 'tool-1',
+        server: 'panerelay_browser',
+        tool: 'agent_browser_snapshot',
+        status: 'failed',
+        error: {
+          message: 'CDP error (Target.createTarget): all-tabs authorization is required',
+        },
+      },
+    },
+  });
+  assert.deepEqual(events[4], {
+    kind: 'activity.updated',
+    conversationId: 'thread-1',
+    turnId: 'turn-1',
+    activity: {
+      id: 'tool-1',
+      kind: 'browser',
+      title: 'panerelay_browser · agent_browser_snapshot',
+      detail: 'CDP error (Target.createTarget): all-tabs authorization is required',
+      status: 'failed',
+    },
+  });
+  handlers().onNotification({
+    method: 'item/completed',
+    params: {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      item: {
+        type: 'mcpToolCall',
+        id: 'tool-bounded',
+        server: 'panerelay_browser',
+        tool: 'agent_browser_snapshot',
+        status: 'failed',
+        error: { message: 'x'.repeat(9_000) },
+      },
+    },
+  });
+  const boundedFailure = events[5];
+  assert.equal(boundedFailure?.kind, 'activity.updated');
+  if (boundedFailure?.kind === 'activity.updated') {
+    assert.equal(boundedFailure.activity.detail?.length, 8 * 1024);
+  }
+
   await provider.handle({
     method: 'conversation.respond',
     providerId: 'codex',

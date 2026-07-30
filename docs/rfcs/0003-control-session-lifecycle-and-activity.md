@@ -9,18 +9,18 @@
 
 ## Summary
 
-Panerelay will make external browser control observable as a first-class, provider-neutral control session. The Bridge will maintain lease liveness with authenticated WebSocket heartbeat, expire unresponsive sessions, and emit a bounded stream of sanitized activity events. The Extension side panel will show the current external actor, controlled-target count, lease state, and recent action categories while keeping immediate release available.
+Panerelay will make external browser control observable as one provider-neutral browser control lease with bounded, independently authenticated relay participants. The Bridge maintains per-participant liveness with authenticated WebSocket heartbeat, expires unresponsive participants, serializes target-scoped command lifecycles, and emits a bounded stream of participant-attributed sanitized activity events. The Extension side panel shows the current external actor, participant count, controlled-target count, lease state, and recent action categories while keeping immediate release available through browser authorization.
 
-This RFC implements the activity and liveness foundation needed before browser-context sharing or control handoff. It does not introduce multiple concurrent mutation owners, persistent surveillance, or a raw CDP audit log.
+This RFC implements the activity, liveness, and participant-isolation foundation needed before browser-context sharing or human control handoff. It does not introduce overlapping target mutation, persistent surveillance, or a raw CDP audit log.
 
 ## Motivation
 
-RFC-0001 requires leases to have an owner, expiration, heartbeat, visible activity, and immediate revocation. The current development build enforces exclusive sessions and disconnect cleanup, but the Provider allocation expiry only limits the initial connection window. A connected transport can otherwise retain the lease indefinitely, and the side panel cannot explain what an external agent is doing beyond Chrome's debugger indicator.
+RFC-0001 requires leases to have ownership, expiration, heartbeat, visible activity, and immediate revocation. A single Provider allocation cannot represent independently scoped side-panel and external Agent work: sharing one credential leaks lifecycle and refs, while rejecting later allocations forces users to release working browser control manually. Participants provide isolated credentials and state while reusing only the already-authorized browser lease and debugger attachments.
 
 This foundation was insufficient for a public release until the activity and liveness work below was implemented. Users need an answer to four questions without exposing sensitive browser data:
 
 1. Is an external Agent connected?
-2. Which actor owns control?
+2. Which actor most recently used control, and how many Agents are connected?
 3. Is it currently reading, navigating, interacting, or diagnosing?
 4. Did the session finish, fail, expire, or get released?
 
@@ -28,9 +28,9 @@ This foundation was insufficient for a public release until the activity and liv
 
 ### Goals
 
-1. Give every active automation lease a visible actor and lifecycle state.
-2. Renew lease liveness only through authenticated CDP transports.
-3. Expire the lease when every transport becomes unresponsive and detach every controlled target.
+1. Give every active automation lease a visible current actor, participant count, and lifecycle state.
+2. Renew participant liveness only through its authenticated CDP transports.
+3. Expire only an unresponsive participant while preserving responsive participants, and detach every controlled target when the last participant ends.
 4. Emit coarse action lifecycle events with stable sequencing and bounded retention.
 5. Show external-agent activity and history gaps in the side panel.
 6. Preserve agent-browser 0.33.0 as the minimum supported baseline without requiring changes to its CLI or daemon.
@@ -38,7 +38,7 @@ This foundation was insufficient for a public release until the activity and liv
 ### Non-goals
 
 1. Transfer control between external and side-panel Agents.
-2. Permit multiple concurrent mutation owners or shared observation.
+2. Permit overlapping target-scoped mutations without deterministic serialization.
 3. Store a durable, cross-browser, or cloud audit history.
 4. Record raw CDP params/results, URLs, page text, screenshots, prompts, cookies, credentials, headers, request bodies, storage values, or local file paths.
 5. Infer user intent or classify whether an operation is safe.
@@ -46,17 +46,18 @@ This foundation was insufficient for a public release until the activity and liv
 
 ## Terminology
 
-- **Control session**: the Bridge-owned automation lease allocated to one external Agent actor.
-- **Transport**: an authenticated WebSocket connection belonging to a control session.
+- **Control lease**: the Bridge-owned Panerelay automation lease for one authorized browser.
+- **Relay participant**: one independently authenticated Agent allocation inside the control lease.
+- **Transport**: an authenticated WebSocket connection belonging to one relay participant.
 - **Heartbeat**: a Bridge WebSocket ping acknowledged by a transport pong.
 - **Activity**: one sanitized lifecycle record derived from an Agent CDP command.
 - **Activity epoch**: an opaque identifier for one in-memory activity history. A changed epoch tells the UI that earlier history is unavailable.
 
 ## Proposed design
 
-### Control-session states
+### Control-lease states
 
-A session moves through these states:
+A lease moves through these states:
 
 ```text
 allocated -> connected -> active -> released
@@ -64,30 +65,36 @@ allocated -> connected -> active -> released
                            \-> failed
 ```
 
-- `allocated`: the Provider received a short-lived CDP credential, but no transport connected.
-- `connected`: at least one authenticated transport is responsive.
+- `allocated`: at least one participant received a short-lived CDP credential, but no transport connected.
+- `connected`: at least one participant has a responsive authenticated transport.
 - `active`: one or more authorized targets are attached or a CDP command is in flight.
-- `released`: the Provider, client disconnect, or user explicitly released control.
-- `expired`: the allocation window elapsed unused, or every connected transport missed the heartbeat deadline.
+- `released`: the last Provider participant, last client disconnect, or user explicitly released control.
+- `expired`: every participant allocation or connected transport expired.
 - `failed`: the Extension or Bridge lost the ability to maintain the session.
 
-Terminal sessions never revive. A reconnect after release, expiry, failure, or Bridge restart requires a newly allocated session ID and credential.
+Terminal leases never revive. Each participant ID and credential also becomes permanently stale after its release or expiry. A responsive participant keeps the lease alive without reviving another participant.
 
 ### Heartbeat and expiry
 
 The Bridge sends WebSocket ping frames to every control transport at a fixed interval. The `ws` client used by agent-browser responds at the protocol layer without an agent-browser change.
 
-Each transport records its most recent authenticated command, connection, or pong time. A session remains live while at least one transport is responsive. When every transport exceeds the heartbeat deadline, the Bridge:
+Each transport records its most recent authenticated command, connection, or pong time. A participant remains live while at least one of its transports is responsive. When every transport for one participant exceeds the heartbeat deadline, the Bridge removes that participant, closes its transports, rejects its queued and pending work, and removes its virtual CDP sessions. Other participants and their referenced target attachments remain active.
 
-1. marks the session expired;
-2. closes all session transports;
+When the final participant ends, the Bridge:
+
+1. marks the lease expired;
+2. closes all remaining transports;
 3. rejects pending target and CDP operations;
 4. instructs the Extension to detach all controlled targets;
-5. emits a terminal control-session status.
+5. emits a terminal control-lease status.
 
-The existing Provider `connectExpiresAt` remains only the unused allocation window. Heartbeat expiry starts after the first transport connects.
+The existing Provider `connectExpiresAt` remains only that participant's unused allocation window. Heartbeat expiry starts after its first transport connects.
 
 Heartbeat intervals and deadlines are internal bounded constants in the first implementation. They are not user-configurable until compatibility evidence shows a need.
+
+### Target scheduling and isolation
+
+Every participant receives its own opaque credential, transport set, virtual flattened page sessions, pending command correlation, and cleanup boundary. Target discovery and the underlying Chrome debugger attachment are lease-wide. The Bridge processes a complete target-scoped command lifecycle FIFO per target and releases the queue on result, failure, timeout, cancellation, or participant cleanup. Different targets may progress independently.
 
 ### Activity classification
 
@@ -108,7 +115,7 @@ Classification is informational and does not authorize a command. Existing autho
 Each activity record contains:
 
 - opaque activity and session IDs;
-- actor name and optional session label;
+- the issuing participant's actor name and optional session label;
 - opaque target ID when a target is involved;
 - category and a user-facing action label;
 - `started`, `completed`, `failed`, or `denied` status;
@@ -127,13 +134,14 @@ Every stream has an opaque epoch and increasing sequence number. On registration
 
 The side panel's browser-access settings panel adds an external-control section that shows:
 
-- connected Agent name and optional session label;
+- most recently active Agent name and optional session label;
+- connected participant count when more than one Agent is present;
 - `Connected`, `Active`, `Expired`, `Released`, or `Failed` state;
 - controlled-target count;
 - last heartbeat freshness in coarse human-readable form;
 - recent activity rows with category, label, status, and time;
 - an explicit history-gap row when applicable;
-- the existing immediate release action.
+- browser authorization controls that can immediately release the complete lease.
 
 The panel does not display raw CDP method names, params, results, page URLs, or captured content. Side-panel Codex conversation activity remains a separate stream until handoff is specified.
 
@@ -149,18 +157,18 @@ The shared protocol adds:
 
 The Bridge sends these messages to the Extension over the existing chunked Native Messaging channel. The Extension side panel continues to use `chrome.runtime` messages and does not connect directly to the loopback Bridge.
 
-`RelaySessionActor` remains provider-neutral. The first actor kind is `automation`; future RFCs may add conversation and human principals without reinterpreting existing IDs.
+`RelaySessionActor` remains provider-neutral. `ControlSessionSummary.participantCount` reports the bounded live participant set, while each activity preserves its issuing participant actor. The first actor kind is `automation`; future RFCs may add conversation and human principals without reinterpreting existing IDs.
 
 Protocol identifiers remain opaque. Chrome tab IDs, debugger session IDs, and raw Provider credentials never appear in activity events.
 
 ## Security and privacy
 
 1. Heartbeats prove transport responsiveness, not user intent or operation safety.
-2. Only a transport authenticated to the active control session can renew liveness.
+2. Only a transport authenticated to its relay participant can renew that participant's liveness.
 3. Activity observation never widens Chrome permissions or tab authorization.
 4. Activity events are emitted after the Bridge has associated a command with an authorized virtual target session.
 5. Parameters and results are excluded by construction rather than redacted after logging.
-6. Error summaries use stable Panerelay messages or error classes and exclude arbitrary remote payload data.
+6. Browser activity excludes raw error payloads. Conversation Provider adapters may separately expose bounded documented user-facing failure text in an expandable error disclosure.
 7. Histories are bounded, memory-only, and cleared on browser unregister or Bridge restart.
 8. User release remains available even when activity rendering fails.
 
@@ -170,7 +178,7 @@ agent-browser 0.33.0 remains the initial version-specific evidence baseline and 
 
 Existing Extension builds that do not understand the new message types are incompatible with the updated Bridge protocol package and must be rebuilt as one lockstep Panerelay release. A future protocol revision will require additive version negotiation.
 
-RFC-0001 and RFC-0002 retain authority over authorization, target routing, and unsupported browser-process operations. This RFC adds liveness and visibility without changing those boundaries.
+RFC-0001 and RFC-0002 retain authority over authorization, target routing, and unsupported browser-process operations. This RFC adds participant isolation, per-target scheduling, liveness, and visibility without widening Chrome permissions.
 
 ## Alternatives considered
 
@@ -193,7 +201,7 @@ Persistence would improve postmortem analysis but requires retention, encryption
 ## Delivery plan
 
 1. Add protocol types and validation for control-session and activity messages.
-2. Add transport heartbeat, lease expiry, and terminal-state tests to the Bridge.
+2. Add per-participant heartbeat, expiry, independent cleanup, target queue, and terminal-state tests to the Bridge.
 3. Classify routed commands and emit correlated activity lifecycle events.
 4. Buffer bounded activity snapshots with epoch and sequence metadata.
 5. Add Extension state and side-panel rendering for external control.
@@ -202,14 +210,16 @@ Persistence would improve postmortem analysis but requires retention, encryption
 ## Acceptance criteria
 
 1. A connected agent-browser transport responds to Bridge heartbeat without an upstream change.
-2. One responsive transport keeps a multi-transport lease alive.
-3. When every transport misses the deadline, the lease expires and every debugger attachment is detached.
-4. User release and normal Provider cleanup remain immediate.
-5. Started commands emit one sanitized activity with a correlated terminal status.
-6. Activity events contain no raw params, results, page content, URLs, cookies, credentials, headers, prompts, request bodies, storage values, or file paths.
-7. The side panel displays current external actor, lease state, controlled-target count, and recent activity.
-8. A changed epoch or sequence discontinuity produces a visible history-gap notice.
-9. Bridge, Extension, protocol, and real-browser acceptance tests pass.
+2. One responsive transport keeps its participant alive.
+3. An unresponsive participant expires without disrupting a responsive participant.
+4. When the final participant ends, the lease expires and every debugger attachment is detached.
+5. User release and normal Provider cleanup remain immediate and participant-scoped where applicable.
+6. Two participants receive isolated virtual sessions and serialized target command lifecycles.
+7. Started commands emit one participant-attributed sanitized activity with a correlated terminal status.
+8. Activity events contain no raw params, results, page content, URLs, cookies, credentials, headers, prompts, request bodies, storage values, or file paths.
+9. The side panel displays current external actor, participant count, lease state, controlled-target count, and recent activity.
+10. A changed epoch or sequence discontinuity produces a visible history-gap notice.
+11. Bridge, Extension, protocol, and real-browser acceptance tests pass.
 
 ## Implementation evidence
 
@@ -221,6 +231,8 @@ The 2026-07-29 development build was verified with agent-browser 0.33.0, the unp
 - The browser-access settings panel showed the actor and session label, active target count, healthy heartbeat, localized completed activity rows, and the immediate release action. The chat timeline remained free of external-control activity.
 - Closing the agent-browser session released the control session, and the local fixture process and temporary inspection window were removed after verification.
 - `pnpm run check` and `git diff --check` cover heartbeat expiry, multiple transports, pending command races, explicit user release, stale reconnect rejection, activity correlation, bounded replay, history gaps, light/dark rendering structure, and sensitive-value exclusion.
+
+The 2026-07-30 participant-reuse run installed the updated Native Host into the same daily Chrome profile and kept the existing browser authorization. Two independently named agent-browser 0.33.0 sessions simultaneously listed the same eight eligible tabs and concurrently read the title of the same GitHub target. Closing the first participant left the second usable; closing the second completed normally. Deterministic Bridge tests additionally cover a stale participant expiring without affecting a responsive participant, shared target attachment reuse, per-target FIFO forwarding, and queued-command cancellation.
 
 The real-browser run does not deliberately suppress automatic WebSocket pong traffic, restart the Bridge during control, or inject arbitrary CDP failures into the daily profile. Expiry, replay-gap, and failed/denied states therefore remain deterministic automated-test evidence rather than daily-Chrome mutation scenarios.
 

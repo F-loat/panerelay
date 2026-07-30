@@ -9,7 +9,7 @@
 
 ## Summary
 
-Panerelay will expose a browser-level Chrome DevTools Protocol endpoint to agent-browser while continuing to attach Chrome's debugger only to authorized tabs. The Bridge synthesizes browser target discovery and lifecycle, maps opaque CDP target and session identifiers, and forwards page-scoped commands through the Extension.
+Panerelay will expose a browser-level Chrome DevTools Protocol endpoint to agent-browser while continuing to attach Chrome's debugger only to authorized tabs. The Bridge synthesizes browser target discovery and lifecycle, maps opaque CDP target and session identifiers, forwards page-scoped commands through the Extension, and virtualizes foreground activation so Agent tab selection does not steal the user's visible Chrome focus.
 
 The minimum supported and initial version-specific verified baseline is agent-browser 0.33.0. Newer versions satisfy the version floor but require their own evidence before inheriting `Verified` classifications. Panerelay targets broad support for normal browser automation without claiming that an Extension connection is equivalent to a Chrome process launched and owned by agent-browser.
 
@@ -22,7 +22,7 @@ Panerelay needs browser-level semantics to cover agent-browser's normal tab mode
 ## Goals
 
 1. Return a normal browser-level CDP endpoint from the Panerelay Provider.
-2. Support target discovery, create, attach, activate, close, and lifecycle events.
+2. Support target discovery, background create, attach, logical activate, close, and lifecycle events.
 3. Support stable agent-browser tab IDs and labels without exposing Chrome tab IDs.
 4. Route flattened iframe and worker sessions through the owning authorized tab.
 5. Keep debugger attachment lazy so merely listing daily-browser tabs does not attach every tab.
@@ -36,7 +36,7 @@ Panerelay needs browser-level semantics to cover agent-browser's normal tab mode
 3. Create truly isolated Chrome browser contexts or incognito profiles.
 4. Apply process startup flags, proxies, extensions, profiles, or executables after Chrome started.
 5. Claim operating-system network containment from Extension permissions.
-6. Permit concurrent mutation by multiple relay sessions.
+6. Permit overlapping target-scoped mutation without deterministic serialization.
 
 ## Target model
 
@@ -47,6 +47,7 @@ The Extension owns a session-local map between Chrome tab IDs and random opaque 
 - `chrome://`, `chrome-extension://`, DevTools, and other browser-internal pages are not exposed.
 - An all-tabs session may create `about:blank` tabs and navigate them to granted web origins.
 - A single-tab session cannot create additional tabs.
+- Agent-created tabs open with `active: false`. Agent target selection is participant-local and does not change Chrome's user-visible active tab or focused window.
 
 The active eligible tab is returned first. agent-browser attaches a flattened CDP session to every reported page during initialization, but Panerelay treats those as virtual Bridge sessions. `chrome.debugger.attach` occurs only when the first target-scoped command reaches a tab.
 
@@ -67,6 +68,8 @@ The Bridge synthesizes:
 
 The Extension reports tab creation, metadata changes, and removal. The Bridge translates them to `Target.targetCreated`, `Target.targetInfoChanged`, and `Target.targetDestroyed`.
 
+`Target.activateTarget` acknowledges agent-browser's logical selection without calling `chrome.tabs.update` or `chrome.windows.update`. Page-scoped `Page.bringToFront` similarly returns success without foregrounding Chrome or attaching the target solely for activation. Page reads, navigation, DOM focus, keyboard, mouse, and other explicitly requested automation continue to execute against the participant's selected authorized target in the background.
+
 `Target.createBrowserContext`, non-flattened sessions, and unsupported Target operations return explicit CDP errors.
 
 ## Session routing
@@ -81,13 +84,15 @@ The Bridge maps page sessions to targets. The Extension forwards the `sessionId`
 
 agent-browser normally requests page-scoped auto-attach with `waitForDebuggerOnStart: true`. Panerelay keeps flattened child discovery enabled but forwards that request with waiting disabled. This prevents a newly navigated renderer from remaining paused when the Extension cannot establish the same browser-process-wide interception guarantees. Panerelay still rejects the equivalent top-level request instead of claiming `--allowed-domains` containment.
 
-Identifiers are discarded when the target, transport, lease, Extension, or Bridge disconnects.
+Virtual page and child-session identifiers are participant-local and discarded when their target, transport, participant, lease, Extension, or Bridge disconnects.
 
 ## Ownership and visibility
 
-One relay session retains the exclusive automation lease. It may lazily attach multiple authorized targets under that lease. The Extension action badge reports the number of controlled tabs. Each attached page temporarily uses the agent-browser favicon with a green control-status dot after an Agent command touches its current document. Navigation or refresh restores the new document's page-owned favicon; the next target-scoped Agent command reapplies the indicator. Normal target detach and lease release restore the page-owned favicon when the marked document survives. This favicon is a document-local activity cue, not the authoritative lease state. The side panel reports the controlled-tab count and keeps immediate release available. Releasing authorization detaches all controlled targets and invalidates every connection credential.
+One exclusive Panerelay automation lease may contain bounded, independently authenticated relay participants. Participants reuse the lease-wide target inventory and Chrome debugger attachment, but receive distinct flattened page sessions, pending-command correlation, logical target selection, heartbeat, and cleanup. Complete target-scoped command lifecycles are processed FIFO per target, so two participants never forward overlapping commands to the same target. Releasing one participant preserves a target attachment while another participant still references it; releasing authorization detaches every controlled target and invalidates every participant credential.
 
-A debugger displacement or target-specific authorization failure clears the affected debugger attachment without invalidating unrelated targets. A normal agent-requested target close removes only that target. Releasing browser authorization revokes the complete relay session.
+The Extension action badge reports the number of controlled tabs. Each attached page temporarily uses the agent-browser favicon with a green control-status dot after an Agent command touches its current document. Navigation or refresh restores the new document's page-owned favicon; the next target-scoped Agent command reapplies the indicator. Normal target detach and lease release restore the page-owned favicon when the marked document survives. This favicon is a document-local activity cue, not the authoritative lease state. The side panel reports participant and controlled-tab counts and keeps immediate release available through browser authorization.
+
+A debugger displacement or target-specific authorization failure clears the affected debugger attachment without invalidating unrelated targets. A normal agent-requested target close removes only that target. Releasing browser authorization revokes the complete lease and every participant.
 
 ## Compatibility policy
 
@@ -119,12 +124,16 @@ agent-browser creates logical sessions for all discovered page targets. Mirrorin
 
 A normal Chrome window is not an isolated CDP browser context. Returning a synthetic context ID would misrepresent cookie, storage, cache, and network isolation. `window new` remains unsupported until Panerelay can provide honest semantics.
 
+### Activate a tab temporarily and restore the user's prior tab
+
+Temporary foreground activation still flickers, interrupts typing, races with human tab changes, and may restore the wrong tab. Panerelay instead acknowledges Agent activation logically and routes later page commands through the participant's virtual target session.
+
 ## Delivery
 
 1. Add target and child-session fields to the versioned Native Messaging protocol.
 2. Replace the direct-page relay with browser-level target synthesis and lazy debugger attachment.
 3. Return `directPage: false` from the agent-browser Provider.
-4. Cover target handshake, lifecycle, child sessions, credentials, exclusivity, and revocation in Bridge tests.
+4. Cover target handshake, lifecycle, child sessions, participant credentials, target serialization, independent cleanup, and revocation in Bridge tests.
 5. Add real-browser fixtures for tab, popup, page action, network, storage, and diagnostic groups.
 6. Publish the agent-browser 0.33.0 compatibility matrix.
 
@@ -134,7 +143,7 @@ RFC-0002 is implemented when:
 
 1. agent-browser 0.33.0 completes its browser-level connection handshake;
 2. existing authorized tabs appear with stable agent-browser tab IDs;
-3. tab create, switch, list, and close pass in a daily Chrome profile;
+3. tab create, switch, list, and close pass in a daily Chrome profile without Agent selection, foreground requests, or background creation changing the user's visible active tab or focused window;
 4. a popup is discovered and becomes controllable;
 5. existing single-tab actions remain passing;
 6. flattened child-session commands and events pass contract tests;

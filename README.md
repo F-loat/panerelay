@@ -9,7 +9,9 @@ Panerelay is an open-source local bridge between AI agents and your existing Chr
 1. **Let Agents work directly in your Chrome.** Any Agent that can use [agent-browser](https://github.com/vercel-labs/agent-browser) through CLI or MCP can control the tabs you authorize with your current browser profile and login state—no separate browser, repeated login, or cookie export.
 2. **Bring local Agents into the Chrome side panel.** After one Panerelay setup, the Extension discovers supported local Agents and gives them a browser-native chat surface with conversation history, approvals, activity, and immediate control release.
 
-Credentials stay in Chrome. Panerelay works only in tabs you explicitly authorize.
+Credentials stay in Chrome. Panerelay works only in tabs you explicitly authorize. Agent tab selection and background automation do not switch the Chrome tab you are viewing.
+
+![Panerelay](https://github.com/user-attachments/assets/8873dd53-ee16-484a-b801-66622ebe61ad)
 
 ## How it works
 
