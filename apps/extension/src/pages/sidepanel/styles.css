@@ -323,29 +323,6 @@ summary:focus-visible {
   opacity: 0.45;
 }
 
-.conversation-state {
-  position: absolute;
-  right: 4px;
-  bottom: 4px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: transparent;
-  font-size: 0;
-  pointer-events: none;
-}
-
-.conversation-state[data-state='loading'],
-.conversation-state[data-state='running'] {
-  background: var(--accent);
-  box-shadow: 0 0 0 2px var(--surface);
-}
-
-.conversation-state[data-state='waiting'] {
-  background: var(--warning);
-  box-shadow: 0 0 0 2px var(--surface);
-}
-
 .access-button {
   position: relative;
 }
@@ -776,13 +753,101 @@ summary:focus-visible {
   text-decoration: underline;
 }
 
+.welcome-authorization {
+  display: grid;
+  min-height: 52px;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+  padding: 8px 9px;
+  text-align: left;
+}
+
+.welcome-authorization-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.welcome-authorization-icon svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.7;
+}
+
+.welcome-authorization-copy {
+  min-width: 0;
+}
+
+.welcome-authorization .scope-target {
+  display: block;
+  overflow: hidden;
+  margin-top: 0;
+  font-size: 9px;
+  line-height: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.welcome-authorization-select {
+  min-width: 0;
+}
+
+.authorization-trigger {
+  display: flex;
+  max-width: 104px;
+  min-height: 26px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  padding: 0 6px 0 8px;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.authorization-trigger:hover,
+.authorization-trigger[aria-expanded='true'] {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.authorization-trigger[data-authorized='true'] {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.authorization-trigger span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.authorization-trigger svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  stroke-width: 1.8;
+}
+
 .suggestions {
   display: grid;
   width: min(330px, 100%);
   gap: 6px;
 }
 
-.suggestions button {
+.suggestions > button {
   display: grid;
   min-height: 52px;
   grid-template-columns: 30px minmax(0, 1fr) 14px;
@@ -799,7 +864,7 @@ summary:focus-visible {
     background 120ms ease;
 }
 
-.suggestions button:hover {
+.suggestions > button:hover {
   border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
   background: var(--accent-soft);
 }
@@ -814,7 +879,7 @@ summary:focus-visible {
   stroke-width: 1.7;
 }
 
-.suggestions button > span:nth-child(2) {
+.suggestions > button > span:nth-child(2) {
   min-width: 0;
 }
 
@@ -847,7 +912,7 @@ summary:focus-visible {
   transition: transform 120ms ease;
 }
 
-.suggestions button:hover .suggestion-arrow {
+.suggestions > button:hover .suggestion-arrow {
   color: var(--accent);
   transform: translateX(2px);
 }

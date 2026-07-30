@@ -63,7 +63,6 @@
               aria-label="Conversation history"
             >
               <i data-lucide="messages-square" aria-hidden="true"></i>
-              <span class="conversation-state" data-conversation-state></span>
             </button>
             <select
               class="native-select"
@@ -275,6 +274,45 @@
               </span>
               <i class="suggestion-arrow" data-lucide="chevron-right" aria-hidden="true"></i>
             </button>
+            <section
+              class="welcome-authorization"
+              data-welcome-authorization
+              aria-labelledby="welcome-browser-access-title"
+            >
+              <span class="welcome-authorization-icon" aria-hidden="true">
+                <i data-lucide="panel-top"></i>
+              </span>
+              <span class="welcome-authorization-copy">
+                <strong id="welcome-browser-access-title" data-i18n="browserAccess"
+                  >Browser access</strong
+                >
+                <small class="scope-target" data-scope-target>No tab authorized</small>
+              </span>
+              <span class="welcome-authorization-select">
+                <button
+                  class="authorization-trigger"
+                  type="button"
+                  data-authorization-trigger
+                  data-i18n-aria="browserAuthorization"
+                  aria-label="Browser authorization"
+                >
+                  <span data-authorization-value>Choose scope</span>
+                  <i data-lucide="chevron-down" aria-hidden="true"></i>
+                </button>
+                <select
+                  class="native-select"
+                  data-authorization-setting
+                  data-i18n-aria="browserAuthorization"
+                  aria-label="Browser authorization"
+                >
+                  <option value="single-tab" data-i18n="thisTab">This tab</option>
+                  <option value="all-tabs" data-i18n="allTabs">All tabs</option>
+                  <option value="none" data-i18n="chooseScope" selected hidden disabled>
+                    Choose scope
+                  </option>
+                </select>
+              </span>
+            </section>
           </div>
         </div>
 

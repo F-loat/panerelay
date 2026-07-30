@@ -87,7 +87,7 @@ export class SelectMenu {
 
   sync(): void {
     const selected = this.select.selectedOptions[0];
-    const label = selected?.textContent?.trim() || '';
+    const label = selected?.label.trim() || selected?.textContent?.trim() || '';
     if (this.selectedLabel && selected) this.selectedLabel.textContent = label;
     this.trigger.disabled = this.select.disabled;
     if (this.trigger.disabled) this.close();
@@ -135,6 +135,7 @@ export class SelectMenu {
   private renderOptions(): void {
     this.menu.replaceChildren();
     for (const option of this.select.options) {
+      if (option.hidden) continue;
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'select-menu-option';

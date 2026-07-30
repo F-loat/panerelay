@@ -34,6 +34,7 @@ test('keeps dynamic Agent selection isolated from browser authorization', async 
   assert.match(source, /supportedProviders\(/);
   assert.match(source, /PROVIDER_KEY/);
   assert.match(source, /providerNotInstalled/);
+  assert.match(source, /option\.label = item\.name/);
   assert.doesNotMatch(source, /No agent provider is available/);
   assert.doesNotMatch(source, /没有可用的 Agent provider/);
   assert.doesNotMatch(source, /option\.disabled = item\.status !== 'ready'/);
@@ -49,6 +50,7 @@ test('keeps dynamic Agent selection isolated from browser authorization', async 
   assert.match(selection, /provider\.status === 'ready'/);
 
   const html = await readFile(join(directory, 'index.html'), 'utf8');
+  const css = await readFile(join(directory, 'styles.css'), 'utf8');
   assert.match(html, /data-provider-setup/);
   assert.match(html, /data-provider-install/);
   assert.match(html, /data-provider-login/);
@@ -57,10 +59,46 @@ test('keeps dynamic Agent selection isolated from browser authorization', async 
   const providerChangeStart = source.indexOf("providerSelect.addEventListener('change'");
   const providerChange = source.slice(
     providerChangeStart,
-    source.indexOf('for (const button of scopeButtons)', providerChangeStart),
+    source.indexOf("authorizationSelect.addEventListener('change'", providerChangeStart),
   );
   assert.match(providerChange, /currentConversation = null/);
   assert.doesNotMatch(providerChange, /setAuthorization/);
+  assert.doesNotMatch(html, /data-conversation-state/);
+  assert.doesNotMatch(css, /\.conversation-state/);
+});
+
+test('reuses browser authorization controls in the compact welcome state', async () => {
+  const directory = join(process.cwd(), 'src/pages/sidepanel');
+  const html = await readFile(join(directory, 'index.html'), 'utf8');
+  const css = await readFile(join(directory, 'styles.css'), 'utf8');
+  const source = await readFile(join(directory, 'index.ts'), 'utf8');
+  const selectMenuSource = await readFile(join(directory, 'select-menu.ts'), 'utf8');
+
+  assert.match(html, /data-welcome-authorization/);
+  assert.equal(html.match(/data-scope="single-tab"/g)?.length, 1);
+  assert.equal(html.match(/data-scope="all-tabs"/g)?.length, 1);
+  assert.equal(html.match(/data-scope-target/g)?.length, 2);
+  assert.equal(html.match(/data-scope-help/g)?.length, 1);
+  assert.equal(html.match(/data-release/g)?.length, 1);
+  assert.match(html, /data-authorization-trigger/);
+  assert.match(html, /data-authorization-setting/);
+  assert.match(html, /value="none"[^>]*data-i18n="chooseScope"[^>]*hidden/);
+  assert.ok(html.indexOf('data-welcome-authorization') > html.indexOf('data-suggestion="find"'));
+  assert.match(css, /\.welcome-authorization\s*\{[^}]*min-height: 52px/s);
+  assert.match(css, /\.authorization-trigger\s*\{[^}]*min-height: 26px/s);
+  assert.match(source, /for \(const node of scopeTargets\)/);
+  assert.match(source, /for \(const node of scopeHelps\)/);
+  assert.match(source, /for \(const button of releaseButtons\)/);
+  assert.match(source, /const authorizationSelectMenu = new SelectMenu/);
+  assert.match(
+    source,
+    /noneOption\.textContent = mode === 'none' \? t\('chooseScope'\) : t\('release'\)/,
+  );
+  assert.match(source, /noneOption\.hidden = mode === 'none'/);
+  assert.match(source, /authorizationSelect\.addEventListener\('change'/);
+  assert.match(selectMenuSource, /if \(option\.hidden\) continue/);
+  assert.match(source, /welcomeAuthorization\.hidden = !bridgeConnected \|\| !providerReady/);
+  assert.match(source, /settingsScopeButtons\.find/);
 });
 
 test('registers the actual Chrome runtime Extension ID', async () => {

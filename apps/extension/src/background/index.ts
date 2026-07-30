@@ -34,6 +34,7 @@ import {
   originAuthorizationForUrl,
 } from '../shared/authorization.js';
 import { applyControlledFavicon, releaseControlledFavicon } from './controlled-favicon.js';
+import { debuggerDetachReason } from './debugger-detach.js';
 
 const BROWSER_ID_KEY = 'panerelay.browserId';
 const ALL_TABS_AUTHORIZATION_KEY = 'panerelay.authorization.allTabs';
@@ -791,16 +792,18 @@ chrome.debugger.onDetach.addListener((source, reason) => {
   controlledTabs.delete(targetId);
   void releaseControlledFavicon(source.tabId);
   void updateActionBadge().catch(() => undefined);
-  if (reason === 'target_closed') {
+  const detachReason = debuggerDetachReason(reason);
+  if (!detachReason) {
     void broadcastStatus();
     return;
   }
-  lastError = `Chrome debugger detached: ${reason}`;
+  // Debugger displacement affects one target, not the Extension or Bridge as a whole.
+  // The relay client still receives the explicit detach and can lazily reattach on its next command.
   try {
     sendNative({
       type: 'cdp.detached',
       protocol: PANERELAY_PROTOCOL_VERSION,
-      reason: lastError,
+      reason: detachReason,
       scope: 'target',
       targetId,
     });

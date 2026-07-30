@@ -76,19 +76,20 @@ commands remain automated-test scenarios to avoid perturbing the user's daily br
 
 ## Diagnostics, network, and emulation
 
-| agent-browser capability      | Status    | Notes                                                                                                     |
-| ----------------------------- | --------- | --------------------------------------------------------------------------------------------------------- |
-| console and page errors       | Verified  | Runtime events are routed per target.                                                                     |
-| request list                  | Verified  | Network events and response metadata are routed per target.                                               |
-| request detail and HAR        | Verified  | Fixture request metadata/body and a readable one-entry HAR pass per target.                               |
-| request routes and mocks      | Verified  | Fetch-domain response replacement passes on an attached local target.                                     |
-| headers, credentials, offline | Verified  | Header echo, Basic credentials, offline observation, reset, and session cleanup pass.                     |
-| viewport, media, user agent   | Verified  | Page emulation passes and detaches cleanly; the real Chrome window is not resized.                        |
-| timezone and locale           | Forwarded | CDP contract coverage passes; agent-browser 0.33.0 exposes no matching CLI or MCP command.                |
-| geolocation                   | Partial   | Page emulation is forwarded, but browser-level permission grants are not.                                 |
-| accessibility audit           | Verified  | Structured axe results preserve a selector path into a same-origin iframe.                                |
-| trace and profiler            | Verified  | Multi-megabyte trace and profiler artifacts are readable after bounded fixture runs.                      |
-| recording and streaming       | Partial   | Streaming passes; `record start` needs a context, while current-target recording also needs local ffmpeg. |
+| agent-browser capability      | Status      | Notes                                                                                                     |
+| ----------------------------- | ----------- | --------------------------------------------------------------------------------------------------------- |
+| console and page errors       | Verified    | Runtime events are routed per target.                                                                     |
+| `inspect` / Chrome DevTools   | Unsupported | Opening DevTools displaces the Extension debugger, so the affected target detaches.                       |
+| request list                  | Verified    | Network events and response metadata are routed per target.                                               |
+| request detail and HAR        | Verified    | Fixture request metadata/body and a readable one-entry HAR pass per target.                               |
+| request routes and mocks      | Verified    | Fetch-domain response replacement passes on an attached local target.                                     |
+| headers, credentials, offline | Verified    | Header echo, Basic credentials, offline observation, reset, and session cleanup pass.                     |
+| viewport, media, user agent   | Verified    | Page emulation passes and detaches cleanly; the real Chrome window is not resized.                        |
+| timezone and locale           | Forwarded   | CDP contract coverage passes; agent-browser 0.33.0 exposes no matching CLI or MCP command.                |
+| geolocation                   | Partial     | Page emulation is forwarded, but browser-level permission grants are not.                                 |
+| accessibility audit           | Verified    | Structured axe results preserve a selector path into a same-origin iframe.                                |
+| trace and profiler            | Verified    | Multi-megabyte trace and profiler artifacts are readable after bounded fixture runs.                      |
+| recording and streaming       | Partial     | Streaming passes; `record start` needs a context, while current-target recording also needs local ffmpeg. |
 
 ## Provider options
 

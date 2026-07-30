@@ -13,8 +13,14 @@ test('installs and removes the bundled Skill in global and project scopes', asyn
   try {
     const globalPath = await installPanerelaySkill('global', { homeDirectory });
     const projectPath = await installPanerelaySkill('project', { projectDirectory });
-    assert.match(await readFile(join(globalPath, 'SKILL.md'), 'utf8'), /name: panerelay-browser/);
-    assert.match(await readFile(join(projectPath, 'SKILL.md'), 'utf8'), /--provider panerelay/);
+    const globalSkill = await readFile(join(globalPath, 'SKILL.md'), 'utf8');
+    const projectSkill = await readFile(join(projectPath, 'SKILL.md'), 'utf8');
+    assert.match(globalSkill, /name: panerelay-browser/);
+    assert.match(projectSkill, /--provider panerelay/);
+    assert.match(projectSkill, /`screenshot` \(viewport or `--full`\)/);
+    assert.match(projectSkill, /Do not use `inspect`/);
+    assert.match(projectSkill, /Do not use `--allowed-domains`/);
+    assert.match(projectSkill, /active relay session/);
     assert.equal(globalPath.endsWith(PANERELAY_SKILL_NAME), true);
 
     await uninstallPanerelaySkill('global', { homeDirectory });

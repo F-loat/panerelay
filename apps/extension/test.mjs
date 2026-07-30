@@ -9,6 +9,7 @@ const entryPoints = [
   'src/background/action-badge.test.ts',
   'src/background/control-activity-state.test.ts',
   'src/background/controlled-favicon.test.ts',
+  'src/background/debugger-detach.test.ts',
   'src/pages/sidepanel/structure.test.ts',
   'src/pages/sidepanel/provider-selection.test.ts',
   'src/shared/authorization.test.ts',

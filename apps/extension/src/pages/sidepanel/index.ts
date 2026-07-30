@@ -122,6 +122,7 @@ const copy = {
     suggestInspectPrompt: 'Inspect this page and explain its main controls and interaction flows.',
     suggestFindPrompt: 'Help me find specific information on the current page.',
     browserAccess: 'Browser access',
+    chooseScope: 'Choose scope',
     release: 'Release',
     thisTab: 'This tab',
     allTabs: 'All tabs',
@@ -148,9 +149,6 @@ const copy = {
     controllingTabs: 'Controlling {count} tabs',
     authorized: 'Authorized',
     newConversation: 'New conversation',
-    loadingConversation: 'Loading…',
-    running: 'running',
-    waiting: 'approval',
     interrupted: 'Turn interrupted',
     failed: 'Turn failed',
     assistant: 'Codex',
@@ -237,6 +235,7 @@ const copy = {
     suggestInspectPrompt: '分析当前页面，说明主要控件和交互流程。',
     suggestFindPrompt: '帮我在当前页面查找特定信息。',
     browserAccess: '浏览器授权',
+    chooseScope: '选择范围',
     release: '释放',
     thisTab: '当前标签页',
     allTabs: '所有标签页',
@@ -261,9 +260,6 @@ const copy = {
     controllingTabs: '正在控制 {count} 个标签页',
     authorized: '已授权',
     newConversation: '新建会话',
-    loadingConversation: '加载中…',
-    running: '运行中',
-    waiting: '等待授权',
     interrupted: '任务已中断',
     failed: '任务失败',
     assistant: 'Codex',
@@ -328,7 +324,6 @@ const providerTrigger = element<HTMLButtonElement>('[data-provider-trigger]');
 const providerLabel = element<HTMLElement>('[data-provider-label]');
 const conversationSelect = element<HTMLSelectElement>('[data-conversation]');
 const conversationTrigger = element<HTMLButtonElement>('[data-conversation-trigger]');
-const conversationState = element<HTMLElement>('[data-conversation-state]');
 const connectionLabel = element<HTMLElement>('[data-connection-label]');
 const statusDot = element<HTMLElement>('[data-status-dot]');
 const settings = element<HTMLElement>('[data-settings]');
@@ -359,16 +354,21 @@ const providerInstall = element<HTMLElement>('[data-provider-install]');
 const providerLoginRow = element<HTMLElement>('[data-provider-login-row]');
 const providerLogin = element<HTMLElement>('[data-provider-login]');
 const providerDocs = element<HTMLAnchorElement>('[data-provider-docs]');
+const welcomeAuthorization = element<HTMLElement>('[data-welcome-authorization]');
+const authorizationSelect = element<HTMLSelectElement>('[data-authorization-setting]');
+const authorizationTrigger = element<HTMLButtonElement>('[data-authorization-trigger]');
+const authorizationValue = element<HTMLElement>('[data-authorization-value]');
 const suggestions = element<HTMLElement>('[data-suggestions]');
 const timelineElement = element<HTMLElement>('[data-timeline]');
 const errorBanner = element<HTMLElement>('[data-error]');
 const errorMessage = element<HTMLElement>('[data-error-message]');
 const errorRetryButton = element<HTMLButtonElement>('[data-error-retry]');
 const errorDismissButton = element<HTMLButtonElement>('[data-error-dismiss]');
-const scopeTarget = element<HTMLElement>('[data-scope-target]');
-const scopeHelp = element<HTMLElement>('[data-scope-help]');
-const releaseButton = element<HTMLButtonElement>('[data-release]');
+const scopeTargets = [...document.querySelectorAll<HTMLElement>('[data-scope-target]')];
+const scopeHelps = [...document.querySelectorAll<HTMLElement>('[data-scope-help]')];
+const releaseButtons = [...document.querySelectorAll<HTMLButtonElement>('[data-release]')];
 const scopeButtons = [...document.querySelectorAll<HTMLButtonElement>('[data-scope]')];
+const settingsScopeButtons = [...browserScope.querySelectorAll<HTMLButtonElement>('[data-scope]')];
 const composer = element<HTMLFormElement>('[data-composer]');
 const input = element<HTMLTextAreaElement>('[data-input]');
 const sendButton = element<HTMLButtonElement>('[data-send]');
@@ -401,6 +401,13 @@ const languageSelectMenu = new SelectMenu({
   select: languageSelect,
   trigger: languageTrigger,
 });
+const authorizationSelectMenu = new SelectMenu({
+  alignment: 'end',
+  minWidth: 132,
+  selectedLabel: authorizationValue,
+  select: authorizationSelect,
+  trigger: authorizationTrigger,
+});
 
 let locale: Locale = navigator.language.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en';
 let themeSetting: ThemeSetting = 'system';
@@ -414,6 +421,7 @@ let runningTurnId: string | null = null;
 let loadingConversation = false;
 let submitting = false;
 let initializing = true;
+let authorizationPending = false;
 
 function t(key: CopyKey): string {
   return copy[locale][key];
@@ -502,6 +510,7 @@ function renderConnection(): void {
   for (const item of providers) {
     const option = document.createElement('option');
     option.value = item.id;
+    option.label = item.name;
     option.textContent = `${item.name} · ${t(
       item.status === 'ready' ? 'providerReady' : 'providerNotInstalled',
     )}`;
@@ -536,22 +545,6 @@ function renderConversations(): void {
   conversationSelect.value = currentConversation?.id || '';
   conversationSelect.disabled =
     initializing || loadingConversation || provider()?.status !== 'ready';
-  const state = loadingConversation
-    ? t('loadingConversation')
-    : runningTurnId
-      ? t('running')
-      : currentConversation?.status === 'waiting'
-        ? t('waiting')
-        : '';
-  conversationState.textContent = state;
-  conversationState.dataset.state = loadingConversation
-    ? 'loading'
-    : runningTurnId
-      ? 'running'
-      : currentConversation?.status === 'waiting'
-        ? 'waiting'
-        : 'idle';
-  conversationState.title = state;
   conversationSelectMenu.sync();
 }
 
@@ -560,35 +553,48 @@ function renderAuthorization(): void {
   const mode = status?.authorizationMode ?? 'none';
   for (const button of scopeButtons) {
     button.dataset.active = String(button.dataset.scope === mode);
-    button.disabled = !status;
+    button.disabled = !status || authorizationPending;
   }
-  releaseButton.hidden = mode === 'none' && !status?.controlledTab;
+  for (const button of releaseButtons) {
+    button.hidden = mode === 'none' && !status?.controlledTab;
+    button.disabled = !status || authorizationPending;
+  }
+  const noneOption = authorizationSelect.querySelector<HTMLOptionElement>('option[value="none"]');
+  if (noneOption) {
+    noneOption.textContent = mode === 'none' ? t('chooseScope') : t('release');
+    noneOption.hidden = mode === 'none';
+    noneOption.disabled = mode === 'none';
+  }
+  authorizationSelect.value = mode;
+  authorizationSelect.disabled = !status || authorizationPending;
+  authorizationTrigger.dataset.authorized = String(mode !== 'none');
+  authorizationSelectMenu.sync();
 
+  let target: string;
   if ((status?.controlledTabs.length ?? 0) > 1) {
-    scopeTarget.textContent = t('controllingTabs').replace(
-      '{count}',
-      String(status?.controlledTabs.length),
-    );
+    target = t('controllingTabs').replace('{count}', String(status?.controlledTabs.length));
   } else if (status?.controlledTab) {
-    scopeTarget.textContent = `${t('controlling')}: ${status.controlledTab.title}`;
+    target = `${t('controlling')}: ${status.controlledTab.title}`;
   } else if (mode === 'single-tab' && status?.authorizedTab) {
-    scopeTarget.textContent = `${t('authorized')}: ${status.authorizedTab.title}`;
+    target = `${t('authorized')}: ${status.authorizedTab.title}`;
   } else if (mode === 'all-tabs') {
-    scopeTarget.textContent = t('allTabsEligible');
+    target = t('allTabsEligible');
   } else {
-    scopeTarget.textContent = t('noTabAuthorized');
+    target = t('noTabAuthorized');
   }
-  const accessLabel = `${t('browserAccess')}: ${scopeTarget.textContent}`;
+  for (const node of scopeTargets) node.textContent = target;
+  const accessLabel = `${t('browserAccess')}: ${target}`;
   accessToggle.dataset.authorized = String(mode !== 'none');
   accessToggle.dataset.controlled = String(Boolean(status?.controlledTab));
   accessToggle.title = accessLabel;
   accessToggle.setAttribute('aria-label', accessLabel);
-  scopeHelp.textContent =
+  const help =
     mode === 'single-tab'
       ? t('scopeHelpSingle')
       : mode === 'all-tabs'
         ? t('scopeHelpAll')
         : t('scopeHelpNone');
+  for (const node of scopeHelps) node.textContent = help;
 }
 
 function controlStateText(state: ControlSessionState): string {
@@ -749,6 +755,7 @@ function renderEmptyState(): void {
     emptyTitle.textContent = tf('emptyTitle', { agent: agentName() });
     emptyBody.textContent = t('emptyBody');
   }
+  welcomeAuthorization.hidden = !bridgeConnected || !providerReady;
   input.placeholder = tf('composerPlaceholder', { agent: agentName() });
   suggestions.hidden = !providerReady;
 }
@@ -1344,6 +1351,9 @@ async function respondToApproval(
 }
 
 async function setAuthorization(mode: AuthorizationMode): Promise<void> {
+  if (authorizationPending) return;
+  authorizationPending = true;
+  renderAuthorization();
   try {
     if (mode === 'all-tabs') {
       const granted = await chrome.permissions.request({
@@ -1363,9 +1373,11 @@ async function setAuthorization(mode: AuthorizationMode): Promise<void> {
     const response = await request({ type: 'panerelay.authorization.set', mode });
     if (response.status) extensionStatus = response.status;
     setError('');
-    renderAll();
   } catch (error) {
     setError(error);
+  } finally {
+    authorizationPending = false;
+    renderAll();
   }
 }
 
@@ -1439,7 +1451,8 @@ accessToggle.addEventListener('click', () => {
   requestAnimationFrame(() => {
     browserScope.scrollIntoView({ block: 'nearest' });
     const activeButton =
-      scopeButtons.find(button => button.dataset.active === 'true') ?? scopeButtons[0];
+      settingsScopeButtons.find(button => button.dataset.active === 'true') ??
+      settingsScopeButtons[0];
     activeButton?.focus();
   });
 });
@@ -1504,14 +1517,19 @@ providerSelect.addEventListener('change', () => {
   void refreshConversations(true).catch(setError);
 });
 
+authorizationSelect.addEventListener('change', () => {
+  void setAuthorization(authorizationSelect.value as AuthorizationMode);
+});
 for (const button of scopeButtons) {
   button.addEventListener('click', () => {
     void setAuthorization(button.dataset.scope as AuthorizationMode);
   });
 }
-releaseButton.addEventListener('click', () => {
-  void setAuthorization('none');
-});
+for (const button of releaseButtons) {
+  button.addEventListener('click', () => {
+    void setAuthorization('none');
+  });
+}
 controlReleaseButton.addEventListener('click', () => {
   void setAuthorization('none');
 });
