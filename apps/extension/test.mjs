@@ -16,6 +16,7 @@ const entryPoints = [
   'src/background/native-host-readiness.test.ts',
   'src/background/page-comments.test.ts',
   'src/background/routing-boundaries.test.ts',
+  'src/background/target-publication.test.ts',
   'src/pages/sidepanel/provider-selection.test.ts',
   'src/pages/sidepanel/setup-guidance.test.ts',
   'src/shared/authorization.test.ts',

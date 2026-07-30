@@ -287,6 +287,219 @@ test('implements the browser-level target handshake with lazy debugger attachmen
   }
 });
 
+test('keeps target relisting bounded to the Extension inventory and forwards trusted expansion', async () => {
+  const initial = target('target-initial', 'https://initial.test/', true);
+  const related = target('target-related', 'https://related.test/');
+  let listedTargets = [initial];
+  const relay = await BrowserRelay.listen({
+    sendToExtension: message => {
+      if (message.type === 'cdp.target.request' && message.operation.kind === 'list') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.target.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            targets: listedTargets,
+          });
+        });
+      }
+    },
+    onBrowserRegistered: () => undefined,
+    onBrowserDisconnected: () => undefined,
+  });
+  await register(relay);
+
+  const client = new WebSocket((await createRelaySession(relay)).cdpUrl);
+  try {
+    await waitForOpen(client);
+    await command(client, {
+      id: 1,
+      method: 'Target.setDiscoverTargets',
+      params: { discover: true },
+    });
+    const initialList = await command(client, { id: 2, method: 'Target.getTargets' });
+    assert.deepEqual(
+      (initialList.result as { targetInfos: CdpTargetInfo[] }).targetInfos.map(
+        candidate => candidate.targetId,
+      ),
+      ['target-initial'],
+    );
+
+    const relatedCreated = waitForMessage(client);
+    await relay.handleExtensionMessage({
+      type: 'cdp.target.event',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      event: 'created',
+      target: related,
+    });
+    assert.deepEqual(await relatedCreated, {
+      method: 'Target.targetCreated',
+      params: {
+        targetInfo: {
+          targetId: related.targetId,
+          type: related.type,
+          title: related.title,
+          url: related.url,
+          attached: false,
+        },
+      },
+    });
+
+    listedTargets = [initial, related];
+    const boundedList = await command(client, { id: 3, method: 'Target.getTargets' });
+    assert.deepEqual(
+      (boundedList.result as { targetInfos: CdpTargetInfo[] }).targetInfos.map(
+        candidate => candidate.targetId,
+      ),
+      ['target-initial', 'target-related'],
+    );
+  } finally {
+    await closeClient(client);
+    await relay.close();
+  }
+});
+
+test('preserves passive network observation without counting or marking page control', async () => {
+  const extensionMessages: HostToExtensionMessage[] = [];
+  const fixtureTarget = target('target-observed', 'https://observed.test/', true);
+  const relay = await BrowserRelay.listen({
+    sendToExtension: message => {
+      extensionMessages.push(message);
+      if (message.type === 'cdp.target.request' && message.operation.kind === 'list') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.target.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            targets: [fixtureTarget],
+          });
+        });
+      } else if (message.type === 'cdp.attach') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.attached',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            target: { ...fixtureTarget, attached: true },
+          });
+        });
+      } else if (message.type === 'cdp.command') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            result: {},
+          });
+        });
+      }
+    },
+    onBrowserRegistered: () => undefined,
+    onBrowserDisconnected: () => undefined,
+  });
+  await register(relay);
+
+  const client = new WebSocket((await createRelaySession(relay)).cdpUrl);
+  try {
+    await waitForOpen(client);
+    await command(client, { id: 1, method: 'Target.getTargets' });
+    const attached = await command(client, {
+      id: 2,
+      method: 'Target.attachToTarget',
+      params: { targetId: fixtureTarget.targetId, flatten: true },
+    });
+    const pageSessionId = (attached.result as { sessionId: string }).sessionId;
+    await command(client, {
+      id: 3,
+      method: 'Target.setAutoAttach',
+      sessionId: pageSessionId,
+      params: { autoAttach: true, waitForDebuggerOnStart: true, flatten: true },
+    });
+    for (const [id, method] of [
+      [4, 'Page.enable'],
+      [5, 'Runtime.enable'],
+      [6, 'Network.enable'],
+      [7, 'Runtime.runIfWaitingForDebugger'],
+    ] as const) {
+      await command(client, { id, method, sessionId: pageSessionId });
+    }
+
+    assert.equal(
+      extensionMessages.filter(message => message.type === 'cdp.attach').length,
+      1,
+      'passive domain setup attaches once so events are observable immediately',
+    );
+    assert.deepEqual(
+      extensionMessages
+        .filter((message): message is CdpCommandMessage => message.type === 'cdp.command')
+        .map(message => message.method),
+      [
+        'Target.setAutoAttach',
+        'Page.enable',
+        'Runtime.enable',
+        'Network.enable',
+        'Runtime.runIfWaitingForDebugger',
+      ],
+    );
+    const observedStates = extensionMessages.filter(
+      (message): message is ControlSessionChangedMessage =>
+        message.type === 'control.session.changed' && message.session.observedTargetCount === 1,
+    );
+    assert.ok(observedStates.length > 0);
+    assert.ok(observedStates.every(message => message.session.controlledTargetCount === 0));
+
+    const requestEvent = waitForMessage(client);
+    await relay.handleExtensionMessage({
+      type: 'cdp.event',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      targetId: fixtureTarget.targetId,
+      method: 'Network.requestWillBeSent',
+      params: { requestId: 'early-request' },
+    });
+    assert.deepEqual(await requestEvent, {
+      method: 'Network.requestWillBeSent',
+      params: { requestId: 'early-request' },
+      sessionId: pageSessionId,
+    });
+
+    await command(client, {
+      id: 8,
+      method: 'Accessibility.getFullAXTree',
+      sessionId: pageSessionId,
+    });
+    assert.equal(
+      extensionMessages
+        .filter(
+          (message): message is ControlSessionChangedMessage =>
+            message.type === 'control.session.changed',
+        )
+        .at(-1)?.session.controlledTargetCount,
+      0,
+    );
+
+    await command(client, {
+      id: 9,
+      method: 'Runtime.evaluate',
+      sessionId: pageSessionId,
+      params: { expression: 'document.title' },
+    });
+    const controlledState = extensionMessages
+      .filter(
+        (message): message is ControlSessionChangedMessage =>
+          message.type === 'control.session.changed',
+      )
+      .at(-1);
+    assert.equal(controlledState?.session.observedTargetCount, 0);
+    assert.equal(controlledState?.session.controlledTargetCount, 1);
+  } finally {
+    await closeClient(client);
+    await relay.close();
+  }
+});
+
 test('keeps create, activate, and bring-to-front in the Agent background', async () => {
   const created = target('target-created', 'about:blank');
   const extensionMessages: HostToExtensionMessage[] = [];

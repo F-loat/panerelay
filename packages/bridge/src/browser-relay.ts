@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import {
   PANERELAY_PROTOCOL_VERSION,
   classifyCdpMethod,
+  classifyCdpTargetAccess,
   type AutomationActivity,
   type AutomationActivityFailure,
   type AutomationActivityStatus,
@@ -138,6 +139,7 @@ export class BrowserRelay {
   private readonly pageSessions = new Map<string, PageSession>();
   private readonly childSessions = new Map<string, ChildSession>();
   private readonly attachedTargets = new Set<string>();
+  private readonly controlledTargets = new Set<string>();
   private readonly attachPromises = new Map<string, Promise<void>>();
   private readonly pendingAttaches = new Map<string, PendingExtensionResult<CdpAttachedMessage>>();
   private readonly pendingTargetRequests = new Map<
@@ -910,6 +912,7 @@ export class BrowserRelay {
       params.waitForDebuggerOnStart === true
         ? { ...params, waitForDebuggerOnStart: false }
         : params;
+
     if (pageSession && method === 'Target.setAutoAttach') {
       pageSession.autoAttach = {
         params: forwardedParams,
@@ -974,6 +977,11 @@ export class BrowserRelay {
     if (!this.clients.has(client)) {
       releaseTarget();
       return;
+    }
+
+    if (classifyCdpTargetAccess(method) === 'control' && !this.controlledTargets.has(targetId)) {
+      this.controlledTargets.add(targetId);
+      this.emitCurrentSessionState('active');
     }
 
     const requestId = randomUUID();
@@ -1322,6 +1330,7 @@ export class BrowserRelay {
   private removeTarget(targetId: string): void {
     this.targets.delete(targetId);
     const wasAttached = this.attachedTargets.delete(targetId);
+    this.controlledTargets.delete(targetId);
     for (const [sessionId, session] of [...this.pageSessions]) {
       if (session.targetId === targetId) this.removePageSession(sessionId);
     }
@@ -1340,6 +1349,7 @@ export class BrowserRelay {
       candidate => candidate.targetId === session.targetId,
     );
     if (!stillReferenced && this.attachedTargets.delete(session.targetId)) {
+      this.controlledTargets.delete(session.targetId);
       this.options.sendToExtension({
         type: 'cdp.detach',
         protocol: PANERELAY_PROTOCOL_VERSION,
@@ -1354,6 +1364,7 @@ export class BrowserRelay {
   private handleDetached(message: CdpDetachedMessage): void {
     if (message.scope === 'target' && message.targetId) {
       const wasAttached = this.attachedTargets.delete(message.targetId);
+      this.controlledTargets.delete(message.targetId);
       for (const pageSession of this.pageSessions.values()) {
         if (pageSession.targetId === message.targetId && pageSession.autoAttach) {
           pageSession.autoAttach.applied = false;
@@ -1454,7 +1465,7 @@ export class BrowserRelay {
       this.clearParticipantExpiry(participant);
     }
     lease.participants.clear();
-    this.emitCurrentSessionState(terminalState, 0);
+    this.emitCurrentSessionState(terminalState, 0, 0);
     this.activeLease = null;
     this.clearHeartbeatTimer();
     for (const client of [...this.clients.keys()]) {
@@ -1480,6 +1491,7 @@ export class BrowserRelay {
     this.childSessions.clear();
     this.targets.clear();
     this.attachedTargets.clear();
+    this.controlledTargets.clear();
     this.attachPromises.clear();
     this.rejectExtensionRequests(new Error(reason));
 
@@ -1665,7 +1677,8 @@ export class BrowserRelay {
 
   private emitCurrentSessionState(
     state?: ControlSessionState,
-    controlledTargetCount = this.attachedTargets.size,
+    controlledTargetCount = this.controlledTargets.size,
+    observedTargetCount = this.attachedTargets.size - this.controlledTargets.size,
   ): void {
     const lease = this.activeLease;
     if (!lease) return;
@@ -1693,6 +1706,7 @@ export class BrowserRelay {
         actor: { ...lease.actor },
         state: resolvedState,
         participantCount: participants.length,
+        observedTargetCount,
         controlledTargetCount,
         heartbeatFreshness: terminal
           ? resolvedState === 'expired'

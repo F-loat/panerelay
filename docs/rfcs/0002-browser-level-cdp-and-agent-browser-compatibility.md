@@ -5,7 +5,9 @@
 - Status: Accepted
 - Authors: F-loat
 - Created: 2026-07-29
-- Updated: 2026-07-30
+- Updated: 2026-07-31
+
+RFC-0004 supersedes this RFC's attachment-as-control and control-visibility semantics. Target discovery and flattened sessions remain virtual, while passive observation may now attach without entering the controlled count or changing the favicon.
 
 ## Summary
 
@@ -43,13 +45,14 @@ Panerelay needs browser-level semantics to cover agent-browser's normal tab mode
 The Extension owns a session-local map between Chrome tab IDs and random opaque Panerelay target IDs. Raw Chrome tab IDs remain Extension-private.
 
 - Single-tab authorization exposes only the selected tab and exact authorized origin.
-- All-tabs authorization exposes supported tabs covered by Chrome's granted HTTP and HTTPS origin permissions.
+- All-tabs authorization seeds the discovery lease with supported tabs covered by Chrome's granted HTTP and HTTPS origin permissions.
+- After the initial seed, the exposed inventory expands only for Agent-created tabs or tabs Chrome reports as opened from a currently controlled tab. Independently opened tabs remain private to Chrome for the rest of that lease.
 - `chrome://`, `chrome-extension://`, DevTools, and other browser-internal pages are not exposed.
 - An all-tabs session may create `about:blank` tabs and navigate them to granted web origins.
 - A single-tab session cannot create additional tabs.
 - Agent-created tabs open with `active: false`. Agent target selection is participant-local and does not change Chrome's user-visible active tab or focused window.
 
-The active eligible tab is returned first. agent-browser attaches a flattened CDP session to every reported page during initialization, but Panerelay treats those as virtual Bridge sessions. Page-scoped `Target.setAutoAttach` is also virtual bootstrap: the Bridge stores its latest parameters without attaching Chrome's debugger. `chrome.debugger.attach` occurs only when the first substantive page command reads, navigates, or interacts with a tab; the Bridge then replays deferred auto-attach setup before forwarding that command.
+The active eligible tab is returned first. agent-browser attaches a flattened CDP session to every reported page during initialization, but Panerelay treats those as virtual Bridge sessions. Page-scoped `Target.setAutoAttach` is also virtual bootstrap. RFC-0004 governs later debugger attachment and the observation/control distinction.
 
 ## Browser-level CDP surface
 
@@ -66,7 +69,7 @@ The Bridge synthesizes:
 - `Target.closeTarget`;
 - `Target.getBrowserContexts`.
 
-The Extension reports tab creation, metadata changes, and removal. The Bridge translates them to `Target.targetCreated`, `Target.targetInfoChanged`, and `Target.targetDestroyed`.
+The Extension reports creation, metadata changes, and removal only for targets in the lease's exposed inventory. The Bridge translates them to `Target.targetCreated`, `Target.targetInfoChanged`, and `Target.targetDestroyed`. Chrome `tabs.onCreated` and `webNavigation.onCreatedNavigationTarget` relationships expand that inventory only when the source is already controlled. Publication is serialized per Chrome tab so creation and loading updates cannot emit duplicate `targetCreated` events.
 
 `Target.activateTarget` acknowledges agent-browser's logical selection without calling `chrome.tabs.update` or `chrome.windows.update`. Page-scoped `Page.bringToFront` similarly returns success without foregrounding Chrome or attaching the target solely for activation. Page reads, navigation, DOM focus, keyboard, mouse, and other explicitly requested automation continue to execute against the participant's selected authorized target in the background.
 
@@ -120,6 +123,10 @@ agent-browser deliberately skips browser-level Target behavior for direct-page P
 
 agent-browser creates logical sessions for all discovered page targets. Mirroring that directly with `chrome.debugger.attach` would display debugger state and create conflicts on every authorized daily-browser tab even if the Agent never touches them. Lazy debugger attachment preserves normal browser-level semantics without that side effect.
 
+### Report every later eligible tab
+
+Unmodified agent-browser initializes every reported target. Reporting tabs the user opens independently would therefore attach observation and grow Agent-visible state unrelated to the task. Panerelay keeps the initial inventory compatible, then reports only Agent-created targets and Chrome-reported descendants of controlled tabs.
+
 ### Pretend that Chrome windows are isolated browser contexts
 
 A normal Chrome window is not an isolated CDP browser context. Returning a synthetic context ID would misrepresent cookie, storage, cache, and network isolation. `window new` remains unsupported until Panerelay can provide honest semantics.
@@ -149,5 +156,7 @@ RFC-0002 is implemented when:
 6. flattened child-session commands and events pass contract tests;
 7. unsupported context and containment operations return explicit errors;
 8. debugger attachment remains lazy and all attachments clear on release.
+9. independently opened tabs after initialization remain absent from target events and later target lists;
+10. Agent-created tabs and tabs opened from controlled sources are discovered exactly once.
 
 All acceptance criteria pass in the development build against agent-browser 0.33.0. The RFC remains `Accepted` until this implementation is released.

@@ -43,12 +43,57 @@ test('marks the current document on Agent commands without persisting across nav
 
   assert.ok(
     commandHandler.indexOf('cdpCommandTouchesDocument(message.method)') <
-      commandHandler.indexOf('await applyControlledFavicon(current.id)') &&
+      commandHandler.indexOf('controlledTabs.set(message.targetId, current)') &&
+      commandHandler.indexOf('controlledTabs.set(message.targetId, current)') <
+        commandHandler.indexOf('await applyControlledFavicon(current.id)') &&
       commandHandler.indexOf('await applyControlledFavicon(current.id)') <
         commandHandler.indexOf('await chrome.debugger.sendCommand'),
   );
+  assert.match(attachHandler, /attachedTabs\.set\(targetId, summary\)/);
+  assert.doesNotMatch(attachHandler, /controlledTabs\.set/);
   assert.doesNotMatch(attachHandler, /applyControlledFavicon/);
   assert.doesNotMatch(tabUpdatedHandler, /applyControlledFavicon/);
+});
+
+test('deduplicates unchanged target metadata before publishing lifecycle events', async () => {
+  const source = await readFile(join(process.cwd(), 'src/background/index.ts'), 'utf8');
+  const publisher = source.slice(
+    source.indexOf('async function publishTargetForTab'),
+    source.indexOf('chrome.tabs.onRemoved.addListener'),
+  );
+
+  assert.match(publisher, /targetInfoEquals\(previous, target\)/);
+  assert.ok(
+    publisher.indexOf('targetInfoEquals(previous, target)') <
+      publisher.indexOf("type: 'cdp.target.event'"),
+  );
+  assert.match(publisher, /event: previous \? 'changed' : 'created'/);
+});
+
+test('bounds target discovery to the initial inventory and controlled opener relationships', async () => {
+  const source = await readFile(join(process.cwd(), 'src/background/index.ts'), 'utf8');
+  const targetList = source.slice(
+    source.indexOf('async function listEligibleTargets'),
+    source.indexOf('function sendTargetResult'),
+  );
+  const lifecycle = source.slice(
+    source.indexOf('async function publishTargetForTab'),
+    source.indexOf('chrome.permissions.onRemoved.addListener'),
+  );
+  const release = source.slice(
+    source.indexOf('async function releaseControl'),
+    source.indexOf('async function setAuthorization'),
+  );
+
+  assert.match(targetList, /targetExposure\.seedEligible/);
+  assert.match(targetList, /targetExposure\.has/);
+  assert.match(lifecycle, /targetExposure\.has\(summary\.id\)/);
+  assert.match(lifecycle, /controlledTabs\.has\(sourceTargetId\)/);
+  assert.match(lifecycle, /targetExposure\.exposeRelated/);
+  assert.match(lifecycle, /tab\.openerTabId/);
+  assert.match(lifecycle, /onCreatedNavigationTarget/);
+  assert.match(lifecycle, /targetPublicationQueue\s*\.enqueue/);
+  assert.match(release, /targetExposure\.clear\(\)/);
 });
 
 test('turns target creation authorization failures into Extension guidance', async () => {

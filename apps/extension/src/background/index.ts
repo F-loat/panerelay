@@ -43,6 +43,11 @@ import {
 import { applyControlledFavicon, releaseControlledFavicon } from './controlled-favicon.js';
 import { cdpCommandTouchesDocument } from './cdp-document-activity.js';
 import { debuggerDetachReason } from './debugger-detach.js';
+import {
+  TargetExposureState,
+  TargetPublicationQueue,
+  targetInfoEquals,
+} from './target-publication.js';
 import { installConversationWorkspaceObservers } from './conversation-workspace-observers.js';
 import { ConversationWorkspaceService } from './conversation-workspace-service.js';
 import { createChromeConversationWorkspaceStore } from './conversation-workspaces.js';
@@ -78,8 +83,12 @@ let lastError: string | undefined;
 let targetDiscoveryActive = false;
 const targetIdsByTabId = new Map<number, string>();
 const tabIdsByTargetId = new Map<string, number>();
+const attachedTabs = new Map<string, TabSummary>();
 const controlledTabs = new Map<string, TabSummary>();
+const publishedTargets = new Map<string, CdpTargetInfo>();
 const sessionOwnedTabIds = new Set<number>();
+const targetExposure = new TargetExposureState();
+const targetPublicationQueue = new TargetPublicationQueue();
 const pendingAgentRequests = new Map<string, PendingAgentRequest>();
 const pendingIntegrationRequests = new Map<string, PendingIntegrationRequest>();
 const nativeTransferReceiver = new NativeTransferReceiver();
@@ -497,6 +506,8 @@ function forgetTarget(targetId: string): void {
     sessionOwnedTabIds.delete(tabId);
   }
   tabIdsByTargetId.delete(targetId);
+  attachedTabs.delete(targetId);
+  publishedTargets.delete(targetId);
   if (controlledTabs.delete(targetId)) void updateActionBadge();
 }
 
@@ -518,7 +529,7 @@ async function targetInfo(tab: TabSummary, preferredActiveTabId?: number): Promi
     type: 'page',
     title: tab.title,
     url: tab.url,
-    attached: controlledTabs.has(targetId),
+    attached: attachedTabs.has(targetId),
     active: preferredActiveTabId === tab.id || currentActiveTab?.id === tab.id,
   };
 }
@@ -532,7 +543,6 @@ async function tabForTarget(targetId: string): Promise<TabSummary> {
 }
 
 async function listEligibleTargets(): Promise<CdpTargetInfo[]> {
-  targetDiscoveryActive = true;
   let tabs: Array<{
     summary: TabSummary;
     active: boolean;
@@ -563,6 +573,9 @@ async function listEligibleTargets(): Promise<CdpTargetInfo[]> {
     }
   }
 
+  targetExposure.seedEligible(tabs.map(tab => tab.summary.id));
+  tabs = tabs.filter(tab => targetExposure.has(tab.summary.id));
+  targetDiscoveryActive = true;
   const currentActiveTab = await activeTab();
   const preferred =
     tabs.find(tab => tab.summary.id === currentActiveTab?.id) ??
@@ -584,6 +597,11 @@ function sendTargetResult(
     | { success: true; targets?: CdpTargetInfo[]; target?: CdpTargetInfo }
     | { success: false; error: string },
 ): void {
+  if (result.success) {
+    for (const target of result.targets ?? (result.target ? [result.target] : [])) {
+      publishedTargets.set(target.targetId, target);
+    }
+  }
   sendNative({
     type: 'cdp.target.result',
     protocol: PANERELAY_PROTOCOL_VERSION,
@@ -623,6 +641,7 @@ async function handleTargetRequest(message: CdpTargetRequestMessage): Promise<vo
         const summary = summarizeTab(tab);
         if (!summary) throw new Error('Chrome did not create a controllable tab');
         sessionOwnedTabIds.add(summary.id);
+        targetExposure.expose(summary.id);
         sendTargetResult(message.requestId, {
           success: true,
           target: await targetInfo(summary),
@@ -659,11 +678,10 @@ async function attachTarget(requestId: string, targetId: string): Promise<void> 
       throw new Error(`Chrome site access for ${summary.url || 'this page'} is not granted`);
     }
 
-    if (!controlledTabs.has(targetId)) {
+    if (!attachedTabs.has(targetId)) {
       await chrome.debugger.attach({ tabId: summary.id }, '1.3');
-      controlledTabs.set(targetId, summary);
+      attachedTabs.set(targetId, summary);
     }
-    await updateActionBadge();
     sendNative({
       type: 'cdp.attached',
       protocol: PANERELAY_PROTOCOL_VERSION,
@@ -688,13 +706,13 @@ async function attachTarget(requestId: string, targetId: string): Promise<void> 
 }
 
 async function runCdpCommand(message: CdpCommandMessage): Promise<void> {
-  const target = controlledTabs.get(message.targetId);
+  const target = attachedTabs.get(message.targetId);
   if (!target) {
     sendNative({
       type: 'cdp.result',
       protocol: PANERELAY_PROTOCOL_VERSION,
       requestId: message.requestId,
-      error: { code: -32000, message: 'No tab is currently controlled' },
+      error: { code: -32000, message: 'No tab is currently attached' },
     });
     return;
   }
@@ -709,12 +727,12 @@ async function runCdpCommand(message: CdpCommandMessage): Promise<void> {
       type: 'cdp.result',
       protocol: PANERELAY_PROTOCOL_VERSION,
       requestId: message.requestId,
-      error: { code: -32000, message: 'The controlled tab origin is no longer authorized' },
+      error: { code: -32000, message: 'The attached tab origin is no longer authorized' },
     });
     if (authorizationMode === 'single-tab') {
-      await releaseControl('Controlled tab origin is no longer authorized', true);
+      await releaseControl('Attached tab origin is no longer authorized', true);
     } else {
-      await detachTarget(message.targetId, 'Controlled tab origin is no longer authorized', true);
+      await detachTarget(message.targetId, 'Attached tab origin is no longer authorized', true);
     }
     return;
   }
@@ -725,6 +743,11 @@ async function runCdpCommand(message: CdpCommandMessage): Promise<void> {
       ...(message.sessionId ? { sessionId: message.sessionId } : {}),
     } as chrome.debugger.Debuggee;
     if (cdpCommandTouchesDocument(message.method)) {
+      if (!controlledTabs.has(message.targetId)) {
+        controlledTabs.set(message.targetId, current);
+        await updateActionBadge();
+        await broadcastStatus();
+      }
       await applyControlledFavicon(current.id);
     }
     const result = await chrome.debugger.sendCommand(
@@ -752,7 +775,8 @@ async function runCdpCommand(message: CdpCommandMessage): Promise<void> {
 }
 
 async function detachTarget(targetId: string, reason: string, notifyHost: boolean): Promise<void> {
-  const tab = controlledTabs.get(targetId);
+  const tab = attachedTabs.get(targetId);
+  attachedTabs.delete(targetId);
   controlledTabs.delete(targetId);
   if (tab) {
     await releaseControlledFavicon(tab.id);
@@ -776,12 +800,14 @@ async function detachTarget(targetId: string, reason: string, notifyHost: boolea
 }
 
 async function releaseControl(reason: string, notifyHost: boolean): Promise<void> {
-  const targets = [...controlledTabs.keys()];
+  const targets = [...attachedTabs.keys()];
   for (const targetId of targets) await detachTarget(targetId, reason, false);
   targetDiscoveryActive = false;
   targetIdsByTabId.clear();
   tabIdsByTargetId.clear();
+  publishedTargets.clear();
   sessionOwnedTabIds.clear();
+  targetExposure.clear();
   if (notifyHost) {
     try {
       sendNative({
@@ -798,7 +824,7 @@ async function releaseControl(reason: string, notifyHost: boolean): Promise<void
 }
 
 async function setAuthorization(mode: AuthorizationMode): Promise<ExtensionStatus> {
-  if (controlledTabs.size > 0 || targetDiscoveryActive) {
+  if (attachedTabs.size > 0 || targetDiscoveryActive) {
     await releaseControl('User changed browser authorization', true);
   }
 
@@ -1050,7 +1076,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
 chrome.debugger.onEvent.addListener((source, method, params) => {
   if (typeof source.tabId !== 'number') return;
   const targetId = targetIdsByTabId.get(source.tabId);
-  if (!targetId || !controlledTabs.has(targetId)) return;
+  if (!targetId || !attachedTabs.has(targetId)) return;
   sendNative({
     type: 'cdp.event',
     protocol: PANERELAY_PROTOCOL_VERSION,
@@ -1064,9 +1090,10 @@ chrome.debugger.onEvent.addListener((source, method, params) => {
 chrome.debugger.onDetach.addListener((source, reason) => {
   if (typeof source.tabId !== 'number') return;
   const targetId = targetIdsByTabId.get(source.tabId);
-  if (!targetId || !controlledTabs.has(targetId)) return;
-  controlledTabs.delete(targetId);
-  void releaseControlledFavicon(source.tabId);
+  if (!targetId || !attachedTabs.has(targetId)) return;
+  attachedTabs.delete(targetId);
+  const wasControlled = controlledTabs.delete(targetId);
+  if (wasControlled) void releaseControlledFavicon(source.tabId);
   void updateActionBadge().catch(() => undefined);
   const detachReason = debuggerDetachReason(reason);
   if (!detachReason) {
@@ -1092,30 +1119,58 @@ chrome.debugger.onDetach.addListener((source, reason) => {
 async function publishTargetForTab(tab: chrome.tabs.Tab): Promise<void> {
   if (!targetDiscoveryActive) return;
   const summary = summarizeTab(tab);
-  if (!summary) return;
+  if (!summary || !targetExposure.has(summary.id)) return;
   const existingTargetId = targetIdsByTabId.get(summary.id);
   if (await isTabEligible(summary)) {
+    if (!targetExposure.has(summary.id)) return;
     const target = await targetInfo(summary);
+    const previous = publishedTargets.get(target.targetId);
+    if (previous && targetInfoEquals(previous, target)) return;
+    publishedTargets.set(target.targetId, target);
     sendNative({
       type: 'cdp.target.event',
       protocol: PANERELAY_PROTOCOL_VERSION,
-      event: existingTargetId ? 'changed' : 'created',
+      event: previous ? 'changed' : 'created',
       target,
     });
     return;
   }
-  if (existingTargetId) {
+  if (existingTargetId && publishedTargets.has(existingTargetId)) {
     sendNative({
       type: 'cdp.target.event',
       protocol: PANERELAY_PROTOCOL_VERSION,
       event: 'destroyed',
       targetId: existingTargetId,
     });
+    publishedTargets.delete(existingTargetId);
     forgetTarget(existingTargetId);
   }
 }
 
+function queueTargetPublication(tabId: number): void {
+  void targetPublicationQueue
+    .enqueue(tabId, async () => {
+      let tab: chrome.tabs.Tab;
+      try {
+        tab = await chrome.tabs.get(tabId);
+      } catch {
+        return;
+      }
+      await publishTargetForTab(tab);
+    })
+    .catch(() => undefined);
+}
+
+function exposeRelatedTarget(sourceTabId: number, tabId: number): void {
+  if (!targetDiscoveryActive) return;
+  const sourceTargetId = targetIdsByTabId.get(sourceTabId);
+  const sourceControlled = Boolean(sourceTargetId && controlledTabs.has(sourceTargetId));
+  if (!targetExposure.exposeRelated(sourceTabId, tabId, sourceControlled)) return;
+  queueTargetPublication(tabId);
+}
+
 chrome.tabs.onRemoved.addListener(tabId => {
+  targetExposure.remove(tabId);
   void (async () => {
     await pageCommentService.resetIfDocumentEnded(tabId);
     const targetId = targetIdsByTabId.get(tabId);
@@ -1124,8 +1179,8 @@ chrome.tabs.onRemoved.addListener(tabId => {
       authorizedOriginPatterns = [];
       authorizationMode = 'none';
       await releaseControl('Authorized tab was closed', true);
-    } else if (targetId && controlledTabs.has(targetId)) {
-      await detachTarget(targetId, 'Controlled tab was closed', false);
+    } else if (targetId && attachedTabs.has(targetId)) {
+      await detachTarget(targetId, 'Attached tab was closed', false);
     }
     if (targetId && targetDiscoveryActive) {
       sendNative({
@@ -1139,13 +1194,14 @@ chrome.tabs.onRemoved.addListener(tabId => {
     await broadcastStatus();
   })();
 });
-chrome.tabs.onCreated.addListener(tab => void publishTargetForTab(tab));
+chrome.tabs.onCreated.addListener(tab => {
+  if (typeof tab.id !== 'number') return;
+  if (typeof tab.openerTabId === 'number') exposeRelatedTarget(tab.openerTabId, tab.id);
+  queueTargetPublication(tab.id);
+});
 chrome.tabs.onActivated.addListener(({ tabId }) => {
   void pageCommentService.resetIfTabChanged(tabId);
-  void chrome.tabs
-    .get(tabId)
-    .then(publishTargetForTab)
-    .catch(() => undefined);
+  queueTargetPublication(tabId);
   void broadcastStatus();
   void broadcastWorkspaceForTab(tabId);
 });
@@ -1165,7 +1221,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
       }
     }
     const targetId = targetIdsByTabId.get(tabId);
-    if (targetId && controlledTabs.has(targetId)) {
+    if (targetId && attachedTabs.has(targetId)) {
       if (!summary || !(await isTabEligible(summary))) {
         if (authorizationMode === 'single-tab') {
           authorizedTab = null;
@@ -1174,15 +1230,20 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
           await releaseControl('Tab navigated outside its authorized origin', true);
         } else {
           await detachTarget(targetId, 'Tab navigated outside its authorized origin', true);
-          await publishTargetForTab(tab);
+          queueTargetPublication(tabId);
         }
         return;
       }
-      controlledTabs.set(targetId, summary);
+      attachedTabs.set(targetId, summary);
+      if (controlledTabs.has(targetId)) controlledTabs.set(targetId, summary);
     }
-    await publishTargetForTab(tab);
+    queueTargetPublication(tabId);
     if (changeInfo.url || changeInfo.title) await broadcastStatus();
   })();
+});
+
+chrome.webNavigation.onCreatedNavigationTarget.addListener(({ sourceTabId, tabId }) => {
+  exposeRelatedTarget(sourceTabId, tabId);
 });
 
 chrome.permissions.onRemoved.addListener(() => {

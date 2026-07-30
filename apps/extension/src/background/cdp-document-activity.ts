@@ -1,5 +1,5 @@
-const DOCUMENT_NEUTRAL_CDP_METHODS = new Set(['Runtime.runIfWaitingForDebugger']);
+import { classifyCdpTargetAccess } from '@panerelay/protocol';
 
 export function cdpCommandTouchesDocument(method: string): boolean {
-  return !method.startsWith('Target.') && !DOCUMENT_NEUTRAL_CDP_METHODS.has(method);
+  return classifyCdpTargetAccess(method) === 'control';
 }

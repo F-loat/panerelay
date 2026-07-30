@@ -16,6 +16,7 @@ const session: ControlSessionSummary = {
   actor: { kind: 'automation', name: 'agent-browser' },
   state: 'active',
   participantCount: 1,
+  observedTargetCount: 0,
   controlledTargetCount: 1,
   heartbeatFreshness: 'fresh',
   updatedAt: '2026-07-29T12:00:00.000Z',

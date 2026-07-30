@@ -553,6 +553,9 @@ function ExternalControl({ controller }: { controller: SidepanelController }) {
         ...(session.participantCount > 1
           ? [tf('controlParticipants', { count: session.participantCount })]
           : []),
+        ...(session.observedTargetCount > 0
+          ? [tf('controlObservedTargets', { count: session.observedTargetCount })]
+          : []),
         tf('controlTargets', { count: session.controlledTargetCount }),
         ...(session.heartbeatFreshness === 'fresh' ? [t('heartbeatLive')] : []),
       ]

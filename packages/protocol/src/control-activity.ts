@@ -16,6 +16,7 @@ export interface ControlSessionSummary {
   actor: ControlSessionActor;
   state: ControlSessionState;
   participantCount: number;
+  observedTargetCount: number;
   controlledTargetCount: number;
   heartbeatFreshness: ControlHeartbeatFreshness;
   lastHeartbeatAt?: string;
@@ -54,6 +55,8 @@ export interface AutomationActivityClassification {
   category: AutomationActivityCategory;
   label: AutomationActivityLabel;
 }
+
+export type CdpTargetAccess = 'observe' | 'control';
 
 export interface AutomationActivity {
   id: string;
@@ -154,6 +157,119 @@ const DEFAULT_CLASSIFICATION: AutomationActivityClassification = {
   category: 'other',
   label: 'run-browser-operation',
 };
+
+const OBSERVATION_CDP_METHODS = new Set([
+  'Accessibility.disable',
+  'Accessibility.enable',
+  'Accessibility.getAXNodeAndAncestors',
+  'Accessibility.getChildAXNodes',
+  'Accessibility.getFullAXTree',
+  'Accessibility.getPartialAXTree',
+  'Accessibility.getRootAXNode',
+  'Accessibility.queryAXTree',
+  'CSS.disable',
+  'CSS.enable',
+  'CSS.getBackgroundColors',
+  'CSS.getComputedStyleForNode',
+  'CSS.getEnvironmentVariables',
+  'CSS.getInlineStylesForNode',
+  'CSS.getLayersForNode',
+  'CSS.getLocationForSelector',
+  'CSS.getLonghandProperties',
+  'CSS.getMatchedStylesForNode',
+  'CSS.getMediaQueries',
+  'CSS.getPlatformFontsForNode',
+  'CSS.getStyleSheetText',
+  'DOM.collectClassNamesFromSubtree',
+  'DOM.describeNode',
+  'DOM.disable',
+  'DOM.discardSearchResults',
+  'DOM.enable',
+  'DOM.getAttributes',
+  'DOM.getBoxModel',
+  'DOM.getContentQuads',
+  'DOM.getDocument',
+  'DOM.getFileInfo',
+  'DOM.getFrameOwner',
+  'DOM.getNodeForLocation',
+  'DOM.getNodesForSubtreeByStyle',
+  'DOM.getOuterHTML',
+  'DOM.getQueryingDescendantsForContainer',
+  'DOM.getRelayoutBoundary',
+  'DOM.getSearchResults',
+  'DOM.getTopLayerElements',
+  'DOM.getDetachedDomNodes',
+  'DOM.performSearch',
+  'DOM.querySelector',
+  'DOM.querySelectorAll',
+  'DOM.requestChildNodes',
+  'DOM.requestNode',
+  'DOM.resolveNode',
+  'DOMDebugger.getEventListeners',
+  'DOMSnapshot.captureSnapshot',
+  'Fetch.getResponseBody',
+  'Fetch.takeResponseBodyAsStream',
+  'IO.close',
+  'IO.read',
+  'Log.disable',
+  'Log.enable',
+  'Network.canClearBrowserCache',
+  'Network.canClearBrowserCookies',
+  'Network.canEmulateNetworkConditions',
+  'Network.disable',
+  'Network.enable',
+  'Network.getAllCookies',
+  'Network.getCertificate',
+  'Network.getCookies',
+  'Network.getResponseBody',
+  'Network.getRequestPostData',
+  'Network.getResponseBodyForInterception',
+  'Network.getSecurityIsolationStatus',
+  'Network.searchInResponseBody',
+  'Page.captureScreenshot',
+  'Page.captureSnapshot',
+  'Page.disable',
+  'Page.enable',
+  'Page.getAppManifest',
+  'Page.getAppManifestIcons',
+  'Page.getAppId',
+  'Page.getFrameTree',
+  'Page.getInstallabilityErrors',
+  'Page.getLayoutMetrics',
+  'Page.getNavigationHistory',
+  'Page.getPermissionsPolicyState',
+  'Page.getResourceContent',
+  'Page.getResourceTree',
+  'Page.getScriptExecutionStatus',
+  'Page.getSecurePaymentConfirmationSupport',
+  'Page.printToPDF',
+  'Page.searchInResource',
+  'Performance.disable',
+  'Performance.enable',
+  'Performance.getMetrics',
+  'Runtime.disable',
+  'Runtime.enable',
+  'Runtime.getExceptionDetails',
+  'Runtime.getHeapUsage',
+  'Runtime.getIsolateId',
+  'Runtime.getProperties',
+  'Runtime.globalLexicalScopeNames',
+  'Runtime.releaseObject',
+  'Runtime.releaseObjectGroup',
+  'Runtime.runIfWaitingForDebugger',
+  'Security.disable',
+  'Security.enable',
+  'Storage.getCookies',
+  'Storage.getInterestGroupDetails',
+  'Storage.getSharedStorageEntries',
+  'Storage.getSharedStorageMetadata',
+  'Storage.getStorageKeyForFrame',
+  'Target.setAutoAttach',
+]);
+
+export function classifyCdpTargetAccess(method: string): CdpTargetAccess {
+  return OBSERVATION_CDP_METHODS.has(method) ? 'observe' : 'control';
+}
 
 export function classifyCdpMethod(method: string): AutomationActivityClassification {
   if (TARGET_METHODS.has(method) || method.startsWith('Target.')) {
@@ -258,6 +374,7 @@ export function isControlSessionSummary(value: unknown): value is ControlSession
         'actor',
         'state',
         'participantCount',
+        'observedTargetCount',
         'controlledTargetCount',
         'heartbeatFreshness',
         'lastHeartbeatAt',
@@ -270,6 +387,8 @@ export function isControlSessionSummary(value: unknown): value is ControlSession
     SESSION_STATES.has(value.state as ControlSessionState) &&
     Number.isSafeInteger(value.participantCount) &&
     Number(value.participantCount) >= 0 &&
+    Number.isSafeInteger(value.observedTargetCount) &&
+    Number(value.observedTargetCount) >= 0 &&
     Number.isSafeInteger(value.controlledTargetCount) &&
     Number(value.controlledTargetCount) >= 0 &&
     HEARTBEAT_FRESHNESS.has(value.heartbeatFreshness as ControlHeartbeatFreshness) &&

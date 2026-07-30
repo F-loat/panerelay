@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   PANERELAY_PROTOCOL_VERSION,
   classifyCdpMethod,
+  classifyCdpTargetAccess,
   isAutomationActivity,
   isAutomationActivitySnapshotMessage,
   isAutomationActivityUpdatedMessage,
@@ -23,6 +24,7 @@ const session: ControlSessionSummary = {
   actor,
   state: 'active',
   participantCount: 2,
+  observedTargetCount: 2,
   controlledTargetCount: 1,
   heartbeatFreshness: 'fresh',
   lastHeartbeatAt: '2026-07-29T12:00:00.000Z',
@@ -78,6 +80,38 @@ test('classifier output cannot retain raw CDP methods or command values', () => 
   assert.equal(serialized.includes('Runtime.evaluate'), false);
   assert.equal(serialized.includes(secret), false);
   assert.deepEqual(Object.keys(classification).sort(), ['category', 'label']);
+});
+
+test('classifies only explicit side-effect-free CDP methods as observation', () => {
+  for (const method of [
+    'Page.enable',
+    'Runtime.enable',
+    'Network.enable',
+    'Target.setAutoAttach',
+    'Runtime.runIfWaitingForDebugger',
+    'Accessibility.getFullAXTree',
+    'DOM.getDocument',
+    'Network.getResponseBody',
+    'Page.captureScreenshot',
+    'Page.captureSnapshot',
+    'Page.printToPDF',
+    'Runtime.getProperties',
+  ]) {
+    assert.equal(classifyCdpTargetAccess(method), 'observe', method);
+  }
+
+  for (const method of [
+    'Runtime.evaluate',
+    'Runtime.callFunctionOn',
+    'Page.navigate',
+    'Input.dispatchMouseEvent',
+    'DOM.setAttributeValue',
+    'Network.setBlockedURLs',
+    'Emulation.setDeviceMetricsOverride',
+    'Unknown.readSomething',
+  ]) {
+    assert.equal(classifyCdpTargetAccess(method), 'control', method);
+  }
 });
 
 test('accepts valid control status and activity messages', () => {
@@ -164,6 +198,16 @@ test('rejects malformed or inconsistent activity envelopes', () => {
       epoch: 'epoch-1',
       sequence: 1,
       session: { ...session, participantCount: -1 },
+    }),
+    false,
+  );
+  assert.equal(
+    isControlSessionChangedMessage({
+      type: 'control.session.changed',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      epoch: 'epoch-1',
+      sequence: 1,
+      session: { ...session, observedTargetCount: -1 },
     }),
     false,
   );

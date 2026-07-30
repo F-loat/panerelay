@@ -353,6 +353,7 @@ describe('React Side Panel', () => {
         actor: { kind: 'automation', name: 'agent-browser' },
         state: 'active',
         participantCount: 1,
+        observedTargetCount: 2,
         controlledTargetCount: 1,
         heartbeatFreshness: 'fresh',
         updatedAt: '2026-07-30T05:27:00.000Z',
@@ -369,6 +370,8 @@ describe('React Side Panel', () => {
     await user.click(screen.getByRole('button', { name: /Browser access:/ }));
     const externalControl = screen.getByText('External control').closest('section');
     expect(externalControl).not.toBeNull();
+    expect(within(externalControl as HTMLElement).getByText(/2 observed tabs/)).toBeVisible();
+    expect(within(externalControl as HTMLElement).getByText(/1 controlled tabs/)).toBeVisible();
     expect(
       within(externalControl as HTMLElement).queryByRole('button', { name: 'Release' }),
     ).not.toBeInTheDocument();
@@ -399,6 +402,7 @@ describe('React Side Panel', () => {
         },
         state: 'released',
         participantCount: 0,
+        observedTargetCount: 0,
         controlledTargetCount: 0,
         heartbeatFreshness: 'unknown',
         updatedAt: '2026-07-30T05:27:00.000Z',

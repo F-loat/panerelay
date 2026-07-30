@@ -7,6 +7,8 @@
 - Created: 2026-07-29
 - Updated: 2026-07-30
 
+RFC-0004 supersedes this RFC's attachment-as-control and page-indicator semantics by separating visible read observation from active browser control.
+
 ## Summary
 
 Panerelay will let browser automation tools and AI agents interact with a user's existing browser through a Chrome extension and a local bridge. The same extension will provide a side panel for agent conversations, browser-context sharing, activity review, approvals, interruption, and control handoff.

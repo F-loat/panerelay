@@ -4,7 +4,7 @@
 - agent-browser: 0.33.0
 - Support policy: minimum supported version and initial version-specific verified baseline
 - Connection: browser-level Provider over Native Messaging
-- Last verified: 2026-07-30
+- Last verified: 2026-07-31
 
 agent-browser versions newer than 0.33.0 satisfy Panerelay's minimum-version check, but they do not inherit this file's `Verified` classifications. Record a separate version-specific compatibility report before describing a newer version as verified.
 
@@ -21,7 +21,7 @@ agent-browser versions newer than 0.33.0 satisfy Panerelay's minimum-version che
 | agent-browser capability | Status | Notes |
 | --- | --- | --- |
 | Provider selection and global default | Verified | `@panerelay/setup` installs the Provider and can set it globally. |
-| Browser-level handshake | Verified | Target discovery, virtual flattened page sessions, and lazy debugger attachment pass. |
+| Browser-level handshake | Verified | Target discovery and flattened page sessions remain virtual; page/runtime/network subscriptions attach as visible observation without entering the controlled count. |
 | `snapshot`, `get`, `eval` | Verified | Accessibility, DOM, and Runtime commands operate on the Agent-selected authorized target, including background tabs. |
 | `open`, `reload`, `back`, `forward`, `wait` | Verified | Navigation stays within Chrome site-access authorization. |
 | `click`, `fill` | Verified | Page interaction and resulting application state pass on the local fixture. |
@@ -39,9 +39,10 @@ agent-browser versions newer than 0.33.0 satisfy Panerelay's minimum-version che
 
 | agent-browser capability | Status | Notes |
 | --- | --- | --- |
-| `tab`, `tab new`, switch, close | Verified | Existing authorized tabs and Agent-created tabs use stable session-local IDs. Without all-tabs authorization, `tab new` fails closed and directs the user to an Extension-side authorization action. |
+| `tab`, `tab new`, switch, close | Verified | The initial authorized inventory and Agent-created tabs use stable session-local IDs. Without all-tabs authorization, `tab new` fails closed and directs the user to an Extension-side authorization action. |
 | Background target selection | Verified | `tab <id>`, `Target.activateTarget`, and `Page.bringToFront` update or acknowledge Agent-local selection without activating a Chrome tab or focusing its window. `tab new` creates an inactive tab. |
-| JavaScript popups | Verified | Newly created eligible page targets are discovered and can be selected. |
+| Controlled-lineage target discovery | Verified | After initial seeding, independently opened tabs stay private; Agent-created tabs and Chrome-reported descendants of controlled tabs expand the exposed inventory. Later target lists remain bounded to that inventory. |
+| JavaScript popups | Verified | Eligible page targets opened from a controlled source are discovered and can be selected. |
 | cross-origin iframe and worker sessions | Partial | Flattened child sessions are routed; auto-attach does not pause child startup. |
 | cookies: get, set, single-cookie expiry | Verified | Explicit URLs and domains are limited to the selected authorized target origin. |
 | cookies: clear or whole-profile access | Unsupported | Panerelay rejects methods that read or clear the daily Chrome profile globally. |
@@ -62,7 +63,8 @@ agent-browser versions newer than 0.33.0 satisfy Panerelay's minimum-version che
 | Expiry and stale reconnect cleanup | Verified | Deterministic tests cover closed transport, target detach, pending failure, and rejected stale credentials. |
 | Normal Provider release | Verified | Closing one of two daily-Chrome participants preserved the other participant and its page access; the final close released the shared lease without changing tab authorization. |
 | Immediate user release | Verified | The settings panel exposes release while active; automated integration coverage verifies terminal cleanup. |
-| Per-tab controlled favicon | Forwarded | Bridge and Extension tests keep discovery, virtual attach, and page-scoped auto-attach bootstrap from changing the controlled count or favicon; document-command injection, SPA resistance, refresh clearing, and restoration are covered. Daily-Chrome verification is pending. |
+| Read-only observation state | Verified | Passive page/runtime/network setup and explicitly allowlisted reads retain events while reporting a separate observed-target count, zero controlled targets, and no controlled favicon. `Runtime.evaluate` and unknown methods fail closed into control. |
+| Per-tab controlled favicon | Forwarded | Bridge and Extension tests keep discovery, passive setup, and allowlisted reads from changing the controlled count or favicon; the first control-class command, SPA resistance, refresh clearing, and restoration are covered. Daily-Chrome verification of the new observation/control split is pending. |
 | Sanitized activity lifecycle | Verified | Real page and tab commands rendered localized completed rows; protocol tests reject raw sensitive fields. |
 | Bounded replay and history gaps | Verified | Bridge and Extension tests cover ring limits, epochs, sequence gaps, and reconnect snapshots. |
 | Durable activity history | Unsupported | Activity is intentionally memory-only and is cleared across process histories. |
@@ -70,6 +72,10 @@ agent-browser versions newer than 0.33.0 satisfy Panerelay's minimum-version che
 Real-browser evidence covers active heartbeat, completed page activity, tab activity, direct Provider release, two consecutive Qoder CLI 1.1.2 browser turns, and two simultaneously live agent-browser 0.33.0 participants. Both named participants listed the same eight authorized tabs and concurrently read the same GitHub target. Closing the first left the second usable; closing the second completed cleanup without changing tab authorization.
 
 A later daily-Chrome focus-isolation run kept one user-visible tab active while an Agent selected a different authorized target, read its title, and captured its accessibility snapshot. Fresh observer participants continued to report the original Chrome-active target. The Agent then created an inactive `about:blank` target, observer participants still reported the original active target, and closing the background target did not change it. After the user independently changed the visible tab, an Agent DOM-focus command succeeded on the background target without pulling Chrome back to it. Every verification participant was released independently afterward.
+
+The 2026-07-30 observation/control run created an inactive loopback fixture tab whose page scheduled repeated `/early` requests. Before any control-class command, an allowlisted raw `DOM.getDocument` plus `DOM.querySelector` found no `data-panerelay-controlled-favicon`, while agent-browser's cached request list already contained successful fixture requests. The first `Runtime.evaluate` observed the Panerelay marker during its own execution, and a repeated evaluation still found exactly one marker. Deterministic Bridge and Extension tests additionally verify the corresponding observed-target to controlled-target count transition. The fixture tab, Agent participants, and temporary server were removed afterward.
+
+The 2026-07-31 controlled-lineage run initialized one Agent participant, opened an independent loopback tab through Mearl, and confirmed that it stayed absent from both that participant and a freshly initialized second participant. An Agent-created parent and a child opened from that controlled parent each appeared exactly once. A separate Agent-created source remained observation-only; a Chrome tab opened with that source as its explicit opener stayed absent from both participants, confirming that observed lineage does not expand the inventory. Both Agent participants, every fixture tab, and the temporary server were removed afterward.
 
 Forced heartbeat expiry, Bridge-restart gaps, and injected failed or denied CDP commands remain automated-test scenarios to avoid perturbing the user's daily browser profile.
 
@@ -79,7 +85,7 @@ Forced heartbeat expiry, Bridge-restart gaps, and injected failed or denied CDP 
 | --- | --- | --- |
 | console and page errors | Verified | Runtime events are routed per target. |
 | `inspect` / Chrome DevTools | Unsupported | Opening DevTools displaces the Extension debugger, so the affected target detaches. |
-| request list | Verified | Network events and response metadata are routed per target. |
+| request list | Verified | Network events and response metadata are routed per target; deterministic regression coverage receives an early request event before any control-class command. |
 | request detail and HAR | Verified | Fixture request metadata/body and a readable one-entry HAR pass per target. |
 | request routes and mocks | Verified | Fetch-domain response replacement passes on an attached local target. |
 | headers, credentials, offline | Verified | Header echo, Basic credentials, offline observation, reset, and session cleanup pass. |
