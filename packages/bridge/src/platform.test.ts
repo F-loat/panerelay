@@ -76,7 +76,7 @@ test('launches Windows command wrappers through ComSpec without shell interpolat
     ),
     {
       command: 'C:\\Windows\\System32\\cmd.exe',
-      args: ['/d', '/s', '/c', 'C:\\Program Files\\Qoder & Tools\\qodercli.cmd', '--acp'],
+      args: ['/d', '/s', '/c', '"C:\\Program Files\\Qoder & Tools\\qodercli.cmd"', '--acp'],
     },
   );
   assert.deepEqual(resolveSpawnCommand('/usr/bin/codex', ['app-server'], 'linux'), {
@@ -103,7 +103,7 @@ test('probes and compares semantic versions', async () => {
   assert.deepEqual(calls, [
     {
       command: 'cmd.exe',
-      args: ['/d', '/s', '/c', 'C:\\npm\\agent-browser.cmd', '--version'],
+      args: ['/d', '/s', '/c', '"C:\\npm\\agent-browser.cmd"', '--version'],
     },
   ]);
 });

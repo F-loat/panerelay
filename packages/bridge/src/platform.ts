@@ -128,7 +128,7 @@ export function resolveSpawnCommand(
   if (platform === 'win32' && /\.(?:cmd|bat)$/i.test(executable)) {
     return {
       command: commandInterpreter || 'cmd.exe',
-      args: ['/d', '/s', '/c', executable, ...args],
+      args: ['/d', '/s', '/c', `"${executable}"`, ...args],
     };
   }
   return { command: executable, args };
