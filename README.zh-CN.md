@@ -39,13 +39,20 @@ Microsoft Edge 运行时能力目前归类为 `Forwarded`，仍需完成有代�
    ```
 
 3. 从 Chrome 或 Edge 工具栏打开 Panerelay，授权当前网页标签页或所有受支持的网页标签页。
-4. 验证任意 Agent 可以通过 agent-browser 访问已授权的浏览器：
+4. 如果 Panerelay 同时连接了多个浏览器，在扩展设置中选择“默认浏览器”，或通过 CLI 明确选择：
+
+   ```bash
+   npx --yes @panerelay/cli browsers
+   npx --yes @panerelay/cli browser use edge
+   ```
+
+5. 验证任意 Agent 可以通过 agent-browser 访问所选的已授权浏览器：
 
    ```bash
    agent-browser --provider panerelay tab list
    ```
 
-5. 如果希望直接在浏览器中工作，打开侧边栏并选择本机已安装的 Agent。Panerelay 会自动发现 Codex、Claude Code 和 Qoder；对应的 Agent CLI 仍需提前安装并登录。
+6. 如果希望直接在浏览器中工作，打开侧边栏并选择本机已安装的 Agent。Panerelay 会自动发现 Codex、Claude Code 和 Qoder；对应的 Agent CLI 仍需提前安装并登录。侧边栏 Agent 始终绑定到打开该侧边栏的浏览器，不受保存的默认浏览器影响。
 
 如需在后续命令中省略 `--provider panerelay`，可在扩展设置中将 Panerelay 设为用户级默认 Agent，或安装时加上 `--global-provider`；如果只想影响当前项目，请改用 `--project-provider`。默认 Agent 只改变路由，不会授予浏览器权限，也不会授权任何标签页。
 
@@ -77,6 +84,21 @@ npx --yes @panerelay/setup --project-provider
 
 agent-browser 从 `~/.agent-browser/config.json` 读取用户级默认值，当前项目的 `./agent-browser.json` 优先级更高。如需恢复其他默认 Agent，修改或删除对应配置中的 `provider` 字段即可。Panerelay 会继续保留，始终可以通过 `--provider panerelay` 使用。
 
+浏览器选择是另一项独立设置。Panerelay 依次使用显式的 `PANERELAY_BROWSER_ID` 或 `PANERELAY_BROWSER`、保存的默认浏览器、唯一在线且可用的浏览器。多个浏览器同时可用但没有明确选择时会直接报错，不会根据焦点或注册顺序猜测：
+
+```bash
+npx --yes @panerelay/cli browsers
+npx --yes @panerelay/cli browser use chrome
+# 也可以使用精确的注册 ID：
+# npx --yes @panerelay/cli browser use REGISTRATION_ID
+npx --yes @panerelay/cli browser clear
+PANERELAY_BROWSER=edge agent-browser --provider panerelay tab list
+```
+
+如需频繁管理，可以全局安装 `@panerelay/cli`，之后使用相同的 `panerelay ...` 命令。setup 不会自动安装这个可选 CLI，也不会修改 shell 的 `PATH`。
+
+显式选择或保存的默认浏览器离线时不会自动切换到其他浏览器。每个 agent-browser 会话在关闭前始终固定到创建它的浏览器。
+
 官方构建使用扩展 ID `panplnkjlkoceaonlmpdekjphgmbggmi`。自行构建的扩展可以注册自己的 32 位 ID：
 
 ```bash
@@ -91,7 +113,7 @@ ID 必须由 32 个 `a` 到 `p` 的小写字母组成。
 - 复用登录态是指在已授权的现有标签页内工作。Panerelay 默认不会导出或记录 Cookie、凭证、Prompt、截图、页面内容或请求体。
 - Panerelay 无法接管隔离 Profile、启动期代理或关闭用户 Chrome 或 Edge 进程等 browser-process 能力。
 - `webNavigation` 只用于识别浏览器报告的关联标签页，以便继承会话上下文；它不会读取浏览历史，也不会授予网站访问权限。
-- 扩展、协议、Bridge、Provider 与 setup CLI 构成锁步兼容单元。
+- 扩展、协议、Bridge、Provider、setup 包、浏览器注册库与可选管理 CLI 构成锁步兼容单元。
 
 ## 开发与发布检查
 

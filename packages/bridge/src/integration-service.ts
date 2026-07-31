@@ -1,9 +1,16 @@
 import {
   PANERELAY_PROTOCOL_VERSION,
+  type BridgeState,
   type HostToExtensionMessage,
+  type IntegrationBrowserDefaultResult,
   type IntegrationDefaultProviderResult,
   type IntegrationRequestMessage,
 } from '@panerelay/protocol';
+import {
+  clearBrowserDefault,
+  readBrowserDefault,
+  setBrowserDefault,
+} from '@panerelay/browser-registry';
 import {
   clearPanerelayUserDefaultProvider,
   readUserDefaultProvider,
@@ -13,8 +20,12 @@ import {
 import { pickWorkspaceDirectory } from './workspace-directory.js';
 
 export interface IntegrationServiceOptions {
+  clearBrowserDefault?: typeof clearBrowserDefault;
   clearDefaultProvider?: typeof clearPanerelayUserDefaultProvider;
+  currentBrowser?: () => BridgeState | null;
+  readBrowserDefault?: typeof readBrowserDefault;
   readDefaultProvider?: typeof readUserDefaultProvider;
+  setBrowserDefault?: typeof setBrowserDefault;
   setDefaultProvider?: typeof setPanerelayUserDefaultProvider;
   pickDirectory?: typeof pickWorkspaceDirectory;
 }
@@ -26,10 +37,31 @@ function result(state: UserDefaultProviderState): IntegrationDefaultProviderResu
   };
 }
 
+function browserResult(
+  current: BridgeState | null,
+  defaultBrowserId: string | null,
+): IntegrationBrowserDefaultResult {
+  return {
+    currentBrowser: current
+      ? {
+          browserId: current.browserId,
+          browserName: current.browserName,
+          ...(current.browserFamily ? { browserFamily: current.browserFamily } : {}),
+        }
+      : null,
+    defaultBrowserId,
+    isCurrentBrowser: Boolean(current && defaultBrowserId === current.browserId),
+  };
+}
+
 export class IntegrationService {
+  readonly #clearBrowserDefault: typeof clearBrowserDefault;
   readonly #clearDefaultProvider: typeof clearPanerelayUserDefaultProvider;
+  readonly #currentBrowser: () => BridgeState | null;
+  readonly #readBrowserDefault: typeof readBrowserDefault;
   readonly #readDefaultProvider: typeof readUserDefaultProvider;
   readonly #send: (message: HostToExtensionMessage) => void;
+  readonly #setBrowserDefault: typeof setBrowserDefault;
   readonly #setDefaultProvider: typeof setPanerelayUserDefaultProvider;
   readonly #pickDirectory: typeof pickWorkspaceDirectory;
 
@@ -38,8 +70,12 @@ export class IntegrationService {
     options: IntegrationServiceOptions = {},
   ) {
     this.#send = send;
+    this.#clearBrowserDefault = options.clearBrowserDefault ?? clearBrowserDefault;
     this.#clearDefaultProvider = options.clearDefaultProvider ?? clearPanerelayUserDefaultProvider;
+    this.#currentBrowser = options.currentBrowser ?? (() => null);
+    this.#readBrowserDefault = options.readBrowserDefault ?? readBrowserDefault;
     this.#readDefaultProvider = options.readDefaultProvider ?? readUserDefaultProvider;
+    this.#setBrowserDefault = options.setBrowserDefault ?? setBrowserDefault;
     this.#setDefaultProvider = options.setDefaultProvider ?? setPanerelayUserDefaultProvider;
     this.#pickDirectory = options.pickDirectory ?? pickWorkspaceDirectory;
   }
@@ -77,6 +113,44 @@ export class IntegrationService {
             requestId: message.requestId,
             success: true,
             result: result(state),
+          });
+          break;
+        }
+        case 'browser-default.get': {
+          const current = this.#currentBrowser();
+          const saved = await this.#readBrowserDefault();
+          this.#send({
+            type: 'integration.response',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            result: browserResult(current, saved?.browserId ?? null),
+          });
+          break;
+        }
+        case 'browser-default.set-current': {
+          const current = this.#currentBrowser();
+          if (!current) throw new Error('The current browser is not registered with Panerelay');
+          const saved = await this.#setBrowserDefault(current.browserId);
+          this.#send({
+            type: 'integration.response',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            result: browserResult(current, saved.browserId),
+          });
+          break;
+        }
+        case 'browser-default.clear-current': {
+          const current = this.#currentBrowser();
+          if (!current) throw new Error('The current browser is not registered with Panerelay');
+          const saved = await this.#clearBrowserDefault(current.browserId);
+          this.#send({
+            type: 'integration.response',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            result: browserResult(current, saved?.browserId ?? null),
           });
           break;
         }

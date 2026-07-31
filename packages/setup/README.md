@@ -22,6 +22,22 @@ Use Panerelay explicitly:
 agent-browser --provider panerelay tab list
 ```
 
+When Chrome and Edge are both connected, inspect or save the browser used by unscoped Provider invocations:
+
+```bash
+npx --yes @panerelay/cli browsers
+npx --yes @panerelay/cli browser use chrome
+# Or use an exact registration ID:
+# npx --yes @panerelay/cli browser use REGISTRATION_ID
+npx --yes @panerelay/cli browser clear
+```
+
+`@panerelay/cli` is an optional, engine-neutral administration package. Install
+it globally when a persistent `panerelay` command is useful. Setup does not
+install it globally or modify the shell `PATH`.
+
+`PANERELAY_BROWSER_ID` selects one exact registration for a process. `PANERELAY_BROWSER` accepts an exact ID or an unambiguous browser family. Explicit selection wins over the saved browser default. Without either, Panerelay selects only when exactly one CDP-ready browser is live; ambiguity and unavailable defaults fail closed. Existing sessions remain pinned to the browser through which they were created.
+
 Or choose a default scope:
 
 ```bash
@@ -41,9 +57,9 @@ The corresponding doctor flags verify the requested defaults:
 npx --yes @panerelay/setup doctor --project-provider --global-provider
 ```
 
-Human-readable CLI output follows the system language when it resolves to Chinese or English. Override it per command with `--lang zh-CN` or `--lang en`, or set `PANERELAY_LANG`. The machine-readable `doctor --json` schema and values remain stable.
+Human-readable setup output follows the system language when it resolves to Chinese or English. Override it per command with `--lang zh-CN` or `--lang en`, or set `PANERELAY_LANG`. The machine-readable `doctor --json` schema and values remain stable.
 
-Browser authorization remains controlled by the user in the Panerelay side panel. Provider configuration cannot grant access to a tab or widen its authorization scope.
+Browser authorization remains controlled by the user in the Panerelay side panel. Provider and browser-default configuration cannot grant access to a tab or widen its authorization scope. A side-panel Agent explicitly uses the browser containing that side panel rather than the saved default.
 
 Official Extension artifacts use ID `panplnkjlkoceaonlmpdekjphgmbggmi`. Self-built or differently signed Extensions can use:
 

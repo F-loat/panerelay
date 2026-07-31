@@ -90,6 +90,9 @@ importers:
 
   packages/agent-browser:
     dependencies:
+      '@panerelay/browser-registry':
+        specifier: workspace:*
+        version: link:../browser-registry
       '@panerelay/protocol':
         specifier: workspace:*
         version: link:../protocol
@@ -102,12 +105,27 @@ importers:
       '@panerelay/agent-browser':
         specifier: workspace:*
         version: link:../agent-browser
+      '@panerelay/browser-registry':
+        specifier: workspace:*
+        version: link:../browser-registry
       '@panerelay/protocol':
         specifier: workspace:*
         version: link:../protocol
       ws:
         specifier: ^8.21.1
         version: 8.21.1
+
+  packages/browser-registry:
+    dependencies:
+      '@panerelay/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+
+  packages/cli:
+    dependencies:
+      '@panerelay/browser-registry':
+        specifier: workspace:*
+        version: link:../browser-registry
 
   packages/protocol: {}
 
@@ -116,6 +134,9 @@ importers:
       '@panerelay/bridge':
         specifier: workspace:*
         version: link:../bridge
+      '@panerelay/browser-registry':
+        specifier: workspace:*
+        version: link:../browser-registry
       '@panerelay/protocol':
         specifier: workspace:*
         version: link:../protocol

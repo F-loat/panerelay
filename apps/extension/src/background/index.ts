@@ -16,6 +16,7 @@ import {
   type ConversationSummary,
   type HostToExtensionMessage,
   type IntegrationRequest,
+  type IntegrationBrowserDefaultResult,
   type IntegrationDefaultProviderResult,
   type IntegrationResponseMessage,
   type IntegrationResult,
@@ -77,6 +78,7 @@ let nativePort: chrome.runtime.Port | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let nativeHostState: NativeHostState = 'connecting';
 let defaultProvider: DefaultProviderState | null = null;
+let browserDefault: IntegrationBrowserDefaultResult | null = null;
 let authorizationRequest: 'all-tabs' | null = null;
 let authorizationMode: AuthorizationMode = 'none';
 let authorizedOriginPatterns: string[] = [];
@@ -160,6 +162,7 @@ async function status(): Promise<ExtensionStatus> {
     bridgeConnected: nativeHostState === 'connected',
     nativeHostState,
     defaultProvider,
+    browserDefault,
     authorizationRequest,
     activeTab: currentActiveTab,
     authorizationMode,
@@ -321,6 +324,7 @@ function connectNativeHost(): void {
       lastError = error?.message || 'Panerelay Bridge disconnected';
       nativeHostState = nativeHostDisconnectState(lastError);
       defaultProvider = null;
+      browserDefault = null;
       nativeTransferReceiver.cancelAll();
       if (nativeTransferCleanupTimer) {
         clearTimeout(nativeTransferCleanupTimer);
@@ -343,6 +347,7 @@ function connectNativeHost(): void {
     lastError = error instanceof Error ? error.message : String(error);
     nativeHostState = nativeHostDisconnectState(lastError);
     defaultProvider = null;
+    browserDefault = null;
     void broadcastStatus();
     scheduleReconnect();
   }
@@ -355,6 +360,7 @@ async function handleHostMessage(message: HostToExtensionMessage): Promise<void>
       lastError = undefined;
       await broadcastStatus();
       void refreshDefaultProvider();
+      void refreshBrowserDefault();
       return;
     case 'cdp.target.request':
       await handleTargetRequest(message);
@@ -448,6 +454,9 @@ function requestIntegration(
   request: Extract<IntegrationRequest, { method: `default-provider.${string}` }>,
 ): Promise<IntegrationDefaultProviderResult>;
 function requestIntegration(
+  request: Extract<IntegrationRequest, { method: `browser-default.${string}` }>,
+): Promise<IntegrationBrowserDefaultResult>;
+function requestIntegration(
   request: Extract<IntegrationRequest, { method: 'workspace.pick-directory' }>,
 ): Promise<IntegrationWorkspaceDirectoryResult>;
 function requestIntegration(request: IntegrationRequest): Promise<IntegrationResult> {
@@ -480,6 +489,15 @@ async function refreshDefaultProvider(): Promise<void> {
     defaultProvider = await requestIntegration({ method: 'default-provider.get' });
   } catch {
     defaultProvider = null;
+  }
+  await broadcastStatus();
+}
+
+async function refreshBrowserDefault(): Promise<void> {
+  try {
+    browserDefault = await requestIntegration({ method: 'browser-default.get' });
+  } catch {
+    browserDefault = null;
   }
   await broadcastStatus();
 }
@@ -888,6 +906,14 @@ async function setDefaultProvider(enabled: boolean): Promise<ExtensionStatus> {
   return status();
 }
 
+async function setBrowserDefault(enabled: boolean): Promise<ExtensionStatus> {
+  browserDefault = await requestIntegration({
+    method: enabled ? 'browser-default.set-current' : 'browser-default.clear-current',
+  });
+  await broadcastStatus();
+  return status();
+}
+
 function controlledTargetIdForTab(tabId: number): string {
   const targetId = targetIdsByTabId.get(tabId);
   if (!targetId || !controlledTabs.has(targetId)) {
@@ -920,6 +946,11 @@ async function handleSidePanelRequest(message: SidePanelRequest): Promise<SidePa
       return { success: true, status: await retryNativeHost() };
     case 'panerelay.default-provider.set':
       return { success: true, status: await setDefaultProvider(message.enabled) };
+    case 'panerelay.browser-default.set':
+      return { success: true, status: await setBrowserDefault(message.enabled) };
+    case 'panerelay.browser-default.refresh':
+      await refreshBrowserDefault();
+      return { success: true, status: await status() };
     case 'panerelay.controlled-tab.activate':
       await activateControlledTab(message.tabId);
       return { success: true };

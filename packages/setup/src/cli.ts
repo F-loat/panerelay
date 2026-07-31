@@ -78,7 +78,7 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
   }
   const command =
     localized.argv[0] && !localized.argv[0].startsWith('-') ? localized.argv[0] : 'setup';
-  const operation =
+  const operation: SetupOperation | undefined =
     command === 'setup' || command === 'install' || command === 'update'
       ? 'setup'
       : command === 'doctor'
@@ -87,13 +87,13 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
           ? 'uninstall'
           : undefined;
   if (!operation) throw new Error(`Unknown command: ${command}`);
+  const optionStart = command === localized.argv[0] ? 1 : 0;
 
   let project = false;
   let globalProvider = false;
   let json = false;
   let yes = false;
   let extensionId: string | undefined;
-  const optionStart = command === localized.argv[0] ? 1 : 0;
   for (let index = optionStart; index < localized.argv.length; index += 1) {
     const argument = localized.argv[index]!;
     if (argument === '--project-provider') project = true;

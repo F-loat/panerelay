@@ -8,6 +8,8 @@
   "claudeCodeMinimumVersion": "2.1.206",
   "packages": [
     "@panerelay/protocol",
+    "@panerelay/browser-registry",
+    "@panerelay/cli",
     "@panerelay/agent-browser",
     "@panerelay/bridge",
     "@panerelay/setup"

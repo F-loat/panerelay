@@ -51,7 +51,7 @@ candidate_directory=".artifacts/panerelay-$release_version"
 ```
 
 - [ ] Confirm `$candidate_directory/inventory.json` records channel `stable`, the intended version and commit, `"dirty": false`, official Extension ID, minimum agent-browser and Claude Code versions, and the verified agent-browser version list.
-- [ ] Confirm the directory contains four `@panerelay` npm tarballs, one shared Chrome/Edge Extension zip, `inventory.json`, and `SHA256SUMS`.
+- [ ] Confirm the directory contains six `@panerelay` npm tarballs, one shared Chrome/Edge Extension zip, `inventory.json`, and `SHA256SUMS`.
 - [ ] Verify checksums from inside the candidate directory:
 
   ```bash
@@ -60,7 +60,7 @@ candidate_directory=".artifacts/panerelay-$release_version"
 
 - [ ] Inspect every npm tarball for its intended public files, exact internal dependency pins matching the candidate version, the ACP dependency, no Claude Agent SDK or Claude platform runtime, and absence of tests, workspace ranges, credentials, logs, and signing keys.
 - [ ] Inspect the shared Chrome/Edge Extension archive for all manifest/HTML-referenced assets, versions, public key, and derived official ID; confirm it contains no Firefox manifest, Gecko identity, WebDriver transport, or browser launcher.
-- [ ] Install all four packed tarballs in one disposable consumer and confirm setup → doctor → update → doctor → uninstall, including a persisted custom Extension ID.
+- [ ] Install all six packed tarballs in one disposable consumer and confirm browser administration plus setup → doctor → update → doctor → uninstall, including a persisted custom Extension ID.
 
 ## Runtime acceptance
 
@@ -86,7 +86,7 @@ The manual [Release workflow](../.github/workflows/release.yml) publishes throug
 
 1. In GitHub repository settings, create an environment named `release`. Add required reviewers when the repository plan exposes environment protection rules; otherwise the explicit manual dispatch remains the human release gate.
 2. In GitHub repository Actions settings, allow `GITHUB_TOKEN` workflows to create pull requests so Prepare Release can open its version branch for review.
-3. In the npm settings for each of `@panerelay/protocol`, `@panerelay/agent-browser`, `@panerelay/bridge`, and `@panerelay/setup`, configure the same GitHub Actions trusted publisher:
+3. In the npm settings for each of `@panerelay/protocol`, `@panerelay/browser-registry`, `@panerelay/cli`, `@panerelay/agent-browser`, `@panerelay/bridge`, and `@panerelay/setup`, configure the same GitHub Actions trusted publisher:
    - Organization or user: `F-loat`
    - Repository: `panerelay`
    - Workflow filename: `release.yml`
@@ -101,7 +101,7 @@ The workflow grants `id-token: write` only to the protected npm publication job.
 From GitHub Actions, open **Release**, choose **Run workflow**, and select the source branch and `beta`. Approve the `release` environment if it has an approval rule.
 
 - The workflow derives `<repository-version>-beta.<run-number>` without committing or pushing the temporary version.
-- npm receives the four exact verified tarballs under the `beta` distribution tag.
+- npm receives the six exact verified tarballs under the `beta` distribution tag.
 - The workflow run exposes `panerelay-extension-<version>`, containing the Extension zip, `inventory.json`, and `SHA256SUMS`.
 - No Git tag or GitHub Release is created.
 
@@ -121,7 +121,7 @@ Before dispatching `stable`:
 - [ ] Merge the Prepare Release pull request into the default branch and confirm CI is green.
 - [ ] Confirm the repository version is the unused stable version to publish.
 - [ ] Confirm the matching remote tag and GitHub Release do not exist.
-- [ ] Confirm all four npm packages have the trusted publisher configuration above.
+- [ ] Confirm all six npm packages have the trusted publisher configuration above.
 
 Run **Release** from the default branch with channel `stable`, then approve the `release` environment if it has an approval rule. The workflow:
 
@@ -142,6 +142,6 @@ Afterward:
 
 ## Retry and recovery
 
-npm publication is not transactional across four packages. Before any new package is published, the workflow compares existing registry SHA-512 integrity with the candidate. A retry skips only an identical package and publishes the missing packages in dependency order; a different package with the same immutable version fails closed.
+npm publication is not transactional across six packages. Before any new package is published, the workflow compares existing registry SHA-512 integrity with the candidate. A retry skips only an identical package and publishes the missing packages in dependency order; a different package with the same immutable version fails closed.
 
 If a beta fails, rerun it to produce a new beta version. If stable npm publication succeeds but GitHub Release creation fails before creating a tag or draft, rerun the same workflow: it accepts identical npm tarballs and retries the missing Release. If the failed attempt already created a tag or draft, finish that Release manually from the same commit and accepted assets. If public contents differ, prepare a new patch version rather than overwriting npm packages or reusing a tag.

@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { installNativeHost } from '@panerelay/bridge/install';
+import { writeBrowserRegistration } from '@panerelay/browser-registry';
+import { PANERELAY_PROTOCOL_VERSION } from '@panerelay/protocol';
 import type { CommandRunner } from '@panerelay/bridge/platform';
 import { configureGlobalProvider } from './config.js';
 import { doctorPanerelay } from './doctor.js';
@@ -20,6 +22,44 @@ test('doctor verifies the optional global default Provider', async () => {
     const check = report.checks.find(item => item.id === 'global-provider');
     assert.equal(check?.status, 'pass');
     assert.equal(check?.detail, 'panerelay');
+  } finally {
+    await rm(homeDirectory, { force: true, recursive: true });
+  }
+});
+
+test('doctor recognizes multiple independent browser registrations', async () => {
+  const homeDirectory = await mkdtemp(join(tmpdir(), 'panerelay-multi-browser-doctor-'));
+  const extensionId = 'panplnkjlkoceaonlmpdekjphgmbggmi';
+  const options = {
+    registryDirectory: join(homeDirectory, '.panerelay', 'browsers'),
+  };
+  try {
+    for (const [browserId, browserName, browserFamily] of [
+      ['chrome-id', 'Google Chrome', 'chrome'],
+      ['edge-id', 'Microsoft Edge', 'edge'],
+    ] as const) {
+      await writeBrowserRegistration(
+        {
+          protocol: PANERELAY_PROTOCOL_VERSION,
+          pid: process.pid,
+          port: browserFamily === 'chrome' ? 41_001 : 41_002,
+          token: `token-${browserId}`,
+          browserId,
+          browserName,
+          browserFamily,
+          capabilities: { cdpRelay: true },
+          extensionVersion: '0.2.0',
+          extensionId,
+          updatedAt: '2026-07-31T08:00:00.000Z',
+        },
+        options,
+      );
+    }
+
+    const report = await doctorPanerelay({ homeDirectory, platform: 'linux' });
+    const check = report.checks.find(item => item.id === 'extension');
+    assert.equal(check?.status, 'pass');
+    assert.equal(check?.detail, 'Connected through 2 browser processes');
   } finally {
     await rm(homeDirectory, { force: true, recursive: true });
   }

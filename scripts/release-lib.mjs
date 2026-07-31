@@ -28,6 +28,29 @@ export const PACKAGE_DEFINITIONS = [
     ],
   },
   {
+    directory: 'packages/browser-registry',
+    name: '@panerelay/browser-registry',
+    requiredEntries: [
+      'package/LICENSE',
+      'package/README.md',
+      'package/dist/index.d.ts',
+      'package/dist/index.js',
+      'package/package.json',
+    ],
+  },
+  {
+    directory: 'packages/cli',
+    name: '@panerelay/cli',
+    requiredEntries: [
+      'package/LICENSE',
+      'package/README.md',
+      'package/dist/cli.js',
+      'package/dist/index.d.ts',
+      'package/dist/index.js',
+      'package/package.json',
+    ],
+  },
+  {
     directory: 'packages/agent-browser',
     name: '@panerelay/agent-browser',
     requiredEntries: [
@@ -656,20 +679,38 @@ export async function smokePackedSetup(tarballs) {
       cwd: consumerDirectory,
       env: environment,
     });
-    const cliScript = join(consumerDirectory, 'node_modules/@panerelay/setup/dist/cli.js');
-    const cliArguments = args => [cliScript, ...args];
+    const setupCliScript = join(consumerDirectory, 'node_modules/@panerelay/setup/dist/cli.js');
+    const setupCliArguments = args => [setupCliScript, ...args];
+    const browserCliScript = join(consumerDirectory, 'node_modules/@panerelay/cli/dist/cli.js');
+    const browserCliArguments = args => [browserCliScript, ...args];
     const extensionId = 'abcdefghijklmnopabcdefghijklmnop';
-    await run(process.execPath, cliArguments(['--help']), {
+    const browserList = await run(
+      process.execPath,
+      browserCliArguments(['browsers', '--lang=en']),
+      {
+        cwd: consumerDirectory,
+        env: environment,
+      },
+    );
+    invariant(
+      browserList.stdout.includes('No live Panerelay browsers are registered.'),
+      'Packed Panerelay CLI did not run against the isolated browser registry',
+    );
+    await run(process.execPath, browserCliArguments(['browser', 'clear', '--lang=en']), {
+      cwd: consumerDirectory,
+      env: environment,
+    });
+    await run(process.execPath, setupCliArguments(['--help']), {
       cwd: consumerDirectory,
       env: environment,
     });
     const setupArgs = ['--project-provider', '--global-provider', '--extension-id', extensionId];
-    await run(process.execPath, cliArguments(setupArgs), {
+    await run(process.execPath, setupCliArguments(setupArgs), {
       cwd: consumerDirectory,
       env: environment,
     });
     const doctorArgs = ['doctor', '--project-provider', '--global-provider', '--json'];
-    const firstDoctor = await packedDoctor(process.execPath, cliArguments(doctorArgs), {
+    const firstDoctor = await packedDoctor(process.execPath, setupCliArguments(doctorArgs), {
       cwd: consumerDirectory,
       env: environment,
     });
@@ -683,13 +724,13 @@ export async function smokePackedSetup(tarballs) {
     );
     await run(
       process.execPath,
-      cliArguments(['update', '--project-provider', '--global-provider']),
+      setupCliArguments(['update', '--project-provider', '--global-provider']),
       {
         cwd: consumerDirectory,
         env: environment,
       },
     );
-    const updatedDoctor = await packedDoctor(process.execPath, cliArguments(doctorArgs), {
+    const updatedDoctor = await packedDoctor(process.execPath, setupCliArguments(doctorArgs), {
       cwd: consumerDirectory,
       env: environment,
     });
@@ -701,7 +742,7 @@ export async function smokePackedSetup(tarballs) {
       ),
       'Packed setup update replaced the persisted custom Extension ID',
     );
-    await run(process.execPath, cliArguments(['uninstall', '--project-provider', '--yes']), {
+    await run(process.execPath, setupCliArguments(['uninstall', '--project-provider', '--yes']), {
       cwd: consumerDirectory,
       env: environment,
     });

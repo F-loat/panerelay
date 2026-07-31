@@ -15,6 +15,7 @@ import type {
   ConversationStatus,
   ConversationSummary,
 } from '@panerelay/protocol';
+import { PANERELAY_BROWSER_ID_ENV } from '@panerelay/browser-registry';
 import type { AgentProvider } from './agent-provider.js';
 import {
   createConversationContextInstructions,
@@ -76,6 +77,7 @@ export interface CodexClient {
 }
 
 export interface CodexProviderOptions {
+  environment?: NodeJS.ProcessEnv;
   onEvent?: (event: ConversationEvent) => void;
   runtimeConfig?: () => Promise<PanerelayRuntimeConfig>;
   createClient?: (
@@ -363,6 +365,7 @@ export class CodexProvider implements AgentProvider {
     const config = this.config;
     const resolvedOptions = resolveConversationStartOptions(options);
     const browserSession = `panerelay-codex-${randomUUID()}`;
+    const browserId = (this.options.environment ?? process.env)[PANERELAY_BROWSER_ID_ENV];
     const browserMcpConfig =
       config?.agentBrowserPath && config.agentBrowserConfigPath
         ? {
@@ -372,6 +375,11 @@ export class CodexProvider implements AgentProvider {
               AGENT_BROWSER_CONFIG: config.agentBrowserConfigPath,
               AGENT_BROWSER_PROVIDER: 'panerelay',
               AGENT_BROWSER_SESSION: browserSession,
+              ...(browserId
+                ? {
+                    [PANERELAY_BROWSER_ID_ENV]: browserId,
+                  }
+                : {}),
             },
             'mcp_servers.panerelay_browser.required': false,
             'mcp_servers.panerelay_browser.default_tools_approval_mode': 'auto',

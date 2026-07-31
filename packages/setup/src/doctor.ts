@@ -1,5 +1,5 @@
 import { constants } from 'node:fs';
-import { access, readFile } from 'node:fs/promises';
+import { access } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -15,6 +15,10 @@ import {
   probeAgentBrowserCompatibility,
 } from '@panerelay/bridge/compatibility';
 import { PANERELAY_EXTENSION_ID, PANERELAY_NATIVE_HOST_NAME } from '@panerelay/protocol';
+import {
+  listBrowserRegistrations,
+  readLiveLegacyBrowserRegistration,
+} from '@panerelay/browser-registry';
 import {
   projectAgentBrowserConfigPath,
   readJsonObject,
@@ -328,26 +332,27 @@ export async function doctorPanerelay(options: DoctorOptions = {}): Promise<Doct
     ...(skillReady ? {} : { hint: `Run: ${SETUP_COMMAND}` }),
   });
 
-  const bridgeStatePath = join(home, '.panerelay', 'bridge.json');
   let bridgeStatus: DoctorStatus = 'warn';
   let bridgeDetail = 'Extension is not currently connected';
-  try {
-    const state = JSON.parse(await readFile(bridgeStatePath, 'utf8')) as {
-      extensionId?: unknown;
-      pid?: unknown;
-    };
-    if (typeof state.pid === 'number') {
-      process.kill(state.pid, 0);
-      if (state.extensionId === extensionId) {
-        bridgeStatus = 'pass';
-        bridgeDetail = `Connected through process ${state.pid}`;
-      } else {
-        bridgeStatus = 'fail';
-        bridgeDetail = 'Connected Extension ID does not match the effective Extension ID';
-      }
-    }
-  } catch {
-    // An idle extension is a warning because installation can still be complete.
+  const registryOptions = {
+    environment: options.environment,
+    legacyPath: join(home, '.panerelay', 'bridge.json'),
+    registryDirectory: join(home, '.panerelay', 'browsers'),
+  };
+  const registrations = await listBrowserRegistrations(registryOptions);
+  const liveStates =
+    registrations.length > 0
+      ? registrations.map(registration => registration.state)
+      : [await readLiveLegacyBrowserRegistration(registryOptions)].filter(state => state !== null);
+  if (liveStates.some(state => state.extensionId !== extensionId)) {
+    bridgeStatus = 'fail';
+    bridgeDetail = 'Connected Extension ID does not match the effective Extension ID';
+  } else if (liveStates.length > 0) {
+    bridgeStatus = 'pass';
+    bridgeDetail =
+      liveStates.length === 1
+        ? `Connected through process ${liveStates[0]!.pid}`
+        : `Connected through ${liveStates.length} browser processes`;
   }
   checks.push({
     id: 'extension',

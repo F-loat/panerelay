@@ -367,6 +367,9 @@ export type IntegrationRequest =
   | { method: 'default-provider.get' }
   | { method: 'default-provider.set' }
   | { method: 'default-provider.clear' }
+  | { method: 'browser-default.get' }
+  | { method: 'browser-default.set-current' }
+  | { method: 'browser-default.clear-current' }
   | { method: 'workspace.pick-directory' };
 
 export interface IntegrationDefaultProviderResult {
@@ -378,8 +381,20 @@ export interface IntegrationWorkspaceDirectoryResult {
   path: string | null;
 }
 
+export interface IntegrationBrowserDefaultResult {
+  currentBrowser: {
+    browserId: string;
+    browserName: string;
+    browserFamily?: BrowserFamily;
+  } | null;
+  defaultBrowserId: string | null;
+  isCurrentBrowser: boolean;
+}
+
 export type IntegrationResult =
-  IntegrationDefaultProviderResult | IntegrationWorkspaceDirectoryResult;
+  | IntegrationDefaultProviderResult
+  | IntegrationWorkspaceDirectoryResult
+  | IntegrationBrowserDefaultResult;
 
 export interface IntegrationRequestMessage {
   type: 'integration.request';

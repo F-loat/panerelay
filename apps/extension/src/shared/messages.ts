@@ -7,6 +7,7 @@ import type {
   ConversationImageInput,
   ConversationSummary,
   ControlSessionSummary,
+  IntegrationBrowserDefaultResult,
 } from '@panerelay/protocol';
 import type {
   ConversationWorkspaceChangedMessage,
@@ -31,10 +32,13 @@ export interface DefaultProviderState {
   isPanerelay: boolean;
 }
 
+export type BrowserDefaultState = IntegrationBrowserDefaultResult;
+
 export interface ExtensionStatus {
   bridgeConnected: boolean;
   nativeHostState: NativeHostState;
   defaultProvider: DefaultProviderState | null;
+  browserDefault: BrowserDefaultState | null;
   authorizationRequest: AuthorizationRequest | null;
   activeTab: TabSummary | null;
   authorizationMode: AuthorizationMode;
@@ -56,6 +60,8 @@ export type SidePanelRequest =
     }
   | { type: 'panerelay.native.retry' }
   | { type: 'panerelay.default-provider.set'; enabled: boolean }
+  | { type: 'panerelay.browser-default.set'; enabled: boolean }
+  | { type: 'panerelay.browser-default.refresh' }
   | { type: 'panerelay.controlled-tab.activate'; tabId: number }
   | { type: 'panerelay.controlled-tab.close'; tabId: number }
   | { type: 'panerelay.agent.providers' }

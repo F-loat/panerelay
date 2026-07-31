@@ -122,6 +122,12 @@ test('accepts language options before or after the command', () => {
   assert.throws(() => parseSetupArgs(['--lang', 'en', '--lang', 'zh-CN']), /LANGUAGE_REPEATED/);
 });
 
+test('rejects browser administration commands moved to @panerelay/cli', () => {
+  assert.throws(() => parseSetupArgs(['browsers']), /Unknown command: browsers/);
+  assert.throws(() => parseSetupArgs(['browser', 'use', 'edge']), /Unknown command: browser/);
+  assert.throws(() => parseSetupArgs(['browser', 'clear']), /Unknown command: browser/);
+});
+
 test('parses custom Extension IDs for setup and doctor', () => {
   const extensionId = 'abcdefghijklmnopabcdefghijklmnop';
   assert.equal(parseSetupArgs(['update', '--extension-id', extensionId]).extensionId, extensionId);

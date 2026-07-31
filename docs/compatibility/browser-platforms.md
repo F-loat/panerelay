@@ -24,6 +24,7 @@ This record distinguishes deterministic installation and artifact coverage from 
 | Explicit site and tab authorization                         | Verified          | Forwarded      |
 | Browser-level CDP relay                                     | Verified          | Forwarded      |
 | agent-browser 0.33.0 Provider                               | Verified          | Forwarded      |
+| Independent registration and deterministic browser routing  | Verified          | Forwarded      |
 | Target lifecycle, control badge, and favicon                | Verified          | Forwarded      |
 | Immediate revocation and cleanup                            | Verified          | Forwarded      |
 | Isolated contexts and disposable profiles                   | Unsupported       | Unsupported    |
@@ -31,6 +32,10 @@ This record distinguishes deterministic installation and artifact coverage from 
 | Browser-wide close and top-level request containment        | Unsupported       | Unsupported    |
 
 Edge uses the same Chromium Manifest V3 artifact, side-panel graph, debugger relay, permission flow, opaque target model, control lease, and revocation implementation as Chrome. It registers `browserFamily: "edge"` and declares CDP relay support only from feature detection.
+
+Chrome and Edge Native Hosts persist independent protected registrations. Provider contract tests verify explicit selection, saved defaults, single-ready selection, ambiguity failures, unavailable-default failures, browser-pinned cleanup, and legacy-singleton migration. These deterministic routing claims do not upgrade Edge's runtime classification: representative Edge Provider evidence is still pending.
+
+The optional `@panerelay/cli` package uses the same engine-neutral registry for bounded listing and saved-default changes. Unit and packed-consumer tests cover its executable entry, English and Chinese output, explicit selector precedence, credential omission, and setup-command separation. These package-level checks also do not upgrade Edge runtime capabilities beyond `Forwarded`.
 
 ## Installation and artifacts
 
@@ -42,9 +47,10 @@ Edge uses the same Chromium Manifest V3 artifact, side-panel graph, debugger rel
 | Identity validation and persistence | Verified | Chrome and Edge use the same configured Chromium Extension ID and exact `allowed_origins` entry. |
 | Update and uninstall | Verified | Tests cover replacing and removing both browser registrations without touching unrelated hosts. |
 | Shared Chromium Extension archive | Verified | Candidate validation retains one manifest, public key, Extension ID, and complete asset graph for Chrome and Edge. |
+| Standalone administration CLI | Verified | Candidate validation packs and installs `@panerelay/cli` with its registry dependency, then invokes browser-list and default-clear commands in an isolated consumer. |
 | Chrome Web Store installation in Edge | Forwarded | Microsoft documents installing Chrome Web Store extensions in Edge; dedicated Panerelay installation evidence remains pending. |
 | Microsoft Edge Add-ons publication | Unsupported | No Edge Add-ons listing or separately signed Edge identity is part of this change. |
 
 ## Security boundary
 
-Browser family and CDP capability metadata do not grant access. Site permission, tab authorization, and the current control lease remain separate. Focus never grants authorization. Compatible older Chrome registrations without capability data retain prior behavior, while any explicit `cdpRelay: false` value is authoritative and fails before automation state is allocated.
+Browser family and CDP capability metadata do not grant access. Site permission, tab authorization, browser selection, and the current control lease remain separate. Focus never grants authorization or selects a browser. Compatible older Chrome registrations without capability data retain prior behavior, while any explicit `cdpRelay: false` value is authoritative and fails before automation state is allocated.

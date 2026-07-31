@@ -20,6 +20,15 @@ const baseStatus: ExtensionStatus = {
   bridgeConnected: true,
   nativeHostState: 'connected',
   defaultProvider: { provider: null, isPanerelay: false },
+  browserDefault: {
+    currentBrowser: {
+      browserId: 'edge-browser-id',
+      browserName: 'Microsoft Edge',
+      browserFamily: 'edge',
+    },
+    defaultBrowserId: null,
+    isCurrentBrowser: false,
+  },
   authorizationRequest: null,
   activeTab: { id: 3, title: 'Fixture', url: 'https://example.com/page' },
   authorizationMode: 'none',
@@ -180,6 +189,20 @@ class FakeSidepanelClient implements SidepanelClient {
             },
           },
         };
+      case 'panerelay.browser-default.set':
+        return {
+          success: true as const,
+          status: {
+            ...baseStatus,
+            browserDefault: {
+              ...baseStatus.browserDefault!,
+              defaultBrowserId: message.enabled ? 'edge-browser-id' : null,
+              isCurrentBrowser: message.enabled,
+            },
+          },
+        };
+      case 'panerelay.browser-default.refresh':
+        return { success: true as const, status: baseStatus };
       case 'panerelay.controlled-tab.activate':
       case 'panerelay.controlled-tab.close':
       case 'panerelay.page-comments.start':
@@ -397,17 +420,20 @@ describe('Side Panel controller', () => {
     client.requests.length = 0;
 
     await act(() => hook.result.current.setDefaultProvider(true));
+    await act(() => hook.result.current.setBrowserDefault(true));
     await act(() => hook.result.current.activateControlledTab(9));
     await act(() => hook.result.current.closeControlledTab(9));
     await act(() => hook.result.current.retryNativeHost());
 
     expect(client.requests).toEqual([
       { type: 'panerelay.default-provider.set', enabled: true },
+      { type: 'panerelay.browser-default.set', enabled: true },
       { type: 'panerelay.controlled-tab.activate', tabId: 9 },
       { type: 'panerelay.controlled-tab.close', tabId: 9 },
       { type: 'panerelay.native.retry' },
     ]);
     expect(hook.result.current.state.defaultProviderPending).toBe(false);
+    expect(hook.result.current.state.browserDefaultPending).toBe(false);
     expect(hook.result.current.state.controlledTabPendingId).toBeNull();
     expect(hook.result.current.state.nativeRetryPending).toBe(false);
   });

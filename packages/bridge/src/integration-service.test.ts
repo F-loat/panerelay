@@ -2,10 +2,25 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   PANERELAY_PROTOCOL_VERSION,
+  type BridgeState,
   type HostToExtensionMessage,
   type IntegrationRequest,
 } from '@panerelay/protocol';
 import { IntegrationService } from './integration-service.js';
+
+const currentBrowser: BridgeState = {
+  protocol: PANERELAY_PROTOCOL_VERSION,
+  pid: process.pid,
+  port: 41_234,
+  token: 'not-returned',
+  browserId: 'edge-browser-id',
+  browserName: 'Microsoft Edge',
+  browserFamily: 'edge',
+  capabilities: { cdpRelay: true },
+  extensionVersion: '0.2.0',
+  extensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
+  updatedAt: '2026-07-31T08:00:00.000Z',
+};
 
 function request(method: IntegrationRequest['method'], requestId: string = method) {
   return {
@@ -89,4 +104,109 @@ test('returns a validated workspace directory or cancellation', async () => {
     sent.map(message => (message.type === 'integration.response' ? message.result : undefined)),
     [{ path: '/workspace/project' }, { path: null }],
   );
+});
+
+test('manages only the registered current browser as the routing default', async () => {
+  const sent: HostToExtensionMessage[] = [];
+  let savedBrowserId: string | null = 'chrome-browser-id';
+  const calls: string[] = [];
+  const service = new IntegrationService(message => sent.push(message), {
+    currentBrowser: () => currentBrowser,
+    readBrowserDefault: async () =>
+      savedBrowserId
+        ? {
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            browserId: savedBrowserId,
+            updatedAt: '2026-07-31T08:00:00.000Z',
+          }
+        : null,
+    setBrowserDefault: async browserId => {
+      calls.push(`set:${browserId}`);
+      savedBrowserId = browserId;
+      return {
+        protocol: PANERELAY_PROTOCOL_VERSION,
+        browserId,
+        updatedAt: '2026-07-31T08:01:00.000Z',
+      };
+    },
+    clearBrowserDefault: async expectedBrowserId => {
+      calls.push(`clear:${expectedBrowserId}`);
+      if (savedBrowserId === expectedBrowserId) savedBrowserId = null;
+      return savedBrowserId
+        ? {
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            browserId: savedBrowserId,
+            updatedAt: '2026-07-31T08:02:00.000Z',
+          }
+        : null;
+    },
+  });
+
+  await service.handle(request('browser-default.get'));
+  await service.handle(request('browser-default.set-current'));
+  await service.handle(request('browser-default.clear-current'));
+
+  assert.deepEqual(calls, ['set:edge-browser-id', 'clear:edge-browser-id']);
+  assert.deepEqual(
+    sent.map(message =>
+      message.type === 'integration.response'
+        ? { success: message.success, result: message.result }
+        : message,
+    ),
+    [
+      {
+        success: true,
+        result: {
+          currentBrowser: {
+            browserId: 'edge-browser-id',
+            browserName: 'Microsoft Edge',
+            browserFamily: 'edge',
+          },
+          defaultBrowserId: 'chrome-browser-id',
+          isCurrentBrowser: false,
+        },
+      },
+      {
+        success: true,
+        result: {
+          currentBrowser: {
+            browserId: 'edge-browser-id',
+            browserName: 'Microsoft Edge',
+            browserFamily: 'edge',
+          },
+          defaultBrowserId: 'edge-browser-id',
+          isCurrentBrowser: true,
+        },
+      },
+      {
+        success: true,
+        result: {
+          currentBrowser: {
+            browserId: 'edge-browser-id',
+            browserName: 'Microsoft Edge',
+            browserFamily: 'edge',
+          },
+          defaultBrowserId: null,
+          isCurrentBrowser: false,
+        },
+      },
+    ],
+  );
+});
+
+test('rejects browser-default mutation before the current browser registers', async () => {
+  const sent: HostToExtensionMessage[] = [];
+  const service = new IntegrationService(message => sent.push(message));
+
+  await service.handle(request('browser-default.set-current', 'browser-default-1'));
+
+  assert.deepEqual(sent, [
+    {
+      type: 'integration.response',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      requestId: 'browser-default-1',
+      success: false,
+      error: 'The current browser is not registered with Panerelay',
+    },
+  ]);
 });

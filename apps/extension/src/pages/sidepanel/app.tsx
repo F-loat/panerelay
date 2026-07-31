@@ -666,7 +666,7 @@ function DefaultProviderSetting({ controller }: { controller: SidepanelControlle
     <div className="settings-field">
       <span>{t('defaultProvider')}</span>
       <button
-        aria-label={t(enabled ? 'clearDefault' : 'setAsDefault')}
+        aria-label={t(enabled ? 'clearProviderDefault' : 'setProviderDefault')}
         aria-pressed={enabled}
         className="settings-provider-toggle"
         disabled={!connected || !current || state.defaultProviderPending}
@@ -674,6 +674,40 @@ function DefaultProviderSetting({ controller }: { controller: SidepanelControlle
         type="button"
       >
         <span>agent-browser</span>
+        <span aria-hidden="true" className="settings-provider-indicator" />
+      </button>
+    </div>
+  );
+}
+
+function BrowserDefaultSetting({ controller }: { controller: SidepanelController }) {
+  const { state } = controller;
+  const { t } = useCopy(state);
+  const current = state.extensionStatus?.browserDefault ?? null;
+  const connected = state.extensionStatus?.bridgeConnected ?? false;
+  const enabled = current?.isCurrentBrowser ?? false;
+  const browser = current?.currentBrowser;
+  const label =
+    browser?.browserFamily === 'edge'
+      ? 'Edge'
+      : browser?.browserFamily === 'chrome'
+        ? 'Chrome'
+        : browser?.browserFamily === 'chromium'
+          ? 'Chromium'
+          : browser?.browserName || 'Browser';
+
+  return (
+    <div className="settings-field">
+      <span>{t('defaultBrowser')}</span>
+      <button
+        aria-label={t(enabled ? 'clearBrowserDefault' : 'setBrowserDefault')}
+        aria-pressed={enabled}
+        className="settings-provider-toggle"
+        disabled={!connected || !browser || state.browserDefaultPending}
+        onClick={() => void controller.setBrowserDefault(!enabled)}
+        type="button"
+      >
+        <span>{label}</span>
         <span aria-hidden="true" className="settings-provider-indicator" />
       </button>
     </div>
@@ -761,6 +795,7 @@ function SettingsPopover({
         </span>
       </div>
       <DefaultProviderSetting controller={controller} />
+      <BrowserDefaultSetting controller={controller} />
       <AuthorizationPanel controller={controller} />
       <ExternalControl controller={controller} />
     </aside>

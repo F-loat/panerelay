@@ -20,6 +20,34 @@ test('accepts correlated integration requests from the Extension', () => {
   assert.equal(isExtensionToHostMessage(request), true);
 });
 
+test('accepts browser-default requests and bounded current-browser results', () => {
+  const request: IntegrationRequestMessage = {
+    type: 'integration.request',
+    protocol: PANERELAY_PROTOCOL_VERSION,
+    requestId: 'browser-default-1',
+    request: { method: 'browser-default.set-current' },
+  };
+  const response: IntegrationResponseMessage = {
+    type: 'integration.response',
+    protocol: PANERELAY_PROTOCOL_VERSION,
+    requestId: 'browser-default-1',
+    success: true,
+    result: {
+      currentBrowser: {
+        browserId: 'edge-browser-id',
+        browserName: 'Microsoft Edge',
+        browserFamily: 'edge',
+      },
+      defaultBrowserId: 'edge-browser-id',
+      isCurrentBrowser: true,
+    },
+  };
+
+  assert.equal(isExtensionToHostMessage(request), true);
+  assert.equal(isHostToExtensionMessage(response), true);
+  assert.equal(JSON.stringify(response).includes('token'), false);
+});
+
 test('accepts Edge capability registration and rejects malformed capability values', () => {
   assert.equal(
     isExtensionToHostMessage({

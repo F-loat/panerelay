@@ -12,6 +12,7 @@ import type {
   ConversationStartOptions,
   ConversationSummary,
 } from '@panerelay/protocol';
+import { PANERELAY_BROWSER_ID_ENV } from '@panerelay/browser-registry';
 import type { AgentProvider } from './agent-provider.js';
 import {
   createConversationContextInstructions,
@@ -226,6 +227,7 @@ function approvalFromTool(
 export function claudeBrowserMcpServers(
   config: PanerelayRuntimeConfig,
   sessionLabel: string,
+  browserId = process.env[PANERELAY_BROWSER_ID_ENV],
 ): Record<string, ClaudeMcpServer> {
   if (!config.agentBrowserPath || !config.agentBrowserConfigPath) return {};
   return {
@@ -237,6 +239,7 @@ export function claudeBrowserMcpServers(
         AGENT_BROWSER_CONFIG: config.agentBrowserConfigPath,
         AGENT_BROWSER_PROVIDER: 'panerelay',
         AGENT_BROWSER_SESSION: sessionLabel,
+        ...(browserId ? { [PANERELAY_BROWSER_ID_ENV]: browserId } : {}),
       },
     },
   };
@@ -456,7 +459,11 @@ export class ClaudeProvider implements AgentProvider {
         cwd: session.cwd,
         prompt: promptInput(trimmed, images),
         mcpServers: {
-          ...claudeBrowserMcpServers(config, browserLabel),
+          ...claudeBrowserMcpServers(
+            config,
+            browserLabel,
+            (this.options.environment ?? process.env)[PANERELAY_BROWSER_ID_ENV],
+          ),
           panerelay_permission: permissionServer.mcpServer,
         },
         permissionPromptTool: permissionServer.toolName,

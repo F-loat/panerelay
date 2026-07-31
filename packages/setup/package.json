@@ -43,6 +43,7 @@
   },
   "dependencies": {
     "@panerelay/bridge": "workspace:*",
+    "@panerelay/browser-registry": "workspace:*",
     "@panerelay/protocol": "workspace:*"
   }
 }

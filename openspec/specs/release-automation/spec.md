@@ -91,13 +91,13 @@ Panerelay SHALL derive a semantic beta version from the repository's stable vers
 
 ### Requirement: Published npm packages match the verified candidate
 
-Panerelay SHALL publish the four validated candidate tarballs in dependency order, use npm distribution tag `latest` for stable and `beta` for beta, and verify that any already-published version has identical integrity before treating a retry as successful.
+Panerelay SHALL publish every validated candidate tarball in dependency order, use npm distribution tag `latest` for stable and `beta` for beta, and verify that any already-published version has identical integrity before treating a retry as successful.
 
 #### Scenario: New channel version is published
 
-- **GIVEN** all four candidate versions are absent from npm
+- **GIVEN** all candidate versions are absent from npm
 - **WHEN** publication runs for a selected channel
-- **THEN** it publishes the exact retained tarballs in protocol, agent-browser adapter, Bridge, and setup order with the channel's distribution tag
+- **THEN** it publishes the exact retained tarballs in protocol, browser registry, CLI, agent-browser adapter, Bridge, and setup order with the channel's distribution tag
 
 #### Scenario: Publication resumes after a partial failure
 

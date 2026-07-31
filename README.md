@@ -39,13 +39,20 @@ Microsoft Edge runtime capabilities are currently classified as `Forwarded` pend
    ```
 
 3. Open Panerelay from the Chrome or Edge toolbar and authorize the current web tab or all supported web tabs.
-4. Verify that any Agent can reach the authorized browser through agent-browser:
+4. If Panerelay is connected in more than one browser, use the Extension's `Default Browser` setting or select one from the CLI:
+
+   ```bash
+   npx --yes @panerelay/cli browsers
+   npx --yes @panerelay/cli browser use edge
+   ```
+
+5. Verify that any Agent can reach the selected authorized browser through agent-browser:
 
    ```bash
    agent-browser --provider panerelay tab list
    ```
 
-5. To work from the browser, open the side panel and select an installed local Agent. Panerelay automatically discovers Codex, Claude Code, and Qoder; each Agent CLI must already be installed and signed in.
+6. To work from the browser, open the side panel and select an installed local Agent. Panerelay automatically discovers Codex, Claude Code, and Qoder; each Agent CLI must already be installed and signed in. Side-panel Agents stay scoped to the browser containing that side panel, independently of the saved default.
 
 To omit `--provider panerelay` in later commands, set Panerelay as the user-level default from Extension settings or run setup with `--global-provider`. Use `--project-provider` instead when the default should apply only to the current project. Provider selection changes routing only—it never grants browser permission or authorizes a tab.
 
@@ -77,6 +84,21 @@ npx --yes @panerelay/setup --project-provider
 
 agent-browser reads the user default from `~/.agent-browser/config.json`; the current project's `./agent-browser.json` takes precedence. To restore another default, change or remove its `provider` field. Panerelay remains installed and can always be selected with `--provider panerelay`.
 
+Browser selection is a separate setting. Panerelay uses an explicit `PANERELAY_BROWSER_ID` or `PANERELAY_BROWSER` selector first, then the saved browser default, then the only ready browser. Multiple ready browsers without a choice fail closed instead of using focus or registration order:
+
+```bash
+npx --yes @panerelay/cli browsers
+npx --yes @panerelay/cli browser use chrome
+# Or use an exact registration ID:
+# npx --yes @panerelay/cli browser use REGISTRATION_ID
+npx --yes @panerelay/cli browser clear
+PANERELAY_BROWSER=edge agent-browser --provider panerelay tab list
+```
+
+For frequent administration, install `@panerelay/cli` globally and run the same commands as `panerelay ...`. Setup does not install this optional CLI or modify your shell `PATH`.
+
+An explicit or saved browser that is offline does not fall back to another browser. Each agent-browser session stays pinned to its selected browser until close.
+
 Official builds use Extension ID `panplnkjlkoceaonlmpdekjphgmbggmi`. A self-built Extension can register its own 32-character ID:
 
 ```bash
@@ -91,7 +113,7 @@ The ID must contain 32 lowercase letters from `a` through `p`.
 - Reusing login state means operating inside an authorized existing tab. Panerelay does not export or log cookies, credentials, prompts, screenshots, page content, or request bodies by default.
 - Panerelay cannot own browser-process features such as isolated profiles, launch-time proxy changes, or closing the user's Chrome or Edge process.
 - `webNavigation` is used only to recognize browser-reported related tabs so they can share conversation context. It does not read browsing history or grant site access.
-- The Extension, protocol, Bridge, Provider, and setup CLI form one lockstep compatibility unit.
+- The Extension, protocol, Bridge, Provider, setup package, browser registry, and optional administration CLI form one lockstep compatibility unit.
 
 ## Development and release checks
 

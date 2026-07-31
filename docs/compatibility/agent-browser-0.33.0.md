@@ -133,15 +133,15 @@ Daily-Chrome verification of provider warm-up, lazy history, draft-first send, a
 
 ## Stable distribution boundaries
 
-- The Extension, protocol, Provider, Bridge, and setup CLI are one lockstep compatibility unit; different Panerelay versions do not negotiate with each other.
-- Candidate validation packs all four npm packages, installs them outside the workspace, and runs setup, doctor, update, and uninstall in disposable user state.
+- The Extension, protocol, browser registry, administration CLI, Provider, Bridge, and setup package are one lockstep compatibility unit; different Panerelay versions do not negotiate with each other.
+- Candidate validation packs all six npm packages, installs them outside the workspace, and runs browser administration, setup, doctor, update, and uninstall in disposable user state.
 - Native Messaging setup supports macOS, Linux, and current-user Windows Chrome registration.
 - Installing the candidate does not grant Chrome site permission, authorize a tab, or acquire a control lease.
 - Packaging does not change participant isolation, target serialization, or Chrome authorization boundaries recorded above.
 
 ## Release automation evidence
 
-The stable workflow passed candidate preparation, exact npm publication, and GitHub Release creation. The matching tag and Release target the prepared commit, and all four public packages expose the same version through npm tag `latest`.
+The `0.1.0` stable workflow passed candidate preparation, exact npm publication, and GitHub Release creation. The matching tag and Release target the prepared commit, and every package in that release exposes the same version through npm tag `latest`. The current development candidate expands the lockstep publishable set to six packages; its publication evidence begins with the next release.
 
 The workflow-built beta Extension archive was loaded in daily Chrome and passed displayed beta identity, authorization, revocation, and cleanup acceptance. Prepare Release generated a reviewed version pull request without package, tag, Release, or Store side effects before merge.
 

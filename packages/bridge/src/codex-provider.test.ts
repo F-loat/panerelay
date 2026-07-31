@@ -60,6 +60,7 @@ function createProvider() {
   const client = new FakeCodexClient();
   let handlers: Parameters<NonNullable<CodexProviderOptions['createClient']>>[1] | undefined;
   const provider = new CodexProvider({
+    environment: { PANERELAY_BROWSER_ID: 'sidepanel-browser-id' },
     onEvent: event => events.push(event),
     runtimeConfig: async () => ({
       codexPath: '/usr/local/bin/codex',
@@ -142,6 +143,14 @@ test('exposes Codex through provider-neutral conversation results', async () => 
   const config = params.config as Record<string, unknown>;
   assert.equal(config['mcp_servers.panerelay_browser.command'], '/usr/local/bin/agent-browser');
   assert.deepEqual(config['mcp_servers.panerelay_browser.args'], ['mcp', '--tools', 'core,tabs']);
+  const browserEnvironment = config['mcp_servers.panerelay_browser.env'] as Record<string, string>;
+  assert.equal(
+    browserEnvironment.AGENT_BROWSER_CONFIG,
+    '/Users/test/.panerelay/agent-browser.json',
+  );
+  assert.equal(browserEnvironment.AGENT_BROWSER_PROVIDER, 'panerelay');
+  assert.match(browserEnvironment.AGENT_BROWSER_SESSION || '', /^panerelay-codex-/);
+  assert.equal(browserEnvironment.PANERELAY_BROWSER_ID, 'sidepanel-browser-id');
   assert.equal(params.approvalPolicy, 'on-request');
   assert.equal(params.sandbox, 'read-only');
   assert.equal(params.cwd, process.cwd());
