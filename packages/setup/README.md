@@ -4,7 +4,7 @@ Local setup and diagnostics for Panerelay.
 
 ## Commands
 
-Install the official [Panerelay Extension from the Chrome Web Store](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi), then configure the local integration with the commands below.
+Install the official [Panerelay Extension from the Chrome Web Store](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi) in Chrome or Microsoft Edge, then configure the local integration with the commands below. Edge may first ask you to allow extensions from other stores.
 
 Panerelay components are published in lockstep. Use the same version as the Panerelay Extension:
 
@@ -59,6 +59,6 @@ npx --yes @panerelay/setup --extension-id <32-character-id>
 npx --yes @panerelay/setup update --global-provider
 ```
 
-To roll back, run an earlier setup package and reload the matching unpacked Extension. Do not mix Extension and package versions. Native Messaging installation supports macOS, Linux, and current-user Windows Chrome registration without administrator privileges. agent-browser 0.33.0 or newer is required and its detected version appears in doctor.
+To roll back, run an earlier setup package and reload the matching unpacked Extension. Do not mix Extension and package versions. Native Messaging installation supports Chrome and Edge on macOS, Linux, and current-user Windows without administrator privileges. Windows doctor reports each browser's registration independently. agent-browser 0.33.0 or newer is required and its detected version appears in doctor.
 
 Claude Code and Qoder are optional. Setup discovers `claude` and a compatible `qodercli --acp`, then exposes available providers alongside Codex. A missing optional runtime is reported as a warning and does not make the core installation unhealthy.

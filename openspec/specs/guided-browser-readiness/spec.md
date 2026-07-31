@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Define how Panerelay guides users from an unconfigured or unauthorized browser state to a ready integration without silently changing defaults, installing software, or granting Chrome permissions.
+Define how Panerelay guides users from an unconfigured or unauthorized browser state to a ready integration without silently changing defaults, installing software, or granting Chromium browser permissions.
 
 ## Requirements
 
@@ -54,13 +54,13 @@ When the Native Host is connected, the Extension SHALL identify this setting as 
 
 ### Requirement: Missing Native Host guidance is actionable
 
-The Extension SHALL distinguish a recognized missing Native Messaging Host from a transient disconnected state and SHALL show a compact localized setup guide with the supported setup command and a retry action.
+The Extension SHALL distinguish a recognized missing Chromium Native Messaging Host from a transient disconnected state and SHALL show a compact localized setup guide with the supported setup command and a retry action in Chrome and Edge.
 
-#### Scenario: Chrome cannot find the Native Host
+#### Scenario: Chrome or Edge cannot find the Native Host
 
-- **GIVEN** the Extension receives Chrome's recognized Native Messaging host-not-found failure
+- **GIVEN** the Extension receives a recognized Chromium Native Messaging host-not-found failure
 - **WHEN** the side panel renders its readiness state
-- **THEN** it explains that the Panerelay local integration is not installed, shows `npx --yes @panerelay/setup`, and provides a retry action
+- **THEN** it explains that the Panerelay local integration is not installed for the current browser, shows `npx --yes @panerelay/setup`, and provides a retry action
 
 #### Scenario: Connection is transiently unavailable
 
@@ -107,19 +107,19 @@ The Extension SHALL present the internal MCP server identifier `panerelay_browse
 
 ### Requirement: Authorization escalation remains user initiated
 
-When a target operation requires broader Chrome authorization, Panerelay SHALL return an error that explicitly directs the user to the Panerelay Extension and SHALL surface a pending authorization action in the side panel. Chrome permission acquisition SHALL occur only after the user activates that Extension action.
+When a target operation requires broader Chromium browser authorization, Panerelay SHALL return an error that explicitly directs the user to the Panerelay Extension and SHALL surface a pending authorization action in the side panel. Browser permission acquisition SHALL occur only after the user activates that Extension action.
 
 #### Scenario: Target creation lacks all-tabs authorization
 
 - **GIVEN** an Agent requests `Target.createTarget` without all-tabs authorization
 - **WHEN** Panerelay rejects the request
-- **THEN** the Agent error states that the user must open the Panerelay Extension and authorize all tabs, and the side panel shows an all-tabs authorization action
+- **THEN** the Agent error states that the user must open the Panerelay Extension in Chrome or Edge and authorize all tabs, and the side panel shows an all-tabs authorization action
 
 #### Scenario: User accepts the Extension authorization action
 
 - **GIVEN** the side panel displays a pending all-tabs authorization request
 - **WHEN** the user activates its authorize action
-- **THEN** the Extension opens Chrome's native permission prompt and updates readiness only from Chrome's result
+- **THEN** the Extension opens the current browser's native permission prompt and updates readiness only from that browser's result
 
 #### Scenario: Agent attempts authorization without a user gesture
 

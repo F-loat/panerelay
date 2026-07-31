@@ -55,12 +55,14 @@ import type { ConversationWorkspaceSnapshot } from '../shared/conversation-works
 import { nativeHostDisconnectState } from './native-host-readiness.js';
 import { installPageCommentsRuntime } from '../content/page-comments-runtime.js';
 import { PageCommentService } from './page-comments.js';
+import { detectBrowserRuntime } from '../shared/browser-runtime.js';
 
 const BROWSER_ID_KEY = 'panerelay.browserId';
 const ALL_TABS_AUTHORIZATION_KEY = 'panerelay.authorization.allTabs';
 const RECONNECT_DELAY_MS = 2_000;
 const AGENT_REQUEST_TIMEOUT_MS = 60_000;
 const INTEGRATION_REQUEST_TIMEOUT_MS = 5_000;
+const browserRuntime = detectBrowserRuntime();
 
 interface PendingRequest<T> {
   resolve: (result: T) => void;
@@ -260,9 +262,13 @@ async function registerBrowser(): Promise<void> {
     type: 'browser.register',
     protocol: PANERELAY_PROTOCOL_VERSION,
     browserId: await browserId(),
-    browserName: `Chrome on ${navigator.platform || 'this device'}`,
+    browserName: browserRuntime.browserName,
     extensionId: chrome.runtime.id,
     extensionVersion: chrome.runtime.getManifest().version,
+    browserFamily: browserRuntime.browserFamily,
+    capabilities: {
+      cdpRelay: browserRuntime.cdpRelay,
+    },
   });
 }
 

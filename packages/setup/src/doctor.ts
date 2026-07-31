@@ -193,19 +193,22 @@ export async function doctorPanerelay(options: DoctorOptions = {}): Promise<Doct
   }
   checks.push(await nativeManifestCheck(paths.manifestPaths, paths.launchPath, extensionId));
   if (platform === 'win32') {
-    const registryValue = await readWindowsNativeHostRegistryValue({
-      environment: options.environment,
-      runner: options.registryRunner,
-    });
     const expectedManifestPath = paths.manifestPaths[0]!;
-    const registryReady = registryValue === expectedManifestPath;
-    checks.push({
-      id: 'windows-registry',
-      label: 'Chrome Native Messaging registry',
-      status: registryReady ? 'pass' : 'fail',
-      detail: registryValue || 'Not found',
-      ...(registryReady ? {} : { hint: `Run: ${SETUP_COMMAND}` }),
-    });
+    for (const browser of ['chrome', 'edge'] as const) {
+      const registryValue = await readWindowsNativeHostRegistryValue({
+        browser,
+        environment: options.environment,
+        runner: options.registryRunner,
+      });
+      const registryReady = registryValue === expectedManifestPath;
+      checks.push({
+        id: `windows-registry-${browser}`,
+        label: `${browser === 'chrome' ? 'Chrome' : 'Edge'} Native Messaging registry`,
+        status: registryReady ? 'pass' : 'fail',
+        detail: registryValue || 'Not found',
+        ...(registryReady ? {} : { hint: `Run: ${SETUP_COMMAND}` }),
+      });
+    }
   }
   const codexPath =
     typeof runtimeConfig.codexPath === 'string' ? runtimeConfig.codexPath : undefined;

@@ -218,6 +218,8 @@ export class BrowserRelay {
           browserName: message.browserName,
           extensionId: message.extensionId,
           extensionVersion: message.extensionVersion,
+          ...(message.browserFamily ? { browserFamily: message.browserFamily } : {}),
+          ...(message.capabilities ? { capabilities: message.capabilities } : {}),
         };
         await this.options.onBrowserRegistered(this.browser);
         this.options.sendToExtension({
@@ -378,6 +380,13 @@ export class BrowserRelay {
       this.sendJson(response, 503, {
         protocol: PANERELAY_PROTOCOL_VERSION,
         error: 'Panerelay extension is not registered',
+      });
+      return;
+    }
+    if (this.browser.capabilities?.cdpRelay === false) {
+      this.sendJson(response, 409, {
+        protocol: PANERELAY_PROTOCOL_VERSION,
+        error: `${this.browser.browserName} does not support Panerelay browser automation because its Extension cannot provide a CDP relay`,
       });
       return;
     }

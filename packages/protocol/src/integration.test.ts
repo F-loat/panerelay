@@ -20,6 +20,35 @@ test('accepts correlated integration requests from the Extension', () => {
   assert.equal(isExtensionToHostMessage(request), true);
 });
 
+test('accepts Edge capability registration and rejects malformed capability values', () => {
+  assert.equal(
+    isExtensionToHostMessage({
+      type: 'browser.register',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      browserId: 'browser-1',
+      browserName: 'Microsoft Edge',
+      browserFamily: 'edge',
+      capabilities: { cdpRelay: true },
+      extensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
+      extensionVersion: '0.2.0',
+    }),
+    true,
+  );
+  assert.equal(
+    isExtensionToHostMessage({
+      type: 'browser.register',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      browserId: 'browser-1',
+      browserName: 'Unsupported browser',
+      browserFamily: 'unknown',
+      capabilities: { cdpRelay: 'no' },
+      extensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
+      extensionVersion: '0.2.0',
+    }),
+    false,
+  );
+});
+
 test('accepts project-scoped conversation history requests', () => {
   const request: AgentRequestMessage = {
     type: 'agent.request',

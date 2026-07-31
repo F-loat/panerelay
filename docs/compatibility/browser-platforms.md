@@ -1,0 +1,50 @@
+# Browser platform compatibility
+
+- Panerelay release: current development candidate
+- Extension target: shared Chromium Manifest V3
+- agent-browser baseline: 0.33.0
+- Last verified: 2026-07-31
+
+## Status meanings
+
+- **Verified**: covered by deterministic tests; runtime capabilities also require retained real-browser evidence linked from the relevant compatibility record.
+- **Forwarded**: shares the tested Chromium API and Panerelay relay path, but a dedicated real-browser acceptance run is pending.
+- **Unsupported**: the capability requires browser-process ownership or another guarantee the Extension-backed architecture cannot provide and fails explicitly.
+
+This record distinguishes deterministic installation and artifact coverage from runtime evidence. Chrome daily-profile evidence remains in [agent-browser 0.33.0 compatibility](agent-browser-0.33.0.md). Complete representative Edge runtime acceptance is not yet recorded, so Edge runtime capabilities do not inherit Chrome's `Verified` classification.
+
+## Runtime capabilities
+
+| Capability                                                  | Chrome / Chromium | Microsoft Edge |
+| ----------------------------------------------------------- | ----------------- | -------------- |
+| Native Messaging                                            | Verified          | Forwarded      |
+| Side panel                                                  | Verified          | Forwarded      |
+| Codex, Claude Code, and Qoder conversations                 | Verified          | Forwarded      |
+| Project selection and page comments                         | Verified          | Forwarded      |
+| Explicit site and tab authorization                         | Verified          | Forwarded      |
+| Browser-level CDP relay                                     | Verified          | Forwarded      |
+| agent-browser 0.33.0 Provider                               | Verified          | Forwarded      |
+| Target lifecycle, control badge, and favicon                | Verified          | Forwarded      |
+| Immediate revocation and cleanup                            | Verified          | Forwarded      |
+| Isolated contexts and disposable profiles                   | Unsupported       | Unsupported    |
+| Launch-time proxy, executable, flag, or extension selection | Unsupported       | Unsupported    |
+| Browser-wide close and top-level request containment        | Unsupported       | Unsupported    |
+
+Edge uses the same Chromium Manifest V3 artifact, side-panel graph, debugger relay, permission flow, opaque target model, control lease, and revocation implementation as Chrome. It registers `browserFamily: "edge"` and declares CDP relay support only from feature detection.
+
+## Installation and artifacts
+
+| Capability | Status | Evidence and boundary |
+| --- | --- | --- |
+| macOS Edge discovery | Verified | Installer tests cover Edge stable, Beta, Dev, and Canary per-user Native Messaging paths. |
+| Linux Edge discovery | Verified | Installer tests cover Edge stable, Beta, and Dev per-user Native Messaging paths. |
+| Windows current-user registration | Verified | Lifecycle and doctor tests cover distinct Google Chrome and Microsoft Edge HKCU keys pointing to one managed manifest. |
+| Identity validation and persistence | Verified | Chrome and Edge use the same configured Chromium Extension ID and exact `allowed_origins` entry. |
+| Update and uninstall | Verified | Tests cover replacing and removing both browser registrations without touching unrelated hosts. |
+| Shared Chromium Extension archive | Verified | Candidate validation retains one manifest, public key, Extension ID, and complete asset graph for Chrome and Edge. |
+| Chrome Web Store installation in Edge | Forwarded | Microsoft documents installing Chrome Web Store extensions in Edge; dedicated Panerelay installation evidence remains pending. |
+| Microsoft Edge Add-ons publication | Unsupported | No Edge Add-ons listing or separately signed Edge identity is part of this change. |
+
+## Security boundary
+
+Browser family and CDP capability metadata do not grant access. Site permission, tab authorization, and the current control lease remain separate. Focus never grants authorization. Compatible older Chrome registrations without capability data retain prior behavior, while any explicit `cdpRelay: false` value is authoritative and fails before automation state is allocated.

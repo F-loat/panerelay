@@ -152,3 +152,43 @@ test('creates and releases a browser-level relay session through live Bridge sta
     await new Promise<void>(resolve => server.close(() => resolve()));
   }
 });
+
+test('fails before contacting the Bridge when the browser explicitly lacks CDP support', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'panerelay-provider-unsupported-'));
+  const statePath = join(directory, 'bridge.json');
+  const previousStatePath = process.env[PANERELAY_STATE_PATH_ENV];
+  process.env[PANERELAY_STATE_PATH_ENV] = statePath;
+  const state: BridgeState = {
+    protocol: PANERELAY_PROTOCOL_VERSION,
+    pid: process.pid,
+    port: 9,
+    token: 'unused',
+    browserId: 'unsupported-1',
+    browserName: 'Unsupported browser',
+    browserFamily: 'unknown',
+    capabilities: { cdpRelay: false },
+    extensionVersion: '0.2.0',
+    extensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
+    updatedAt: new Date().toISOString(),
+  };
+  await writeFile(statePath, JSON.stringify(state));
+
+  try {
+    const response = await handlePluginRequest({
+      protocol: AGENT_BROWSER_PLUGIN_PROTOCOL,
+      type: 'browser.launch',
+      capability: 'browser.provider',
+      request: { session: 'agent-session-1' },
+    });
+
+    assert.equal(response.success, false);
+    assert.match(String(response.error), /cannot provide a CDP relay/);
+  } finally {
+    if (previousStatePath === undefined) {
+      delete process.env[PANERELAY_STATE_PATH_ENV];
+    } else {
+      process.env[PANERELAY_STATE_PATH_ENV] = previousStatePath;
+    }
+    await rm(directory, { recursive: true, force: true });
+  }
+});

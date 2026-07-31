@@ -110,6 +110,11 @@ test('installs and removes an isolated Native Messaging host', async () => {
     };
     assert.equal(privateConfig.plugins[0]?.name, 'panerelay');
     assert.equal(privateConfig.plugins[0]?.command, result.launchPath);
+    assert.ok(
+      result.manifestPaths.some(path =>
+        path.includes(join('.config', 'microsoft-edge', 'NativeMessagingHosts')),
+      ),
+    );
 
     for (const manifestPath of result.manifestPaths) {
       const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as {
@@ -147,6 +152,7 @@ test('creates a quoted Windows launcher and uses exact structured registry argum
   );
   const calls: Array<{ args: string[]; command: string }> = [];
   await registerWindowsNativeHost('C:\\User & Name\\manifest.json', {
+    browser: 'edge',
     runner: async (command, args) => {
       calls.push({ args, command });
       return { code: 0, stderr: '', stdout: '' };
@@ -157,7 +163,7 @@ test('creates a quoted Windows launcher and uses exact structured registry argum
       command: 'reg.exe',
       args: [
         'add',
-        windowsNativeHostRegistryKey(),
+        windowsNativeHostRegistryKey(undefined, 'edge'),
         '/ve',
         '/t',
         'REG_SZ',
@@ -252,8 +258,13 @@ test('installs, updates, and repeatedly uninstalls isolated Windows artifacts', 
     await assert.rejects(readFile(first.hostPath), { code: 'ENOENT' });
     await assert.rejects(readFile(first.launchPath), { code: 'ENOENT' });
     await assert.rejects(readFile(first.manifestPaths[0]!), { code: 'ENOENT' });
-    assert.equal(registryCalls.filter(call => call.args[0] === 'add').length, 2);
-    assert.equal(registryCalls.filter(call => call.args[0] === 'delete').length, 2);
+    assert.equal(registryCalls.filter(call => call.args[0] === 'add').length, 4);
+    assert.equal(registryCalls.filter(call => call.args[0] === 'delete').length, 4);
+    assert.ok(
+      registryCalls.some(call =>
+        call.args.includes(windowsNativeHostRegistryKey(undefined, 'edge')),
+      ),
+    );
   } finally {
     await rm(root, { force: true, recursive: true });
   }
