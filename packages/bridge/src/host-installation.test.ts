@@ -77,7 +77,7 @@ test('installs and removes an isolated Native Messaging host', async () => {
   const bundledHostPath = join(root, 'native-host.bundle.cjs');
   await mkdir(binDirectory, { recursive: true });
   await writeFile(bundledHostPath, '#!/usr/bin/env node\nprocess.stdout.write("ready");\n');
-  for (const executable of ['agent-browser', 'codex', 'firefox', 'geckodriver']) {
+  for (const executable of ['agent-browser', 'claude', 'codex', 'firefox', 'geckodriver']) {
     const path = join(binDirectory, executable);
     await writeFile(
       path,
@@ -87,7 +87,9 @@ test('installs and removes an isolated Native Messaging host', async () => {
           ? '#!/bin/sh\necho "Mozilla Firefox 141.0.0"\n'
           : executable === 'geckodriver'
             ? '#!/bin/sh\necho "geckodriver 0.36.0"\n'
-            : '#!/bin/sh\nexit 0\n',
+            : executable === 'claude'
+              ? '#!/bin/sh\necho "2.1.0 (Claude Code)"\n'
+              : '#!/bin/sh\nexit 0\n',
     );
     await chmod(path, 0o755);
   }
@@ -107,6 +109,8 @@ test('installs and removes an isolated Native Messaging host', async () => {
     assert.equal(result.agentBrowserSupported, true);
     assert.equal(result.agentBrowserVersion, '0.33.0');
     assert.equal(result.codexPath, join(binDirectory, 'codex'));
+    assert.equal(result.claudePath, join(binDirectory, 'claude'));
+    assert.equal(result.claudeVersion, '2.1.0');
     assert.equal(result.firefoxExtensionId, firefoxExtensionId);
     assert.equal(result.firefoxPath, join(binDirectory, 'firefox'));
     assert.equal(result.firefoxVersion, '141.0.0');
@@ -122,6 +126,8 @@ test('installs and removes an isolated Native Messaging host', async () => {
       agentBrowserPath: string;
       agentBrowserVersion: string;
       codexPath: string;
+      claudePath: string;
+      claudeVersion: string;
       extensionId: string;
       firefoxExtensionId: string;
     };
@@ -131,6 +137,8 @@ test('installs and removes an isolated Native Messaging host', async () => {
     assert.equal(runtime.agentBrowserPath, result.agentBrowserPath);
     assert.equal(runtime.agentBrowserVersion, '0.33.0');
     assert.equal(runtime.codexPath, result.codexPath);
+    assert.equal(runtime.claudePath, result.claudePath);
+    assert.equal(runtime.claudeVersion, '2.1.0');
     assert.equal((runtime as Record<string, unknown>).firefoxPath, result.firefoxPath);
     assert.equal((runtime as Record<string, unknown>).geckodriverPath, result.geckodriverPath);
     assert.equal(typeof (runtime as Record<string, unknown>).firefoxManagedToken, 'string');

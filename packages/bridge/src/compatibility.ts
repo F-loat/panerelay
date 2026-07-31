@@ -1,10 +1,21 @@
 import { compareVersions, probeExecutableVersion, type CommandRunner } from './platform.js';
 
 export const AGENT_BROWSER_MINIMUM_VERSION = '0.33.0';
+export const CLAUDE_CODE_MINIMUM_VERSION = '2.1.206';
+const STABLE_SEMANTIC_VERSION_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 
 export interface AgentBrowserCompatibility {
   supported: boolean;
   version: string;
+}
+
+export function isClaudeCodeSupported(version: string | undefined): boolean {
+  if (!version || !STABLE_SEMANTIC_VERSION_PATTERN.test(version)) return false;
+  try {
+    return compareVersions(version, CLAUDE_CODE_MINIMUM_VERSION) >= 0;
+  } catch {
+    return false;
+  }
 }
 
 export async function probeAgentBrowserCompatibility(

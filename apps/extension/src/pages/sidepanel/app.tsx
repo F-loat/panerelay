@@ -1231,7 +1231,13 @@ function Welcome({ controller }: { controller: SidepanelController }) {
     ? t(nativeHostMissing ? 'nativeHostMissingBody' : 'emptyBridgeBody')
     : !providerReady
       ? provider
-        ? t(provider.id === 'qoder' ? 'qoderSetupBody' : 'codexSetupBody')
+        ? t(
+            provider.id === 'qoder'
+              ? 'qoderSetupBody'
+              : provider.id === 'claude'
+                ? 'claudeSetupBody'
+                : 'codexSetupBody',
+          )
         : t('emptyProviderBody')
       : t(
           state.extensionStatus?.automationAvailable === false

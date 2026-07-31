@@ -26,7 +26,8 @@ Prepare Release requires repository **Settings → Actions → General → Workf
 - [ ] Confirm the four-component Chrome numeric version matches `release.config.json` and sorts after the prior stable Store version.
 - [ ] Confirm the retained public manifest key derives official Extension ID `panplnkjlkoceaonlmpdekjphgmbggmi` and no private signing material exists in source or artifacts.
 - [ ] Confirm agent-browser 0.33.0 is the minimum and each version in the verified list has a version-specific compatibility record.
-- [ ] Confirm the Bridge packages its ACP SDK runtime and the bounded Qoder compatibility probe remains current.
+- [ ] Confirm Claude Code 2.1.206 is the minimum external CLI version and Panerelay does not package a Claude runtime.
+- [ ] Confirm the Bridge packages its ACP SDK runtime, excludes the Claude Agent SDK and Claude platform binaries, and keeps the bounded Claude/Qoder CLI compatibility probes current.
 - [ ] Run:
 
   ```bash
@@ -49,7 +50,7 @@ release_version="$(node -p 'require("./release.config.json").version')"
 candidate_directory=".artifacts/panerelay-$release_version"
 ```
 
-- [ ] Confirm `$candidate_directory/inventory.json` records channel `stable`, the intended version and commit, `"dirty": false`, official Extension ID, minimum agent-browser version, and verified-version list.
+- [ ] Confirm `$candidate_directory/inventory.json` records channel `stable`, the intended version and commit, `"dirty": false`, official Chromium and Firefox Extension IDs, minimum agent-browser and Claude Code versions, and the verified agent-browser version list.
 - [ ] Confirm the directory contains four `@panerelay` npm tarballs, one Chromium/Edge Extension zip, one Firefox Extension zip, `inventory.json`, and `SHA256SUMS`.
 - [ ] Verify checksums from inside the candidate directory:
 
@@ -57,16 +58,16 @@ candidate_directory=".artifacts/panerelay-$release_version"
   (cd "$candidate_directory" && shasum -a 256 -c SHA256SUMS)
   ```
 
-- [ ] Inspect every npm tarball for its intended public files, exact internal dependency pins matching the candidate version, ACP dependency, and absence of tests, workspace ranges, credentials, logs, and signing keys.
+- [ ] Inspect every npm tarball for its intended public files, exact internal dependency pins matching the candidate version, the ACP dependency, no Claude Agent SDK or Claude platform runtime, and absence of tests, workspace ranges, credentials, logs, and signing keys.
 - [ ] Inspect both Extension archives for all manifest/HTML-referenced assets, matching versions, official identities, and `panerelay-platform-modules.json`. Confirm each ownership record includes its own background/panel adapters and excludes the other platform's private modules; the Chromium archive retains its public key, while Firefox has no debugger permission.
 - [ ] Install all four packed tarballs in one disposable consumer and confirm setup → doctor → update → doctor → uninstall, including persisted custom Chromium and Firefox Extension IDs.
 
 ## Runtime acceptance
 
 - [ ] Extract and load the retained Chromium Extension archive in the daily Chrome profile.
-- [ ] Run `panerelay doctor`; confirm the Chrome-family and Firefox Native Host manifests, exact configured identities, actual connected browser identity, agent-browser version, Provider config, and optional Qoder status.
+- [ ] Run `panerelay doctor`; confirm the Chrome-family and Firefox Native Host manifests, exact configured identities, actual connected browser identity, agent-browser version, Provider config, and optional Claude/Qoder status.
 - [ ] With agent-browser 0.33.0, authorize a local fixture tab, run one bounded Provider session, observe visible control, revoke it, and confirm debugger/session cleanup.
-- [ ] Run one bounded Codex browser-MCP turn and one Qoder ACP browser-MCP turn. Exercise a permission decision, interruption, and browser authorization revocation without retaining prompts or page data.
+- [ ] Run one bounded Codex browser-MCP turn, one external Claude Code CLI browser-MCP turn, and one Qoder ACP browser-MCP turn when each optional runtime is available. Exercise a permission decision, interruption, and browser authorization revocation without retaining prompts or page data.
 - [ ] Load the Chromium archive in daily Edge and repeat one bounded authorization, Provider command, revocation, and cleanup flow.
 - [ ] Load the Firefox archive in daily Firefox, start it through the installed Panerelay launcher, and record exact Firefox, geckodriver, and patched/released agent-browser versions. Verify current-tab authorization, navigation, snapshot, input, screenshot, revocation, Provider cleanup, and that closing Panerelay's driver leaves Firefox running. Also verify normal Firefox startup keeps chat, projects, and page comments available while automation shows the managed-restart action.
 - [ ] On real Windows Chrome, Edge, and Firefox, repeat setup, registry discovery, Host launch, doctor, update, uninstall, and cleanup from paths containing spaces. Confirm only the exact HKCU Panerelay Native Messaging keys and user-owned files change.
@@ -78,7 +79,7 @@ candidate_directory=".artifacts/panerelay-$release_version"
 - Panerelay reuses an existing Chrome or Edge process and cannot own isolated contexts, launch-time proxy or profile selection, whole-browser close, or top-level request containment.
 - Firefox automation uses WebDriver through a managed launcher and participant-scoped policy relay; it never claims Chromium CDP. CDP-only command groups and an unpatched agent-browser Provider fail closed.
 - Activity is sanitized, bounded, memory-only, and not a durable audit history.
-- Qoder is optional; its absence must not block Codex or browser automation.
+- Claude Code and Qoder are optional; their absence must not block Codex or browser automation.
 - Manual unpacked Extension loading does not use or require a private signing key.
 
 ## One-time publication setup

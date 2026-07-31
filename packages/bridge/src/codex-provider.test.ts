@@ -184,7 +184,7 @@ test('prepares Codex once for concurrent warmups without creating a conversation
 test('lists recent Codex history across sources and working directories', async () => {
   const { provider, client } = createProvider();
 
-  await provider.listConversations();
+  await provider.listConversations('/workspace/project');
 
   const listRequest = client.requests.find(request => request.method === 'thread/list');
   assert.deepEqual(listRequest?.params, {
@@ -193,6 +193,7 @@ test('lists recent Codex history across sources and working directories', async 
     sortKey: 'updated_at',
     sortDirection: 'desc',
     archived: false,
+    cwd: '/workspace/project',
   });
 });
 

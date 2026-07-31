@@ -2,7 +2,7 @@
 
 Panerelay's local Native Messaging host, Agent provider runtime, and browser automation policy boundary.
 
-The Bridge connects the Panerelay Extension, agent-browser Provider, and local Agent runtimes over user-scoped local transports. It binds browser relay services to loopback, enforces the active control lease, and ships a bundled Native Host executable for installation by `@panerelay/setup` on macOS, Linux, and Windows. Its internal Agent provider registry supports Codex and optional Qoder ACP while keeping provider-native payloads inside the Bridge.
+The Bridge connects the Panerelay Extension, agent-browser Provider, and local Agent runtimes over user-scoped local transports. It binds browser relay services to loopback, enforces the active control lease, and ships a bundled Native Host executable for installation by `@panerelay/setup` on macOS, Linux, and Windows. Its internal Agent provider registry supports Codex, a user-installed Claude Code CLI, and optional Qoder ACP while keeping provider-native payloads inside the Bridge. Panerelay does not bundle Claude Code or the Claude Agent SDK.
 
 Most users should install it through `@panerelay/setup`. The Native Host is registered for Chrome-family browsers, Microsoft Edge, and Firefox. Official Chromium builds use Extension ID `panplnkjlkoceaonlmpdekjphgmbggmi`; the Firefox build uses `panerelay@f-loat.dev`. Setup can persist one validated custom identity for each browser family.
 

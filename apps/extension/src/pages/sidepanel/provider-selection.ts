@@ -19,6 +19,17 @@ const SUPPORTED_PROVIDERS: SupportedProvider[] = [
     },
   },
   {
+    id: 'claude',
+    name: 'Claude Code',
+    status: 'unavailable',
+    description: 'Local Claude Code through the official Claude Agent SDK.',
+    setup: {
+      installCommand: 'npm install -g @anthropic-ai/claude-code',
+      loginCommand: 'claude',
+      docsUrl: 'https://docs.anthropic.com/en/docs/claude-code/overview',
+    },
+  },
+  {
     id: 'qoder',
     name: 'Qoder',
     status: 'unavailable',

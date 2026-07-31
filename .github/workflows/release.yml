@@ -222,6 +222,6 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "Panerelay $RELEASE_VERSION" \
-            --notes "Includes Codex and Qoder side-panel Agents. Chrome and Edge provide existing-tab automation; Firefox provides the development WebDriver transport described in the compatibility record. Requires agent-browser 0.33.0 or newer for Chromium automation." \
+            --notes "Includes Codex, Claude Code, and Qoder side-panel Agents. Chrome and Edge provide existing-tab automation; Firefox provides the development WebDriver transport described in the compatibility record. Requires agent-browser 0.33.0 or newer for Chromium automation." \
             --generate-notes \
             --latest

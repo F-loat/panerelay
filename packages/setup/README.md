@@ -73,4 +73,4 @@ To roll back, run an earlier setup package and reload the matching unpacked Exte
 
 agent-browser 0.33.0 or newer remains the Chrome/Edge automation floor. Firefox uses WebDriver rather than CDP and additionally requires the `browser.provider.webdriver-existing-session` Provider capability. No released semantic minimum is named until agent-browser ships that contract; the pinned development patch and current evidence are documented in [Firefox WebDriver development compatibility](../../docs/compatibility/firefox-webdriver-development.md). An unpatched 0.33.x client remains usable for Chrome/Edge and fails before Firefox allocates a participant.
 
-Qoder is optional. When setup discovers a compatible `qodercli --acp`, the side panel exposes it alongside Codex; a missing Qoder runtime is reported as a warning and does not make the core installation unhealthy.
+Claude Code and Qoder are optional. Setup discovers `claude` and a compatible `qodercli --acp`, then exposes available providers alongside Codex. A missing optional runtime is reported as a warning and does not make the core installation unhealthy.

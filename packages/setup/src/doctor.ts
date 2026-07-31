@@ -11,6 +11,8 @@ import {
 import { isExecutableFile, type CommandRunner } from '@panerelay/bridge/platform';
 import {
   AGENT_BROWSER_MINIMUM_VERSION,
+  CLAUDE_CODE_MINIMUM_VERSION,
+  isClaudeCodeSupported,
   probeAgentBrowserCompatibility,
 } from '@panerelay/bridge/compatibility';
 import {
@@ -260,6 +262,8 @@ export async function doctorPanerelay(options: DoctorOptions = {}): Promise<Doct
   }
   const codexPath =
     typeof runtimeConfig.codexPath === 'string' ? runtimeConfig.codexPath : undefined;
+  const claudePath =
+    typeof runtimeConfig.claudePath === 'string' ? runtimeConfig.claudePath : undefined;
   const agentBrowserPath =
     typeof runtimeConfig.agentBrowserPath === 'string' ? runtimeConfig.agentBrowserPath : undefined;
   const qoderPath =
@@ -328,6 +332,27 @@ export async function doctorPanerelay(options: DoctorOptions = {}): Promise<Doct
       ? {}
       : {
           hint: 'Install Firefox and geckodriver, run setup, then start Firefox with the Panerelay launcher',
+        }),
+  });
+  const claudeExecutable = claudePath ? await isExecutableFile(claudePath, platform) : false;
+  const claudeVersion =
+    typeof runtimeConfig.claudeVersion === 'string' ? runtimeConfig.claudeVersion : undefined;
+  const claudeReady = claudeExecutable && isClaudeCodeSupported(claudeVersion);
+  checks.push({
+    id: 'claude',
+    label: 'Claude Code CLI (optional)',
+    status: claudeReady ? 'pass' : 'warn',
+    detail: claudeReady
+      ? `${claudePath} (${claudeVersion})`
+      : claudeExecutable
+        ? `${claudePath}${claudeVersion ? ` (${claudeVersion})` : ' (version unknown)'}`
+        : 'Not found',
+    ...(claudeReady
+      ? {}
+      : {
+          hint: claudeExecutable
+            ? `Upgrade Claude Code to ${CLAUDE_CODE_MINIMUM_VERSION} or newer, then run: ${SETUP_COMMAND}`
+            : `Install Claude Code or set PANERELAY_CLAUDE_PATH, then run: ${SETUP_COMMAND}`,
         }),
   });
   const qoderReady = qoderPath ? await isExecutableFile(qoderPath, platform) : false;

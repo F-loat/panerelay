@@ -59,6 +59,8 @@ export const copy = {
     firefoxAutomationUnavailableTitle: 'Firefox automation is unavailable',
     firefoxAutomationUnavailableBody:
       'Agent chat, projects, and page comments still work. Run setup, then reopen Firefox with the Panerelay Firefox launcher.',
+    claudeSetupBody:
+      'Install Claude Code, run claude to sign in, then run npx --yes @panerelay/setup and retry.',
     providerInstallCommand: 'Install',
     providerLoginCommand: 'Sign in',
     providerSetupDocs: 'Open setup documentation',
@@ -230,6 +232,8 @@ export const copy = {
     firefoxAutomationUnavailableTitle: 'Firefox 自动化尚未就绪',
     firefoxAutomationUnavailableBody:
       'Agent 对话、项目选择和页面批注仍可使用。请先运行安装，再通过 Panerelay Firefox 启动器重新打开 Firefox。',
+    claudeSetupBody:
+      '安装 Claude Code，运行 claude 完成登录，再运行 npx --yes @panerelay/setup 后重试。',
     providerInstallCommand: '安装',
     providerLoginCommand: '登录',
     providerSetupDocs: '打开配置文档',

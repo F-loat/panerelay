@@ -48,6 +48,9 @@ export const PACKAGE_DEFINITIONS = [
       'package/dist/host-installation.d.ts',
       'package/dist/host-installation.js',
       'package/dist/install.js',
+      'package/dist/claude-cli.js',
+      'package/dist/claude-permission-server.js',
+      'package/dist/claude-provider.js',
       'package/dist/native-host.bundle.cjs',
       'package/dist/platform.js',
       'package/dist/qoder-executable.js',
@@ -84,7 +87,9 @@ const EXTENSION_FORBIDDEN_BUNDLE_TOKENS = {
   firefox: ['cdp.attach', 'cdp.command', 'cdp.detach', 'cdp.target.request', 'chrome.debugger'],
 };
 const AGENT_BROWSER_MINIMUM_VERSION = '0.33.0';
+const CLAUDE_CODE_MINIMUM_VERSION = '2.1.206';
 const ACP_SDK_MINIMUM_VERSION = '1.2.1';
+const CLAUDE_AGENT_SDK_PACKAGE = '@anthropic-ai/claude-agent-sdk';
 const CHROME_EXTENSION_ID_PATTERN = /^[a-p]{32}$/;
 const NUMERIC_IDENTIFIER = '(0|[1-9]\\d*)';
 const SEMVER_PATTERN = new RegExp(
@@ -393,6 +398,10 @@ export function validateReleaseMetadata({
       `Missing compatibility record for agent-browser ${version}`,
     );
   }
+  invariant(
+    descriptor.claudeCodeMinimumVersion === CLAUDE_CODE_MINIMUM_VERSION,
+    `The minimum Claude Code version must be ${CLAUDE_CODE_MINIMUM_VERSION}`,
+  );
 
   const manifests = publicPackageMap(packageManifests);
   invariant(
@@ -431,6 +440,18 @@ export function validateReleaseMetadata({
     acpVersion && compareVersions(acpVersion, ACP_SDK_MINIMUM_VERSION) >= 0,
     `@panerelay/bridge must package @agentclientprotocol/sdk ${ACP_SDK_MINIMUM_VERSION} or newer`,
   );
+  invariant(
+    !bridgeManifest?.dependencies?.[CLAUDE_AGENT_SDK_PACKAGE] &&
+      !bridgeManifest?.optionalDependencies?.[CLAUDE_AGENT_SDK_PACKAGE],
+    `@panerelay/bridge must not package ${CLAUDE_AGENT_SDK_PACKAGE}`,
+  );
+  invariant(
+    implementationSources?.bridgeCompatibility.includes(
+      `CLAUDE_CODE_MINIMUM_VERSION = '${descriptor.claudeCodeMinimumVersion}'`,
+    ),
+    'Bridge Claude Code compatibility floor does not match the release descriptor',
+  );
+
   invariant(
     implementationSources?.protocolConstants.includes(
       `PANERELAY_EXTENSION_ID = '${descriptor.extensionId}'`,
@@ -522,6 +543,11 @@ export function validatePackedPackage({
     invariant(
       acpVersion && compareVersions(acpVersion, ACP_SDK_MINIMUM_VERSION) >= 0,
       `${name} tarball does not package a supported ACP SDK`,
+    );
+    invariant(
+      !manifest.dependencies?.[CLAUDE_AGENT_SDK_PACKAGE] &&
+        !manifest.optionalDependencies?.[CLAUDE_AGENT_SDK_PACKAGE],
+      `${name} tarball must not package ${CLAUDE_AGENT_SDK_PACKAGE}`,
     );
   }
   for (const path of [
@@ -823,6 +849,7 @@ async function validateStableDistributionSources(root) {
     'docs/compatibility/agent-browser-0.33.0.md',
     'docs/compatibility/browser-platforms.md',
     'docs/compatibility/firefox-webdriver-development.md',
+    'docs/compatibility/claude-code.md',
     ...PACKAGE_DEFINITIONS.map(definition => `${definition.directory}/README.md`),
     'packages/setup/skills/panerelay-browser/SKILL.md',
   ];
@@ -853,6 +880,10 @@ export async function loadReleaseMetadata(root) {
     firefoxExtensionManifest: await readJson(join(root, 'apps/extension/manifest.firefox.json')),
     extensionPackage: await readJson(join(root, 'apps/extension/package.json')),
     implementationSources: {
+      bridgeCompatibility: await readFile(
+        join(root, 'packages/bridge/src/compatibility.ts'),
+        'utf8',
+      ),
       browserRelay: await readFile(join(root, 'packages/bridge/src/browser-relay.ts'), 'utf8'),
       chromiumBackground: await readFile(
         join(root, 'apps/extension/src/background/chromium/index.ts'),
@@ -918,6 +949,7 @@ export async function createReleaseCandidate({ outputDirectory, root, sourceDirt
     firefoxExtensionId: OFFICIAL_FIREFOX_EXTENSION_ID,
     agentBrowserMinimumVersion: metadata.descriptor.agentBrowserMinimumVersion,
     agentBrowserVerifiedVersions: metadata.descriptor.agentBrowserVerifiedVersions,
+    claudeCodeMinimumVersion: metadata.descriptor.claudeCodeMinimumVersion,
     source: { commit, dirty },
     artifacts,
   };

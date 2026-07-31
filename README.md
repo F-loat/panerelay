@@ -7,7 +7,7 @@ English ｜ [简体中文](README.zh-CN.md)
 Panerelay is an open-source local bridge between AI agents and your existing Chrome, Edge, or Firefox session. It solves two problems while keeping browser access explicit and revocable:
 
 1. **Let Agents work directly in Chrome, Edge, or an explicitly managed Firefox.** Any Agent that can use [agent-browser](https://github.com/vercel-labs/agent-browser) through CLI or MCP can control the tabs you authorize with your current browser profile and login state—no separate browser, repeated login, or cookie export.
-2. **Bring local Agents into the browser side panel.** After one Panerelay setup, the Extension discovers supported local Agents and gives them a browser-native chat surface with conversation history, approvals, activity, and immediate control release.
+2. **Bring local Agents into the browser side panel.** After one Panerelay setup, the Extension discovers Codex, Claude Code, and Qoder and gives them a browser-native chat surface with conversation history, approvals, activity, and immediate control release.
 
 Credentials stay in the browser. Panerelay works only in tabs you explicitly authorize. Agent tab selection and background automation do not treat browser focus as permission.
 
@@ -47,7 +47,7 @@ Firefox Provider support is currently a coordinated development contract: agent-
    agent-browser --provider panerelay tab list
    ```
 
-5. Open the side panel or Firefox sidebar and select an installed local Agent. Panerelay automatically discovers supported local Agents; each Agent CLI must already be installed and signed in.
+5. Open the Chrome/Edge side panel or Firefox sidebar and select an installed local Agent. Panerelay automatically discovers Codex, Claude Code, and Qoder; each Agent CLI must already be installed and signed in.
 
 To omit `--provider panerelay` in later commands, set Panerelay as the user-level default from Extension settings or run setup with `--global-provider`. Use `--project-provider` instead when the default should apply only to the current project. Provider selection changes routing only—it never grants browser permission or authorizes a tab.
 
@@ -58,7 +58,7 @@ To omit `--provider panerelay` in later commands, set Panerelay as the user-leve
 - User-scoped Native Messaging setup on macOS, Linux, and Windows.
 - Local-first routing: no Panerelay cloud service is required.
 
-See each release's notes for available side-panel Agents and the [compatibility records](docs/compatibility) for exact agent-browser coverage.
+See the [Claude Code compatibility record](docs/compatibility/claude-code.md) and the other [compatibility records](docs/compatibility) for exact runtime coverage.
 
 ## Manage the installation
 
