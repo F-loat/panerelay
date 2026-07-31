@@ -86,7 +86,7 @@ The manual [Release workflow](../.github/workflows/release.yml) publishes throug
 
 1. In GitHub repository settings, create an environment named `release`. Add required reviewers when the repository plan exposes environment protection rules; otherwise the explicit manual dispatch remains the human release gate.
 2. In GitHub repository Actions settings, allow `GITHUB_TOKEN` workflows to create pull requests so Prepare Release can open its version branch for review.
-3. In the npm settings for each of `@panerelay/protocol`, `@panerelay/agent-browser`, `@panerelay/bridge`, and `@panerelay/setup`, configure the same GitHub Actions trusted publisher:
+3. In the npm settings for each of `@panerelay/protocol`, `@panerelay/browser-registry`, `@panerelay/cli`, `@panerelay/agent-browser`, `@panerelay/bridge`, and `@panerelay/setup`, configure the same GitHub Actions trusted publisher:
    - Organization or user: `F-loat`
    - Repository: `panerelay`
    - Workflow filename: `release.yml`
@@ -121,7 +121,7 @@ Before dispatching `stable`:
 - [ ] Merge the Prepare Release pull request into the default branch and confirm CI is green.
 - [ ] Confirm the repository version is the unused stable version to publish.
 - [ ] Confirm the matching remote tag and GitHub Release do not exist.
-- [ ] Confirm all four npm packages have the trusted publisher configuration above.
+- [ ] Confirm all six npm packages have the trusted publisher configuration above.
 
 Run **Release** from the default branch with channel `stable`, then approve the `release` environment if it has an approval rule. The workflow:
 

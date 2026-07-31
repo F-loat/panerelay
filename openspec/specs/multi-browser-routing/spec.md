@@ -136,7 +136,7 @@ An Agent launched from a Panerelay Extension side panel SHALL explicitly select 
 
 ### Requirement: Users can inspect and manage the saved default
 
-Panerelay SHALL provide local CLI commands that list live registrations, identify the saved default, set a default by exact registration ID or unambiguous browser family, and clear the default. These commands SHALL NOT alter browser permissions or active participants.
+Panerelay SHALL provide an engine-neutral standalone CLI that lists live registrations, identifies the saved default, sets a default by exact registration ID or unambiguous browser family, and clears the default. These commands SHALL NOT alter browser permissions or active participants and SHALL be available through either the optional global `panerelay` executable or an explicit `npx` invocation of `@panerelay/cli`.
 
 #### Scenario: User lists browsers
 
@@ -157,3 +157,9 @@ Panerelay SHALL provide local CLI commands that list live registrations, identif
 - **WHEN** the user clears it
 - **THEN** future participants use the single-ready-browser rule or fail on ambiguity
 - **AND** active participants and browser authorization remain unchanged
+
+#### Scenario: User chooses an invocation mode
+
+- **GIVEN** browser administration is independent of setup and automation engines
+- **WHEN** the user invokes a browser command through a globally installed `panerelay` executable or `npx --yes @panerelay/cli`
+- **THEN** both modes operate on the same protected browser registry and saved default

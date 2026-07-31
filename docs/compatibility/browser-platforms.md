@@ -35,6 +35,8 @@ Edge uses the same Chromium Manifest V3 artifact, side-panel graph, debugger rel
 
 Chrome and Edge Native Hosts persist independent protected registrations. Provider contract tests verify explicit selection, saved defaults, single-ready selection, ambiguity failures, unavailable-default failures, browser-pinned cleanup, and legacy-singleton migration. These deterministic routing claims do not upgrade Edge's runtime classification: representative Edge Provider evidence is still pending.
 
+The optional `@panerelay/cli` package uses the same engine-neutral registry for bounded listing and saved-default changes. Unit and packed-consumer tests cover its executable entry, English and Chinese output, explicit selector precedence, credential omission, and setup-command separation. These package-level checks also do not upgrade Edge runtime capabilities beyond `Forwarded`.
+
 ## Installation and artifacts
 
 | Capability | Status | Evidence and boundary |
@@ -45,6 +47,7 @@ Chrome and Edge Native Hosts persist independent protected registrations. Provid
 | Identity validation and persistence | Verified | Chrome and Edge use the same configured Chromium Extension ID and exact `allowed_origins` entry. |
 | Update and uninstall | Verified | Tests cover replacing and removing both browser registrations without touching unrelated hosts. |
 | Shared Chromium Extension archive | Verified | Candidate validation retains one manifest, public key, Extension ID, and complete asset graph for Chrome and Edge. |
+| Standalone administration CLI | Verified | Candidate validation packs and installs `@panerelay/cli` with its registry dependency, then invokes browser-list and default-clear commands in an isolated consumer. |
 | Chrome Web Store installation in Edge | Forwarded | Microsoft documents installing Chrome Web Store extensions in Edge; dedicated Panerelay installation evidence remains pending. |
 | Microsoft Edge Add-ons publication | Unsupported | No Edge Add-ons listing or separately signed Edge identity is part of this change. |
 

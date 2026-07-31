@@ -1,0 +1,46 @@
+{
+  "name": "@panerelay/cli",
+  "version": "0.2.0",
+  "description": "Engine-neutral browser administration CLI for Panerelay.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/F-loat/panerelay.git",
+    "directory": "packages/cli"
+  },
+  "homepage": "https://github.com/F-loat/panerelay#readme",
+  "bugs": {
+    "url": "https://github.com/F-loat/panerelay/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "bin": {
+    "panerelay": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.*",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm run build && node ../../scripts/run-compiled-tests.mjs dist",
+    "prepublishOnly": "pnpm build"
+  },
+  "dependencies": {
+    "@panerelay/browser-registry": "workspace:*"
+  }
+}

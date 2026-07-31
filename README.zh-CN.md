@@ -42,8 +42,8 @@ Microsoft Edge 运行时能力目前归类为 `Forwarded`，仍需完成有代�
 4. 如果 Panerelay 同时连接了多个浏览器，在扩展设置中选择“默认浏览器”，或通过 CLI 明确选择：
 
    ```bash
-   npx --yes @panerelay/setup browsers
-   npx --yes @panerelay/setup browser use edge
+   npx --yes @panerelay/cli browsers
+   npx --yes @panerelay/cli browser use edge
    ```
 
 5. 验证任意 Agent 可以通过 agent-browser 访问所选的已授权浏览器：
@@ -87,11 +87,13 @@ agent-browser 从 `~/.agent-browser/config.json` 读取用户级默认值，当�
 浏览器选择是另一项独立设置。Panerelay 依次使用显式的 `PANERELAY_BROWSER_ID` 或 `PANERELAY_BROWSER`、保存的默认浏览器、唯一在线且可用的浏览器。多个浏览器同时可用但没有明确选择时会直接报错，不会根据焦点或注册顺序猜测：
 
 ```bash
-npx --yes @panerelay/setup browsers
-npx --yes @panerelay/setup browser use <注册ID|chrome|edge>
-npx --yes @panerelay/setup browser clear
+npx --yes @panerelay/cli browsers
+npx --yes @panerelay/cli browser use <注册ID|chrome|edge>
+npx --yes @panerelay/cli browser clear
 PANERELAY_BROWSER=edge agent-browser --provider panerelay tab list
 ```
+
+如需频繁管理，可以全局安装 `@panerelay/cli`，之后使用相同的 `panerelay ...` 命令。setup 不会自动安装这个可选 CLI，也不会修改 shell 的 `PATH`。
 
 显式选择或保存的默认浏览器离线时不会自动切换到其他浏览器。每个 agent-browser 会话在关闭前始终固定到创建它的浏览器。
 
@@ -109,7 +111,7 @@ ID 必须由 32 个 `a` 到 `p` 的小写字母组成。
 - 复用登录态是指在已授权的现有标签页内工作。Panerelay 默认不会导出或记录 Cookie、凭证、Prompt、截图、页面内容或请求体。
 - Panerelay 无法接管隔离 Profile、启动期代理或关闭用户 Chrome 或 Edge 进程等 browser-process 能力。
 - `webNavigation` 只用于识别浏览器报告的关联标签页，以便继承会话上下文；它不会读取浏览历史，也不会授予网站访问权限。
-- 扩展、协议、Bridge、Provider 与 setup CLI 构成锁步兼容单元。
+- 扩展、协议、Bridge、Provider、setup 包、浏览器注册库与可选管理 CLI 构成锁步兼容单元。
 
 ## 开发与发布检查
 

@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { PANERELAY_BROWSER_ID_ENV } from '@panerelay/browser-registry';
-import { PANERELAY_EXTENSION_ID, PANERELAY_PROTOCOL_VERSION } from '@panerelay/protocol';
+import { PANERELAY_EXTENSION_ID } from '@panerelay/protocol';
 import { main, parseSetupArgs } from './cli.js';
 import type { DoctorReport } from './doctor.js';
 
@@ -123,97 +122,10 @@ test('accepts language options before or after the command', () => {
   assert.throws(() => parseSetupArgs(['--lang', 'en', '--lang', 'zh-CN']), /LANGUAGE_REPEATED/);
 });
 
-test('parses browser listing and default-selection commands', () => {
-  assert.equal(parseSetupArgs(['browsers']).operation, 'browsers');
-  assert.deepEqual(
-    {
-      operation: parseSetupArgs(['browser', 'use', 'edge']).operation,
-      selector: parseSetupArgs(['browser', 'use', 'edge']).browserSelector,
-    },
-    { operation: 'browser-use', selector: 'edge' },
-  );
-  assert.equal(parseSetupArgs(['browser', 'clear']).operation, 'browser-clear');
-  assert.throws(() => parseSetupArgs(['browser', 'use']), /BROWSER_SELECTOR_MISSING/);
-  assert.throws(() => parseSetupArgs(['browser', 'focus']), /Unknown command: browser focus/);
-});
-
-test('lists browsers without exposing credentials and manages the saved default', async () => {
-  const output: string[] = [];
-  const originalLog = console.log;
-  const state = {
-    protocol: PANERELAY_PROTOCOL_VERSION,
-    pid: 123,
-    port: 41_234,
-    token: 'secret-token-must-not-print',
-    browserId: 'edge-browser-id',
-    browserName: 'Microsoft Edge',
-    browserFamily: 'edge' as const,
-    capabilities: { cdpRelay: true },
-    extensionVersion: '0.2.0',
-    extensionId: PANERELAY_EXTENSION_ID,
-    updatedAt: '2026-07-31T08:00:00.000Z',
-  };
-  let selectedEnvironment: NodeJS.ProcessEnv | undefined;
-  let savedBrowserId: string | undefined;
-  let cleared = false;
-  console.log = (...values: unknown[]) => output.push(values.join(' '));
-  try {
-    assert.equal(
-      await main(['browsers', '--lang', 'en'], {
-        environment: {},
-        listBrowserRegistrations: async () => [{ state, ready: true }],
-        readBrowserDefault: async () => ({
-          protocol: PANERELAY_PROTOCOL_VERSION,
-          browserId: state.browserId,
-          updatedAt: state.updatedAt,
-        }),
-      }),
-      0,
-    );
-    assert.match(output.join('\n'), /Microsoft Edge \(edge, ready, default\)/);
-    assert.match(output.join('\n'), /edge-browser-id/);
-    assert.doesNotMatch(output.join('\n'), /secret-token/);
-
-    output.length = 0;
-    assert.equal(
-      await main(['browser', 'use', 'edge', '--lang', 'en'], {
-        environment: { [PANERELAY_BROWSER_ID_ENV]: 'ambient-browser-id' },
-        selectBrowserRegistration: async options => {
-          selectedEnvironment = options?.environment;
-          return { source: 'explicit', state };
-        },
-        setBrowserDefault: async browserId => {
-          savedBrowserId = browserId;
-          return {
-            protocol: PANERELAY_PROTOCOL_VERSION,
-            browserId,
-            updatedAt: state.updatedAt,
-          };
-        },
-      }),
-      0,
-    );
-    assert.equal(selectedEnvironment?.[PANERELAY_BROWSER_ID_ENV], undefined);
-    assert.equal(selectedEnvironment?.PANERELAY_BROWSER, 'edge');
-    assert.equal(savedBrowserId, 'edge-browser-id');
-    assert.match(output.join('\n'), /Default browser: Microsoft Edge \(edge-browser-id\)/);
-
-    output.length = 0;
-    assert.equal(
-      await main(['browser', 'clear', '--lang', 'zh-CN'], {
-        clearBrowserDefault: async () => {
-          cleared = true;
-          return null;
-        },
-        environment: {},
-      }),
-      0,
-    );
-    assert.equal(cleared, true);
-    assert.match(output.join('\n'), /已清除保存的默认浏览器/);
-  } finally {
-    console.log = originalLog;
-  }
+test('rejects browser administration commands moved to @panerelay/cli', () => {
+  assert.throws(() => parseSetupArgs(['browsers']), /Unknown command: browsers/);
+  assert.throws(() => parseSetupArgs(['browser', 'use', 'edge']), /Unknown command: browser/);
+  assert.throws(() => parseSetupArgs(['browser', 'clear']), /Unknown command: browser/);
 });
 
 test('parses custom Extension IDs for setup and doctor', () => {

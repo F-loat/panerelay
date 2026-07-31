@@ -42,8 +42,8 @@ Microsoft Edge runtime capabilities are currently classified as `Forwarded` pend
 4. If Panerelay is connected in more than one browser, use the Extension's `Default Browser` setting or select one from the CLI:
 
    ```bash
-   npx --yes @panerelay/setup browsers
-   npx --yes @panerelay/setup browser use edge
+   npx --yes @panerelay/cli browsers
+   npx --yes @panerelay/cli browser use edge
    ```
 
 5. Verify that any Agent can reach the selected authorized browser through agent-browser:
@@ -87,11 +87,13 @@ agent-browser reads the user default from `~/.agent-browser/config.json`; the cu
 Browser selection is a separate setting. Panerelay uses an explicit `PANERELAY_BROWSER_ID` or `PANERELAY_BROWSER` selector first, then the saved browser default, then the only ready browser. Multiple ready browsers without a choice fail closed instead of using focus or registration order:
 
 ```bash
-npx --yes @panerelay/setup browsers
-npx --yes @panerelay/setup browser use <registration-id|chrome|edge>
-npx --yes @panerelay/setup browser clear
+npx --yes @panerelay/cli browsers
+npx --yes @panerelay/cli browser use <registration-id|chrome|edge>
+npx --yes @panerelay/cli browser clear
 PANERELAY_BROWSER=edge agent-browser --provider panerelay tab list
 ```
+
+For frequent administration, install `@panerelay/cli` globally and run the same commands as `panerelay ...`. Setup does not install this optional CLI or modify your shell `PATH`.
 
 An explicit or saved browser that is offline does not fall back to another browser. Each agent-browser session stays pinned to its selected browser until close.
 
@@ -109,7 +111,7 @@ The ID must contain 32 lowercase letters from `a` through `p`.
 - Reusing login state means operating inside an authorized existing tab. Panerelay does not export or log cookies, credentials, prompts, screenshots, page content, or request bodies by default.
 - Panerelay cannot own browser-process features such as isolated profiles, launch-time proxy changes, or closing the user's Chrome or Edge process.
 - `webNavigation` is used only to recognize browser-reported related tabs so they can share conversation context. It does not read browsing history or grant site access.
-- The Extension, protocol, Bridge, Provider, and setup CLI form one lockstep compatibility unit.
+- The Extension, protocol, Bridge, Provider, setup package, browser registry, and optional administration CLI form one lockstep compatibility unit.
 
 ## Development and release checks
 

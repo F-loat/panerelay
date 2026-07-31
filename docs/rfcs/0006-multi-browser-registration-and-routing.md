@@ -86,7 +86,9 @@ The Native Host exposes integration operations to inspect the current browser/de
 
 ### CLI scope
 
-The setup binary lists live browser registrations and manages the same saved default. Family shortcuts are accepted only when one live ready registration matches. These operations do not contact pages, grant permissions, change leases, or move active participants.
+The optional `@panerelay/cli` package exposes the `panerelay` executable. It lists live browser registrations and manages the same saved default. Family shortcuts are accepted only when one live ready registration matches. These operations do not contact pages, grant permissions, change leases, or move active participants.
+
+The CLI depends on the engine-neutral `@panerelay/browser-registry` runtime, not on agent-browser or another automation engine. It can be installed globally for recurring use or invoked occasionally with `npx`. The one-time `@panerelay/setup` package retains setup, update, doctor, and uninstall operations; it neither owns recurring browser administration nor installs the CLI globally.
 
 ## Security and privacy
 
@@ -100,7 +102,7 @@ The setup binary lists live browser registrations and manages the same saved def
 
 ## Compatibility and migration
 
-agent-browser 0.33.0 remains the minimum and initial Chrome-verified baseline. No upstream modification is required because Panerelay selection uses Provider process environment and local state.
+agent-browser 0.33.0 remains the minimum and initial Chrome-verified baseline. No upstream modification is required because Panerelay selection uses Provider process environment and local state. The administration CLI is automation-engine neutral so future adapters can reuse the same selection state.
 
 Chrome retains its existing `Verified` evidence where the behavior is covered. Edge uses the same registry and Chromium relay path but remains `Forwarded` until dedicated real-Edge evidence exists. One-session/multiple-browser operation remains `Unsupported`.
 
@@ -124,13 +126,17 @@ Deferred because separate Native Hosts already isolate ownership. A broker adds 
 
 Rejected because users can run multiple profiles or channels in the same family. The durable selection is an opaque registration ID; family is only an unambiguous convenience.
 
+### Put recurring browser commands in setup
+
+Rejected because setup is intentionally a one-time `npx` integration surface. Keeping recurring administration in a standalone optional package avoids a global setup dependency and keeps the command independent of any automation engine.
+
 ## Delivery plan
 
 1. Add the protected registry and selection module with deterministic tests.
 2. Move Native Host discovery writes and Provider reads to per-browser records.
 3. Pin cleanup and side-panel Agent MCP environments to the selected registration.
 4. Add Extension integration operations and a browser-default setting.
-5. Add CLI list, use, and clear commands.
+5. Add standalone CLI list, use, and clear commands.
 6. Update compatibility documentation and run real Chrome plus synthetic two-browser acceptance.
 
 ## Acceptance criteria

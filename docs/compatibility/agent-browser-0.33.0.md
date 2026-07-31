@@ -133,8 +133,8 @@ Daily-Chrome verification of provider warm-up, lazy history, draft-first send, a
 
 ## Stable distribution boundaries
 
-- The Extension, protocol, Provider, Bridge, and setup CLI are one lockstep compatibility unit; different Panerelay versions do not negotiate with each other.
-- Candidate validation packs all four npm packages, installs them outside the workspace, and runs setup, doctor, update, and uninstall in disposable user state.
+- The Extension, protocol, browser registry, administration CLI, Provider, Bridge, and setup package are one lockstep compatibility unit; different Panerelay versions do not negotiate with each other.
+- Candidate validation packs all six npm packages, installs them outside the workspace, and runs browser administration, setup, doctor, update, and uninstall in disposable user state.
 - Native Messaging setup supports macOS, Linux, and current-user Windows Chrome registration.
 - Installing the candidate does not grant Chrome site permission, authorize a tab, or acquire a control lease.
 - Packaging does not change participant isolation, target serialization, or Chrome authorization boundaries recorded above.
