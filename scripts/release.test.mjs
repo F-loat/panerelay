@@ -54,7 +54,12 @@ function releaseFixture() {
       : {
           dependencies: {
             [descriptor.packages[0]]: 'workspace:*',
-            ...(name === '@panerelay/bridge' ? { '@agentclientprotocol/sdk': '^1.3.0' } : {}),
+            ...(name === '@panerelay/bridge'
+              ? {
+                  '@agentclientprotocol/sdk': '^1.3.0',
+                  '@anthropic-ai/claude-agent-sdk': '^0.3.220',
+                }
+              : {}),
           },
         }),
   }));
@@ -266,7 +271,7 @@ test('validates stable and beta release identities', () => {
   );
 });
 
-test('rejects stale prerelease metadata, identity drift, missing evidence, and unsupported ACP metadata', () => {
+test('rejects stale prerelease metadata, identity drift, missing evidence, and unsupported SDK metadata', () => {
   const alpha = releaseFixture();
   alpha.descriptor.version = '0.1.0-alpha.1';
   assert.throws(() => validateReleaseMetadata(alpha), /without prerelease metadata/);
@@ -284,6 +289,12 @@ test('rejects stale prerelease metadata, identity drift, missing evidence, and u
     manifest => manifest.name === '@panerelay/bridge',
   ).dependencies['@agentclientprotocol/sdk'] = '^1.1.0';
   assert.throws(() => validateReleaseMetadata(unsupportedAcp), /must package/);
+
+  const unsupportedClaude = releaseFixture();
+  unsupportedClaude.packageManifests.find(
+    manifest => manifest.name === '@panerelay/bridge',
+  ).dependencies['@anthropic-ai/claude-agent-sdk'] = '^0.3.1';
+  assert.throws(() => validateReleaseMetadata(unsupportedClaude), /must package/);
 });
 
 test('rejects workspace references and incomplete packed package contents', () => {

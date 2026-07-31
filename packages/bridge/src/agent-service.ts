@@ -9,6 +9,7 @@ import {
   type HostToExtensionMessage,
 } from '@panerelay/protocol';
 import type { AgentProvider } from './agent-provider.js';
+import { ClaudeProvider } from './claude-provider.js';
 import { CodexProvider } from './codex-provider.js';
 import { validateConversationImages } from './conversation-images.js';
 import { QoderProvider } from './qoder-provider.js';
@@ -36,7 +37,11 @@ export class AgentService {
     private readonly sendToExtension: (message: HostToExtensionMessage) => void,
     options: AgentServiceOptions = {},
   ) {
-    const providers = options.providers ?? [new CodexProvider({}), new QoderProvider()];
+    const providers = options.providers ?? [
+      new CodexProvider({}),
+      new ClaudeProvider(),
+      new QoderProvider(),
+    ];
     for (const provider of providers) {
       if (this.providers.has(provider.id)) {
         throw new Error(`Duplicate agent provider: ${provider.id}`);
@@ -96,7 +101,7 @@ export class AgentService {
         await provider.prepare();
         return {};
       case 'conversation.list': {
-        const conversations = await provider.listConversations();
+        const conversations = await provider.listConversations(request.cwd);
         for (const conversation of conversations) {
           this.assertResultProvider(provider.id, conversation);
           this.bindConversation(provider.id, conversation.id);

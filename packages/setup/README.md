@@ -61,4 +61,4 @@ npx --yes @panerelay/setup update --global-provider
 
 To roll back, run an earlier setup package and reload the matching unpacked Extension. Do not mix Extension and package versions. Native Messaging installation supports macOS, Linux, and current-user Windows Chrome registration without administrator privileges. agent-browser 0.33.0 or newer is required and its detected version appears in doctor.
 
-Qoder is optional. When setup discovers a compatible `qodercli --acp`, the side panel exposes it alongside Codex; a missing Qoder runtime is reported as a warning and does not make the core installation unhealthy.
+Claude Code and Qoder are optional. Setup discovers `claude` and a compatible `qodercli --acp`, then exposes available providers alongside Codex. A missing optional runtime is reported as a warning and does not make the core installation unhealthy.

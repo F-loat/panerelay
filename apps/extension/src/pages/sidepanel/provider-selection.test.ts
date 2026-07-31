@@ -29,11 +29,13 @@ test('keeps the supported catalog visible and overlays discovered readiness', ()
     catalog.map(provider => [provider.id, provider.status]),
     [
       ['codex', 'unavailable'],
+      ['claude', 'unavailable'],
       ['qoder', 'unavailable'],
     ],
   );
   assert.equal(catalog[0]?.setup?.installCommand, 'npm install -g @openai/codex');
-  assert.equal(catalog[1]?.setupHint, 'Install Qoder');
+  assert.equal(catalog[1]?.setup?.installCommand, 'npm install -g @anthropic-ai/claude-code');
+  assert.equal(catalog[2]?.setupHint, 'Install Qoder');
 
   const qoderReady = supportedProviders([
     {
@@ -50,10 +52,11 @@ test('keeps the supported catalog visible and overlays discovered readiness', ()
     qoderReady.map(provider => [provider.id, provider.status]),
     [
       ['codex', 'unavailable'],
+      ['claude', 'unavailable'],
       ['qoder', 'ready'],
     ],
   );
-  assert.equal(qoderReady[1]?.setup?.installCommand, 'curl -fsSL https://qoder.com/install | bash');
+  assert.equal(qoderReady[2]?.setup?.installCommand, 'curl -fsSL https://qoder.com/install | bash');
 });
 
 test('prefers an installed provider and falls back to Codex when none are installed', () => {

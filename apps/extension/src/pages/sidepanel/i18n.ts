@@ -54,6 +54,8 @@ export const copy = {
     codexSetupBody: 'Install or reconnect Codex, then retry provider discovery.',
     qoderSetupBody:
       'Install Qoder CLI, run qodercli to sign in, then run npx --yes @panerelay/setup and retry.',
+    claudeSetupBody:
+      'Install Claude Code, run claude to sign in, then run npx --yes @panerelay/setup and retry.',
     providerInstallCommand: 'Install',
     providerLoginCommand: 'Sign in',
     providerSetupDocs: 'Open setup documentation',
@@ -220,6 +222,8 @@ export const copy = {
     codexSetupBody: '安装或重新连接 Codex，然后重试 Provider 检测。',
     qoderSetupBody:
       '安装 Qoder CLI，运行 qodercli 完成登录，再运行 npx --yes @panerelay/setup 后重试。',
+    claudeSetupBody:
+      '安装 Claude Code，运行 claude 完成登录，再运行 npx --yes @panerelay/setup 后重试。',
     providerInstallCommand: '安装',
     providerLoginCommand: '登录',
     providerSetupDocs: '打开配置文档',

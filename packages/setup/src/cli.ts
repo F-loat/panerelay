@@ -139,6 +139,7 @@ function printHelp(locale: SupportedLocale): void {
 
 const doctorLabels: Record<string, { en: string; 'zh-CN': string }> = {
   'agent-browser': { en: 'agent-browser', 'zh-CN': 'agent-browser' },
+  claude: { en: 'Claude Code (optional)', 'zh-CN': 'Claude Code（可选）' },
   codex: { en: 'Codex', 'zh-CN': 'Codex' },
   extension: { en: 'Extension', 'zh-CN': '扩展' },
   'extension-id': { en: 'Effective Extension ID', 'zh-CN': '生效的扩展 ID' },
@@ -169,7 +170,7 @@ const doctorLabels: Record<string, { en: string; 'zh-CN': string }> = {
 
 const doctorGroups = [
   {
-    ids: ['node', 'agent-browser', 'codex', 'qoder'],
+    ids: ['node', 'agent-browser', 'codex', 'claude', 'qoder'],
     title: 'doctorGroupEnvironment',
   },
   {
@@ -215,6 +216,9 @@ function doctorHint(id: string, hint: string, locale: SupportedLocale): string {
   if (locale === 'en') return hint;
   if (id === 'node') return '请安装 Node.js 20 或更高版本';
   if (id === 'codex') return '请安装 Codex CLI，然后运行：npx --yes @panerelay/setup';
+  if (id === 'claude') {
+    return '请安装 Claude Code 或设置 PANERELAY_CLAUDE_PATH，然后运行：npx --yes @panerelay/setup';
+  }
   if (id === 'agent-browser') {
     return hint.startsWith('Upgrade ')
       ? '请将 agent-browser 升级到 0.33.0 或更高版本'
@@ -408,6 +412,7 @@ export async function main(
     );
     console.log(translate(locale, 'agentSkill', { path: result.globalSkillPath }));
     if (!result.host.codexPath) console.log(translate(locale, 'codexMissing'));
+    if (!result.host.claudePath) console.log(translate(locale, 'claudeMissing'));
     if (!result.host.agentBrowserPath) console.log(translate(locale, 'agentBrowserMissing'));
     if (result.projectConfigPath) {
       console.log(translate(locale, 'projectProvider', { path: result.projectConfigPath }));

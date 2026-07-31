@@ -48,6 +48,8 @@ export const PACKAGE_DEFINITIONS = [
       'package/dist/host-installation.d.ts',
       'package/dist/host-installation.js',
       'package/dist/install.js',
+      'package/dist/claude-agent-sdk.js',
+      'package/dist/claude-provider.js',
       'package/dist/native-host.bundle.cjs',
       'package/dist/platform.js',
       'package/dist/qoder-executable.js',
@@ -74,6 +76,7 @@ export const PACKAGE_DEFINITIONS = [
 const OFFICIAL_EXTENSION_ID = 'panplnkjlkoceaonlmpdekjphgmbggmi';
 const AGENT_BROWSER_MINIMUM_VERSION = '0.33.0';
 const ACP_SDK_MINIMUM_VERSION = '1.2.1';
+const CLAUDE_AGENT_SDK_MINIMUM_VERSION = '0.3.220';
 const CHROME_EXTENSION_ID_PATTERN = /^[a-p]{32}$/;
 const NUMERIC_IDENTIFIER = '(0|[1-9]\\d*)';
 const SEMVER_PATTERN = new RegExp(
@@ -400,6 +403,13 @@ export function validateReleaseMetadata({
     acpVersion && compareVersions(acpVersion, ACP_SDK_MINIMUM_VERSION) >= 0,
     `@panerelay/bridge must package @agentclientprotocol/sdk ${ACP_SDK_MINIMUM_VERSION} or newer`,
   );
+  const claudeRange = bridgeManifest?.dependencies?.['@anthropic-ai/claude-agent-sdk'];
+  const claudeVersion =
+    typeof claudeRange === 'string' ? /^\^(\d+\.\d+\.\d+)$/.exec(claudeRange)?.[1] : '';
+  invariant(
+    claudeVersion && compareVersions(claudeVersion, CLAUDE_AGENT_SDK_MINIMUM_VERSION) >= 0,
+    `@panerelay/bridge must package @anthropic-ai/claude-agent-sdk ${CLAUDE_AGENT_SDK_MINIMUM_VERSION} or newer`,
+  );
 
   invariant(
     implementationSources?.protocolConstants.includes(
@@ -478,6 +488,13 @@ export function validatePackedPackage({
     invariant(
       acpVersion && compareVersions(acpVersion, ACP_SDK_MINIMUM_VERSION) >= 0,
       `${name} tarball does not package a supported ACP SDK`,
+    );
+    const claudeRange = manifest.dependencies?.['@anthropic-ai/claude-agent-sdk'];
+    const claudeVersion =
+      typeof claudeRange === 'string' ? /^\^(\d+\.\d+\.\d+)$/.exec(claudeRange)?.[1] : '';
+    invariant(
+      claudeVersion && compareVersions(claudeVersion, CLAUDE_AGENT_SDK_MINIMUM_VERSION) >= 0,
+      `${name} tarball does not package a supported Claude Agent SDK`,
     );
   }
   for (const path of [
@@ -719,6 +736,7 @@ async function validateStableDistributionSources(root) {
     'README.zh-CN.md',
     'docs/releasing.md',
     'docs/compatibility/agent-browser-0.33.0.md',
+    'docs/compatibility/claude-code.md',
     ...PACKAGE_DEFINITIONS.map(definition => `${definition.directory}/README.md`),
     'packages/setup/skills/panerelay-browser/SKILL.md',
   ];

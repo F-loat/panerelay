@@ -207,6 +207,8 @@ export async function doctorPanerelay(options: DoctorOptions = {}): Promise<Doct
   }
   const codexPath =
     typeof runtimeConfig.codexPath === 'string' ? runtimeConfig.codexPath : undefined;
+  const claudePath =
+    typeof runtimeConfig.claudePath === 'string' ? runtimeConfig.claudePath : undefined;
   const agentBrowserPath =
     typeof runtimeConfig.agentBrowserPath === 'string' ? runtimeConfig.agentBrowserPath : undefined;
   const qoderPath =
@@ -220,6 +222,22 @@ export async function doctorPanerelay(options: DoctorOptions = {}): Promise<Doct
       platform,
     ),
   );
+  const claudeReady = claudePath ? await isExecutableFile(claudePath, platform) : false;
+  checks.push({
+    id: 'claude',
+    label: 'Claude Code CLI (optional)',
+    status: claudeReady ? 'pass' : 'warn',
+    detail: claudeReady
+      ? `${claudePath}${
+          typeof runtimeConfig.claudeVersion === 'string' ? ` (${runtimeConfig.claudeVersion})` : ''
+        }`
+      : 'Not found',
+    ...(claudeReady
+      ? {}
+      : {
+          hint: `Install Claude Code or set PANERELAY_CLAUDE_PATH, then run: ${SETUP_COMMAND}`,
+        }),
+  });
   const qoderReady = qoderPath ? await isExecutableFile(qoderPath, platform) : false;
   checks.push({
     id: 'qoder',
