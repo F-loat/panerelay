@@ -143,3 +143,43 @@ test('doctor reports the detected agent-browser version and rejects versions bel
     await rm(homeDirectory, { force: true, recursive: true });
   }
 });
+
+test('doctor reports an installed Claude CLI below 2.1.0 as optional but incompatible', async () => {
+  const homeDirectory = await mkdtemp(join(tmpdir(), 'panerelay-claude-doctor-'));
+  const claudePath = join(homeDirectory, 'bin', 'claude');
+  const runtimeConfigPath = join(homeDirectory, '.panerelay', 'runtime.json');
+  await mkdir(dirname(claudePath), { recursive: true });
+  await mkdir(dirname(runtimeConfigPath), { recursive: true });
+  await writeFile(claudePath, '#!/bin/sh\n');
+  await chmod(claudePath, 0o755);
+  try {
+    await writeFile(
+      runtimeConfigPath,
+      `${JSON.stringify({
+        claudePath,
+        claudeVersion: '2.0.99',
+        extensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
+      })}\n`,
+    );
+    const old = await doctorPanerelay({ homeDirectory, platform: 'linux' });
+    const oldCheck = old.checks.find(check => check.id === 'claude');
+    assert.equal(oldCheck?.status, 'warn');
+    assert.match(oldCheck?.detail || '', /2\.0\.99/);
+    assert.match(oldCheck?.hint || '', /2\.1\.0 or newer/);
+
+    await writeFile(
+      runtimeConfigPath,
+      `${JSON.stringify({
+        claudePath,
+        claudeVersion: '2.1.0',
+        extensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
+      })}\n`,
+    );
+    const supported = await doctorPanerelay({ homeDirectory, platform: 'linux' });
+    const supportedCheck = supported.checks.find(check => check.id === 'claude');
+    assert.equal(supportedCheck?.status, 'pass');
+    assert.match(supportedCheck?.detail || '', /2\.1\.0/);
+  } finally {
+    await rm(homeDirectory, { force: true, recursive: true });
+  }
+});

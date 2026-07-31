@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
-import type { PermissionResult, PermissionUpdate } from '@anthropic-ai/claude-agent-sdk';
 import type {
   AgentProviderSummary,
   ConversationActivity,
@@ -19,15 +18,16 @@ import {
   resolveConversationStartOptions,
 } from './agent-context.js';
 import {
-  createClaudeAgentSdk,
-  type ClaudeAgentOptions,
-  type ClaudeAgentSdk,
-  type ClaudeQuery,
-  type ClaudeSdkMessage,
-  type ClaudeSdkUserMessage,
+  createClaudeCli,
+  type ClaudeCli,
+  type ClaudeCliMessage,
+  type ClaudeCliQuery,
+  type ClaudeCliUserMessage,
+  type ClaudeMcpServer,
   type ClaudeSessionInfo,
   type ClaudeSessionMessage,
-} from './claude-agent-sdk.js';
+} from './claude-cli.js';
+import { isClaudeCodeSupported } from './compatibility.js';
 import { resolveSpawnCommand, runCommand, type CommandRunner } from './platform.js';
 import { readRuntimeConfig, type PanerelayRuntimeConfig } from './runtime-config.js';
 
@@ -55,12 +55,15 @@ interface ClaudeTurn {
   browserSession?: ClaudeBrowserSession;
   id: string;
   interrupted: boolean;
-  query: ClaudeQuery;
+  query: ClaudeCliQuery;
+  seenControlRequestIds: Set<string>;
+  seenToolUseIds: Set<string>;
 }
 
 interface ClaudePermission {
   conversationId: string;
-  resolve: (result: PermissionResult) => void;
+  query: ClaudeCliQuery;
+  requestId: string;
   turnId: string;
 }
 
@@ -70,7 +73,7 @@ export interface ClaudeProviderOptions {
   platform?: NodeJS.Platform;
   runner?: CommandRunner;
   runtimeConfig?: () => Promise<PanerelayRuntimeConfig>;
-  sdk?: ClaudeAgentSdk;
+  cli?: ClaudeCli;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -213,7 +216,7 @@ function approvalFromTool(
 export function claudeBrowserMcpServers(
   config: PanerelayRuntimeConfig,
   sessionLabel: string,
-): ClaudeAgentOptions['mcpServers'] {
+): Record<string, ClaudeMcpServer> {
   if (!config.agentBrowserPath || !config.agentBrowserConfigPath) return {};
   return {
     panerelay_browser: {
@@ -259,33 +262,25 @@ async function closeClaudeBrowserSession(
   }
 }
 
-function promptInput(
-  text: string,
-  images: ConversationImageInput[],
-): AsyncIterable<ClaudeSdkUserMessage> {
+function promptInput(text: string, images: ConversationImageInput[]): ClaudeCliUserMessage {
   return {
-    async *[Symbol.asyncIterator]() {
-      yield {
-        type: 'user',
-        message: {
-          role: 'user',
-          content: [
-            ...(text ? [{ type: 'text' as const, text }] : []),
-            ...images.map(image => ({
-              type: 'image' as const,
-              source: {
-                type: 'base64' as const,
-                media_type: image.mimeType as
-                  'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
-                data: image.data,
-              },
-            })),
-          ],
-        },
-        parent_tool_use_id: null,
-        origin: { kind: 'human' },
-      };
+    type: 'user',
+    session_id: '',
+    message: {
+      role: 'user',
+      content: [
+        ...(text ? [{ type: 'text' as const, text }] : []),
+        ...images.map(image => ({
+          type: 'image' as const,
+          source: {
+            type: 'base64' as const,
+            media_type: image.mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+            data: image.data,
+          },
+        })),
+      ],
     },
+    parent_tool_use_id: null,
   };
 }
 
@@ -297,12 +292,17 @@ export class ClaudeProvider implements AgentProvider {
   readonly id = CLAUDE_PROVIDER_ID;
   private readonly listeners = new Set<(event: ConversationEvent) => void>();
   private readonly pendingPermissions = new Map<string, ClaudePermission>();
-  private readonly sdk: ClaudeAgentSdk;
+  private readonly cli: ClaudeCli;
   private readonly sessions = new Map<string, ClaudeSession>();
   private config: PanerelayRuntimeConfig | null = null;
 
   constructor(private readonly options: ClaudeProviderOptions = {}) {
-    this.sdk = options.sdk ?? createClaudeAgentSdk();
+    this.cli =
+      options.cli ??
+      createClaudeCli({
+        environment: options.environment,
+        platform: options.platform,
+      });
   }
 
   onEvent(listener: (event: ConversationEvent) => void): () => void {
@@ -322,11 +322,12 @@ export class ClaudeProvider implements AgentProvider {
 
   async getDescriptor(): Promise<AgentProviderSummary> {
     const config = await this.runtimeConfig();
+    const ready = Boolean(config.claudePath && isClaudeCodeSupported(config.claudeVersion));
     return {
       id: CLAUDE_PROVIDER_ID,
       name: 'Claude Code',
-      status: config.claudePath ? 'ready' : 'unavailable',
-      description: 'Local Claude Code through the official Claude Agent SDK.',
+      status: ready ? 'ready' : 'unavailable',
+      description: 'Local Claude Code through the installed Claude Code CLI.',
       ...(config.claudeVersion ? { version: config.claudeVersion } : {}),
       capabilities: {
         approvals: true,
@@ -341,8 +342,12 @@ export class ClaudeProvider implements AgentProvider {
         loginCommand: 'claude',
         docsUrl: 'https://docs.anthropic.com/en/docs/claude-code/overview',
       },
-      ...(!config.claudePath
-        ? { setupHint: 'Install Claude Code, then run npx --yes @panerelay/setup again.' }
+      ...(!ready
+        ? {
+            setupHint: config.claudePath
+              ? 'Upgrade Claude Code, then run npx --yes @panerelay/setup again.'
+              : 'Install Claude Code, then run npx --yes @panerelay/setup again.',
+          }
         : {}),
     };
   }
@@ -352,13 +357,15 @@ export class ClaudeProvider implements AgentProvider {
     if (!config.claudePath) {
       throw new Error('Claude Code is unavailable. Install it and reinstall the Panerelay host.');
     }
+    if (!isClaudeCodeSupported(config.claudeVersion)) {
+      throw new Error('Claude Code is incompatible. Upgrade it and reinstall the Panerelay host.');
+    }
   }
 
   async listConversations(cwd?: string): Promise<ConversationSummary[]> {
     await this.prepare();
-    const sessions = await this.sdk.listSessions({
+    const sessions = await this.cli.listSessions({
       ...(cwd ? { dir: cwd } : {}),
-      includeProgrammatic: true,
       limit: 30,
     });
     return sessions.map(sessionSummary);
@@ -379,9 +386,9 @@ export class ClaudeProvider implements AgentProvider {
 
   async resumeConversation(conversationId: string): Promise<ConversationDetail> {
     await this.prepare();
-    const info = await this.sdk.getSessionInfo(conversationId);
+    const info = await this.cli.getSessionInfo(conversationId);
     if (!info) throw new Error('Claude conversation could not be read');
-    const messages = await this.sdk.getSessionMessages(conversationId, {
+    const messages = await this.cli.getSessionMessages(conversationId, {
       ...(info.cwd ? { dir: info.cwd } : {}),
       limit: 1_000,
     });
@@ -425,24 +432,13 @@ export class ClaudeProvider implements AgentProvider {
     ]
       .filter(Boolean)
       .join('\n\n');
-    const query = this.sdk.query({
+    const query = this.cli.query({
+      executable: config.claudePath,
+      cwd: session.cwd,
       prompt: promptInput(trimmed, images),
-      options: {
-        cwd: session.cwd,
-        includePartialMessages: true,
-        mcpServers: claudeBrowserMcpServers(config, browserLabel),
-        pathToClaudeCodeExecutable: config.claudePath,
-        permissionMode: 'default',
-        settingSources: ['user', 'project', 'local'],
-        systemPrompt: {
-          type: 'preset',
-          preset: 'claude_code',
-          append: systemInstructions,
-        },
-        ...(session.persisted ? { resume: conversationId } : { sessionId: conversationId }),
-        canUseTool: (toolName, input, permissionOptions) =>
-          this.requestPermission(conversationId, turnId, toolName, input, permissionOptions),
-      },
+      mcpServers: claudeBrowserMcpServers(config, browserLabel),
+      systemPrompt: systemInstructions,
+      ...(session.persisted ? { resume: conversationId } : { sessionId: conversationId }),
     });
     const turn: ClaudeTurn = {
       activities: new Map(),
@@ -450,6 +446,8 @@ export class ClaudeProvider implements AgentProvider {
       id: turnId,
       interrupted: false,
       query,
+      seenControlRequestIds: new Set(),
+      seenToolUseIds: new Set(),
     };
     session.activeTurn = turn;
     this.emit({ kind: 'turn.started', conversationId, turnId });
@@ -457,61 +455,87 @@ export class ClaudeProvider implements AgentProvider {
     return { turnId };
   }
 
-  private requestPermission(
-    conversationId: string,
-    turnId: string,
-    toolName: string,
-    input: Record<string, unknown>,
-    options: {
-      blockedPath?: string;
-      decisionReason?: string;
-      description?: string;
-      displayName?: string;
-      signal: AbortSignal;
-      suggestions?: PermissionUpdate[];
-      title?: string;
-      toolUseID: string;
-    },
-  ): Promise<PermissionResult> {
-    if (options.signal.aborted) {
-      return Promise.resolve({
-        behavior: 'deny',
-        message: 'Permission request was already cancelled',
-        toolUseID: options.toolUseID,
-      });
+  private async handleControlRequest(
+    session: ClaudeSession,
+    turn: ClaudeTurn,
+    message: ClaudeCliMessage,
+  ): Promise<void> {
+    const requestId = message.request_id;
+    const request = asRecord(message.request);
+    if (typeof requestId !== 'string') {
+      throw new Error('Claude Code emitted a control request without an ID');
     }
-    if (this.pendingPermissions.has(options.toolUseID)) {
-      return Promise.resolve({
+    if (request.subtype !== 'can_use_tool') {
+      await turn.query.respondToControlError(
+        requestId,
+        `Unsupported control request subtype: ${String(request.subtype ?? 'unknown')}`,
+      );
+      return;
+    }
+    const toolName = request.tool_name;
+    const toolUseID = request.tool_use_id;
+    if (typeof toolName !== 'string' || typeof toolUseID !== 'string') {
+      await turn.query.respondToControlError(requestId, 'Invalid tool permission request');
+      return;
+    }
+    if (turn.seenControlRequestIds.has(requestId) || turn.seenToolUseIds.has(toolUseID)) {
+      await turn.query.respondToControl(requestId, {
         behavior: 'deny',
         message: 'Duplicate permission request',
-        toolUseID: options.toolUseID,
+        toolUseID,
       });
+      return;
     }
-    return new Promise(resolve => {
-      const settle = (result: PermissionResult): void => {
-        options.signal.removeEventListener('abort', abort);
-        this.pendingPermissions.delete(options.toolUseID);
-        resolve(result);
-      };
-      const abort = (): void =>
-        settle({
-          behavior: 'deny',
-          message: 'Permission request was cancelled',
-          toolUseID: options.toolUseID,
-        });
-      options.signal.addEventListener('abort', abort, { once: true });
-      this.pendingPermissions.set(options.toolUseID, {
-        conversationId,
-        resolve: settle,
-        turnId,
-      });
-      this.emit({
-        kind: 'approval.requested',
-        conversationId,
-        turnId,
-        approval: approvalFromTool(conversationId, turnId, toolName, input, options),
-      });
+    turn.seenControlRequestIds.add(requestId);
+    turn.seenToolUseIds.add(toolUseID);
+    const input = asRecord(request.input);
+    this.pendingPermissions.set(toolUseID, {
+      conversationId: session.id,
+      query: turn.query,
+      requestId,
+      turnId: turn.id,
     });
+    this.emit({
+      kind: 'approval.requested',
+      conversationId: session.id,
+      turnId: turn.id,
+      approval: approvalFromTool(session.id, turn.id, toolName, input, {
+        toolUseID,
+        ...(typeof request.blocked_path === 'string' ? { blockedPath: request.blocked_path } : {}),
+        ...(typeof request.decision_reason === 'string'
+          ? { decisionReason: request.decision_reason }
+          : {}),
+        ...(typeof request.description === 'string' ? { description: request.description } : {}),
+        ...(typeof request.display_name === 'string' ? { displayName: request.display_name } : {}),
+        ...(typeof request.title === 'string' ? { title: request.title } : {}),
+      }),
+    });
+  }
+
+  private handleControlCancelRequest(
+    session: ClaudeSession,
+    turn: ClaudeTurn,
+    message: ClaudeCliMessage,
+  ): void {
+    const requestId = message.request_id;
+    if (typeof requestId !== 'string') return;
+    for (const [approvalId, pending] of this.pendingPermissions) {
+      if (
+        pending.conversationId !== session.id ||
+        pending.turnId !== turn.id ||
+        pending.requestId !== requestId
+      ) {
+        continue;
+      }
+      this.pendingPermissions.delete(approvalId);
+      this.emit({
+        kind: 'approval.resolved',
+        conversationId: session.id,
+        turnId: turn.id,
+        approvalId,
+      });
+      return;
+    }
   }
 
   async respondToApproval(
@@ -532,7 +556,9 @@ export class ClaudeProvider implements AgentProvider {
       turnId: pending.turnId,
       approvalId,
     });
-    pending.resolve(
+    this.pendingPermissions.delete(approvalId);
+    await pending.query.respondToControl(
+      pending.requestId,
       decision === 'accept'
         ? { behavior: 'allow', toolUseID: approvalId }
         : {
@@ -549,22 +575,38 @@ export class ClaudeProvider implements AgentProvider {
     const turn = this.sessions.get(conversationId)?.activeTurn;
     if (!turn || turn.id !== turnId) throw new Error('This Claude turn is no longer active');
     turn.interrupted = true;
-    this.denyPermissions(conversationId, turnId, 'Turn interrupted');
+    await this.denyPermissions(conversationId, turnId, 'Turn interrupted');
     await turn.query.interrupt();
     return {};
   }
 
-  private denyPermissions(conversationId: string, turnId: string, message: string): void {
+  private async denyPermissions(
+    conversationId: string,
+    turnId: string,
+    message: string,
+  ): Promise<void> {
+    const responses: Promise<void>[] = [];
     for (const [approvalId, pending] of this.pendingPermissions) {
       if (pending.conversationId !== conversationId || pending.turnId !== turnId) continue;
+      this.pendingPermissions.delete(approvalId);
       this.emit({
         kind: 'approval.resolved',
         conversationId,
         turnId,
         approvalId,
       });
-      pending.resolve({ behavior: 'deny', message, interrupt: true, toolUseID: approvalId });
+      responses.push(
+        pending.query
+          .respondToControl(pending.requestId, {
+            behavior: 'deny',
+            message,
+            interrupt: true,
+            toolUseID: approvalId,
+          })
+          .catch(() => {}),
+      );
     }
+    await Promise.all(responses);
   }
 
   private emitActivity(
@@ -584,7 +626,7 @@ export class ClaudeProvider implements AgentProvider {
   private handleAssistant(
     session: ClaudeSession,
     turn: ClaudeTurn,
-    message: ClaudeSdkMessage,
+    message: ClaudeCliMessage,
   ): void {
     const record = asRecord(message);
     const body = asRecord(record.message);
@@ -625,7 +667,7 @@ export class ClaudeProvider implements AgentProvider {
   private handleUserToolResults(
     session: ClaudeSession,
     turn: ClaudeTurn,
-    message: ClaudeSdkMessage,
+    message: ClaudeCliMessage,
   ): void {
     const blocks = contentBlocks(asRecord(asRecord(message).message));
     for (const rawBlock of blocks) {
@@ -653,7 +695,7 @@ export class ClaudeProvider implements AgentProvider {
   private handleStreamEvent(
     session: ClaudeSession,
     turn: ClaudeTurn,
-    message: ClaudeSdkMessage,
+    message: ClaudeCliMessage,
   ): void {
     const record = asRecord(message);
     const event = asRecord(record.event);
@@ -679,7 +721,7 @@ export class ClaudeProvider implements AgentProvider {
     }
   }
 
-  private handleUsage(session: ClaudeSession, turn: ClaudeTurn, message: ClaudeSdkMessage): void {
+  private handleUsage(session: ClaudeSession, turn: ClaudeTurn, message: ClaudeCliMessage): void {
     const usage = asRecord(asRecord(message).usage);
     const inputTokens = numberValue(usage.input_tokens);
     const outputTokens = numberValue(usage.output_tokens);
@@ -703,7 +745,7 @@ export class ClaudeProvider implements AgentProvider {
   private handleToolProgress(
     session: ClaudeSession,
     turn: ClaudeTurn,
-    message: ClaudeSdkMessage,
+    message: ClaudeCliMessage,
   ): void {
     const record = asRecord(message);
     if (typeof record.tool_use_id !== 'string' || typeof record.tool_name !== 'string') return;
@@ -739,6 +781,14 @@ export class ClaudeProvider implements AgentProvider {
       for await (const message of turn.query) {
         session.persisted = true;
         const record = asRecord(message);
+        if (record.type === 'control_request') {
+          await this.handleControlRequest(session, turn, message);
+          continue;
+        }
+        if (record.type === 'control_cancel_request') {
+          this.handleControlCancelRequest(session, turn, message);
+          continue;
+        }
         if (record.type === 'stream_event') this.handleStreamEvent(session, turn, message);
         if (record.type === 'assistant') this.handleAssistant(session, turn, message);
         if (record.type === 'user') this.handleUserToolResults(session, turn, message);
@@ -763,7 +813,8 @@ export class ClaudeProvider implements AgentProvider {
         this.emit({ kind: 'error', conversationId: session.id, message: terminalError });
       }
     } finally {
-      this.denyPermissions(session.id, turn.id, 'Turn ended before approval was resolved');
+      await this.denyPermissions(session.id, turn.id, 'Turn ended before approval was resolved');
+      turn.query.close();
       await this.cleanupBrowserTurn(turn).catch(error => {
         this.emit({
           kind: 'error',
@@ -790,13 +841,13 @@ export class ClaudeProvider implements AgentProvider {
       .filter((turn): turn is ClaudeTurn => Boolean(turn));
     for (const turn of turns) {
       turn.interrupted = true;
-      turn.query.close();
     }
     for (const session of this.sessions.values()) {
       if (session.activeTurn) {
-        this.denyPermissions(session.id, session.activeTurn.id, 'Provider closed');
+        await this.denyPermissions(session.id, session.activeTurn.id, 'Provider closed');
       }
     }
+    for (const turn of turns) turn.query.close();
     await Promise.all(turns.map(turn => this.cleanupBrowserTurn(turn).catch(() => {})));
     this.sessions.clear();
     this.pendingPermissions.clear();

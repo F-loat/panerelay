@@ -1,5 +1,7 @@
 ## Why
 
+> Superseded before release by `replace-claude-sdk-with-cli`, which preserves the Provider behavior while removing the packaged SDK runtime.
+
 Panerelay's side panel supports local Codex and Qoder runtimes, but users who work with Claude Code cannot reuse the same project-aware conversation, approval, and browser-control surface.
 
 ## What Changes

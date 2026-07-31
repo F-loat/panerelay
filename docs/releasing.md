@@ -26,7 +26,8 @@ Prepare Release requires repository **Settings → Actions → General → Workf
 - [ ] Confirm the four-component Chrome numeric version matches `release.config.json` and sorts after the prior stable Store version.
 - [ ] Confirm the retained public manifest key derives official Extension ID `panplnkjlkoceaonlmpdekjphgmbggmi` and no private signing material exists in source or artifacts.
 - [ ] Confirm agent-browser 0.33.0 is the minimum and each version in the verified list has a version-specific compatibility record.
-- [ ] Confirm the Bridge packages its Claude Agent SDK and ACP SDK runtimes, and the bounded Claude/Qoder compatibility probes remain current.
+- [ ] Confirm Claude Code 2.1.0 is the minimum external CLI version and Panerelay does not package a Claude runtime.
+- [ ] Confirm the Bridge packages its ACP SDK runtime, excludes the Claude Agent SDK and Claude platform binaries, and keeps the bounded Claude/Qoder CLI compatibility probes current.
 - [ ] Run:
 
   ```bash
@@ -49,7 +50,7 @@ release_version="$(node -p 'require("./release.config.json").version')"
 candidate_directory=".artifacts/panerelay-$release_version"
 ```
 
-- [ ] Confirm `$candidate_directory/inventory.json` records channel `stable`, the intended version and commit, `"dirty": false`, official Extension ID, minimum agent-browser version, and verified-version list.
+- [ ] Confirm `$candidate_directory/inventory.json` records channel `stable`, the intended version and commit, `"dirty": false`, official Extension ID, minimum agent-browser and Claude Code versions, and the verified agent-browser version list.
 - [ ] Confirm the directory contains four `@panerelay` npm tarballs, one Extension zip, `inventory.json`, and `SHA256SUMS`.
 - [ ] Verify checksums from inside the candidate directory:
 
@@ -57,7 +58,7 @@ candidate_directory=".artifacts/panerelay-$release_version"
   (cd "$candidate_directory" && shasum -a 256 -c SHA256SUMS)
   ```
 
-- [ ] Inspect every npm tarball for its intended public files, exact internal dependency pins matching the candidate version, Claude Agent SDK and ACP dependencies, and absence of tests, workspace ranges, credentials, logs, and signing keys.
+- [ ] Inspect every npm tarball for its intended public files, exact internal dependency pins matching the candidate version, the ACP dependency, no Claude Agent SDK or Claude platform runtime, and absence of tests, workspace ranges, credentials, logs, and signing keys.
 - [ ] Inspect the Extension archive for all manifest/HTML-referenced assets, versions, public key, and derived official ID.
 - [ ] Install all four packed tarballs in one disposable consumer and confirm setup → doctor → update → doctor → uninstall, including a persisted custom Extension ID.
 
@@ -66,7 +67,7 @@ candidate_directory=".artifacts/panerelay-$release_version"
 - [ ] Extract and load the retained Extension archive in the daily Chrome profile.
 - [ ] Run `panerelay doctor`; confirm the Native Host, exact Extension origin, actual registered Extension ID, agent-browser version, Provider config, and optional Claude/Qoder status.
 - [ ] With agent-browser 0.33.0, authorize a local fixture tab, run one bounded Provider session, observe visible control, revoke it, and confirm debugger/session cleanup.
-- [ ] Run one bounded Codex browser-MCP turn, one Claude Agent SDK browser-MCP turn, and one Qoder ACP browser-MCP turn when each optional runtime is available. Exercise a permission decision, interruption, and browser authorization revocation without retaining prompts or page data.
+- [ ] Run one bounded Codex browser-MCP turn, one external Claude Code CLI browser-MCP turn, and one Qoder ACP browser-MCP turn when each optional runtime is available. Exercise a permission decision, interruption, and browser authorization revocation without retaining prompts or page data.
 - [ ] On real Windows Chrome, repeat setup, registry discovery, Host launch, doctor, update, uninstall, and cleanup from paths containing spaces. Confirm only the exact HKCU Panerelay Native Messaging key and user-owned files change.
 - [ ] Remove disposable consumers, browser state, and temporary candidates, retaining only the intentionally accepted `$candidate_directory`.
 

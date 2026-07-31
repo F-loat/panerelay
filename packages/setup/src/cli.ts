@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { PANERELAY_EXTENSION_ID } from '@panerelay/protocol';
+import { isClaudeCodeSupported } from '@panerelay/bridge/compatibility';
 import { realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { stdin, stdout } from 'node:process';
@@ -412,7 +413,9 @@ export async function main(
     );
     console.log(translate(locale, 'agentSkill', { path: result.globalSkillPath }));
     if (!result.host.codexPath) console.log(translate(locale, 'codexMissing'));
-    if (!result.host.claudePath) console.log(translate(locale, 'claudeMissing'));
+    if (!result.host.claudePath || !isClaudeCodeSupported(result.host.claudeVersion)) {
+      console.log(translate(locale, 'claudeMissing'));
+    }
     if (!result.host.agentBrowserPath) console.log(translate(locale, 'agentBrowserMissing'));
     if (result.projectConfigPath) {
       console.log(translate(locale, 'projectProvider', { path: result.projectConfigPath }));

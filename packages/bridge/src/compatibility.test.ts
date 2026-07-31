@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { AGENT_BROWSER_MINIMUM_VERSION, probeAgentBrowserCompatibility } from './compatibility.js';
+import {
+  AGENT_BROWSER_MINIMUM_VERSION,
+  CLAUDE_CODE_MINIMUM_VERSION,
+  isClaudeCodeSupported,
+  probeAgentBrowserCompatibility,
+} from './compatibility.js';
 
 test('accepts the minimum and newer agent-browser versions but rejects older versions', async () => {
   assert.equal(AGENT_BROWSER_MINIMUM_VERSION, '0.33.0');
@@ -18,4 +23,13 @@ test('accepts the minimum and newer agent-browser versions but rejects older ver
     });
     assert.deepEqual(result, { version, supported });
   }
+});
+
+test('accepts only supported semantic Claude Code CLI versions', () => {
+  assert.equal(CLAUDE_CODE_MINIMUM_VERSION, '2.1.0');
+  assert.equal(isClaudeCodeSupported('2.0.99'), false);
+  assert.equal(isClaudeCodeSupported('2.1.0'), true);
+  assert.equal(isClaudeCodeSupported('3.0.0'), true);
+  assert.equal(isClaudeCodeSupported(undefined), false);
+  assert.equal(isClaudeCodeSupported('unknown'), false);
 });
