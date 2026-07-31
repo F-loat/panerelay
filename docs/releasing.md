@@ -50,7 +50,7 @@ candidate_directory=".artifacts/panerelay-$release_version"
 ```
 
 - [ ] Confirm `$candidate_directory/inventory.json` records channel `stable`, the intended version and commit, `"dirty": false`, official Extension ID, minimum agent-browser version, and verified-version list.
-- [ ] Confirm the directory contains four `@panerelay` npm tarballs, one Extension zip, `inventory.json`, and `SHA256SUMS`.
+- [ ] Confirm the directory contains four `@panerelay` npm tarballs, one Chromium/Edge Extension zip, one Firefox Extension zip, `inventory.json`, and `SHA256SUMS`.
 - [ ] Verify checksums from inside the candidate directory:
 
   ```bash
@@ -58,22 +58,25 @@ candidate_directory=".artifacts/panerelay-$release_version"
   ```
 
 - [ ] Inspect every npm tarball for its intended public files, exact internal dependency pins matching the candidate version, ACP dependency, and absence of tests, workspace ranges, credentials, logs, and signing keys.
-- [ ] Inspect the Extension archive for all manifest/HTML-referenced assets, versions, public key, and derived official ID.
-- [ ] Install all four packed tarballs in one disposable consumer and confirm setup → doctor → update → doctor → uninstall, including a persisted custom Extension ID.
+- [ ] Inspect both Extension archives for all manifest/HTML-referenced assets, matching versions, official identities, and `panerelay-platform-modules.json`. Confirm each ownership record includes its own background/panel adapters and excludes the other platform's private modules; the Chromium archive retains its public key, while Firefox has no debugger permission.
+- [ ] Install all four packed tarballs in one disposable consumer and confirm setup → doctor → update → doctor → uninstall, including persisted custom Chromium and Firefox Extension IDs.
 
 ## Runtime acceptance
 
-- [ ] Extract and load the retained Extension archive in the daily Chrome profile.
-- [ ] Run `panerelay doctor`; confirm the Native Host, exact Extension origin, actual registered Extension ID, agent-browser version, Provider config, and optional Qoder status.
+- [ ] Extract and load the retained Chromium Extension archive in the daily Chrome profile.
+- [ ] Run `panerelay doctor`; confirm the Chrome-family and Firefox Native Host manifests, exact configured identities, actual connected browser identity, agent-browser version, Provider config, and optional Qoder status.
 - [ ] With agent-browser 0.33.0, authorize a local fixture tab, run one bounded Provider session, observe visible control, revoke it, and confirm debugger/session cleanup.
-- [ ] Run one bounded Codex browser-MCP turn and one bounded Qoder ACP browser-MCP turn. Exercise a permission decision, interruption, and browser authorization revocation without retaining prompts or page data.
-- [ ] On real Windows Chrome, repeat setup, registry discovery, Host launch, doctor, update, uninstall, and cleanup from paths containing spaces. Confirm only the exact HKCU Panerelay Native Messaging key and user-owned files change.
+- [ ] Run one bounded Codex browser-MCP turn and one Qoder ACP browser-MCP turn. Exercise a permission decision, interruption, and browser authorization revocation without retaining prompts or page data.
+- [ ] Load the Chromium archive in daily Edge and repeat one bounded authorization, Provider command, revocation, and cleanup flow.
+- [ ] Load the Firefox archive in daily Firefox, start it through the installed Panerelay launcher, and record exact Firefox, geckodriver, and patched/released agent-browser versions. Verify current-tab authorization, navigation, snapshot, input, screenshot, revocation, Provider cleanup, and that closing Panerelay's driver leaves Firefox running. Also verify normal Firefox startup keeps chat, projects, and page comments available while automation shows the managed-restart action.
+- [ ] On real Windows Chrome, Edge, and Firefox, repeat setup, registry discovery, Host launch, doctor, update, uninstall, and cleanup from paths containing spaces. Confirm only the exact HKCU Panerelay Native Messaging keys and user-owned files change.
 - [ ] Remove disposable consumers, browser state, and temporary candidates, retaining only the intentionally accepted `$candidate_directory`.
 
 ## Compatibility and distribution boundaries
 
 - Panerelay components remain one lockstep compatibility unit; the protocol does not yet negotiate across versions.
-- Panerelay reuses the existing Chrome process and cannot own isolated contexts, launch-time proxy or profile selection, whole-browser close, or top-level request containment.
+- Panerelay reuses an existing Chrome or Edge process and cannot own isolated contexts, launch-time proxy or profile selection, whole-browser close, or top-level request containment.
+- Firefox automation uses WebDriver through a managed launcher and participant-scoped policy relay; it never claims Chromium CDP. CDP-only command groups and an unpatched agent-browser Provider fail closed.
 - Activity is sanitized, bounded, memory-only, and not a durable audit history.
 - Qoder is optional; its absence must not block Codex or browser automation.
 - Manual unpacked Extension loading does not use or require a private signing key.
@@ -100,7 +103,7 @@ From GitHub Actions, open **Release**, choose **Run workflow**, and select the s
 
 - The workflow derives `<repository-version>-beta.<run-number>` without committing or pushing the temporary version.
 - npm receives the four exact verified tarballs under the `beta` distribution tag.
-- The workflow run exposes `panerelay-extension-<version>`, containing the Extension zip, `inventory.json`, and `SHA256SUMS`.
+- The workflow run exposes `panerelay-extension-<version>`, containing the Chromium/Edge and Firefox Extension zips, `inventory.json`, and `SHA256SUMS`.
 - No Git tag or GitHub Release is created.
 
 Rerunning the same workflow reuses its beta package version and safely resumes only byte-identical packages. A new workflow run advances the beta number. Install the current beta with:
@@ -124,17 +127,18 @@ Before dispatching `stable`:
 Run **Release** from the default branch with channel `stable`, then approve the `release` environment if it has an approval rule. The workflow:
 
 1. runs the full workspace check and prepares the verified candidate;
-2. uploads the downloadable Extension artifact;
+2. uploads the downloadable Chromium/Edge and Firefox Extension artifacts;
 3. publishes the exact tarballs under npm tag `latest`;
 4. creates `v<version>` and a GitHub Release for the selected commit; and
-5. attaches the Extension zip and its checksum to the Release.
+5. attaches both Extension zips and their checksums to the Release.
 
-The complete Actions artifact remains the audit and recovery source for `inventory.json` and full candidate checksums. The [Chrome Web Store listing](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi) is the default end-user installation channel; the GitHub Release zip is retained for manual and offline verification.
+The complete Actions artifact remains the audit and recovery source for `inventory.json` and full candidate checksums. The [Chrome Web Store listing](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi) is the default Chrome/Edge installation channel; GitHub Release zips are retained for Firefox, manual, and offline verification.
 
 Afterward:
 
 - [ ] Install again from npm and the downloaded GitHub Release asset.
-- [ ] Upload the same stable Extension zip to Chrome Web Store and complete Store review manually.
+- [ ] Upload the stable Chromium Extension zip to Chrome Web Store and complete Store review manually.
+- [ ] Sign and distribute the matching Firefox Extension through the intended Firefox Add-ons channel; do not claim store availability before review completes.
 - [ ] Verify npm provenance and the `latest` tags.
 - [ ] Mark an RFC `Implemented` only after released artifacts pass their applicable acceptance evidence.
 

@@ -2,10 +2,19 @@ import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PANERELAY_EXTENSION_ID, PANERELAY_NATIVE_HOST_NAME } from '@panerelay/protocol';
+import {
+  PANERELAY_EXTENSION_ID,
+  PANERELAY_FIREFOX_EXTENSION_ID,
+  PANERELAY_NATIVE_HOST_NAME,
+} from '@panerelay/protocol';
 import { resolveExecutablePath, runCommand, type CommandRunner } from './platform.js';
 import { resolveQoderExecutable } from './qoder-executable.js';
 import { probeAgentBrowserCompatibility } from './compatibility.js';
+import {
+  createFirefoxManagedToken,
+  discoverFirefoxAutomation,
+  firefoxLauncherContent,
+} from './firefox-automation.js';
 
 export const CHROME_EXTENSION_ID_PATTERN = /^[a-p]{32}$/;
 
@@ -20,6 +29,11 @@ export interface NativeHostInstallOptions extends NativeHostPathOptions {
   bundledHostPath?: string;
   environment?: NodeJS.ProcessEnv;
   extensionId?: string;
+  firefoxExtensionId?: string;
+  firefoxPath?: string;
+  firefoxProfile?: string;
+  geckodriverPath?: string;
+  marionettePort?: number;
   nodePath?: string;
   probeRunner?: CommandRunner;
   registryRunner?: CommandRunner;
@@ -36,6 +50,11 @@ export interface NativeHostInstallationPaths {
   launchPath: string;
   launcherPath?: string;
   legacyHostPath: string;
+  legacyManifestPaths: string[];
+  chromiumManifestPaths: string[];
+  firefoxManifestPaths: string[];
+  firefoxLauncherPath: string;
+  firefoxRuntimeStatePath: string;
   manifestPaths: string[];
   runtimeConfigPath: string;
 }
@@ -46,13 +65,24 @@ export interface NativeHostInstallationResult extends NativeHostInstallationPath
   agentBrowserVersion?: string;
   codexPath?: string;
   extensionId: string;
+  firefoxExtensionId: string;
+  firefoxPath?: string;
+  firefoxVersion?: string;
+  firefoxProfile?: string;
+  geckodriverPath?: string;
+  geckodriverVersion?: string;
+  firefoxAutomationReady: boolean;
   qoderPath?: string;
   qoderVersion?: string;
 }
 
 interface StoredRuntimeConfig {
   extensionId?: unknown;
+  firefoxExtensionId?: unknown;
+  firefoxManagedToken?: unknown;
 }
+
+export type WindowsNativeMessagingBrowser = 'chrome' | 'edge' | 'firefox';
 
 export function validateExtensionId(value: string): string {
   if (!CHROME_EXTENSION_ID_PATTERN.test(value)) {
@@ -76,20 +106,62 @@ export function resolveEffectiveExtensionId(options: {
   return validateExtensionId(value);
 }
 
-export function windowsNativeHostRegistryKey(hostName = PANERELAY_NATIVE_HOST_NAME): string {
-  return `HKCU\\SOFTWARE\\Google\\Chrome\\NativeMessagingHosts\\${hostName}`;
+export function validateFirefoxExtensionId(value: string): string {
+  const emailId = /^[A-Za-z0-9._-]*@[A-Za-z0-9._-]+$/.test(value);
+  const guidId =
+    /^\{[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}\}$/.test(value);
+  if ((!emailId || value.length > 80) && !guidId) {
+    throw new Error(
+      'Firefox Extension ID must be an email-style ID of at most 80 characters or a braced UUID.',
+    );
+  }
+  return value;
+}
+
+export function resolveEffectiveFirefoxExtensionId(options: {
+  environment?: NodeJS.ProcessEnv;
+  firefoxExtensionId?: string;
+  persistedFirefoxExtensionId?: unknown;
+}): string {
+  const environment = options.environment ?? process.env;
+  const value =
+    options.firefoxExtensionId ??
+    environment.PANERELAY_FIREFOX_EXTENSION_ID ??
+    (typeof options.persistedFirefoxExtensionId === 'string'
+      ? options.persistedFirefoxExtensionId
+      : PANERELAY_FIREFOX_EXTENSION_ID);
+  return validateFirefoxExtensionId(value);
+}
+
+export function windowsNativeHostRegistryKey(
+  hostName = PANERELAY_NATIVE_HOST_NAME,
+  browser: WindowsNativeMessagingBrowser = 'chrome',
+): string {
+  const owner =
+    browser === 'edge' ? 'Microsoft\\Edge' : browser === 'firefox' ? 'Mozilla' : 'Google\\Chrome';
+  return `HKCU\\SOFTWARE\\${owner}\\NativeMessagingHosts\\${hostName}`;
 }
 
 export async function registerWindowsNativeHost(
   manifestPath: string,
   options: {
+    browser?: WindowsNativeMessagingBrowser;
     environment?: NodeJS.ProcessEnv;
     runner?: CommandRunner;
   } = {},
 ): Promise<void> {
   const result = await (options.runner ?? runCommand)(
     'reg.exe',
-    ['add', windowsNativeHostRegistryKey(), '/ve', '/t', 'REG_SZ', '/d', manifestPath, '/f'],
+    [
+      'add',
+      windowsNativeHostRegistryKey(PANERELAY_NATIVE_HOST_NAME, options.browser),
+      '/ve',
+      '/t',
+      'REG_SZ',
+      '/d',
+      manifestPath,
+      '/f',
+    ],
     { environment: options.environment, timeoutMs: 10_000 },
   );
   if (result.code !== 0) {
@@ -99,13 +171,14 @@ export async function registerWindowsNativeHost(
 
 export async function unregisterWindowsNativeHost(
   options: {
+    browser?: WindowsNativeMessagingBrowser;
     environment?: NodeJS.ProcessEnv;
     runner?: CommandRunner;
   } = {},
 ): Promise<void> {
   const result = await (options.runner ?? runCommand)(
     'reg.exe',
-    ['delete', windowsNativeHostRegistryKey(), '/f'],
+    ['delete', windowsNativeHostRegistryKey(PANERELAY_NATIVE_HOST_NAME, options.browser), '/f'],
     { environment: options.environment, timeoutMs: 10_000 },
   );
   if (result.code !== 0 && result.code !== 1) {
@@ -125,13 +198,14 @@ export function parseWindowsRegistryString(output: string): string | undefined {
 
 export async function readWindowsNativeHostRegistryValue(
   options: {
+    browser?: WindowsNativeMessagingBrowser;
     environment?: NodeJS.ProcessEnv;
     runner?: CommandRunner;
   } = {},
 ): Promise<string | undefined> {
   const result = await (options.runner ?? runCommand)(
     'reg.exe',
-    ['query', windowsNativeHostRegistryKey(), '/ve'],
+    ['query', windowsNativeHostRegistryKey(PANERELAY_NATIVE_HOST_NAME, options.browser), '/ve'],
     { environment: options.environment, timeoutMs: 10_000 },
   );
   if (result.code !== 0) return undefined;
@@ -158,18 +232,37 @@ export function resolveNativeHostInstallationPaths(
   const platform = options.platform ?? process.platform;
   const launcherPath =
     platform === 'win32' ? join(hostDirectory, 'panerelay-native-host.cmd') : undefined;
+  const firefoxLauncherPath = join(
+    hostDirectory,
+    platform === 'win32' ? 'panerelay-firefox.cmd' : 'panerelay-firefox',
+  );
+  const chromiumManifestPaths = chromiumNativeHostManifestPaths({ ...options, dataDirectory });
+  const firefoxManifestPaths = firefoxNativeHostManifestPaths({ ...options, dataDirectory });
+  const legacyManifestPaths =
+    platform === 'win32'
+      ? [join(dataDirectory, 'native-messaging', `${PANERELAY_NATIVE_HOST_NAME}.json`)]
+      : [];
   return {
     agentBrowserConfigPath: join(dataDirectory, 'agent-browser.json'),
     hostPath,
     launchPath: launcherPath ?? hostPath,
     ...(launcherPath ? { launcherPath } : {}),
     legacyHostPath: join(hostDirectory, 'panerelay-native-host.mjs'),
-    manifestPaths: nativeHostManifestPaths({ ...options, dataDirectory }),
+    legacyManifestPaths,
+    chromiumManifestPaths,
+    firefoxManifestPaths,
+    firefoxLauncherPath,
+    firefoxRuntimeStatePath: join(dataDirectory, 'firefox-runtime.json'),
+    manifestPaths: [...chromiumManifestPaths, ...firefoxManifestPaths],
     runtimeConfigPath: join(dataDirectory, 'runtime.json'),
   };
 }
 
 export function nativeHostManifestPaths(options: NativeHostPathOptions = {}): string[] {
+  return [...chromiumNativeHostManifestPaths(options), ...firefoxNativeHostManifestPaths(options)];
+}
+
+export function chromiumNativeHostManifestPaths(options: NativeHostPathOptions = {}): string[] {
   const home = options.homeDirectory ?? homedir();
   const filename = `${PANERELAY_NATIVE_HOST_NAME}.json`;
   const dataDirectory = options.dataDirectory ?? join(home, '.panerelay');
@@ -186,6 +279,10 @@ export function nativeHostManifestPaths(options: NativeHostPathOptions = {}): st
         ['Google', 'Chrome Canary'],
         ['Google', 'Chrome for Testing'],
         ['Chromium'],
+        ['Microsoft Edge'],
+        ['Microsoft Edge Beta'],
+        ['Microsoft Edge Dev'],
+        ['Microsoft Edge Canary'],
       ].map(parts =>
         join(home, 'Library', 'Application Support', ...parts, 'NativeMessagingHosts', filename),
       );
@@ -198,11 +295,34 @@ export function nativeHostManifestPaths(options: NativeHostPathOptions = {}): st
         'google-chrome-unstable',
         'google-chrome-for-testing',
         'chromium',
+        'microsoft-edge',
+        'microsoft-edge-beta',
+        'microsoft-edge-dev',
       ].map(browser => join(home, '.config', browser, 'NativeMessagingHosts', filename));
       return [...profilePaths, ...browserPaths];
     }
     case 'win32':
-      return [join(dataDirectory, 'native-messaging', filename)];
+      return [join(dataDirectory, 'native-messaging', 'chromium', filename)];
+    default:
+      throw new Error(
+        `Native Messaging installation is not implemented for ${options.platform ?? process.platform}`,
+      );
+  }
+}
+
+export function firefoxNativeHostManifestPaths(options: NativeHostPathOptions = {}): string[] {
+  const home = options.homeDirectory ?? homedir();
+  const filename = `${PANERELAY_NATIVE_HOST_NAME}.json`;
+  const dataDirectory = options.dataDirectory ?? join(home, '.panerelay');
+  switch (options.platform ?? process.platform) {
+    case 'darwin':
+      return [
+        join(home, 'Library', 'Application Support', 'Mozilla', 'NativeMessagingHosts', filename),
+      ];
+    case 'linux':
+      return [join(home, '.mozilla', 'native-messaging-hosts', filename)];
+    case 'win32':
+      return [join(dataDirectory, 'native-messaging', 'firefox', filename)];
     default:
       throw new Error(
         `Native Messaging installation is not implemented for ${options.platform ?? process.platform}`,
@@ -230,6 +350,11 @@ export async function installNativeHost(
     extensionId: options.extensionId,
     persistedExtensionId: stored.extensionId,
   });
+  const firefoxExtensionId = resolveEffectiveFirefoxExtensionId({
+    environment,
+    firefoxExtensionId: options.firefoxExtensionId,
+    persistedFirefoxExtensionId: stored.firefoxExtensionId,
+  });
   const bundledHostPath =
     options.bundledHostPath ?? fileURLToPath(new URL('./native-host.bundle.cjs', import.meta.url));
   const bundledHost = await readFile(bundledHostPath, 'utf8');
@@ -248,6 +373,29 @@ export async function installNativeHost(
       windowsLauncherContent(options.nodePath ?? process.execPath, paths.hostPath),
       { mode: 0o700 },
     );
+  }
+
+  const firefox = await discoverFirefoxAutomation({
+    environment,
+    firefoxPath: options.firefoxPath,
+    firefoxProfile: options.firefoxProfile,
+    geckodriverPath: options.geckodriverPath,
+    marionettePort: options.marionettePort,
+    platform,
+    probeRunner: options.probeRunner,
+  });
+  const firefoxManagedToken =
+    typeof stored.firefoxManagedToken === 'string' && stored.firefoxManagedToken.length >= 32
+      ? stored.firefoxManagedToken
+      : createFirefoxManagedToken();
+  const firefoxAutomationReady = Boolean(firefox.firefoxPath && firefox.geckodriverPath);
+  if (firefoxAutomationReady) {
+    await writeFile(paths.firefoxLauncherPath, firefoxLauncherContent(paths.launchPath, platform), {
+      mode: 0o700,
+    });
+    if (platform !== 'win32') await chmod(paths.firefoxLauncherPath, 0o700);
+  } else {
+    await rm(paths.firefoxLauncherPath, { force: true });
   }
 
   const codexPath = await resolveExecutablePath('codex', {
@@ -288,6 +436,16 @@ export async function installNativeHost(
     `${JSON.stringify(
       {
         extensionId,
+        firefoxExtensionId,
+        ...(firefox.firefoxPath ? { firefoxPath: firefox.firefoxPath } : {}),
+        ...(firefox.firefoxVersion ? { firefoxVersion: firefox.firefoxVersion } : {}),
+        ...(firefox.firefoxProfile ? { firefoxProfile: firefox.firefoxProfile } : {}),
+        ...(firefox.geckodriverPath ? { geckodriverPath: firefox.geckodriverPath } : {}),
+        ...(firefox.geckodriverVersion ? { geckodriverVersion: firefox.geckodriverVersion } : {}),
+        firefoxManagedToken,
+        firefoxMarionettePort: firefox.marionettePort,
+        firefoxRuntimeStatePath: paths.firefoxRuntimeStatePath,
+        firefoxLauncherPath: paths.firefoxLauncherPath,
         ...(codexPath ? { codexPath } : {}),
         ...(agentBrowserPath ? { agentBrowserPath } : {}),
         ...(agentBrowserVersion ? { agentBrowserVersion } : {}),
@@ -321,7 +479,7 @@ export async function installNativeHost(
   );
   if (platform !== 'win32') await chmod(paths.agentBrowserConfigPath, 0o600);
 
-  const manifest = `${JSON.stringify(
+  const chromiumManifest = `${JSON.stringify(
     {
       name: PANERELAY_NATIVE_HOST_NAME,
       description: 'Panerelay local browser and agent bridge',
@@ -332,20 +490,58 @@ export async function installNativeHost(
     null,
     2,
   )}\n`;
-  for (const manifestPath of paths.manifestPaths) {
+  const firefoxManifest = `${JSON.stringify(
+    {
+      name: PANERELAY_NATIVE_HOST_NAME,
+      description: 'Panerelay local browser and agent bridge',
+      path: paths.launchPath,
+      type: 'stdio',
+      allowed_extensions: [firefoxExtensionId],
+    },
+    null,
+    2,
+  )}\n`;
+  for (const manifestPath of paths.chromiumManifestPaths) {
     await mkdir(dirname(manifestPath), { recursive: true });
-    await writeFile(manifestPath, manifest, { mode: 0o644 });
+    await writeFile(manifestPath, chromiumManifest, { mode: 0o644 });
   }
+  for (const manifestPath of paths.firefoxManifestPaths) {
+    await mkdir(dirname(manifestPath), { recursive: true });
+    await writeFile(manifestPath, firefoxManifest, { mode: 0o644 });
+  }
+  await Promise.all(
+    paths.legacyManifestPaths.map(manifestPath => rm(manifestPath, { force: true })),
+  );
   if (platform === 'win32') {
-    await registerWindowsNativeHost(paths.manifestPaths[0]!, {
-      environment,
-      runner: options.registryRunner,
-    });
+    await Promise.all([
+      registerWindowsNativeHost(paths.chromiumManifestPaths[0]!, {
+        browser: 'chrome',
+        environment,
+        runner: options.registryRunner,
+      }),
+      registerWindowsNativeHost(paths.chromiumManifestPaths[0]!, {
+        browser: 'edge',
+        environment,
+        runner: options.registryRunner,
+      }),
+      registerWindowsNativeHost(paths.firefoxManifestPaths[0]!, {
+        browser: 'firefox',
+        environment,
+        runner: options.registryRunner,
+      }),
+    ]);
   }
 
   return {
     ...paths,
     extensionId,
+    firefoxExtensionId,
+    ...(firefox.firefoxPath ? { firefoxPath: firefox.firefoxPath } : {}),
+    ...(firefox.firefoxVersion ? { firefoxVersion: firefox.firefoxVersion } : {}),
+    ...(firefox.firefoxProfile ? { firefoxProfile: firefox.firefoxProfile } : {}),
+    ...(firefox.geckodriverPath ? { geckodriverPath: firefox.geckodriverPath } : {}),
+    ...(firefox.geckodriverVersion ? { geckodriverVersion: firefox.geckodriverVersion } : {}),
+    firefoxAutomationReady,
     ...(codexPath ? { codexPath } : {}),
     ...(agentBrowserPath ? { agentBrowserPath } : {}),
     agentBrowserSupported,
@@ -361,15 +557,26 @@ export async function uninstallNativeHost(
   const platform = options.platform ?? process.platform;
   const paths = resolveNativeHostInstallationPaths(options);
   if (platform === 'win32') {
-    await unregisterWindowsNativeHost({
-      environment: options.environment,
-      runner: options.registryRunner,
-    });
+    await Promise.all(
+      (['chrome', 'edge', 'firefox'] as const).map(browser =>
+        unregisterWindowsNativeHost({
+          browser,
+          environment: options.environment,
+          runner: options.registryRunner,
+        }),
+      ),
+    );
   }
-  await Promise.all(paths.manifestPaths.map(manifestPath => rm(manifestPath, { force: true })));
+  await Promise.all(
+    [...paths.manifestPaths, ...paths.legacyManifestPaths].map(manifestPath =>
+      rm(manifestPath, { force: true }),
+    ),
+  );
   await Promise.all([
     rm(paths.hostPath, { force: true }),
     ...(paths.launcherPath ? [rm(paths.launcherPath, { force: true })] : []),
+    rm(paths.firefoxLauncherPath, { force: true }),
+    rm(paths.firefoxRuntimeStatePath, { force: true }),
     rm(paths.legacyHostPath, { force: true }),
     rm(paths.runtimeConfigPath, { force: true }),
     rm(paths.agentBrowserConfigPath, { force: true }),

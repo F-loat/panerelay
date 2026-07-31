@@ -21,12 +21,23 @@ if (process.argv.includes('--uninstall')) {
   const result = await installNativeHost({
     ...options,
     ...(argument('--extension-id') ? { extensionId: argument('--extension-id') } : {}),
+    ...(argument('--firefox-extension-id')
+      ? { firefoxExtensionId: argument('--firefox-extension-id') }
+      : {}),
   });
   for (const manifestPath of result.manifestPaths) {
     process.stdout.write(`Installed ${manifestPath}\n`);
   }
   process.stdout.write(`Allowed extension: ${result.extensionId}\n`);
+  process.stdout.write(`Allowed Firefox extension: ${result.firefoxExtensionId}\n`);
   process.stdout.write(`Installed host: ${result.hostPath}\n`);
   process.stdout.write(`Codex: ${result.codexPath || 'not found'}\n`);
   process.stdout.write(`agent-browser: ${result.agentBrowserPath || 'not found'}\n`);
+  process.stdout.write(
+    `Firefox automation: ${
+      result.firefoxAutomationReady
+        ? `${result.firefoxLauncherPath} (${result.firefoxPath}; ${result.geckodriverPath})`
+        : 'not ready; install Firefox and geckodriver, then rerun setup'
+    }\n`,
+  );
 }

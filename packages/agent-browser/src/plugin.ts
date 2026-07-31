@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import {
   PANERELAY_PROTOCOL_VERSION,
+  normalizeAutomationCapability,
   type BridgeState,
   type RelaySessionCreated,
   type RelaySessionError,
@@ -8,6 +9,8 @@ import {
 import { bridgeStatePath } from '@panerelay/protocol/node';
 
 export const AGENT_BROWSER_PLUGIN_PROTOCOL = 'agent-browser.plugin.v1' as const;
+export const AGENT_BROWSER_WEBDRIVER_PROVIDER_CAPABILITY =
+  'browser.provider.webdriver-existing-session' as const;
 
 interface PluginRequest {
   protocol?: unknown;
@@ -78,10 +81,25 @@ function sessionLabel(request: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value.slice(0, 128) : undefined;
 }
 
+function supportsWebDriverProvider(request: unknown): boolean {
+  if (!request || typeof request !== 'object') return false;
+  const capabilities = (request as { clientCapabilities?: unknown }).clientCapabilities;
+  return (
+    Array.isArray(capabilities) &&
+    capabilities.includes(AGENT_BROWSER_WEBDRIVER_PROVIDER_CAPABILITY)
+  );
+}
+
 async function createRelaySession(
   state: BridgeState,
   request: unknown,
 ): Promise<RelaySessionCreated> {
+  const automation = state.automation ?? normalizeAutomationCapability(state.capabilities);
+  if (!automation.ready || automation.transport === 'none') {
+    throw new Error(
+      `${state.browserName} has not made a Panerelay browser automation transport ready`,
+    );
+  }
   const label = sessionLabel(request);
   const response = await fetch(`http://127.0.0.1:${state.port}/sessions`, {
     method: 'POST',
@@ -99,17 +117,44 @@ async function createRelaySession(
     }),
     signal: AbortSignal.timeout(5_000),
   });
-  const body = (await response.json()) as Partial<RelaySessionCreated & RelaySessionError>;
+  const body = (await response.json()) as Record<string, unknown> & Partial<RelaySessionError>;
   if (
     response.status !== 201 ||
     body.protocol !== PANERELAY_PROTOCOL_VERSION ||
     typeof body.sessionId !== 'string' ||
-    typeof body.cdpUrl !== 'string' ||
     typeof body.connectExpiresAt !== 'string'
   ) {
     throw new Error(body.error || `Panerelay Bridge rejected the session (${response.status})`);
   }
-  return body as RelaySessionCreated;
+  if (
+    (body.transport === undefined || body.transport === 'cdp') &&
+    typeof body.cdpUrl === 'string'
+  ) {
+    return {
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      sessionId: body.sessionId,
+      transport: 'cdp',
+      cdpUrl: body.cdpUrl,
+      connectExpiresAt: body.connectExpiresAt,
+    };
+  }
+  if (
+    body.transport === 'webdriver' &&
+    typeof body.webdriverUrl === 'string' &&
+    typeof body.webdriverSessionId === 'string' &&
+    typeof body.heartbeatIntervalMs === 'number'
+  ) {
+    return {
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      sessionId: body.sessionId,
+      transport: 'webdriver',
+      webdriverUrl: body.webdriverUrl,
+      webdriverSessionId: body.webdriverSessionId,
+      heartbeatIntervalMs: body.heartbeatIntervalMs,
+      connectExpiresAt: body.connectExpiresAt,
+    };
+  }
+  throw new Error('Panerelay Bridge returned invalid transport connection metadata');
 }
 
 function browserCleanup(value: unknown): BrowserCleanup | null {
@@ -161,7 +206,7 @@ export async function handlePluginRequest(input: PluginRequest): Promise<PluginR
         name: 'panerelay',
         capabilities: ['browser.provider'],
         description:
-          "Connect agent-browser to a user's authorized Chrome targets through Panerelay.",
+          "Connect agent-browser to a user's authorized browser targets through Panerelay.",
       },
     });
   }
@@ -181,12 +226,29 @@ export async function handlePluginRequest(input: PluginRequest): Promise<PluginR
 
   try {
     const state = await readLiveBridgeState();
+    const automation = state.automation ?? normalizeAutomationCapability(state.capabilities);
+    if (automation.transport === 'webdriver' && !supportsWebDriverProvider(input.request)) {
+      throw new Error(
+        'This agent-browser build only accepts CDP browser Providers. Install a build with the browser.provider.webdriver-existing-session capability; Chromium support remains available with agent-browser 0.33.0.',
+      );
+    }
     const session = await createRelaySession(state, input.request);
+    const connection =
+      session.transport === 'cdp'
+        ? { cdpUrl: session.cdpUrl, directPage: false }
+        : {
+            transport: 'webdriver',
+            webdriverUrl: session.webdriverUrl,
+            webdriverSessionId: session.webdriverSessionId,
+            metadata: {
+              webdriverHeartbeatIntervalMs: session.heartbeatIntervalMs,
+            },
+          };
     return success({
       browser: {
-        cdpUrl: session.cdpUrl,
-        directPage: false,
+        ...connection,
         metadata: {
+          ...('metadata' in connection && connection.metadata ? connection.metadata : {}),
           browserId: state.browserId,
           browserName: state.browserName,
           extensionVersion: state.extensionVersion,

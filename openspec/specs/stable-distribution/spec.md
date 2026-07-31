@@ -8,30 +8,30 @@ Define the observable release identity, compatibility policy, documentation, and
 
 ### Requirement: Stable artifacts have one release identity
 
-Panerelay SHALL keep the repository's plain semantic version authoritative for stable releases. Stable candidates SHALL use that version across every publishable package, the Extension `version_name`, and retained inventory. An explicitly selected beta workflow SHALL instead derive one unique prerelease version from the repository version and workflow run identity and apply it consistently only in the temporary runner workspace.
+Panerelay SHALL keep the repository's plain semantic version authoritative for stable releases. Stable candidates SHALL use that version across every publishable package, the Chromium/Edge Extension `version_name`, the Firefox Extension version, and retained inventory. An explicitly selected beta workflow SHALL instead derive one unique prerelease version from the repository version and workflow run identity and apply it consistently only in the temporary runner workspace.
 
 #### Scenario: Stable candidate metadata is aligned
 
 - **GIVEN** a maintainer prepares a stable candidate
-- **WHEN** release validation reads package, Extension, and release metadata
+- **WHEN** release validation reads package, Chromium/Edge Extension, Firefox Extension, and release metadata
 - **THEN** every distributable artifact identifies the repository's plain semantic version
 
 #### Scenario: Alpha or mismatched metadata remains
 
-- **GIVEN** one package, internal dependency, Extension field, command example, or candidate entry still identifies an alpha or different version
+- **GIVEN** one package, internal dependency, browser Extension field, command example, or candidate entry still identifies an alpha or different version
 - **WHEN** release validation runs
 - **THEN** it fails before accepting the stable candidate
 
 #### Scenario: Beta candidate metadata is aligned
 
 - **GIVEN** a maintainer dispatches the beta publication workflow
-- **WHEN** release validation reads the temporarily prepared package, Extension, and release metadata
+- **WHEN** release validation reads the temporarily prepared package, browser Extension, and release metadata
 - **THEN** every distributable artifact identifies the same derived beta version
 - **AND** the repository source version remains unchanged after preparation
 
 #### Scenario: Channel or lockstep metadata drifts
 
-- **GIVEN** one package, Extension field, candidate entry, or selected channel does not match the expected release identity
+- **GIVEN** one package, browser Extension field, candidate entry, or selected channel does not match the expected release identity
 - **WHEN** release validation runs
 - **THEN** it fails before accepting or publishing the candidate
 

@@ -86,6 +86,7 @@ class FakeSidepanelClient implements SidepanelClient {
   projectCancelled = false;
   projectError = '';
   sendError = '';
+  status: ExtensionStatus = baseStatus;
   resumeHandler:
     | ((message: Extract<SidePanelRequest, { type: 'panerelay.conversation.resume' }>) => Promise<{
         success: true;
@@ -107,7 +108,7 @@ class FakeSidepanelClient implements SidepanelClient {
     this.requests.push(message);
     switch (message.type) {
       case 'panerelay.status.get':
-        return { success: true as const, status: baseStatus };
+        return { success: true as const, status: this.status };
       case 'panerelay.agent.providers':
         return { success: true as const, providers };
       case 'panerelay.agent.prepare':
@@ -244,8 +245,9 @@ class FakeSidepanelClient implements SidepanelClient {
   }
 }
 
-async function readyController() {
+async function readyController(status: ExtensionStatus = baseStatus) {
   const client = new FakeSidepanelClient();
+  client.status = status;
   const hook = renderHook(() => useSidepanelController(client));
   await waitFor(() => expect(hook.result.current.state.initializing).toBe(false));
   return { client, hook };
@@ -536,6 +538,28 @@ describe('Side Panel controller', () => {
     expect(hook.result.current.state.pageComments).toEqual([comment]);
     expect(hook.result.current.state.error).toBe('Agent send failed');
     expect(hook.result.current.state.workspace?.revision).toBe(client.workspace.revision);
+  });
+
+  it('requests only the active origin before starting Firefox page comments', async () => {
+    const { client, hook } = await readyController({
+      ...baseStatus,
+      automationAvailable: false,
+      browserFamily: 'firefox',
+    });
+    client.requests.length = 0;
+
+    await act(() => hook.result.current.togglePageComments());
+
+    expect(client.originRequests).toEqual([['https://example.com/*']]);
+    expect(client.requests).toContainEqual({
+      type: 'panerelay.page-comments.start',
+      locale: 'en',
+      theme: 'light',
+    });
+    expect(client.requests.some(request => request.type === 'panerelay.authorization.set')).toBe(
+      false,
+    );
+    expect(hook.result.current.state.commentMode).toBe(true);
   });
 
   it('sends pasted images and preserves them with the draft after failure', async () => {

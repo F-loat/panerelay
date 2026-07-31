@@ -6,7 +6,11 @@ import { join } from 'node:path';
 import test from 'node:test';
 import { PANERELAY_PROTOCOL_VERSION, type BridgeState } from '@panerelay/protocol';
 import { PANERELAY_STATE_PATH_ENV } from '@panerelay/protocol/node';
-import { AGENT_BROWSER_PLUGIN_PROTOCOL, handlePluginRequest } from './plugin.js';
+import {
+  AGENT_BROWSER_PLUGIN_PROTOCOL,
+  AGENT_BROWSER_WEBDRIVER_PROVIDER_CAPABILITY,
+  handlePluginRequest,
+} from './plugin.js';
 
 test('publishes the browser provider manifest', async () => {
   const response = await handlePluginRequest({
@@ -19,7 +23,7 @@ test('publishes the browser provider manifest', async () => {
   assert.deepEqual(response.manifest, {
     name: 'panerelay',
     capabilities: ['browser.provider'],
-    description: "Connect agent-browser to a user's authorized Chrome targets through Panerelay.",
+    description: "Connect agent-browser to a user's authorized browser targets through Panerelay.",
   });
 });
 
@@ -51,6 +55,7 @@ test('creates and releases a browser-level relay session through live Bridge sta
           JSON.stringify({
             protocol: PANERELAY_PROTOCOL_VERSION,
             sessionId: 'relay-session-1',
+            transport: 'cdp',
             cdpUrl: 'ws://127.0.0.1:43123/cdp?session=relay-session-1&token=session-token',
             connectExpiresAt: '2026-07-29T08:00:00.000Z',
           }),
@@ -83,6 +88,7 @@ test('creates and releases a browser-level relay session through live Bridge sta
     browserName: 'Test Chrome',
     extensionVersion: '0.0.1',
     extensionId: 'extension-1',
+    automation: { transport: 'cdp', ready: true },
     updatedAt: new Date().toISOString(),
   };
   await writeFile(statePath, JSON.stringify(state));
@@ -150,5 +156,169 @@ test('creates and releases a browser-level relay session through live Bridge sta
     }
     await rm(directory, { recursive: true, force: true });
     await new Promise<void>(resolve => server.close(() => resolve()));
+  }
+});
+
+test('returns transport-specific WebDriver Provider connection metadata', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'panerelay-provider-webdriver-'));
+  const statePath = join(directory, 'bridge.json');
+  const previousStatePath = process.env[PANERELAY_STATE_PATH_ENV];
+  process.env[PANERELAY_STATE_PATH_ENV] = statePath;
+  const server = createServer((_request, response) => {
+    response.writeHead(201, { 'content-type': 'application/json' });
+    response.end(
+      JSON.stringify({
+        protocol: PANERELAY_PROTOCOL_VERSION,
+        sessionId: 'virtual-webdriver-1',
+        transport: 'webdriver',
+        webdriverUrl: 'http://127.0.0.1:43124/webdriver/opaque-participant',
+        webdriverSessionId: 'virtual-webdriver-session',
+        heartbeatIntervalMs: 10_000,
+        connectExpiresAt: '2026-07-31T08:00:00.000Z',
+      }),
+    );
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once('listening', resolve);
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1');
+  });
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  const state: BridgeState = {
+    protocol: PANERELAY_PROTOCOL_VERSION,
+    pid: process.pid,
+    port: address.port,
+    token: 'test token',
+    browserId: 'firefox-1',
+    browserName: 'Firefox',
+    browserFamily: 'firefox',
+    capabilities: { automation: { transport: 'webdriver', ready: true } },
+    automation: { transport: 'webdriver', ready: true },
+    extensionVersion: '0.2.0',
+    extensionId: 'panerelay@panerelay.dev',
+    updatedAt: new Date().toISOString(),
+  };
+  await writeFile(statePath, JSON.stringify(state));
+
+  try {
+    const response = await handlePluginRequest({
+      protocol: AGENT_BROWSER_PLUGIN_PROTOCOL,
+      type: 'browser.launch',
+      capability: 'browser.provider',
+      request: {
+        session: 'firefox-session',
+        clientCapabilities: [AGENT_BROWSER_WEBDRIVER_PROVIDER_CAPABILITY],
+      },
+    });
+
+    assert.equal(response.success, true);
+    assert.deepEqual(response.browser, {
+      transport: 'webdriver',
+      webdriverUrl: 'http://127.0.0.1:43124/webdriver/opaque-participant',
+      webdriverSessionId: 'virtual-webdriver-session',
+      metadata: {
+        webdriverHeartbeatIntervalMs: 10_000,
+        browserId: 'firefox-1',
+        browserName: 'Firefox',
+        extensionVersion: '0.2.0',
+        relaySessionId: 'virtual-webdriver-1',
+        connectExpiresAt: '2026-07-31T08:00:00.000Z',
+      },
+      cleanup: {
+        bridgePid: process.pid,
+        browserId: 'firefox-1',
+        sessionId: 'virtual-webdriver-1',
+      },
+    });
+  } finally {
+    if (previousStatePath === undefined) {
+      delete process.env[PANERELAY_STATE_PATH_ENV];
+    } else {
+      process.env[PANERELAY_STATE_PATH_ENV] = previousStatePath;
+    }
+    await rm(directory, { recursive: true, force: true });
+    await new Promise<void>(resolve => server.close(() => resolve()));
+  }
+});
+
+test('rejects a CDP-only agent-browser client before requesting a Firefox relay session', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'panerelay-provider-webdriver-capability-'));
+  const statePath = join(directory, 'bridge.json');
+  const previousStatePath = process.env[PANERELAY_STATE_PATH_ENV];
+  process.env[PANERELAY_STATE_PATH_ENV] = statePath;
+  const state: BridgeState = {
+    protocol: PANERELAY_PROTOCOL_VERSION,
+    pid: process.pid,
+    port: 9,
+    token: 'unused',
+    browserId: 'firefox-1',
+    browserName: 'Firefox',
+    browserFamily: 'firefox',
+    automation: { transport: 'webdriver', ready: true },
+    extensionVersion: '0.2.0',
+    extensionId: 'panerelay@panerelay.dev',
+    updatedAt: new Date().toISOString(),
+  };
+  await writeFile(statePath, JSON.stringify(state));
+
+  try {
+    const response = await handlePluginRequest({
+      protocol: AGENT_BROWSER_PLUGIN_PROTOCOL,
+      type: 'browser.launch',
+      capability: 'browser.provider',
+      request: { session: 'firefox-session' },
+    });
+
+    assert.equal(response.success, false);
+    assert.match(String(response.error), /webdriver-existing-session/);
+  } finally {
+    if (previousStatePath === undefined) {
+      delete process.env[PANERELAY_STATE_PATH_ENV];
+    } else {
+      process.env[PANERELAY_STATE_PATH_ENV] = previousStatePath;
+    }
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('fails before contacting the Bridge when browser automation is not ready', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'panerelay-provider-unsupported-'));
+  const statePath = join(directory, 'bridge.json');
+  const previousStatePath = process.env[PANERELAY_STATE_PATH_ENV];
+  process.env[PANERELAY_STATE_PATH_ENV] = statePath;
+  const state: BridgeState = {
+    protocol: PANERELAY_PROTOCOL_VERSION,
+    pid: process.pid,
+    port: 9,
+    token: 'unused',
+    browserId: 'firefox-1',
+    browserName: 'Firefox',
+    browserFamily: 'firefox',
+    capabilities: { cdpRelay: false },
+    automation: { transport: 'none', ready: false },
+    extensionVersion: '0.2.0',
+    extensionId: 'panerelay@panerelay.dev',
+    updatedAt: new Date().toISOString(),
+  };
+  await writeFile(statePath, JSON.stringify(state));
+
+  try {
+    const response = await handlePluginRequest({
+      protocol: AGENT_BROWSER_PLUGIN_PROTOCOL,
+      type: 'browser.launch',
+      capability: 'browser.provider',
+      request: { session: 'agent-session-1' },
+    });
+
+    assert.equal(response.success, false);
+    assert.match(String(response.error), /Firefox has not made .* automation transport ready/);
+  } finally {
+    if (previousStatePath === undefined) {
+      delete process.env[PANERELAY_STATE_PATH_ENV];
+    } else {
+      process.env[PANERELAY_STATE_PATH_ENV] = previousStatePath;
+    }
+    await rm(directory, { recursive: true, force: true });
   }
 });

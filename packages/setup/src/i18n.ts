@@ -24,6 +24,9 @@ const englishMessages = {
   errorExtensionIdMissing: '--extension-id requires a Chrome Extension ID',
   errorExtensionIdRepeated: '--extension-id can only be provided once',
   errorExtensionIdUninstall: '--extension-id is not available with uninstall',
+  errorFirefoxExtensionIdMissing: '--firefox-extension-id requires a Firefox Extension ID',
+  errorFirefoxExtensionIdRepeated: '--firefox-extension-id can only be provided once',
+  errorFirefoxExtensionIdUninstall: '--firefox-extension-id is not available with uninstall',
   errorJsonDoctorOnly: '--json is only available with doctor',
   errorLanguageMissing: '--lang requires a language',
   errorLanguageRepeated: '--lang can only be provided once',
@@ -32,13 +35,17 @@ const englishMessages = {
   errorUnknownOption: 'Unknown option: {option}',
   extensionCustomNextStep: 'Extension: Load the build matching ID {id}, then open its side panel.',
   extensionIdentity: 'Extension ID: {id}',
+  firefoxExtensionIdentity: 'Firefox Extension ID: {id}',
+  firefoxLauncher: 'Firefox automation launcher: {path}',
+  firefoxAutomationMissing:
+    'Warning: Firefox automation needs Firefox and geckodriver; install both and rerun setup.',
   extensionStoreNextStep: 'Extension: Install or open Panerelay in the Chrome Web Store: {url}',
   globalProvider: 'Global default provider: {path}',
   help: `Panerelay Setup
 
 Usage:
-  npx --yes @panerelay/setup [--project-provider] [--global-provider] [--extension-id <id>] [--lang <language>]
-  npx --yes @panerelay/setup doctor [--project-provider] [--global-provider] [--extension-id <id>] [--json] [--lang <language>]
+  npx --yes @panerelay/setup [--project-provider] [--global-provider] [--extension-id <id>] [--firefox-extension-id <id>] [--lang <language>]
+  npx --yes @panerelay/setup doctor [--project-provider] [--global-provider] [--extension-id <id>] [--firefox-extension-id <id>] [--json] [--lang <language>]
   npx --yes @panerelay/setup uninstall [--project-provider] [--yes] [--lang <language>]
 
 Commands:
@@ -52,6 +59,8 @@ Options:
               Set Panerelay as the user-level default agent-browser provider
   --extension-id
               Use a custom 32-character Chrome Extension ID for this installation
+  --firefox-extension-id
+              Use a custom Firefox Extension ID for this installation
   --json      Print a machine-readable doctor report
   --lang      Use en or zh-CN instead of the system language
   --yes, -y   Confirm uninstall without a prompt
@@ -92,6 +101,9 @@ const chineseMessages: Record<MessageKey, string> = {
   errorExtensionIdMissing: '--extension-id 后需要指定 Chrome 扩展 ID',
   errorExtensionIdRepeated: '--extension-id 只能指定一次',
   errorExtensionIdUninstall: 'uninstall 不支持 --extension-id',
+  errorFirefoxExtensionIdMissing: '--firefox-extension-id 后需要指定 Firefox 扩展 ID',
+  errorFirefoxExtensionIdRepeated: '--firefox-extension-id 只能指定一次',
+  errorFirefoxExtensionIdUninstall: 'uninstall 不支持 --firefox-extension-id',
   errorJsonDoctorOnly: '--json 只能与 doctor 一起使用',
   errorLanguageMissing: '--lang 后需要指定语言',
   errorLanguageRepeated: '--lang 只能指定一次',
@@ -100,13 +112,17 @@ const chineseMessages: Record<MessageKey, string> = {
   errorUnknownOption: '未知选项：{option}',
   extensionCustomNextStep: '扩展：请加载与 ID {id} 匹配的构建，然后打开其侧边栏。',
   extensionIdentity: '扩展 ID：{id}',
+  firefoxExtensionIdentity: 'Firefox 扩展 ID：{id}',
+  firefoxLauncher: 'Firefox 自动化启动器：{path}',
+  firefoxAutomationMissing:
+    '警告：Firefox 自动化需要 Firefox 和 geckodriver；安装后请重新运行 setup。',
   extensionStoreNextStep: '扩展：请从 Chrome 应用商店安装或打开 Panerelay：{url}',
   globalProvider: '全局默认 Provider：{path}',
   help: `Panerelay 安装工具
 
 用法：
-  npx --yes @panerelay/setup [--project-provider] [--global-provider] [--extension-id <id>] [--lang <语言>]
-  npx --yes @panerelay/setup doctor [--project-provider] [--global-provider] [--extension-id <id>] [--json] [--lang <语言>]
+  npx --yes @panerelay/setup [--project-provider] [--global-provider] [--extension-id <id>] [--firefox-extension-id <id>] [--lang <语言>]
+  npx --yes @panerelay/setup doctor [--project-provider] [--global-provider] [--extension-id <id>] [--firefox-extension-id <id>] [--json] [--lang <语言>]
   npx --yes @panerelay/setup uninstall [--project-provider] [--yes] [--lang <语言>]
 
 命令：
@@ -120,6 +136,8 @@ const chineseMessages: Record<MessageKey, string> = {
               将 Panerelay 设为用户级默认 agent-browser Provider
   --extension-id
               为当前安装指定 32 位 Chrome 扩展 ID
+  --firefox-extension-id
+              为当前安装指定 Firefox 扩展 ID
   --json      输出机器可读的 doctor 报告
   --lang      使用 en 或 zh-CN，不跟随系统语言
   --yes, -y   无需确认直接卸载

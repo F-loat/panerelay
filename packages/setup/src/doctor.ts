@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import {
   readWindowsNativeHostRegistryValue,
   resolveEffectiveExtensionId,
+  resolveEffectiveFirefoxExtensionId,
   resolveNativeHostInstallationPaths,
 } from '@panerelay/bridge/install';
 import { isExecutableFile, type CommandRunner } from '@panerelay/bridge/platform';
@@ -12,7 +13,11 @@ import {
   AGENT_BROWSER_MINIMUM_VERSION,
   probeAgentBrowserCompatibility,
 } from '@panerelay/bridge/compatibility';
-import { PANERELAY_EXTENSION_ID, PANERELAY_NATIVE_HOST_NAME } from '@panerelay/protocol';
+import {
+  PANERELAY_EXTENSION_ID,
+  PANERELAY_FIREFOX_EXTENSION_ID,
+  PANERELAY_NATIVE_HOST_NAME,
+} from '@panerelay/protocol';
 import {
   projectAgentBrowserConfigPath,
   readJsonObject,
@@ -41,6 +46,7 @@ export interface DoctorOptions {
   environment?: NodeJS.ProcessEnv;
   commandRunner?: CommandRunner;
   extensionId?: string;
+  firefoxExtensionId?: string;
   globalProvider?: boolean;
   homeDirectory?: string;
   platform?: NodeJS.Platform;
@@ -61,22 +67,28 @@ async function exists(path: string, mode = constants.F_OK): Promise<boolean> {
 async function nativeManifestCheck(
   manifestPaths: string[],
   launchPath: string,
-  extensionId: string,
+  options: {
+    allowedKey: 'allowed_extensions' | 'allowed_origins';
+    allowedValue: string;
+    id: string;
+    label: string;
+  },
 ): Promise<DoctorCheck> {
   for (const manifestPath of manifestPaths) {
     if (!(await exists(manifestPath))) continue;
     try {
       const manifest = await readJsonObject(manifestPath);
-      const origins = Array.isArray(manifest.allowed_origins) ? manifest.allowed_origins : [];
+      const rawIdentities = manifest[options.allowedKey];
+      const identities: unknown[] = Array.isArray(rawIdentities) ? rawIdentities : [];
       if (
         manifest.name === PANERELAY_NATIVE_HOST_NAME &&
         manifest.path === launchPath &&
-        origins.length === 1 &&
-        origins[0] === `chrome-extension://${extensionId}/`
+        identities.length === 1 &&
+        identities[0] === options.allowedValue
       ) {
         return {
-          id: 'native-manifest',
-          label: 'Chrome Native Messaging manifest',
+          id: options.id,
+          label: options.label,
           status: 'pass',
           detail: manifestPath,
         };
@@ -86,8 +98,8 @@ async function nativeManifestCheck(
     }
   }
   return {
-    id: 'native-manifest',
-    label: 'Chrome Native Messaging manifest',
+    id: options.id,
+    label: options.label,
     status: 'fail',
     detail: 'No valid Panerelay manifest was found',
     hint: `Run: ${SETUP_COMMAND}`,
@@ -148,6 +160,7 @@ export async function doctorPanerelay(options: DoctorOptions = {}): Promise<Doct
     // The individual executable checks below provide actionable failures.
   }
   let extensionId: string = PANERELAY_EXTENSION_ID;
+  let firefoxExtensionId: string = PANERELAY_FIREFOX_EXTENSION_ID;
   try {
     extensionId = resolveEffectiveExtensionId({
       environment: options.environment,
@@ -167,6 +180,27 @@ export async function doctorPanerelay(options: DoctorOptions = {}): Promise<Doct
       status: 'fail',
       detail: error instanceof Error ? error.message : String(error),
       hint: 'Use a 32-character Chrome Extension ID containing only a through p',
+    });
+  }
+  try {
+    firefoxExtensionId = resolveEffectiveFirefoxExtensionId({
+      environment: options.environment,
+      firefoxExtensionId: options.firefoxExtensionId,
+      persistedFirefoxExtensionId: runtimeConfig.firefoxExtensionId,
+    });
+    checks.push({
+      id: 'firefox-extension-id',
+      label: 'Effective Firefox Extension ID',
+      status: 'pass',
+      detail: firefoxExtensionId,
+    });
+  } catch (error) {
+    checks.push({
+      id: 'firefox-extension-id',
+      label: 'Effective Firefox Extension ID',
+      status: 'fail',
+      detail: error instanceof Error ? error.message : String(error),
+      hint: 'Use an email-style Firefox Extension ID of at most 80 characters or a braced UUID',
     });
   }
   checks.push(
@@ -189,21 +223,40 @@ export async function doctorPanerelay(options: DoctorOptions = {}): Promise<Doct
       ),
     );
   }
-  checks.push(await nativeManifestCheck(paths.manifestPaths, paths.launchPath, extensionId));
+  checks.push(
+    await nativeManifestCheck(paths.chromiumManifestPaths, paths.launchPath, {
+      allowedKey: 'allowed_origins',
+      allowedValue: `chrome-extension://${extensionId}/`,
+      id: 'native-manifest',
+      label: 'Chromium Native Messaging manifest',
+    }),
+  );
+  checks.push(
+    await nativeManifestCheck(paths.firefoxManifestPaths, paths.launchPath, {
+      allowedKey: 'allowed_extensions',
+      allowedValue: firefoxExtensionId,
+      id: 'firefox-native-manifest',
+      label: 'Firefox Native Messaging manifest',
+    }),
+  );
   if (platform === 'win32') {
-    const registryValue = await readWindowsNativeHostRegistryValue({
-      environment: options.environment,
-      runner: options.registryRunner,
-    });
-    const expectedManifestPath = paths.manifestPaths[0]!;
-    const registryReady = registryValue === expectedManifestPath;
-    checks.push({
-      id: 'windows-registry',
-      label: 'Chrome Native Messaging registry',
-      status: registryReady ? 'pass' : 'fail',
-      detail: registryValue || 'Not found',
-      ...(registryReady ? {} : { hint: `Run: ${SETUP_COMMAND}` }),
-    });
+    for (const browser of ['chrome', 'edge', 'firefox'] as const) {
+      const registryValue = await readWindowsNativeHostRegistryValue({
+        browser,
+        environment: options.environment,
+        runner: options.registryRunner,
+      });
+      const expectedManifestPath =
+        browser === 'firefox' ? paths.firefoxManifestPaths[0]! : paths.chromiumManifestPaths[0]!;
+      const registryReady = registryValue === expectedManifestPath;
+      checks.push({
+        id: `windows-registry-${browser}`,
+        label: `${browser === 'chrome' ? 'Chrome' : browser === 'edge' ? 'Edge' : 'Firefox'} Native Messaging registry`,
+        status: registryReady ? 'pass' : 'fail',
+        detail: registryValue || 'Not found',
+        ...(registryReady ? {} : { hint: `Run: ${SETUP_COMMAND}` }),
+      });
+    }
   }
   const codexPath =
     typeof runtimeConfig.codexPath === 'string' ? runtimeConfig.codexPath : undefined;
@@ -211,6 +264,10 @@ export async function doctorPanerelay(options: DoctorOptions = {}): Promise<Doct
     typeof runtimeConfig.agentBrowserPath === 'string' ? runtimeConfig.agentBrowserPath : undefined;
   const qoderPath =
     typeof runtimeConfig.qoderPath === 'string' ? runtimeConfig.qoderPath : undefined;
+  const firefoxPath =
+    typeof runtimeConfig.firefoxPath === 'string' ? runtimeConfig.firefoxPath : undefined;
+  const geckodriverPath =
+    typeof runtimeConfig.geckodriverPath === 'string' ? runtimeConfig.geckodriverPath : undefined;
   checks.push(
     await executableCheck(
       'codex',
@@ -220,6 +277,59 @@ export async function doctorPanerelay(options: DoctorOptions = {}): Promise<Doct
       platform,
     ),
   );
+  const firefoxReady = firefoxPath ? await isExecutableFile(firefoxPath, platform) : false;
+  checks.push({
+    id: 'firefox-runtime',
+    label: 'Firefox automation browser (optional)',
+    status: firefoxReady ? 'pass' : 'warn',
+    detail: firefoxReady
+      ? `${firefoxPath}${
+          typeof runtimeConfig.firefoxVersion === 'string'
+            ? ` (${runtimeConfig.firefoxVersion})`
+            : ''
+        }`
+      : 'Not found',
+    ...(firefoxReady
+      ? {}
+      : {
+          hint: `Install Firefox or set PANERELAY_FIREFOX_PATH, then run: ${SETUP_COMMAND}`,
+        }),
+  });
+  const geckodriverReady = geckodriverPath
+    ? await isExecutableFile(geckodriverPath, platform)
+    : false;
+  checks.push({
+    id: 'geckodriver',
+    label: 'geckodriver (optional)',
+    status: geckodriverReady ? 'pass' : 'warn',
+    detail: geckodriverReady
+      ? `${geckodriverPath}${
+          typeof runtimeConfig.geckodriverVersion === 'string'
+            ? ` (${runtimeConfig.geckodriverVersion})`
+            : ''
+        }`
+      : 'Not found',
+    ...(geckodriverReady
+      ? {}
+      : {
+          hint: `Install geckodriver or set PANERELAY_GECKODRIVER_PATH, then run: ${SETUP_COMMAND}`,
+        }),
+  });
+  const firefoxLauncherReady =
+    firefoxReady &&
+    geckodriverReady &&
+    (await isExecutableFile(paths.firefoxLauncherPath, platform));
+  checks.push({
+    id: 'firefox-launcher',
+    label: 'Panerelay Firefox automation launcher (optional)',
+    status: firefoxLauncherReady ? 'pass' : 'warn',
+    detail: firefoxLauncherReady ? paths.firefoxLauncherPath : 'Not ready',
+    ...(firefoxLauncherReady
+      ? {}
+      : {
+          hint: 'Install Firefox and geckodriver, run setup, then start Firefox with the Panerelay launcher',
+        }),
+  });
   const qoderReady = qoderPath ? await isExecutableFile(qoderPath, platform) : false;
   checks.push({
     id: 'qoder',
@@ -310,7 +420,7 @@ export async function doctorPanerelay(options: DoctorOptions = {}): Promise<Doct
     };
     if (typeof state.pid === 'number') {
       process.kill(state.pid, 0);
-      if (state.extensionId === extensionId) {
+      if (state.extensionId === extensionId || state.extensionId === firefoxExtensionId) {
         bridgeStatus = 'pass';
         bridgeDetail = `Connected through process ${state.pid}`;
       } else {

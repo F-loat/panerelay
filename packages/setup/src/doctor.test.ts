@@ -37,20 +37,20 @@ test('doctor verifies Windows registry, manifest, launcher, and effective origin
   await writeFile(agentBrowserPath, '@exit /b 0\r\n');
   await writeFile(codexPath, '@exit /b 0\r\n');
 
-  let manifestPath = '';
+  const registryValues = new Map<string, string>();
   const registryRunner: CommandRunner = async (_command, args) => {
     if (args[0] === 'query') {
       return {
         code: 0,
         stderr: '',
-        stdout: `    (Default)    REG_SZ    ${manifestPath}\r\n`,
+        stdout: `    (Default)    REG_SZ    ${registryValues.get(args[1] || '') || ''}\r\n`,
       };
     }
-    manifestPath = args[6] || '';
+    registryValues.set(args[1] || '', args[6] || '');
     return { code: 0, stderr: '', stdout: '' };
   };
   try {
-    const installation = await installNativeHost({
+    await installNativeHost({
       bundledHostPath,
       environment: {
         PANERELAY_AGENT_BROWSER_PATH: agentBrowserPath,
@@ -61,7 +61,6 @@ test('doctor verifies Windows registry, manifest, launcher, and effective origin
       platform: 'win32',
       registryRunner,
     });
-    manifestPath = installation.manifestPaths[0]!;
     const report = await doctorPanerelay({
       homeDirectory,
       platform: 'win32',
@@ -69,10 +68,14 @@ test('doctor verifies Windows registry, manifest, launcher, and effective origin
     });
     for (const id of [
       'extension-id',
+      'firefox-extension-id',
       'native-host',
       'native-launcher',
       'native-manifest',
-      'windows-registry',
+      'firefox-native-manifest',
+      'windows-registry-chrome',
+      'windows-registry-edge',
+      'windows-registry-firefox',
     ]) {
       assert.equal(
         report.checks.find(check => check.id === id)?.status,
@@ -90,7 +93,10 @@ test('doctor verifies Windows registry, manifest, launcher, and effective origin
         stdout: '    (Default)    REG_SZ    C:\\stale\\manifest.json\r\n',
       }),
     });
-    assert.equal(stale.checks.find(check => check.id === 'windows-registry')?.status, 'fail');
+    assert.equal(
+      stale.checks.find(check => check.id === 'windows-registry-chrome')?.status,
+      'fail',
+    );
   } finally {
     await rm(root, { force: true, recursive: true });
   }

@@ -1,0 +1,35 @@
+{
+  "manifest_version": 3,
+  "default_locale": "en",
+  "name": "__MSG_extensionName__",
+  "description": "__MSG_extensionDescription__",
+  "version": "0.2.0.0",
+  "version_name": "0.2.0",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "panerelay@f-loat.dev",
+      "strict_min_version": "128.0"
+    }
+  },
+  "sidebar_action": {
+    "default_title": "__MSG_actionTitle__",
+    "default_panel": "src/pages/sidepanel/index.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "background": {
+    "scripts": ["src/background/firefox/index.ts"]
+  },
+  "optional_host_permissions": ["http://*/*", "https://*/*", "file:///*"],
+  "permissions": ["nativeMessaging", "scripting", "storage", "tabs", "webNavigation"]
+}

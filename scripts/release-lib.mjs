@@ -72,6 +72,17 @@ export const PACKAGE_DEFINITIONS = [
 ];
 
 const OFFICIAL_EXTENSION_ID = 'panplnkjlkoceaonlmpdekjphgmbggmi';
+const OFFICIAL_FIREFOX_EXTENSION_ID = 'panerelay@f-loat.dev';
+const EXTENSION_FORBIDDEN_BUNDLE_TOKENS = {
+  chromium: [
+    '__panerelayFirefoxWebDriverRendezvous',
+    'panerelay.webdriver.rendezvous',
+    'webdriver.readiness',
+    'webdriver.rendezvous.result',
+    'webdriver.target.invalidated',
+  ],
+  firefox: ['cdp.attach', 'cdp.command', 'cdp.detach', 'cdp.target.request', 'chrome.debugger'],
+};
 const AGENT_BROWSER_MINIMUM_VERSION = '0.33.0';
 const ACP_SDK_MINIMUM_VERSION = '1.2.1';
 const CHROME_EXTENSION_ID_PATTERN = /^[a-p]{32}$/;
@@ -119,8 +130,16 @@ export function requiredExtensionManifestEntries(manifest) {
       normalizeExtensionEntry(manifest.background.service_worker, 'Extension background'),
     );
   }
+  for (const script of manifest.background?.scripts ?? []) {
+    entries.add(normalizeExtensionEntry(script, 'Extension background'));
+  }
   if (manifest.side_panel?.default_path) {
     entries.add(normalizeExtensionEntry(manifest.side_panel.default_path, 'Extension side panel'));
+  }
+  if (manifest.sidebar_action?.default_panel) {
+    entries.add(
+      normalizeExtensionEntry(manifest.sidebar_action.default_panel, 'Extension sidebar'),
+    );
   }
   for (const [owner, value] of [
     ['Extension action popup', manifest.action?.default_popup],
@@ -132,6 +151,7 @@ export function requiredExtensionManifestEntries(manifest) {
   }
   addIconEntries(entries, manifest.icons, 'Extension icon');
   addIconEntries(entries, manifest.action?.default_icon, 'Extension action icon');
+  addIconEntries(entries, manifest.sidebar_action?.default_icon, 'Extension sidebar icon');
   for (const [index, contentScript] of (manifest.content_scripts ?? []).entries()) {
     for (const value of [...(contentScript.js ?? []), ...(contentScript.css ?? [])]) {
       entries.add(normalizeExtensionEntry(value, `Extension content script ${index}`));
@@ -298,6 +318,7 @@ export function validateReleaseMetadata({
   compatibilityRecords,
   descriptor,
   extensionManifest,
+  firefoxExtensionManifest,
   extensionPackage,
   implementationSources,
   packageManifests,
@@ -321,6 +342,16 @@ export function validateReleaseMetadata({
   invariant(
     extensionManifest.version_name === descriptor.version,
     'Extension version_name does not match release config',
+  );
+  invariant(
+    firefoxExtensionManifest?.version === descriptor.extensionVersion &&
+      firefoxExtensionManifest?.version_name === descriptor.version,
+    'Firefox Extension version metadata does not match release config',
+  );
+  invariant(
+    firefoxExtensionManifest?.browser_specific_settings?.gecko?.id ===
+      OFFICIAL_FIREFOX_EXTENSION_ID,
+    'Firefox Extension manifest does not contain the official identity',
   );
   invariant(
     CHROME_EXTENSION_ID_PATTERN.test(descriptor.extensionId),
@@ -400,27 +431,40 @@ export function validateReleaseMetadata({
     acpVersion && compareVersions(acpVersion, ACP_SDK_MINIMUM_VERSION) >= 0,
     `@panerelay/bridge must package @agentclientprotocol/sdk ${ACP_SDK_MINIMUM_VERSION} or newer`,
   );
-
   invariant(
     implementationSources?.protocolConstants.includes(
       `PANERELAY_EXTENSION_ID = '${descriptor.extensionId}'`,
-    ),
-    'Shared default Extension ID does not match the release descriptor',
+    ) &&
+      implementationSources.protocolConstants.includes(
+        `PANERELAY_FIREFOX_EXTENSION_ID = '${OFFICIAL_FIREFOX_EXTENSION_ID}'`,
+      ),
+    'Shared default Extension identities do not match release manifests',
   );
   invariant(
-    implementationSources?.extensionBackground.includes('extensionId: chrome.runtime.id'),
-    'Extension registration does not include the actual Chrome runtime ID',
+    implementationSources?.extensionSharedBackground.includes('extensionId: chrome.runtime.id') &&
+      implementationSources.chromiumBackground.includes(
+        "PANERELAY_EXTENSION_PLATFORM = 'chromium'",
+      ) &&
+      implementationSources.chromiumBackground.includes(
+        'new ChromiumCdpAutomationAdapter(browserRuntime)',
+      ) &&
+      implementationSources.firefoxBackground.includes(
+        "PANERELAY_EXTENSION_PLATFORM = 'firefox'",
+      ) &&
+      implementationSources.firefoxBackground.includes('new FirefoxWebDriverAutomationAdapter()'),
+    'Extension platform entries or shared runtime registration are incomplete',
   );
   invariant(
     implementationSources?.browserRelay.includes(
-      'message.extensionId !== this.options.expectedExtensionId',
+      '!expectedExtensionIds.includes(message.extensionId)',
     ),
-    'Bridge registration does not reject an unexpected Extension ID',
+    'Bridge registration does not reject unexpected Extension IDs',
   );
   invariant(
     implementationSources?.hostInstallation.includes(
       'allowed_origins: [`chrome-extension://${extensionId}/`]',
     ) &&
+      implementationSources.hostInstallation.includes('allowed_extensions: [firefoxExtensionId]') &&
       implementationSources.hostInstallation.includes('setlocal DisableDelayedExpansion') &&
       implementationSources.hostInstallation.includes("'reg.exe'"),
     'Native Host installation is missing effective-origin or Windows launcher support',
@@ -535,12 +579,53 @@ async function packPackage(root, outputDirectory, definition, version) {
   return { manifest, name: definition.name, path: tarball };
 }
 
-async function createExtensionArchive(root, outputDirectory, descriptor) {
-  const extensionDirectory = join(root, 'apps/extension/dist');
+async function createExtensionArchive(root, outputDirectory, descriptor, browser) {
+  const extensionDirectory = join(root, 'apps/extension/dist', browser);
   const manifest = await readJson(join(extensionDirectory, 'manifest.json'));
+  const ownership = await readJson(join(extensionDirectory, 'panerelay-platform-modules.json'));
   const entries = new Set(await listExtensionEntries(extensionDirectory));
   const requiredEntries = new Set(requiredExtensionManifestEntries(manifest));
   validateExtensionEntries(entries, requiredEntries);
+  invariant(
+    ownership.schema === 1 &&
+      ownership.platform === browser &&
+      ownership.marker === `panerelay-extension-${browser}` &&
+      Array.isArray(ownership.forbiddenTokens) &&
+      Array.isArray(ownership.forbiddenTokenMatches) &&
+      ownership.forbiddenTokenMatches.length === 0 &&
+      Array.isArray(ownership.modules),
+    `Built ${browser} Extension has invalid platform module ownership evidence`,
+  );
+  const forbiddenPlatform = browser === 'firefox' ? 'chromium' : 'firefox';
+  invariant(
+    ownership.modules.includes(`src/background/${browser}/index.ts`) &&
+      ownership.modules.includes(`src/pages/sidepanel/${browser}/platform.ts`),
+    `Built ${browser} Extension is missing its platform-private entry modules`,
+  );
+  invariant(
+    ownership.modules.every(
+      modulePath =>
+        !modulePath.startsWith(`src/background/${forbiddenPlatform}/`) &&
+        !modulePath.startsWith(`src/pages/sidepanel/${forbiddenPlatform}/`),
+    ),
+    `Built ${browser} Extension contains ${forbiddenPlatform}-private modules`,
+  );
+  const forbiddenTokens = EXTENSION_FORBIDDEN_BUNDLE_TOKENS[browser];
+  invariant(
+    forbiddenTokens.every(token => ownership.forbiddenTokens.includes(token)),
+    `Built ${browser} Extension has incomplete bundle-token ownership evidence`,
+  );
+  const scriptSource = (
+    await Promise.all(
+      [...entries]
+        .filter(entry => entry.endsWith('.js'))
+        .map(entry => readFile(join(extensionDirectory, entry), 'utf8')),
+    )
+  ).join('\n');
+  invariant(
+    forbiddenTokens.every(token => !scriptSource.includes(token)),
+    `Built ${browser} Extension contains ${forbiddenPlatform}-private bundle code`,
+  );
   for (const htmlPath of [...requiredEntries].filter(entry => entry.endsWith('.html'))) {
     const source = await readFile(join(extensionDirectory, htmlPath), 'utf8');
     for (const entry of requiredExtensionHtmlEntries(htmlPath, source)) {
@@ -553,16 +638,33 @@ async function createExtensionArchive(root, outputDirectory, descriptor) {
       manifest.version_name === descriptor.version,
     'Built Extension version metadata is not lockstep',
   );
-  invariant(
-    chromeExtensionIdFromPublicKey(manifest.key) === descriptor.extensionId,
-    'Built Extension public key does not derive the official Extension ID',
-  );
-  const archive = join(outputDirectory, `panerelay-extension-${descriptor.version}.zip`);
-  await run('zip', ['-q', '-r', archive, '.', '-x', '*.map'], { cwd: extensionDirectory });
+  if (browser === 'chromium') {
+    invariant(
+      chromeExtensionIdFromPublicKey(manifest.key) === descriptor.extensionId,
+      'Built Chromium Extension public key does not derive the official Extension ID',
+    );
+  } else {
+    invariant(
+      manifest.browser_specific_settings?.gecko?.id === OFFICIAL_FIREFOX_EXTENSION_ID,
+      'Built Firefox Extension does not contain the official identity',
+    );
+    invariant(
+      !manifest.permissions?.includes('debugger'),
+      'Built Firefox Extension must not request unsupported debugger access',
+    );
+  }
+  const archive = join(outputDirectory, `panerelay-extension-${browser}-${descriptor.version}.zip`);
+  await run('zip', ['-q', '-r', archive, '.', '-x', '*.map', '.DS_Store', '*/.DS_Store'], {
+    cwd: extensionDirectory,
+  });
   const archivedEntries = new Set(
     commandOutputLines((await run('unzip', ['-Z1', archive])).stdout),
   );
-  validateExtensionEntries(archivedEntries, requiredEntries, 'Extension archive');
+  validateExtensionEntries(archivedEntries, requiredEntries, `${browser} Extension archive`);
+  invariant(
+    [...archivedEntries].every(entry => !entry.endsWith('.DS_Store')),
+    `${browser} Extension archive contains machine-specific metadata`,
+  );
   return archive;
 }
 
@@ -719,6 +821,8 @@ async function validateStableDistributionSources(root) {
     'README.zh-CN.md',
     'docs/releasing.md',
     'docs/compatibility/agent-browser-0.33.0.md',
+    'docs/compatibility/browser-platforms.md',
+    'docs/compatibility/firefox-webdriver-development.md',
     ...PACKAGE_DEFINITIONS.map(definition => `${definition.directory}/README.md`),
     'packages/setup/skills/panerelay-browser/SKILL.md',
   ];
@@ -746,11 +850,20 @@ export async function loadReleaseMetadata(root) {
     compatibilityRecords: await readdir(join(root, 'docs/compatibility')),
     descriptor: await readJson(join(root, 'release.config.json')),
     extensionManifest: await readJson(join(root, 'apps/extension/manifest.json')),
+    firefoxExtensionManifest: await readJson(join(root, 'apps/extension/manifest.firefox.json')),
     extensionPackage: await readJson(join(root, 'apps/extension/package.json')),
     implementationSources: {
       browserRelay: await readFile(join(root, 'packages/bridge/src/browser-relay.ts'), 'utf8'),
-      extensionBackground: await readFile(
-        join(root, 'apps/extension/src/background/index.ts'),
+      chromiumBackground: await readFile(
+        join(root, 'apps/extension/src/background/chromium/index.ts'),
+        'utf8',
+      ),
+      extensionSharedBackground: await readFile(
+        join(root, 'apps/extension/src/background/shared/collaboration-runtime.ts'),
+        'utf8',
+      ),
+      firefoxBackground: await readFile(
+        join(root, 'apps/extension/src/background/firefox/index.ts'),
         'utf8',
       ),
       hostInstallation: await readFile(
@@ -779,12 +892,18 @@ export async function createReleaseCandidate({ outputDirectory, root, sourceDirt
       await packPackage(root, outputDirectory, definition, metadata.descriptor.version),
     );
   }
-  const extensionArchive = await createExtensionArchive(root, outputDirectory, metadata.descriptor);
+  const extensionArchives = await Promise.all(
+    ['chromium', 'firefox'].map(browser =>
+      createExtensionArchive(root, outputDirectory, metadata.descriptor, browser),
+    ),
+  );
   await smokePackedSetup(tarballs);
 
   const artifacts = await Promise.all([
     ...tarballs.map(tarball => artifactRecord(tarball.path, 'npm')),
-    artifactRecord(extensionArchive, 'extension'),
+    ...extensionArchives.map((archive, index) =>
+      artifactRecord(archive, index === 0 ? 'extension-chromium' : 'extension-firefox'),
+    ),
   ]);
   artifacts.sort((left, right) => left.file.localeCompare(right.file));
   const commit = (await run('git', ['rev-parse', 'HEAD'], { cwd: root })).stdout.trim();
@@ -796,6 +915,7 @@ export async function createReleaseCandidate({ outputDirectory, root, sourceDirt
     version: metadata.descriptor.version,
     extensionVersion: metadata.descriptor.extensionVersion,
     extensionId: metadata.descriptor.extensionId,
+    firefoxExtensionId: OFFICIAL_FIREFOX_EXTENSION_ID,
     agentBrowserMinimumVersion: metadata.descriptor.agentBrowserMinimumVersion,
     agentBrowserVerifiedVersions: metadata.descriptor.agentBrowserVerifiedVersions,
     source: { commit, dirty },

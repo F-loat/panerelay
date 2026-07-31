@@ -54,11 +54,11 @@ When the Native Host is connected, the Extension SHALL identify this setting as 
 
 ### Requirement: Missing Native Host guidance is actionable
 
-The Extension SHALL distinguish a recognized missing Native Messaging Host from a transient disconnected state and SHALL show a compact localized setup guide with the supported setup command and a retry action.
+The Extension SHALL distinguish a recognized missing Native Messaging Host from a transient disconnected state in Chrome, Edge, and Firefox and SHALL show a compact localized setup guide with the supported setup command and a retry action. Guidance SHALL name the current browser family when the remedy or capability differs.
 
-#### Scenario: Chrome cannot find the Native Host
+#### Scenario: A supported browser cannot find the Native Host
 
-- **GIVEN** the Extension receives Chrome's recognized Native Messaging host-not-found failure
+- **GIVEN** the Extension receives the current browser's recognized Native Messaging host-not-found failure
 - **WHEN** the side panel renders its readiness state
 - **THEN** it explains that the Panerelay local integration is not installed, shows `npx --yes @panerelay/setup`, and provides a retry action
 
@@ -67,6 +67,12 @@ The Extension SHALL distinguish a recognized missing Native Messaging Host from 
 - **GIVEN** the Native Host was installed but the connection closed or is reconnecting
 - **WHEN** the side panel renders its readiness state
 - **THEN** it presents a connection recovery state without claiming that installation is definitely missing
+
+#### Scenario: Firefox lacks browser automation
+
+- **GIVEN** Firefox is connected to a valid Native Host and reports no CDP relay capability
+- **WHEN** the side panel renders readiness
+- **THEN** Agent conversations remain ready while browser automation is identified as unsupported rather than missing or disconnected
 
 ### Requirement: Known Provider setup failures produce targeted guidance
 

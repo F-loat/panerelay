@@ -62,13 +62,23 @@ function releaseFixture() {
     compatibilityRecords: ['agent-browser-0.33.0.md'],
     descriptor,
     extensionManifest: { version: '0.1.0.2', version_name: version, key: extensionKey },
+    firefoxExtensionManifest: {
+      version: '0.1.0.2',
+      version_name: version,
+      browser_specific_settings: { gecko: { id: 'panerelay@f-loat.dev' } },
+    },
     extensionPackage: { version, private: true },
     implementationSources: {
-      browserRelay: 'message.extensionId !== this.options.expectedExtensionId',
-      extensionBackground: 'extensionId: chrome.runtime.id',
+      browserRelay: '!expectedExtensionIds.includes(message.extensionId)',
+      chromiumBackground:
+        "PANERELAY_EXTENSION_PLATFORM = 'chromium'\nnew ChromiumCdpAutomationAdapter(browserRuntime)",
+      extensionSharedBackground: 'extensionId: chrome.runtime.id',
+      firefoxBackground:
+        "PANERELAY_EXTENSION_PLATFORM = 'firefox'\nnew FirefoxWebDriverAutomationAdapter()",
       hostInstallation:
-        "allowed_origins: [`chrome-extension://${extensionId}/`]\nsetlocal DisableDelayedExpansion\n'reg.exe'",
-      protocolConstants: "export const PANERELAY_EXTENSION_ID = 'panplnkjlkoceaonlmpdekjphgmbggmi'",
+        "allowed_origins: [`chrome-extension://${extensionId}/`]\nallowed_extensions: [firefoxExtensionId]\nsetlocal DisableDelayedExpansion\n'reg.exe'",
+      protocolConstants:
+        "export const PANERELAY_EXTENSION_ID = 'panplnkjlkoceaonlmpdekjphgmbggmi'\nexport const PANERELAY_FIREFOX_EXTENSION_ID = 'panerelay@f-loat.dev'",
       qoderProvider: "spawn(command, ['--acp'])",
     },
     packageManifests,
@@ -129,9 +139,17 @@ test('keeps release publication manual, protected, and channel-scoped', () => {
     preparationAndPublication,
     /extension_archive[\s\S]+artifact_directory.*inventory\.json[\s\S]+artifact_directory.*SHA256SUMS/,
   );
-  assert.match(stableRelease, /awk -v archive="\$extension_archive"/);
-  assert.match(stableRelease, /test "\$\(wc -l < release-assets\/SHA256SUMS\.public\)" -eq 1/);
-  assert.match(stableRelease, /release-assets\/panerelay-extension-"\$RELEASE_VERSION"\.zip/);
+  assert.match(stableRelease, /chromium_archive="panerelay-extension-chromium-/);
+  assert.match(stableRelease, /firefox_archive="panerelay-extension-firefox-/);
+  assert.match(stableRelease, /test "\$\(wc -l < release-assets\/SHA256SUMS\.public\)" -eq 2/);
+  assert.match(
+    stableRelease,
+    /release-assets\/panerelay-extension-chromium-"\$RELEASE_VERSION"\.zip/,
+  );
+  assert.match(
+    stableRelease,
+    /release-assets\/panerelay-extension-firefox-"\$RELEASE_VERSION"\.zip/,
+  );
   assert.match(stableRelease, /release-assets\/SHA256SUMS/);
   assert.doesNotMatch(stableRelease, /release-assets\/inventory\.json/);
   assert.doesNotMatch(releaseWorkflow, /NPM_TOKEN|git push|git tag/);
@@ -154,8 +172,10 @@ test('keeps official installation guidance Store-first and version-neutral', () 
   }
   assert.doesNotMatch(englishQuickstart, /Panerelay Releases|chrome:\/\/extensions/);
   assert.doesNotMatch(chineseQuickstart, /Panerelay Releases|chrome:\/\/extensions/);
-  assert.match(rootReadme, /load `apps\/extension\/dist` as an unpacked Extension/);
-  assert.match(rootReadmeZhCn, /将 `apps\/extension\/dist` 加载为未打包扩展/);
+  assert.match(rootReadme, /load `apps\/extension\/dist\/chromium` in Chrome\/Edge/);
+  assert.match(rootReadme, /`apps\/extension\/dist\/firefox` in Firefox/);
+  assert.match(rootReadmeZhCn, /在 Chrome\/Edge 中加载 `apps\/extension\/dist\/chromium`/);
+  assert.match(rootReadmeZhCn, /在 Firefox 中加载 `apps\/extension\/dist\/firefox`/);
 });
 
 test('keeps selectable release preparation reviewable and non-publishing', () => {

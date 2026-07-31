@@ -4,11 +4,14 @@ import {
   PANERELAY_PROTOCOL_VERSION,
   classifyCdpMethod,
   classifyCdpTargetAccess,
+  normalizeAutomationCapability,
   type AutomationActivity,
   type AutomationActivityFailure,
   type AutomationActivityStatus,
   type BrowserRegistration,
   type CdpAttachedMessage,
+  type CdpRelaySessionCreated,
+  type WebDriverRelaySessionCreated,
   type CdpDetachedMessage,
   type CdpEventMessage,
   type CdpResultMessage,
@@ -16,16 +19,18 @@ import {
   type CdpTargetInfo,
   type CdpTargetOperation,
   type CdpTargetResultMessage,
+  type WebDriverAuthorizationChangedMessage,
   type ExtensionToHostMessage,
   type HostToExtensionMessage,
   type RelaySessionActor,
   type RelaySessionCreateRequest,
-  type RelaySessionCreated,
   type RelaySessionError,
   type ControlSessionChangedMessage,
   type ControlSessionState,
 } from '@panerelay/protocol';
 import WebSocket, { WebSocketServer } from 'ws';
+import type { FirefoxDriverManager, FirefoxDriverResponse } from './firefox-driver.js';
+import { FirefoxWebDriverRelay, type WebDriverRelayActivity } from './webdriver-relay.js';
 
 interface PendingExtensionResult<T> {
   resolve: (result: T) => void;
@@ -62,6 +67,7 @@ interface RelayParticipant {
   lastHeartbeatAt?: number;
   expiryTimer?: NodeJS.Timeout;
   clients: Set<WebSocket>;
+  transport: 'cdp' | 'webdriver';
 }
 
 interface ActiveControlLease {
@@ -121,6 +127,7 @@ class RelayHttpError extends Error {
 
 export interface BrowserRelayOptions {
   expectedExtensionId?: string;
+  expectedExtensionIds?: string[];
   sendToExtension: (message: HostToExtensionMessage) => void;
   onBrowserRegistered: (browser: BrowserRegistration) => void | Promise<void>;
   onBrowserDisconnected: () => void | Promise<void>;
@@ -128,6 +135,7 @@ export interface BrowserRelayOptions {
   sessionConnectTimeoutMs?: number;
   heartbeatIntervalMs?: number;
   heartbeatTimeoutMs?: number;
+  webdriverDriver?: FirefoxDriverManager;
 }
 
 export class BrowserRelay {
@@ -140,6 +148,7 @@ export class BrowserRelay {
   private readonly childSessions = new Map<string, ChildSession>();
   private readonly attachedTargets = new Set<string>();
   private readonly controlledTargets = new Set<string>();
+  private readonly webdriverControlledTargets = new Set<string>();
   private readonly attachPromises = new Map<string, Promise<void>>();
   private readonly pendingAttaches = new Map<string, PendingExtensionResult<CdpAttachedMessage>>();
   private readonly pendingTargetRequests = new Map<
@@ -161,6 +170,7 @@ export class BrowserRelay {
   private controlSequence = 0;
   private lastHeartbeatStatusAt = 0;
   private lastSessionMessage: ControlSessionChangedMessage | null = null;
+  private readonly webdriverRelay: FirefoxWebDriverRelay | null;
 
   private constructor(
     private readonly server: WebSocketServer,
@@ -169,6 +179,22 @@ export class BrowserRelay {
     port: number,
   ) {
     this.port = port;
+    this.webdriverRelay = options.webdriverDriver
+      ? new FirefoxWebDriverRelay({
+          driver: options.webdriverDriver,
+          onActivity: (activity, operation) => this.withWebDriverActivity(activity, operation),
+          onConnected: (participantId, targetId) =>
+            this.handleWebDriverParticipantConnected(participantId, targetId),
+          onMappingsChanged: targetIds => {
+            for (const targetId of [...this.webdriverControlledTargets]) {
+              if (!targetIds.has(targetId)) this.webdriverControlledTargets.delete(targetId);
+            }
+            if (this.activeLease?.participants.size) this.emitCurrentSessionState();
+          },
+          onReleased: (participantId, reason) =>
+            this.releaseParticipant(participantId, reason, 1000, 'released'),
+        })
+      : null;
     this.server.on('connection', (client, request) => this.handleConnection(client, request));
     this.httpServer.on('request', (request, response) => {
       void this.handleHttpRequest(request, response).catch(error => {
@@ -204,10 +230,16 @@ export class BrowserRelay {
 
   async handleExtensionMessage(message: ExtensionToHostMessage): Promise<void> {
     switch (message.type) {
-      case 'browser.register':
+      case 'browser.register': {
+        const previousAutomation = this.browser
+          ? normalizeAutomationCapability(this.browser.capabilities)
+          : undefined;
+        const expectedExtensionIds =
+          this.options.expectedExtensionIds ??
+          (this.options.expectedExtensionId ? [this.options.expectedExtensionId] : []);
         if (
-          this.options.expectedExtensionId &&
-          message.extensionId !== this.options.expectedExtensionId
+          expectedExtensionIds.length > 0 &&
+          !expectedExtensionIds.includes(message.extensionId)
         ) {
           throw new Error(
             `Extension ID ${message.extensionId} does not match the configured Panerelay Extension ID`,
@@ -218,7 +250,21 @@ export class BrowserRelay {
           browserName: message.browserName,
           extensionId: message.extensionId,
           extensionVersion: message.extensionVersion,
+          ...(message.browserFamily ? { browserFamily: message.browserFamily } : {}),
+          ...(message.capabilities ? { capabilities: message.capabilities } : {}),
         };
+        const nextAutomation = normalizeAutomationCapability(this.browser.capabilities);
+        if (
+          previousAutomation?.ready &&
+          (!nextAutomation.ready || nextAutomation.transport !== previousAutomation.transport)
+        ) {
+          this.revokeActiveLease(
+            'Browser automation transport became unavailable',
+            1011,
+            false,
+            'failed',
+          );
+        }
         await this.options.onBrowserRegistered(this.browser);
         this.options.sendToExtension({
           type: 'browser.registered',
@@ -226,6 +272,16 @@ export class BrowserRelay {
           browserId: message.browserId,
         });
         this.sendControlSnapshot();
+        return;
+      }
+      case 'webdriver.authorization.changed':
+        this.handleWebDriverAuthorizationChanged(message);
+        return;
+      case 'webdriver.rendezvous.result':
+        this.webdriverRelay?.handleRendezvousResult(message);
+        return;
+      case 'webdriver.target.invalidated':
+        this.webdriverRelay?.invalidateTarget(message);
         return;
       case 'cdp.target.result':
         this.resolveTargetRequest(message);
@@ -250,11 +306,48 @@ export class BrowserRelay {
 
   async close(reason = 'Bridge shutting down'): Promise<void> {
     this.revokeActiveLease(reason, 1012, true, 'failed');
+    this.webdriverRelay?.revokeAll(reason);
     this.rejectExtensionRequests(new Error(reason));
     await new Promise<void>(resolve => this.server.close(() => resolve()));
     await new Promise<void>(resolve => this.httpServer.close(() => resolve()));
     this.browser = null;
     await this.options.onBrowserDisconnected();
+  }
+
+  handleWebDriverUnavailable(reason: string): void {
+    this.webdriverRelay?.revokeAll(reason);
+    this.revokeActiveLease(reason, 1011, false, 'failed');
+  }
+
+  private handleWebDriverAuthorizationChanged(message: WebDriverAuthorizationChangedMessage): void {
+    this.webdriverRelay?.setAuthorizationMode(message.mode);
+    if (message.mode === 'none') {
+      this.revokeActiveLease(
+        'Firefox automation authorization was released',
+        1008,
+        false,
+        'released',
+      );
+    }
+  }
+
+  private handleWebDriverParticipantConnected(participantId: string, targetId: string): void {
+    const lease = this.activeLease;
+    const participant = lease?.participants.get(participantId);
+    if (!lease || !participant || participant.transport !== 'webdriver') return;
+    const now = Date.now();
+    participant.connectedAt ??= now;
+    participant.lastHeartbeatAt = now;
+    this.clearParticipantExpiry(participant);
+    this.startHeartbeat();
+    lease.activeParticipantId = participant.id;
+    lease.actor = participant.actor;
+    this.webdriverControlledTargets.add(targetId);
+    this.emitCurrentSessionState(
+      'active',
+      this.controlledTargets.size + this.webdriverControlledTargets.size,
+      this.attachedTargets.size - this.controlledTargets.size,
+    );
   }
 
   private handleConnection(client: WebSocket, request: IncomingMessage): void {
@@ -333,6 +426,9 @@ export class BrowserRelay {
     request: IncomingMessage,
     response: ServerResponse,
   ): Promise<void> {
+    if (this.webdriverRelay && (await this.webdriverRelay.handleHttpRequest(request, response))) {
+      return;
+    }
     if (!this.isAuthorizedBootstrapRequest(request)) {
       this.sendJson(response, 401, {
         protocol: PANERELAY_PROTOCOL_VERSION,
@@ -381,6 +477,21 @@ export class BrowserRelay {
       });
       return;
     }
+    const automation = normalizeAutomationCapability(this.browser.capabilities);
+    if (!automation.ready || automation.transport === 'none') {
+      this.sendJson(response, 409, {
+        protocol: PANERELAY_PROTOCOL_VERSION,
+        error: `${this.browser.browserName} has not made a Panerelay browser automation transport ready`,
+      });
+      return;
+    }
+    if (automation.transport === 'webdriver' && !this.webdriverRelay) {
+      this.sendJson(response, 503, {
+        protocol: PANERELAY_PROTOCOL_VERSION,
+        error: `${this.browser.browserName} requires the Panerelay WebDriver relay, which is not ready in this Bridge build`,
+      });
+      return;
+    }
     if ((this.activeLease?.participants.size ?? 0) >= MAX_LEASE_PARTICIPANTS) {
       this.sendJson(response, 429, {
         protocol: PANERELAY_PROTOCOL_VERSION,
@@ -406,7 +517,24 @@ export class BrowserRelay {
       actor: payload.actor,
       connectExpiresAt,
       clients: new Set(),
+      transport: automation.transport,
     };
+    let webdriverSession: { targetId: string; virtualSessionId: string } | undefined;
+    if (automation.transport === 'webdriver') {
+      try {
+        webdriverSession = await this.webdriverRelay!.createParticipant(
+          participant.id,
+          participant.token,
+          participant.actor,
+        );
+      } catch (error) {
+        this.sendJson(response, 409, {
+          protocol: PANERELAY_PROTOCOL_VERSION,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        return;
+      }
+    }
     if (!this.activeLease) {
       this.activeLease = {
         id: randomUUID(),
@@ -424,12 +552,24 @@ export class BrowserRelay {
       this.clients.size > 0 || this.attachedTargets.size > 0 ? undefined : 'allocated',
     );
 
-    const result: RelaySessionCreated = {
-      protocol: PANERELAY_PROTOCOL_VERSION,
-      sessionId: participant.id,
-      cdpUrl: `ws://127.0.0.1:${this.port}/cdp?session=${encodeURIComponent(participant.id)}&token=${encodeURIComponent(participant.token)}`,
-      connectExpiresAt: new Date(connectExpiresAt).toISOString(),
-    };
+    const result: CdpRelaySessionCreated | WebDriverRelaySessionCreated =
+      automation.transport === 'webdriver'
+        ? {
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            sessionId: participant.id,
+            transport: 'webdriver',
+            webdriverUrl: `http://127.0.0.1:${this.port}/webdriver/${encodeURIComponent(participant.id)}/${encodeURIComponent(participant.token)}`,
+            webdriverSessionId: webdriverSession!.virtualSessionId,
+            heartbeatIntervalMs: this.options.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS,
+            connectExpiresAt: new Date(connectExpiresAt).toISOString(),
+          }
+        : {
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            sessionId: participant.id,
+            transport: 'cdp',
+            cdpUrl: `ws://127.0.0.1:${this.port}/cdp?session=${encodeURIComponent(participant.id)}&token=${encodeURIComponent(participant.token)}`,
+            connectExpiresAt: new Date(connectExpiresAt).toISOString(),
+          };
     this.sendJson(response, 201, result);
   }
 
@@ -474,7 +614,7 @@ export class BrowserRelay {
   private sendJson(
     response: ServerResponse,
     status: number,
-    body: RelaySessionCreated | RelaySessionError,
+    body: CdpRelaySessionCreated | WebDriverRelaySessionCreated | RelaySessionError,
   ): void {
     if (response.headersSent || response.destroyed) return;
     response.writeHead(status, {
@@ -509,7 +649,14 @@ export class BrowserRelay {
   }
 
   private startHeartbeat(): void {
-    if (this.heartbeatTimer || this.clients.size === 0) return;
+    if (
+      this.heartbeatTimer ||
+      ![...(this.activeLease?.participants.values() ?? [])].some(
+        participant => participant.connectedAt !== undefined,
+      )
+    ) {
+      return;
+    }
     const intervalMs = this.options.heartbeatIntervalMs ?? DEFAULT_HEARTBEAT_INTERVAL_MS;
     this.heartbeatTimer = setInterval(() => this.checkHeartbeat(), intervalMs);
     this.heartbeatTimer.unref();
@@ -523,7 +670,10 @@ export class BrowserRelay {
 
   private checkHeartbeat(): void {
     const lease = this.activeLease;
-    if (!lease || this.clients.size === 0) {
+    if (
+      !lease ||
+      ![...lease.participants.values()].some(participant => participant.connectedAt !== undefined)
+    ) {
       this.clearHeartbeatTimer();
       return;
     }
@@ -532,6 +682,22 @@ export class BrowserRelay {
     const timeoutMs = this.options.heartbeatTimeoutMs ?? DEFAULT_HEARTBEAT_TIMEOUT_MS;
     for (const participant of [...lease.participants.values()]) {
       if (
+        participant.transport === 'webdriver' &&
+        participant.lastHeartbeatAt !== undefined &&
+        now - participant.lastHeartbeatAt > timeoutMs
+      ) {
+        this.releaseParticipant(
+          participant.id,
+          lease.participants.size === 1
+            ? 'Automation lease heartbeat expired'
+            : 'Automation participant heartbeat expired',
+          1011,
+          'expired',
+        );
+        continue;
+      }
+      if (
+        participant.transport === 'cdp' &&
         participant.clients.size > 0 &&
         ![...participant.clients].some(client => {
           const state = this.clients.get(client);
@@ -1431,6 +1597,9 @@ export class BrowserRelay {
 
     this.clearParticipantExpiry(participant);
     lease.participants.delete(participant.id);
+    if (participant.transport === 'webdriver') {
+      this.webdriverRelay?.releaseParticipant(participant.id, reason);
+    }
     if (lease.participants.size === 0) {
       this.revokeActiveLease(reason, closeCode, true, terminalState);
       return;
@@ -1459,7 +1628,7 @@ export class BrowserRelay {
   ): void {
     const lease = this.activeLease;
     if (!lease) return;
-    const hadTargets = this.attachedTargets.size > 0 || this.targets.size > 0;
+    const hadCdpTargets = this.attachedTargets.size > 0 || this.targets.size > 0;
     this.failOutstandingActivities('session-ended');
     for (const participant of lease.participants.values()) {
       this.clearParticipantExpiry(participant);
@@ -1492,10 +1661,12 @@ export class BrowserRelay {
     this.targets.clear();
     this.attachedTargets.clear();
     this.controlledTargets.clear();
+    this.webdriverControlledTargets.clear();
+    this.webdriverRelay?.revokeAll(reason);
     this.attachPromises.clear();
     this.rejectExtensionRequests(new Error(reason));
 
-    if (notifyExtension && hadTargets) {
+    if (notifyExtension && hadCdpTargets) {
       this.options.sendToExtension({
         type: 'cdp.detach',
         protocol: PANERELAY_PROTOCOL_VERSION,
@@ -1610,6 +1781,50 @@ export class BrowserRelay {
     this.storeAndEmitActivity(activity);
   }
 
+  private async withWebDriverActivity(
+    source: WebDriverRelayActivity,
+    operation: () => Promise<FirefoxDriverResponse>,
+  ): Promise<FirefoxDriverResponse> {
+    const lease = this.activeLease;
+    const participant = lease?.participants.get(source.participantId);
+    if (!lease || !participant || participant.transport !== 'webdriver') {
+      throw new Error('Firefox automation participant is no longer active');
+    }
+    const classification =
+      source.category === 'navigation'
+        ? { category: 'navigation' as const, label: 'navigate-page' as const }
+        : source.category === 'input'
+          ? { category: 'interaction' as const, label: 'interact-with-page' as const }
+          : source.category === 'screenshot'
+            ? { category: 'artifact' as const, label: 'create-artifact' as const }
+            : { category: 'page-content' as const, label: 'read-page' as const };
+    const now = new Date().toISOString();
+    const activity: AutomationActivity = {
+      id: randomUUID(),
+      sessionId: lease.id,
+      actor: { ...source.actor },
+      targetId: source.targetId,
+      ...classification,
+      status: 'started',
+      sequence: this.nextControlSequence(),
+      startedAt: now,
+      updatedAt: now,
+    };
+    this.storeAndEmitActivity(activity);
+    try {
+      const result = await operation();
+      this.finishActivity(
+        activity.id,
+        result.status >= 400 ? 'failed' : 'completed',
+        result.status >= 400 ? 'browser-error' : undefined,
+      );
+      return result;
+    } catch (error) {
+      this.finishActivity(activity.id, 'failed', 'transport-error');
+      throw error;
+    }
+  }
+
   private finishClientActivity(
     client: WebSocket,
     cdpId: number,
@@ -1677,7 +1892,7 @@ export class BrowserRelay {
 
   private emitCurrentSessionState(
     state?: ControlSessionState,
-    controlledTargetCount = this.controlledTargets.size,
+    controlledTargetCount = this.controlledTargets.size + this.webdriverControlledTargets.size,
     observedTargetCount = this.attachedTargets.size - this.controlledTargets.size,
   ): void {
     const lease = this.activeLease;

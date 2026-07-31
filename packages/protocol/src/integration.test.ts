@@ -4,6 +4,7 @@ import {
   PANERELAY_PROTOCOL_VERSION,
   isExtensionToHostMessage,
   isHostToExtensionMessage,
+  normalizeAutomationCapability,
   type IntegrationRequestMessage,
   type IntegrationResponseMessage,
   type AgentRequestMessage,
@@ -18,6 +19,137 @@ test('accepts correlated integration requests from the Extension', () => {
   };
 
   assert.equal(isExtensionToHostMessage(request), true);
+});
+
+test('accepts browser capability registration and rejects malformed capability values', () => {
+  assert.equal(
+    isExtensionToHostMessage({
+      type: 'browser.register',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      browserId: 'browser-1',
+      browserName: 'Microsoft Edge',
+      browserFamily: 'edge',
+      capabilities: { cdpRelay: true },
+      extensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
+      extensionVersion: '0.2.0',
+    }),
+    true,
+  );
+  assert.equal(
+    isExtensionToHostMessage({
+      type: 'browser.register',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      browserId: 'browser-1',
+      browserName: 'Firefox',
+      browserFamily: 'firefox',
+      capabilities: { cdpRelay: 'no' },
+      extensionId: 'panerelay@panerelay.dev',
+      extensionVersion: '0.2.0',
+    }),
+    false,
+  );
+  assert.equal(
+    isExtensionToHostMessage({
+      type: 'browser.register',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      browserId: 'browser-2',
+      browserName: 'Firefox',
+      browserFamily: 'firefox',
+      capabilities: { automation: { transport: 'webdriver', ready: true } },
+      extensionId: 'panerelay@panerelay.dev',
+      extensionVersion: '0.2.0',
+    }),
+    true,
+  );
+  assert.equal(
+    isExtensionToHostMessage({
+      type: 'browser.register',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      browserId: 'browser-2',
+      browserName: 'Firefox',
+      browserFamily: 'firefox',
+      capabilities: { automation: { transport: 'cdp', ready: 'yes' } },
+      extensionId: 'panerelay@panerelay.dev',
+      extensionVersion: '0.2.0',
+    }),
+    false,
+  );
+  assert.equal(
+    isExtensionToHostMessage({
+      type: 'browser.register',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      browserId: 'browser-2',
+      browserName: 'Firefox',
+      browserFamily: 'firefox',
+      capabilities: { automation: { transport: 'none', ready: true } },
+      extensionId: 'panerelay@panerelay.dev',
+      extensionVersion: '0.2.0',
+    }),
+    false,
+  );
+});
+
+test('normalizes legacy and explicit browser automation transports', () => {
+  assert.deepEqual(normalizeAutomationCapability(), { transport: 'cdp', ready: true });
+  assert.deepEqual(normalizeAutomationCapability({ cdpRelay: true }), {
+    transport: 'cdp',
+    ready: true,
+  });
+  assert.deepEqual(normalizeAutomationCapability({ cdpRelay: false }), {
+    transport: 'none',
+    ready: false,
+  });
+  assert.deepEqual(
+    normalizeAutomationCapability({
+      cdpRelay: false,
+      automation: { transport: 'webdriver', ready: true },
+    }),
+    { transport: 'webdriver', ready: true },
+  );
+});
+
+test('accepts bounded Firefox WebDriver readiness and rendezvous messages', () => {
+  assert.equal(
+    isHostToExtensionMessage({
+      type: 'webdriver.readiness',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      ready: true,
+      reason: 'ready',
+      message: 'Firefox WebDriver automation is ready',
+    }),
+    true,
+  );
+  assert.equal(
+    isExtensionToHostMessage({
+      type: 'webdriver.authorization.changed',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      mode: 'single-tab',
+    }),
+    true,
+  );
+  assert.equal(
+    isExtensionToHostMessage({
+      type: 'webdriver.rendezvous.result',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      requestId: 'request-1',
+      challenge: 'challenge-value-1234',
+      success: true,
+      targetId: 'opaque-target',
+      documentId: 'opaque-document',
+      active: true,
+    }),
+    true,
+  );
+  assert.equal(
+    isExtensionToHostMessage({
+      type: 'webdriver.target.invalidated',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      targetId: 'opaque-target',
+      documentId: 'opaque-document',
+      reason: 'navigation',
+    }),
+    true,
+  );
 });
 
 test('accepts conversation start context without a raw tab identifier', () => {

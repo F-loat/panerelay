@@ -9,9 +9,11 @@ import {
   parseWindowsRegistryString,
   registerWindowsNativeHost,
   resolveEffectiveExtensionId,
+  resolveEffectiveFirefoxExtensionId,
   resolveNativeHostInstallationPaths,
   uninstallNativeHost,
   validateExtensionId,
+  validateFirefoxExtensionId,
   windowsLauncherContent,
   windowsNativeHostRegistryKey,
 } from './host-installation.js';
@@ -19,6 +21,7 @@ import type { CommandRunner } from './platform.js';
 
 const officialExtensionId = 'panplnkjlkoceaonlmpdekjphgmbggmi';
 const customExtensionId = 'abcdefghijklmnopabcdefghijklmnop';
+const firefoxExtensionId = 'panerelay-test@example.com';
 
 test('fails clearly on unsupported Native Messaging platforms', () => {
   assert.throws(
@@ -38,6 +41,26 @@ test('validates and resolves Extension ID precedence', () => {
     }),
     customExtensionId,
   );
+  assert.equal(validateFirefoxExtensionId(firefoxExtensionId), firefoxExtensionId);
+  assert.equal(validateFirefoxExtensionId('@addon-example'), '@addon-example');
+  assert.throws(() => validateFirefoxExtensionId('bad id/'), /Firefox Extension ID/);
+  assert.throws(() => validateFirefoxExtensionId('plain-id'), /Firefox Extension ID/);
+  assert.throws(
+    () => validateFirefoxExtensionId(`${'a'.repeat(72)}@example.com`),
+    /at most 80 characters/,
+  );
+  assert.equal(
+    validateFirefoxExtensionId('{daf44bf7-a45e-4450-979c-91cf07434c3d}'),
+    '{daf44bf7-a45e-4450-979c-91cf07434c3d}',
+  );
+  assert.equal(
+    resolveEffectiveFirefoxExtensionId({
+      environment: { PANERELAY_FIREFOX_EXTENSION_ID: 'environment@example.com' },
+      firefoxExtensionId,
+      persistedFirefoxExtensionId: 'persisted@example.com',
+    }),
+    firefoxExtensionId,
+  );
   assert.equal(
     resolveEffectiveExtensionId({
       environment: {},
@@ -54,13 +77,17 @@ test('installs and removes an isolated Native Messaging host', async () => {
   const bundledHostPath = join(root, 'native-host.bundle.cjs');
   await mkdir(binDirectory, { recursive: true });
   await writeFile(bundledHostPath, '#!/usr/bin/env node\nprocess.stdout.write("ready");\n');
-  for (const executable of ['agent-browser', 'codex']) {
+  for (const executable of ['agent-browser', 'codex', 'firefox', 'geckodriver']) {
     const path = join(binDirectory, executable);
     await writeFile(
       path,
       executable === 'agent-browser'
         ? '#!/bin/sh\necho "agent-browser 0.33.0"\n'
-        : '#!/bin/sh\nexit 0\n',
+        : executable === 'firefox'
+          ? '#!/bin/sh\necho "Mozilla Firefox 141.0.0"\n'
+          : executable === 'geckodriver'
+            ? '#!/bin/sh\necho "geckodriver 0.36.0"\n'
+            : '#!/bin/sh\nexit 0\n',
     );
     await chmod(path, 0o755);
   }
@@ -70,6 +97,7 @@ test('installs and removes an isolated Native Messaging host', async () => {
       bundledHostPath,
       environment: { PATH: binDirectory },
       extensionId: customExtensionId,
+      firefoxExtensionId,
       homeDirectory,
       nodePath: '/test/node',
       platform: 'linux',
@@ -79,6 +107,12 @@ test('installs and removes an isolated Native Messaging host', async () => {
     assert.equal(result.agentBrowserSupported, true);
     assert.equal(result.agentBrowserVersion, '0.33.0');
     assert.equal(result.codexPath, join(binDirectory, 'codex'));
+    assert.equal(result.firefoxExtensionId, firefoxExtensionId);
+    assert.equal(result.firefoxPath, join(binDirectory, 'firefox'));
+    assert.equal(result.firefoxVersion, '141.0.0');
+    assert.equal(result.geckodriverPath, join(binDirectory, 'geckodriver'));
+    assert.equal(result.geckodriverVersion, '0.36.0');
+    assert.equal(result.firefoxAutomationReady, true);
     assert.equal(result.launchPath, result.hostPath);
     assert.match(await readFile(result.hostPath, 'utf8'), /^#!\/test\/node\n/);
     assert.equal((await stat(result.hostPath)).mode & 0o777, 0o755);
@@ -89,21 +123,25 @@ test('installs and removes an isolated Native Messaging host', async () => {
       agentBrowserVersion: string;
       codexPath: string;
       extensionId: string;
+      firefoxExtensionId: string;
     };
-    assert.deepEqual(runtime, {
-      extensionId: customExtensionId,
-      agentBrowserConfigPath: result.agentBrowserConfigPath,
-      agentBrowserPath: result.agentBrowserPath,
-      agentBrowserVersion: '0.33.0',
-      codexPath: result.codexPath,
-    });
+    assert.equal(runtime.extensionId, customExtensionId);
+    assert.equal(runtime.firefoxExtensionId, firefoxExtensionId);
+    assert.equal(runtime.agentBrowserConfigPath, result.agentBrowserConfigPath);
+    assert.equal(runtime.agentBrowserPath, result.agentBrowserPath);
+    assert.equal(runtime.agentBrowserVersion, '0.33.0');
+    assert.equal(runtime.codexPath, result.codexPath);
+    assert.equal((runtime as Record<string, unknown>).firefoxPath, result.firefoxPath);
+    assert.equal((runtime as Record<string, unknown>).geckodriverPath, result.geckodriverPath);
+    assert.equal(typeof (runtime as Record<string, unknown>).firefoxManagedToken, 'string');
+    assert.match(await readFile(result.firefoxLauncherPath, 'utf8'), /--launch-firefox/);
     const privateConfig = JSON.parse(await readFile(result.agentBrowserConfigPath, 'utf8')) as {
       plugins: Array<{ command: string; name: string }>;
     };
     assert.equal(privateConfig.plugins[0]?.name, 'panerelay');
     assert.equal(privateConfig.plugins[0]?.command, result.launchPath);
 
-    for (const manifestPath of result.manifestPaths) {
+    for (const manifestPath of result.chromiumManifestPaths) {
       const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as {
         allowed_origins: string[];
         path: string;
@@ -111,11 +149,20 @@ test('installs and removes an isolated Native Messaging host', async () => {
       assert.equal(manifest.path, result.launchPath);
       assert.deepEqual(manifest.allowed_origins, [`chrome-extension://${customExtensionId}/`]);
     }
+    for (const manifestPath of result.firefoxManifestPaths) {
+      const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as {
+        allowed_extensions: string[];
+        path: string;
+      };
+      assert.equal(manifest.path, result.launchPath);
+      assert.deepEqual(manifest.allowed_extensions, [firefoxExtensionId]);
+    }
 
     await uninstallNativeHost({ homeDirectory, platform: 'linux' });
     const paths = resolveNativeHostInstallationPaths({ homeDirectory, platform: 'linux' });
     await assert.rejects(readFile(paths.hostPath), { code: 'ENOENT' });
     await assert.rejects(readFile(paths.runtimeConfigPath), { code: 'ENOENT' });
+    await assert.rejects(readFile(paths.firefoxLauncherPath), { code: 'ENOENT' });
     for (const manifestPath of paths.manifestPaths) {
       await assert.rejects(readFile(manifestPath), { code: 'ENOENT' });
     }
@@ -221,6 +268,8 @@ test('installs, updates, and repeatedly uninstalls isolated Windows artifacts', 
     };
     assert.equal(privateConfig.plugins[0]?.command, first.launchPath);
 
+    await mkdir(dirname(first.legacyManifestPaths[0]!), { recursive: true });
+    await writeFile(first.legacyManifestPaths[0]!, '{}');
     const updated = await installNativeHost({
       bundledHostPath,
       dataDirectory,
@@ -238,14 +287,26 @@ test('installs, updates, and repeatedly uninstalls isolated Windows artifacts', 
       registryRunner,
     });
     assert.equal(updated.extensionId, customExtensionId);
+    await assert.rejects(readFile(first.legacyManifestPaths[0]!), { code: 'ENOENT' });
 
     await uninstallNativeHost({ dataDirectory, platform: 'win32', registryRunner });
     await uninstallNativeHost({ dataDirectory, platform: 'win32', registryRunner });
     await assert.rejects(readFile(first.hostPath), { code: 'ENOENT' });
     await assert.rejects(readFile(first.launchPath), { code: 'ENOENT' });
     await assert.rejects(readFile(first.manifestPaths[0]!), { code: 'ENOENT' });
-    assert.equal(registryCalls.filter(call => call.args[0] === 'add').length, 2);
-    assert.equal(registryCalls.filter(call => call.args[0] === 'delete').length, 2);
+    await assert.rejects(readFile(first.legacyManifestPaths[0]!), { code: 'ENOENT' });
+    assert.equal(registryCalls.filter(call => call.args[0] === 'add').length, 6);
+    assert.equal(registryCalls.filter(call => call.args[0] === 'delete').length, 6);
+    assert.ok(
+      registryCalls.some(call =>
+        call.args.includes(windowsNativeHostRegistryKey(undefined, 'edge')),
+      ),
+    );
+    assert.ok(
+      registryCalls.some(call =>
+        call.args.includes(windowsNativeHostRegistryKey(undefined, 'firefox')),
+      ),
+    );
   } finally {
     await rm(root, { force: true, recursive: true });
   }

@@ -1,6 +1,7 @@
 import type {
   AgentProviderSummary,
   AutomationActivity,
+  BrowserFamily,
   ConversationApprovalDecision,
   ConversationDetail,
   ConversationEvent,
@@ -45,6 +46,9 @@ export interface ExtensionStatus {
   controlSession: ControlSessionSummary | null;
   automationActivities: AutomationActivity[];
   automationHistoryGap: boolean;
+  automationAvailable?: boolean;
+  automationMessage?: string;
+  browserFamily?: BrowserFamily;
   error?: string;
 }
 
@@ -84,7 +88,7 @@ export type SidePanelRequest =
   | { type: 'panerelay.page-comments.edit'; commentId: string }
   | { type: 'panerelay.page-comments.remove'; commentId: string }
   | { type: 'panerelay.page-comments.clear' }
-  | { type: 'panerelay.conversation.list'; providerId: string }
+  | { type: 'panerelay.conversation.list'; providerId: string; cwd?: string }
   | {
       type: 'panerelay.conversation.resume';
       providerId: string;

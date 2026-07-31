@@ -15,6 +15,7 @@ const VERSION_METADATA_PATHS = [
   ...PACKAGE_DEFINITIONS.map(definition => `${definition.directory}/package.json`),
   'apps/extension/package.json',
   'apps/extension/manifest.json',
+  'apps/extension/manifest.firefox.json',
   'release.config.json',
 ];
 
@@ -77,11 +78,16 @@ async function applyBetaIdentity(root, identity) {
     await writeFile(join(root, relativePath), serializeJson(manifest), 'utf8');
   }
 
-  const extensionManifestPath = join(root, 'apps/extension/manifest.json');
-  const extensionManifest = await readJson(extensionManifestPath);
-  extensionManifest.version = identity.extensionVersion;
-  extensionManifest.version_name = identity.version;
-  await writeFile(extensionManifestPath, serializeJson(extensionManifest), 'utf8');
+  for (const relativePath of [
+    'apps/extension/manifest.json',
+    'apps/extension/manifest.firefox.json',
+  ]) {
+    const extensionManifestPath = join(root, relativePath);
+    const extensionManifest = await readJson(extensionManifestPath);
+    extensionManifest.version = identity.extensionVersion;
+    extensionManifest.version_name = identity.version;
+    await writeFile(extensionManifestPath, serializeJson(extensionManifest), 'utf8');
+  }
 
   const descriptorPath = join(root, 'release.config.json');
   const descriptor = await readJson(descriptorPath);
@@ -146,12 +152,23 @@ export async function prepareReleaseChannel({
   if (statusAfter !== statusBefore) {
     throw new Error('Release channel preparation did not restore the source tree');
   }
-  const extensionArtifact = inventory.artifacts.find(artifact => artifact.type === 'extension');
-  if (!extensionArtifact) throw new Error('Release candidate has no Extension archive');
+  const chromiumExtensionArtifact = inventory.artifacts.find(
+    artifact => artifact.type === 'extension-chromium' || artifact.type === 'extension',
+  );
+  const firefoxExtensionArtifact = inventory.artifacts.find(
+    artifact => artifact.type === 'extension-firefox',
+  );
+  if (!chromiumExtensionArtifact || !firefoxExtensionArtifact) {
+    throw new Error('Release candidate does not contain both Extension archives');
+  }
   return {
     artifactDirectory: relative(root, candidateDirectory),
     channel,
-    extensionArchive: relative(root, join(candidateDirectory, extensionArtifact.file)),
+    extensionArchive: relative(root, join(candidateDirectory, chromiumExtensionArtifact.file)),
+    firefoxExtensionArchive: relative(
+      root,
+      join(candidateDirectory, firefoxExtensionArtifact.file),
+    ),
     inventory,
     npmTag: channel === 'stable' ? 'latest' : 'beta',
     releaseTag: channel === 'stable' ? `v${identity.version}` : '',

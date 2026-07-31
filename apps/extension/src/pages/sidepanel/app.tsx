@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import type { AuthorizationMode } from '../../shared/messages.js';
+import { panelPlatform } from 'virtual:panerelay-panel-platform';
 import {
   formatForState,
   selectedAgentName,
@@ -221,6 +222,7 @@ function AppHeader({ controller }: HeaderProps) {
   const providerDisabled = state.initializing;
   const conversationDisabled =
     state.initializing || state.loadingConversation || provider?.status !== 'ready';
+  const automationAvailable = state.extensionStatus?.automationAvailable !== false;
 
   useEffect(() => {
     if (!state.historyOpen) return;
@@ -309,12 +311,16 @@ function AppHeader({ controller }: HeaderProps) {
         <button
           aria-controls="settings-popover"
           aria-expanded={state.settingsOpen}
-          aria-label={`${t('browserAccess')}: ${authorization.target}`}
+          aria-label={
+            automationAvailable ? `${t('browserAccess')}: ${authorization.target}` : t('settings')
+          }
           className="icon-button access-button"
-          data-authorized={authorization.mode !== 'none'}
-          data-controlled={Boolean(state.extensionStatus?.controlledTab)}
+          data-authorized={automationAvailable && authorization.mode !== 'none'}
+          data-controlled={automationAvailable && Boolean(state.extensionStatus?.controlledTab)}
           onClick={() => controller.setSettingsOpen(!state.settingsOpen)}
-          title={`${t('browserAccess')}: ${authorization.target}`}
+          title={
+            automationAvailable ? `${t('browserAccess')}: ${authorization.target}` : t('settings')
+          }
           type="button"
         >
           <PanelTop aria-hidden="true" />
@@ -410,6 +416,7 @@ function AuthorizationRequestNotice({ controller }: { controller: SidepanelContr
   const { state } = controller;
   const { t } = useCopy(state);
   if (
+    state.extensionStatus?.automationAvailable === false ||
     state.extensionStatus?.authorizationRequest !== 'all-tabs' ||
     state.extensionStatus.authorizationMode === 'all-tabs'
   ) {
@@ -429,6 +436,23 @@ function AuthorizationRequestNotice({ controller }: { controller: SidepanelContr
       >
         {t('authorizeAllTabs')}
       </button>
+    </section>
+  );
+}
+
+function AutomationUnavailableNotice({ controller }: { controller: SidepanelController }) {
+  const { state } = controller;
+  const { t } = useCopy(state);
+  if (state.extensionStatus?.automationAvailable !== false) return null;
+  return (
+    <section className="authorization-request" role="status">
+      <CircleAlert aria-hidden="true" />
+      <span>
+        <strong>{t('firefoxAutomationUnavailableTitle')}</strong>
+        <small>
+          {state.extensionStatus.automationMessage || t('firefoxAutomationUnavailableBody')}
+        </small>
+      </span>
     </section>
   );
 }
@@ -760,9 +784,14 @@ function SettingsPopover({
           />
         </span>
       </div>
-      <DefaultProviderSetting controller={controller} />
-      <AuthorizationPanel controller={controller} />
-      <ExternalControl controller={controller} />
+      {state.extensionStatus?.automationAvailable !== false && (
+        <>
+          <DefaultProviderSetting controller={controller} />
+          <AuthorizationPanel controller={controller} />
+          <ExternalControl controller={controller} />
+        </>
+      )}
+      <AutomationUnavailableNotice controller={controller} />
     </aside>
   );
 }
@@ -1204,7 +1233,11 @@ function Welcome({ controller }: { controller: SidepanelController }) {
       ? provider
         ? t(provider.id === 'qoder' ? 'qoderSetupBody' : 'codexSetupBody')
         : t('emptyProviderBody')
-      : t('emptyBody');
+      : t(
+          state.extensionStatus?.automationAvailable === false
+            ? 'emptyBodyNoAutomation'
+            : 'emptyBody',
+        );
   const docsUrl = setup?.docsUrl?.startsWith('https://') ? setup.docsUrl : '';
   const suggestions = [
     {
@@ -1259,7 +1292,7 @@ function Welcome({ controller }: { controller: SidepanelController }) {
           )}
         </div>
       )}
-      {providerReady && (
+      {providerReady && state.extensionStatus?.automationAvailable !== false && (
         <div className="suggestions">
           {suggestions.map(suggestion => {
             const Icon = suggestion.icon;
@@ -1545,7 +1578,12 @@ export function SidepanelApp({ client = browserSidepanelClient }: AppProps) {
   }, [controller, state.settingsOpen]);
 
   return (
-    <div className="app-shell relative grid h-screen grid-rows-[auto_1fr_auto_auto] bg-panel-bg text-panel-text">
+    <div
+      className="app-shell relative grid h-screen grid-rows-[auto_1fr_auto_auto] bg-panel-bg text-panel-text"
+      data-automation-transport={panelPlatform.automationTransport}
+      data-browser-platform={panelPlatform.browser}
+      data-panel-surface={panelPlatform.surface}
+    >
       <AppHeader controller={controller} />
       {state.settingsOpen && <SettingsPopover controller={controller} popoverRef={settingsRef} />}
       <main
@@ -1553,6 +1591,7 @@ export function SidepanelApp({ client = browserSidepanelClient }: AppProps) {
         ref={scrollRef}
       >
         <AuthorizationRequestNotice controller={controller} />
+        <AutomationUnavailableNotice controller={controller} />
         <ProviderPreparationNotice controller={controller} />
         {state.initializing ? (
           <div

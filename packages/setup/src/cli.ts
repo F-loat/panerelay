@@ -17,6 +17,7 @@ export type SetupOperation = 'setup' | 'doctor' | 'uninstall';
 
 export interface ParsedSetupArgs {
   extensionId?: string;
+  firefoxExtensionId?: string;
   globalProvider: boolean;
   help: boolean;
   json: boolean;
@@ -92,6 +93,7 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
   let json = false;
   let yes = false;
   let extensionId: string | undefined;
+  let firefoxExtensionId: string | undefined;
   const optionStart = command === localized.argv[0] ? 1 : 0;
   for (let index = optionStart; index < localized.argv.length; index += 1) {
     const argument = localized.argv[index]!;
@@ -106,6 +108,17 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
           : argument.slice('--extension-id='.length);
       if (!value || value.startsWith('-')) throw new Error('EXTENSION_ID_MISSING');
       extensionId = value;
+    } else if (
+      argument === '--firefox-extension-id' ||
+      argument.startsWith('--firefox-extension-id=')
+    ) {
+      if (firefoxExtensionId !== undefined) throw new Error('FIREFOX_EXTENSION_ID_REPEATED');
+      const value =
+        argument === '--firefox-extension-id'
+          ? localized.argv[++index]
+          : argument.slice('--firefox-extension-id='.length);
+      if (!value || value.startsWith('-')) throw new Error('FIREFOX_EXTENSION_ID_MISSING');
+      firefoxExtensionId = value;
     } else if (argument === '--yes' || argument === '-y' || argument === '--non-interactive') {
       yes = true;
     } else {
@@ -121,8 +134,12 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
   if (extensionId && operation === 'uninstall') {
     throw new Error('--extension-id is not available with uninstall');
   }
+  if (firefoxExtensionId && operation === 'uninstall') {
+    throw new Error('--firefox-extension-id is not available with uninstall');
+  }
   return {
     ...(extensionId ? { extensionId } : {}),
+    ...(firefoxExtensionId ? { firefoxExtensionId } : {}),
     globalProvider,
     help: false,
     json,
@@ -142,6 +159,10 @@ const doctorLabels: Record<string, { en: string; 'zh-CN': string }> = {
   codex: { en: 'Codex', 'zh-CN': 'Codex' },
   extension: { en: 'Extension', 'zh-CN': '扩展' },
   'extension-id': { en: 'Effective Extension ID', 'zh-CN': '生效的扩展 ID' },
+  'firefox-extension-id': {
+    en: 'Effective Firefox Extension ID',
+    'zh-CN': '生效的 Firefox 扩展 ID',
+  },
   'global-provider': { en: 'User default', 'zh-CN': '用户级默认值' },
   'native-host': { en: 'Native Host', 'zh-CN': 'Native Host' },
   'native-launcher': {
@@ -151,6 +172,19 @@ const doctorLabels: Record<string, { en: string; 'zh-CN': string }> = {
   'native-manifest': {
     en: 'Native Messaging manifest',
     'zh-CN': 'Native Messaging 清单',
+  },
+  'firefox-native-manifest': {
+    en: 'Firefox Native Messaging manifest',
+    'zh-CN': 'Firefox Native Messaging 清单',
+  },
+  'firefox-runtime': {
+    en: 'Firefox automation browser (optional)',
+    'zh-CN': 'Firefox 自动化浏览器（可选）',
+  },
+  geckodriver: { en: 'geckodriver (optional)', 'zh-CN': 'geckodriver（可选）' },
+  'firefox-launcher': {
+    en: 'Firefox automation launcher (optional)',
+    'zh-CN': 'Firefox 自动化启动器（可选）',
   },
   node: { en: 'Node.js', 'zh-CN': 'Node.js' },
   'project-provider': { en: 'Project default', 'zh-CN': '项目级默认值' },
@@ -165,11 +199,23 @@ const doctorLabels: Record<string, { en: string; 'zh-CN': string }> = {
     en: 'Native Messaging registry',
     'zh-CN': 'Native Messaging 注册表',
   },
+  'windows-registry-chrome': {
+    en: 'Chrome Native Messaging registry',
+    'zh-CN': 'Chrome Native Messaging 注册表',
+  },
+  'windows-registry-edge': {
+    en: 'Edge Native Messaging registry',
+    'zh-CN': 'Edge Native Messaging 注册表',
+  },
+  'windows-registry-firefox': {
+    en: 'Firefox Native Messaging registry',
+    'zh-CN': 'Firefox Native Messaging 注册表',
+  },
 };
 
 const doctorGroups = [
   {
-    ids: ['node', 'agent-browser', 'codex', 'qoder'],
+    ids: ['node', 'agent-browser', 'codex', 'qoder', 'firefox-runtime', 'geckodriver'],
     title: 'doctorGroupEnvironment',
   },
   {
@@ -177,8 +223,13 @@ const doctorGroups = [
       'native-host',
       'native-launcher',
       'native-manifest',
-      'windows-registry',
+      'firefox-native-manifest',
+      'firefox-launcher',
+      'windows-registry-chrome',
+      'windows-registry-edge',
+      'windows-registry-firefox',
       'extension-id',
+      'firefox-extension-id',
       'provider',
       'skill',
     ],
@@ -206,6 +257,12 @@ function doctorDetail(detail: string, locale: SupportedLocale): string {
   if (detail === 'Extension ID must contain exactly 32 lowercase letters from a through p.') {
     return '扩展 ID 必须恰好包含 32 个 a 到 p 的小写字母';
   }
+  if (
+    detail ===
+    'Firefox Extension ID must be an email-style ID of at most 80 characters or a braced UUID.'
+  ) {
+    return 'Firefox 扩展 ID 必须是至多 80 个字符的邮箱格式 ID 或带花括号的 UUID';
+  }
   const processMatch = /^Connected through process (\d+)$/.exec(detail);
   if (processMatch) return `已通过进程 ${processMatch[1]} 连接`;
   return detail;
@@ -223,8 +280,18 @@ function doctorHint(id: string, hint: string, locale: SupportedLocale): string {
   if (id === 'qoder') {
     return '请安装 Qoder CLI 或设置 PANERELAY_QODER_PATH，然后运行：npx --yes @panerelay/setup';
   }
+  if (id === 'firefox-runtime') {
+    return '请安装 Firefox 或设置 PANERELAY_FIREFOX_PATH，然后运行：npx --yes @panerelay/setup';
+  }
+  if (id === 'geckodriver') {
+    return '请安装 geckodriver 或设置 PANERELAY_GECKODRIVER_PATH，然后运行：npx --yes @panerelay/setup';
+  }
+  if (id === 'firefox-launcher') {
+    return '请安装 Firefox 和 geckodriver，运行 setup，再通过 Panerelay 启动器启动 Firefox';
+  }
   if (id === 'extension') return '请加载或重新加载扩展，然后打开侧边栏';
   if (id === 'extension-id') return '请使用仅包含 a 到 p 的 32 位 Chrome 扩展 ID';
+  if (id === 'firefox-extension-id') return '请使用邮箱格式的 Firefox 扩展 ID 或带花括号的 UUID';
   if (id === 'global-provider') return '请运行：npx --yes @panerelay/setup --global-provider';
   if (id === 'project-provider' || id === 'project-skill') {
     return '请运行：npx --yes @panerelay/setup --project-provider';
@@ -312,6 +379,12 @@ function localizeArgumentError(error: unknown, locale: SupportedLocale): string 
   if (message === 'LANGUAGE_REPEATED') return translate(locale, 'errorLanguageRepeated');
   if (message === 'EXTENSION_ID_MISSING') return translate(locale, 'errorExtensionIdMissing');
   if (message === 'EXTENSION_ID_REPEATED') return translate(locale, 'errorExtensionIdRepeated');
+  if (message === 'FIREFOX_EXTENSION_ID_MISSING') {
+    return translate(locale, 'errorFirefoxExtensionIdMissing');
+  }
+  if (message === 'FIREFOX_EXTENSION_ID_REPEATED') {
+    return translate(locale, 'errorFirefoxExtensionIdRepeated');
+  }
   if (message.startsWith('LANGUAGE_UNSUPPORTED:')) {
     return translate(locale, 'errorLanguageUnsupported', {
       language: message.slice('LANGUAGE_UNSUPPORTED:'.length),
@@ -335,6 +408,9 @@ function localizeArgumentError(error: unknown, locale: SupportedLocale): string 
   }
   if (message === '--extension-id is not available with uninstall') {
     return translate(locale, 'errorExtensionIdUninstall');
+  }
+  if (message === '--firefox-extension-id is not available with uninstall') {
+    return translate(locale, 'errorFirefoxExtensionIdUninstall');
   }
   return message;
 }
@@ -367,6 +443,7 @@ export async function main(
       const report = await (dependencies.doctor ?? doctorPanerelay)({
         environment: dependencies.environment,
         extensionId: parsed.extensionId,
+        firefoxExtensionId: parsed.firefoxExtensionId,
         globalProvider: parsed.globalProvider,
         project: parsed.project,
       });
@@ -393,12 +470,23 @@ export async function main(
     const result = await (dependencies.setup ?? setupPanerelay)({
       environment: dependencies.environment,
       extensionId: parsed.extensionId,
+      firefoxExtensionId: parsed.firefoxExtensionId,
       globalProvider: parsed.globalProvider,
       project: parsed.project,
     });
     console.log(translate(locale, 'setupComplete'));
     console.log(translate(locale, 'nativeHost', { path: result.host.hostPath }));
     console.log(translate(locale, 'extensionIdentity', { id: result.host.extensionId }));
+    console.log(
+      translate(locale, 'firefoxExtensionIdentity', {
+        id: result.host.firefoxExtensionId,
+      }),
+    );
+    console.log(
+      result.host.firefoxAutomationReady
+        ? translate(locale, 'firefoxLauncher', { path: result.host.firefoxLauncherPath })
+        : translate(locale, 'firefoxAutomationMissing'),
+    );
     console.log(
       result.host.extensionId === PANERELAY_EXTENSION_ID
         ? translate(locale, 'extensionStoreNextStep', {

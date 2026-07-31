@@ -15,6 +15,7 @@ import { installPanerelaySkill, uninstallPanerelaySkill } from './skill.js';
 export interface PanerelaySetupOptions {
   environment?: NodeJS.ProcessEnv;
   extensionId?: string;
+  firefoxExtensionId?: string;
   globalProvider?: boolean;
   homeDirectory?: string;
   platform?: NodeJS.Platform;
@@ -62,6 +63,7 @@ export async function setupPanerelay(
   const host = await installHost({
     environment: options.environment,
     extensionId: options.extensionId,
+    firefoxExtensionId: options.firefoxExtensionId,
     homeDirectory: options.homeDirectory,
     platform: options.platform,
   });

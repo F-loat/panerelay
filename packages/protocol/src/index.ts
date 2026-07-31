@@ -9,11 +9,28 @@ export * from './constants.js';
 export * from './control-activity.js';
 export * from './native-transfer.js';
 
+export type BrowserFamily = 'chrome' | 'chromium' | 'edge' | 'firefox' | 'unknown';
+
+export type AutomationTransport = 'cdp' | 'webdriver' | 'none';
+
+export interface BrowserAutomationCapability {
+  transport: AutomationTransport;
+  ready: boolean;
+}
+
+export interface BrowserCapabilities {
+  /** @deprecated Use automation. Retained for same-protocol Chromium compatibility. */
+  cdpRelay?: boolean;
+  automation?: BrowserAutomationCapability;
+}
+
 export interface BrowserRegistration {
   browserId: string;
   browserName: string;
   extensionId: string;
   extensionVersion: string;
+  browserFamily?: BrowserFamily;
+  capabilities?: BrowserCapabilities;
 }
 
 export interface BrowserRegisterMessage extends BrowserRegistration {
@@ -135,6 +152,49 @@ export interface CdpDetachedMessage {
   reason: string;
   scope: 'target' | 'lease';
   targetId?: string;
+}
+
+export type FirefoxAutomationReadinessReason =
+  | 'ready'
+  | 'launcher-unavailable'
+  | 'managed-restart-required'
+  | 'firefox-unavailable'
+  | 'geckodriver-unavailable'
+  | 'driver-start-failed'
+  | 'driver-disconnected';
+
+export interface WebDriverReadinessMessage {
+  type: 'webdriver.readiness';
+  protocol: typeof PANERELAY_PROTOCOL_VERSION;
+  ready: boolean;
+  reason: FirefoxAutomationReadinessReason;
+  message: string;
+}
+
+export interface WebDriverAuthorizationChangedMessage {
+  type: 'webdriver.authorization.changed';
+  protocol: typeof PANERELAY_PROTOCOL_VERSION;
+  mode: 'none' | 'single-tab' | 'all-tabs';
+}
+
+export interface WebDriverRendezvousResultMessage {
+  type: 'webdriver.rendezvous.result';
+  protocol: typeof PANERELAY_PROTOCOL_VERSION;
+  requestId: string;
+  challenge: string;
+  success: boolean;
+  targetId?: string;
+  documentId?: string;
+  active?: boolean;
+  error?: string;
+}
+
+export interface WebDriverTargetInvalidatedMessage {
+  type: 'webdriver.target.invalidated';
+  protocol: typeof PANERELAY_PROTOCOL_VERSION;
+  targetId: string;
+  documentId?: string;
+  reason: 'navigation' | 'closed' | 'permission-revoked' | 'authorization-revoked';
 }
 
 export type AgentProviderStatus = 'ready' | 'unavailable' | 'error';
@@ -397,6 +457,7 @@ export interface ConversationEventMessage {
 
 export type HostToExtensionMessage =
   | BrowserRegisteredMessage
+  | WebDriverReadinessMessage
   | CdpTargetRequestMessage
   | CdpAttachMessage
   | CdpCommandMessage
@@ -410,6 +471,9 @@ export type HostToExtensionMessage =
 
 export type ExtensionToHostMessage =
   | BrowserRegisterMessage
+  | WebDriverAuthorizationChangedMessage
+  | WebDriverRendezvousResultMessage
+  | WebDriverTargetInvalidatedMessage
   | CdpTargetResultMessage
   | CdpTargetEventMessage
   | CdpAttachedMessage
@@ -428,6 +492,9 @@ export interface BridgeState {
   browserName: string;
   extensionVersion: string;
   extensionId: string;
+  browserFamily?: BrowserFamily;
+  capabilities?: BrowserCapabilities;
+  automation: BrowserAutomationCapability;
   updatedAt: string;
 }
 
@@ -442,17 +509,58 @@ export interface RelaySessionCreateRequest {
   actor: RelaySessionActor;
 }
 
-export interface RelaySessionCreated {
+export interface RelaySessionCreatedBase {
   protocol: typeof PANERELAY_PROTOCOL_VERSION;
   /** Opaque participant identifier used to release only this Provider connection. */
   sessionId: string;
-  cdpUrl: string;
   connectExpiresAt: string;
 }
+
+export interface CdpRelaySessionCreated extends RelaySessionCreatedBase {
+  transport: 'cdp';
+  cdpUrl: string;
+}
+
+export interface WebDriverRelaySessionCreated extends RelaySessionCreatedBase {
+  heartbeatIntervalMs: number;
+  transport: 'webdriver';
+  webdriverUrl: string;
+  webdriverSessionId: string;
+}
+
+export type RelaySessionCreated = CdpRelaySessionCreated | WebDriverRelaySessionCreated;
 
 export interface RelaySessionError {
   protocol: typeof PANERELAY_PROTOCOL_VERSION;
   error: string;
+}
+
+export function normalizeAutomationCapability(
+  capabilities?: BrowserCapabilities,
+): BrowserAutomationCapability {
+  if (capabilities?.automation) return capabilities.automation;
+  if (capabilities?.cdpRelay === false) return { transport: 'none', ready: false };
+  return { transport: 'cdp', ready: true };
+}
+
+function isBrowserAutomationCapability(value: unknown): value is BrowserAutomationCapability {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    ['cdp', 'webdriver', 'none'].includes(candidate.transport as string) &&
+    typeof candidate.ready === 'boolean' &&
+    (candidate.transport !== 'none' || candidate.ready === false)
+  );
+}
+
+function isBrowserCapabilities(value: unknown): value is BrowserCapabilities {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    (candidate.cdpRelay === undefined || typeof candidate.cdpRelay === 'boolean') &&
+    (candidate.automation === undefined || isBrowserAutomationCapability(candidate.automation)) &&
+    (candidate.cdpRelay !== undefined || candidate.automation !== undefined)
+  );
 }
 
 export function isExtensionToHostMessage(value: unknown): value is ExtensionToHostMessage {
@@ -466,7 +574,38 @@ export function isExtensionToHostMessage(value: unknown): value is ExtensionToHo
       typeof candidate.browserId === 'string' &&
       typeof candidate.browserName === 'string' &&
       typeof candidate.extensionId === 'string' &&
-      typeof candidate.extensionVersion === 'string'
+      typeof candidate.extensionVersion === 'string' &&
+      (candidate.browserFamily === undefined ||
+        ['chrome', 'chromium', 'edge', 'firefox', 'unknown'].includes(
+          candidate.browserFamily as string,
+        )) &&
+      (candidate.capabilities === undefined || isBrowserCapabilities(candidate.capabilities))
+    );
+  }
+  if (candidate.type === 'webdriver.authorization.changed') {
+    return ['none', 'single-tab', 'all-tabs'].includes(candidate.mode as string);
+  }
+  if (candidate.type === 'webdriver.rendezvous.result') {
+    return (
+      typeof candidate.requestId === 'string' &&
+      candidate.requestId.length > 0 &&
+      typeof candidate.challenge === 'string' &&
+      candidate.challenge.length >= 16 &&
+      candidate.challenge.length <= 128 &&
+      typeof candidate.success === 'boolean' &&
+      (candidate.targetId === undefined || typeof candidate.targetId === 'string') &&
+      (candidate.documentId === undefined || typeof candidate.documentId === 'string') &&
+      (candidate.active === undefined || typeof candidate.active === 'boolean') &&
+      (candidate.error === undefined || typeof candidate.error === 'string')
+    );
+  }
+  if (candidate.type === 'webdriver.target.invalidated') {
+    return (
+      typeof candidate.targetId === 'string' &&
+      (candidate.documentId === undefined || typeof candidate.documentId === 'string') &&
+      ['navigation', 'closed', 'permission-revoked', 'authorization-revoked'].includes(
+        candidate.reason as string,
+      )
     );
   }
   return [
@@ -476,6 +615,9 @@ export function isExtensionToHostMessage(value: unknown): value is ExtensionToHo
     'cdp.result',
     'cdp.event',
     'cdp.detached',
+    'webdriver.authorization.changed',
+    'webdriver.rendezvous.result',
+    'webdriver.target.invalidated',
     'agent.request',
     'integration.request',
   ].includes(candidate.type);
@@ -492,6 +634,22 @@ export function isHostToExtensionMessage(value: unknown): value is HostToExtensi
   }
   if (candidate.type === 'control.activity.updated') {
     return isAutomationActivityUpdatedMessage(value);
+  }
+  if (candidate.type === 'webdriver.readiness') {
+    return (
+      candidate.protocol === PANERELAY_PROTOCOL_VERSION &&
+      typeof candidate.ready === 'boolean' &&
+      [
+        'ready',
+        'launcher-unavailable',
+        'managed-restart-required',
+        'firefox-unavailable',
+        'geckodriver-unavailable',
+        'driver-start-failed',
+        'driver-disconnected',
+      ].includes(candidate.reason as string) &&
+      typeof candidate.message === 'string'
+    );
   }
   return (
     candidate.protocol === PANERELAY_PROTOCOL_VERSION &&

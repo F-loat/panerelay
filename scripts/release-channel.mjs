@@ -26,6 +26,7 @@ if (githubOutput) {
     artifact_directory: result.artifactDirectory,
     channel: result.channel,
     extension_archive: result.extensionArchive,
+    firefox_extension_archive: result.firefoxExtensionArchive,
     npm_tag: result.npmTag,
     release_tag: result.releaseTag,
     version: result.version,

@@ -1,4 +1,4 @@
-import type { ConversationWorkspaceSnapshot } from '../shared/conversation-workspaces.js';
+import type { ConversationWorkspaceSnapshot } from '../../shared/conversation-workspaces.js';
 import type {
   ConversationWorkspaceStore,
   RemovedConversationWorkspace,

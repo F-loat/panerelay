@@ -12,6 +12,7 @@ export const PREPARE_RELEASE_METADATA_PATHS = [
   ...PACKAGE_DEFINITIONS.map(definition => `${definition.directory}/package.json`),
   'apps/extension/package.json',
   'apps/extension/manifest.json',
+  'apps/extension/manifest.firefox.json',
   'release.config.json',
 ];
 
@@ -85,12 +86,17 @@ function validateLockstep(metadata) {
       throw new Error(`${relativePath} is not lockstep with release.config.json`);
     }
   }
-  const extensionManifest = metadata.get('apps/extension/manifest.json')?.value;
-  if (
-    extensionManifest?.version !== descriptor.extensionVersion ||
-    extensionManifest?.version_name !== descriptor.version
-  ) {
-    throw new Error('Extension manifest is not lockstep with release.config.json');
+  for (const relativePath of [
+    'apps/extension/manifest.json',
+    'apps/extension/manifest.firefox.json',
+  ]) {
+    const extensionManifest = metadata.get(relativePath)?.value;
+    if (
+      extensionManifest?.version !== descriptor.extensionVersion ||
+      extensionManifest?.version_name !== descriptor.version
+    ) {
+      throw new Error(`${relativePath} is not lockstep with release.config.json`);
+    }
   }
   return descriptor;
 }
@@ -103,9 +109,14 @@ export async function prepareNextReleaseMetadata({ increment = 'minor', root }) 
   for (const relativePath of PACKAGE_METADATA_PATHS) {
     metadata.get(relativePath).value.version = identity.version;
   }
-  const extensionManifest = metadata.get('apps/extension/manifest.json').value;
-  extensionManifest.version = identity.extensionVersion;
-  extensionManifest.version_name = identity.version;
+  for (const relativePath of [
+    'apps/extension/manifest.json',
+    'apps/extension/manifest.firefox.json',
+  ]) {
+    const extensionManifest = metadata.get(relativePath).value;
+    extensionManifest.version = identity.extensionVersion;
+    extensionManifest.version_name = identity.version;
+  }
   descriptor.channel = 'stable';
   descriptor.version = identity.version;
   descriptor.extensionVersion = identity.extensionVersion;

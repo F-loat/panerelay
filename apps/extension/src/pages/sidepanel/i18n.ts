@@ -29,6 +29,8 @@ export const copy = {
     connectingAgent: 'Connecting to your local agent…',
     emptyTitle: 'What should {agent} do?',
     emptyBody: 'Chat with a local agent and let it work in the browser scope you authorize.',
+    emptyBodyNoAutomation:
+      'Chat with a local agent, select a project, or attach page comments in Firefox.',
     emptyBridgeTitle: 'Connect the local Bridge',
     emptyBridgeBody:
       'Panerelay needs its local Native Host before agents can start a conversation.',
@@ -54,6 +56,9 @@ export const copy = {
     codexSetupBody: 'Install or reconnect Codex, then retry provider discovery.',
     qoderSetupBody:
       'Install Qoder CLI, run qodercli to sign in, then run npx --yes @panerelay/setup and retry.',
+    firefoxAutomationUnavailableTitle: 'Firefox automation is unavailable',
+    firefoxAutomationUnavailableBody:
+      'Agent chat, projects, and page comments still work. Run setup, then reopen Firefox with the Panerelay Firefox launcher.',
     providerInstallCommand: 'Install',
     providerLoginCommand: 'Sign in',
     providerSetupDocs: 'Open setup documentation',
@@ -110,6 +115,7 @@ export const copy = {
     allTabsEligible: 'All web tabs authorized',
     chromeAccessDeniedAll: 'Chrome access to all web origins was not granted',
     chromeAccessDeniedSite: 'Chrome site access was not granted',
+    pageCommentAccessDenied: 'Site access is required to add page comments',
     unsupportedBrowserPage: 'Panerelay cannot control this browser page',
     controlling: 'Controlling',
     controllingTabs: 'Controlling {count} tabs',
@@ -197,6 +203,7 @@ export const copy = {
     connectingAgent: '正在连接本地 Agent…',
     emptyTitle: '想让 {agent} 做什么？',
     emptyBody: '和本地 Agent 对话，并让它在你授权的浏览器范围内工作。',
+    emptyBodyNoAutomation: '在 Firefox 中与本地 Agent 对话、选择项目或附加页面批注。',
     emptyBridgeTitle: '连接本地 Bridge',
     emptyBridgeBody: 'Panerelay 需要连接本地 Native Host 后才能启动 Agent 会话。',
     nativeHostMissingTitle: '安装 Panerelay 本地集成',
@@ -220,6 +227,9 @@ export const copy = {
     codexSetupBody: '安装或重新连接 Codex，然后重试 Provider 检测。',
     qoderSetupBody:
       '安装 Qoder CLI，运行 qodercli 完成登录，再运行 npx --yes @panerelay/setup 后重试。',
+    firefoxAutomationUnavailableTitle: 'Firefox 自动化尚未就绪',
+    firefoxAutomationUnavailableBody:
+      'Agent 对话、项目选择和页面批注仍可使用。请先运行安装，再通过 Panerelay Firefox 启动器重新打开 Firefox。',
     providerInstallCommand: '安装',
     providerLoginCommand: '登录',
     providerSetupDocs: '打开配置文档',
@@ -274,6 +284,7 @@ export const copy = {
     allTabsEligible: '已授权所有网页标签页',
     chromeAccessDeniedAll: '未获得 Chrome 的所有网站访问权限',
     chromeAccessDeniedSite: '未获得 Chrome 的站点访问权限',
+    pageCommentAccessDenied: '添加页面批注需要授予当前站点访问权限',
     unsupportedBrowserPage: 'Panerelay 无法控制这个浏览器页面',
     controlling: '正在控制',
     controllingTabs: '正在控制 {count} 个标签页',

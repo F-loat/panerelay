@@ -5,6 +5,16 @@ import { probeAgentBrowserCompatibility } from './compatibility.js';
 
 export interface PanerelayRuntimeConfig {
   extensionId?: string;
+  firefoxExtensionId?: string;
+  firefoxPath?: string;
+  firefoxVersion?: string;
+  firefoxProfile?: string;
+  geckodriverPath?: string;
+  geckodriverVersion?: string;
+  firefoxManagedToken?: string;
+  firefoxMarionettePort?: number;
+  firefoxRuntimeStatePath?: string;
+  firefoxLauncherPath?: string;
   codexPath?: string;
   agentBrowserPath?: string;
   agentBrowserVersion?: string;
@@ -50,6 +60,30 @@ export async function readRuntimeConfig(): Promise<PanerelayRuntimeConfig> {
 
   return {
     ...(typeof stored.extensionId === 'string' ? { extensionId: stored.extensionId } : {}),
+    ...(typeof stored.firefoxExtensionId === 'string'
+      ? { firefoxExtensionId: stored.firefoxExtensionId }
+      : {}),
+    ...(typeof stored.firefoxPath === 'string' ? { firefoxPath: stored.firefoxPath } : {}),
+    ...(typeof stored.firefoxVersion === 'string' ? { firefoxVersion: stored.firefoxVersion } : {}),
+    ...(typeof stored.firefoxProfile === 'string' ? { firefoxProfile: stored.firefoxProfile } : {}),
+    ...(typeof stored.geckodriverPath === 'string'
+      ? { geckodriverPath: stored.geckodriverPath }
+      : {}),
+    ...(typeof stored.geckodriverVersion === 'string'
+      ? { geckodriverVersion: stored.geckodriverVersion }
+      : {}),
+    ...(typeof stored.firefoxManagedToken === 'string'
+      ? { firefoxManagedToken: stored.firefoxManagedToken }
+      : {}),
+    ...(typeof stored.firefoxMarionettePort === 'number'
+      ? { firefoxMarionettePort: stored.firefoxMarionettePort }
+      : {}),
+    ...(typeof stored.firefoxRuntimeStatePath === 'string'
+      ? { firefoxRuntimeStatePath: stored.firefoxRuntimeStatePath }
+      : {}),
+    ...(typeof stored.firefoxLauncherPath === 'string'
+      ? { firefoxLauncherPath: stored.firefoxLauncherPath }
+      : {}),
     ...((await executable(configuredCodex)) ? { codexPath: configuredCodex } : {}),
     ...supportedAgentBrowser,
     ...((await executable(configuredQoder)) ? { qoderPath: configuredQoder } : {}),

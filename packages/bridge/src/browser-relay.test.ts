@@ -5,13 +5,15 @@ import {
   type AutomationActivitySnapshotMessage,
   type AutomationActivityUpdatedMessage,
   type CdpCommandMessage,
+  type CdpRelaySessionCreated,
   type CdpTargetInfo,
   type ControlSessionChangedMessage,
   type HostToExtensionMessage,
-  type RelaySessionCreated,
+  type WebDriverRelaySessionCreated,
 } from '@panerelay/protocol';
 import WebSocket from 'ws';
 import { BrowserRelay } from './browser-relay.js';
+import type { FirefoxDriverManager } from './firefox-driver.js';
 
 function waitForOpen(client: WebSocket): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -87,7 +89,7 @@ async function waitForCondition(predicate: () => boolean, timeoutMs = 2_000): Pr
 async function createRelaySession(
   relay: BrowserRelay,
   sessionLabel = 'test-session',
-): Promise<RelaySessionCreated> {
+): Promise<CdpRelaySessionCreated> {
   const response = await fetch(`http://127.0.0.1:${relay.port}/sessions`, {
     method: 'POST',
     headers: {
@@ -104,7 +106,9 @@ async function createRelaySession(
     }),
   });
   assert.equal(response.status, 201);
-  return (await response.json()) as RelaySessionCreated;
+  const session = (await response.json()) as CdpRelaySessionCreated;
+  assert.equal(session.transport, 'cdp');
+  return session;
 }
 
 function target(
@@ -156,6 +160,525 @@ test('rejects a browser registration from a different configured Extension ID', 
       /does not match the configured Panerelay Extension ID/,
     );
     assert.equal(registered, false);
+  } finally {
+    await relay.close();
+  }
+});
+
+test('rejects relay allocation when the registered browser has no ready automation transport', async () => {
+  const controlMessages: HostToExtensionMessage[] = [];
+  const relay = await BrowserRelay.listen({
+    onBrowserDisconnected: () => {},
+    onBrowserRegistered: () => {},
+    sendToExtension: message => controlMessages.push(message),
+  });
+  try {
+    await relay.handleExtensionMessage({
+      type: 'browser.register',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      browserId: 'firefox-1',
+      browserName: 'Firefox',
+      browserFamily: 'firefox',
+      capabilities: { cdpRelay: false },
+      extensionId: 'panerelay@panerelay.dev',
+      extensionVersion: '0.2.0',
+    });
+    const response = await fetch(`http://127.0.0.1:${relay.port}/sessions`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${relay.token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        protocol: PANERELAY_PROTOCOL_VERSION,
+        actor: { kind: 'automation', name: 'agent-browser' },
+      }),
+    });
+
+    assert.equal(response.status, 409);
+    assert.match(
+      (await response.json()).error,
+      /Firefox has not made .* automation transport ready/,
+    );
+    assert.equal(
+      controlMessages.some(message => message.type === 'control.session.changed'),
+      false,
+    );
+  } finally {
+    await relay.close();
+  }
+});
+
+test('does not allocate a CDP participant for a ready WebDriver registration', async () => {
+  const controlMessages: HostToExtensionMessage[] = [];
+  const relay = await BrowserRelay.listen({
+    onBrowserDisconnected: () => {},
+    onBrowserRegistered: () => {},
+    sendToExtension: message => controlMessages.push(message),
+  });
+  try {
+    await relay.handleExtensionMessage({
+      type: 'browser.register',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      browserId: 'firefox-1',
+      browserName: 'Firefox',
+      browserFamily: 'firefox',
+      capabilities: { automation: { transport: 'webdriver', ready: true } },
+      extensionId: 'panerelay@panerelay.dev',
+      extensionVersion: '0.2.0',
+    });
+    const response = await fetch(`http://127.0.0.1:${relay.port}/sessions`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${relay.token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        protocol: PANERELAY_PROTOCOL_VERSION,
+        actor: { kind: 'automation', name: 'agent-browser' },
+      }),
+    });
+
+    assert.equal(response.status, 503);
+    assert.match((await response.json()).error, /requires the Panerelay WebDriver relay/);
+    assert.equal(
+      controlMessages.some(message => message.type === 'control.session.changed'),
+      false,
+    );
+  } finally {
+    await relay.close();
+  }
+});
+
+test('creates a scoped WebDriver participant and forwards only mapped exact routes', async () => {
+  const driverRequests: Array<{ method: string; path: string; body?: unknown }> = [];
+  let rendezvousCount = 0;
+  const driver = {
+    ready: true,
+    sessionId: 'real-firefox-session',
+    async request(method: string, path: string, body?: unknown) {
+      driverRequests.push({ method, path, ...(body === undefined ? {} : { body }) });
+      if (path.endsWith('/window/handles')) {
+        return { status: 200, body: { value: ['window-1'] } };
+      }
+      if (method === 'GET' && path.endsWith('/window')) {
+        return { status: 200, body: { value: 'window-1' } };
+      }
+      if (path.endsWith('/execute/sync')) {
+        rendezvousCount += 1;
+        const args = (body as { args: string[] }).args;
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'webdriver.rendezvous.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: args[0]!,
+            challenge: args[1]!,
+            success: true,
+            targetId:
+              rendezvousCount === 1
+                ? 'opaque-firefox-target'
+                : 'opaque-firefox-target-after-navigation',
+            documentId:
+              rendezvousCount === 1
+                ? 'opaque-firefox-document'
+                : 'opaque-firefox-document-after-navigation',
+            active: true,
+          });
+        });
+        return { status: 200, body: { value: true } };
+      }
+      if (method === 'GET' && path.endsWith('/url')) {
+        return { status: 200, body: { value: 'https://example.test/' } };
+      }
+      return { status: 200, body: { value: null } };
+    },
+  } as unknown as FirefoxDriverManager;
+  const controlMessages: HostToExtensionMessage[] = [];
+  const relay = await BrowserRelay.listen({
+    onBrowserDisconnected: () => {},
+    onBrowserRegistered: () => {},
+    sendToExtension: message => controlMessages.push(message),
+    webdriverDriver: driver,
+  });
+
+  try {
+    await relay.handleExtensionMessage({
+      type: 'browser.register',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      browserId: 'firefox-1',
+      browserName: 'Firefox',
+      browserFamily: 'firefox',
+      capabilities: { automation: { transport: 'webdriver', ready: true } },
+      extensionId: 'panerelay@panerelay.dev',
+      extensionVersion: '0.2.0',
+    });
+    await relay.handleExtensionMessage({
+      type: 'webdriver.authorization.changed',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      mode: 'single-tab',
+    });
+    const createdResponse = await fetch(`http://127.0.0.1:${relay.port}/sessions`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${relay.token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        protocol: PANERELAY_PROTOCOL_VERSION,
+        actor: { kind: 'automation', name: 'agent-browser' },
+      }),
+    });
+    assert.equal(createdResponse.status, 201);
+    const created = (await createdResponse.json()) as WebDriverRelaySessionCreated;
+    assert.equal(created.transport, 'webdriver');
+    assert.equal(created.heartbeatIntervalMs, 10_000);
+    assert.notEqual(created.webdriverSessionId, driver.sessionId);
+    assert.equal(created.webdriverUrl.includes(driver.sessionId), false);
+
+    const heartbeatResponse = await fetch(
+      `${created.webdriverUrl}/session/${created.webdriverSessionId}/panerelay/heartbeat`,
+    );
+    assert.equal(heartbeatResponse.status, 200);
+    assert.deepEqual(await heartbeatResponse.json(), { value: null });
+    assert.equal(
+      driverRequests.some(request => request.path.endsWith('/panerelay/heartbeat')),
+      false,
+    );
+
+    const urlResponse = await fetch(
+      `${created.webdriverUrl}/session/${created.webdriverSessionId}/url`,
+    );
+    assert.equal(urlResponse.status, 200);
+    assert.deepEqual(await urlResponse.json(), { value: 'https://example.test/' });
+    assert.ok(
+      driverRequests.some(
+        request => request.method === 'GET' && request.path === '/session/real-firefox-session/url',
+      ),
+    );
+
+    const navigateResponse = await fetch(
+      `${created.webdriverUrl}/session/${created.webdriverSessionId}/url`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ url: 'https://example.test/after-navigation' }),
+      },
+    );
+    assert.equal(navigateResponse.status, 200);
+
+    const driverWindowEnumerationCount = driverRequests.filter(request =>
+      request.path.endsWith('/window/handles'),
+    ).length;
+    const handlesRoute = await fetch(
+      `${created.webdriverUrl}/session/${created.webdriverSessionId}/window/handles`,
+    );
+    assert.equal(handlesRoute.status, 200);
+    assert.deepEqual(await handlesRoute.json(), {
+      value: ['opaque-firefox-target-after-navigation'],
+    });
+    assert.equal(
+      driverRequests.filter(request => request.path.endsWith('/window/handles')).length,
+      driverWindowEnumerationCount,
+    );
+
+    const unauthorizedSwitch = await fetch(
+      `${created.webdriverUrl}/session/${created.webdriverSessionId}/window`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ handle: 'raw-or-unknown-window' }),
+      },
+    );
+    assert.equal(unauthorizedSwitch.status, 403);
+    assert.equal(
+      driverRequests.some(
+        request =>
+          request.path.endsWith('/window') &&
+          (request.body as { handle?: unknown } | undefined)?.handle === 'raw-or-unknown-window',
+      ),
+      false,
+    );
+
+    const createWithoutAllTabs = await fetch(
+      `${created.webdriverUrl}/session/${created.webdriverSessionId}/window/new`,
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ type: 'tab' }),
+      },
+    );
+    assert.equal(createWithoutAllTabs.status, 403);
+    assert.match((await createWithoutAllTabs.json()).value.message, /all-tabs authorization/);
+    assert.equal(
+      driverRequests.some(request => request.path.endsWith('/window/new')),
+      false,
+    );
+
+    const closeWindow = await fetch(
+      `${created.webdriverUrl}/session/${created.webdriverSessionId}/window`,
+      { method: 'DELETE' },
+    );
+    assert.equal(closeWindow.status, 200);
+    assert.deepEqual(await closeWindow.json(), { value: [] });
+    assert.ok(
+      driverRequests.some(
+        request =>
+          request.method === 'DELETE' && request.path === '/session/real-firefox-session/window',
+      ),
+    );
+
+    await relay.handleExtensionMessage({
+      type: 'webdriver.target.invalidated',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      targetId: 'opaque-firefox-target',
+      reason: 'navigation',
+    });
+    const revoked = await fetch(
+      `${created.webdriverUrl}/session/${created.webdriverSessionId}/title`,
+    );
+    assert.equal(revoked.status, 403);
+    await relay.handleExtensionMessage({
+      type: 'webdriver.authorization.changed',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      mode: 'none',
+    });
+    const released = await fetch(
+      `${created.webdriverUrl}/session/${created.webdriverSessionId}/title`,
+    );
+    assert.equal(released.status, 404);
+    assert.ok(
+      controlMessages.some(
+        message => message.type === 'control.session.changed' && message.session.state === 'active',
+      ),
+    );
+  } finally {
+    await relay.close();
+  }
+});
+
+test('expires an idle WebDriver participant after its scoped heartbeat stops', async () => {
+  const controlMessages: HostToExtensionMessage[] = [];
+  const driver = {
+    ready: true,
+    sessionId: 'real-firefox-session',
+    async request(method: string, path: string, body?: unknown) {
+      if (path.endsWith('/window/handles')) {
+        return { status: 200, body: { value: ['window-1'] } };
+      }
+      if (method === 'GET' && path.endsWith('/window')) {
+        return { status: 200, body: { value: 'window-1' } };
+      }
+      if (path.endsWith('/execute/sync')) {
+        const args = (body as { args: string[] }).args;
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'webdriver.rendezvous.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: args[0]!,
+            challenge: args[1]!,
+            success: true,
+            targetId: 'heartbeat-target',
+            documentId: 'heartbeat-document',
+          });
+        });
+      }
+      return { status: 200, body: { value: null } };
+    },
+  } as unknown as FirefoxDriverManager;
+  const relay = await BrowserRelay.listen({
+    heartbeatIntervalMs: 10,
+    heartbeatTimeoutMs: 25,
+    onBrowserDisconnected: () => {},
+    onBrowserRegistered: () => {},
+    sendToExtension: message => controlMessages.push(message),
+    webdriverDriver: driver,
+  });
+
+  try {
+    await relay.handleExtensionMessage({
+      type: 'browser.register',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      browserId: 'firefox-heartbeat',
+      browserName: 'Firefox',
+      browserFamily: 'firefox',
+      capabilities: { automation: { transport: 'webdriver', ready: true } },
+      extensionId: 'panerelay@panerelay.dev',
+      extensionVersion: '0.2.0',
+    });
+    await relay.handleExtensionMessage({
+      type: 'webdriver.authorization.changed',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      mode: 'single-tab',
+    });
+    const response = await fetch(`http://127.0.0.1:${relay.port}/sessions`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${relay.token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        protocol: PANERELAY_PROTOCOL_VERSION,
+        actor: { kind: 'automation', name: 'agent-browser' },
+      }),
+    });
+    const created = (await response.json()) as WebDriverRelaySessionCreated;
+    assert.equal(created.heartbeatIntervalMs, 10);
+    const heartbeatUrl =
+      `${created.webdriverUrl}/session/${created.webdriverSessionId}` + '/panerelay/heartbeat';
+    assert.equal((await fetch(heartbeatUrl)).status, 200);
+
+    await new Promise<void>(resolve => setTimeout(resolve, 80));
+
+    assert.equal((await fetch(heartbeatUrl)).status, 404);
+    assert.ok(
+      controlMessages.some(
+        message =>
+          message.type === 'control.session.changed' && message.session.state === 'expired',
+      ),
+    );
+  } finally {
+    await relay.close();
+  }
+});
+
+test('fails Firefox session allocation on duplicate WebDriver rendezvous responses', async () => {
+  const driver = {
+    ready: true,
+    sessionId: 'real-firefox-session',
+    async request(method: string, path: string, body?: unknown) {
+      if (path.endsWith('/window/handles')) {
+        return { status: 200, body: { value: ['window-1'] } };
+      }
+      if (method === 'GET' && path.endsWith('/window')) {
+        return { status: 200, body: { value: 'window-1' } };
+      }
+      if (path.endsWith('/execute/sync')) {
+        const args = (body as { args: string[] }).args;
+        for (const targetId of ['target-1', 'target-2']) {
+          queueMicrotask(() => {
+            void relay.handleExtensionMessage({
+              type: 'webdriver.rendezvous.result',
+              protocol: PANERELAY_PROTOCOL_VERSION,
+              requestId: args[0]!,
+              challenge: args[1]!,
+              success: true,
+              targetId,
+              documentId: `document-${targetId}`,
+            });
+          });
+        }
+      }
+      return { status: 200, body: { value: null } };
+    },
+  } as unknown as FirefoxDriverManager;
+  const relay = await BrowserRelay.listen({
+    onBrowserDisconnected: () => {},
+    onBrowserRegistered: () => {},
+    sendToExtension: () => {},
+    webdriverDriver: driver,
+  });
+
+  try {
+    await relay.handleExtensionMessage({
+      type: 'browser.register',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      browserId: 'firefox-1',
+      browserName: 'Firefox',
+      browserFamily: 'firefox',
+      capabilities: { automation: { transport: 'webdriver', ready: true } },
+      extensionId: 'panerelay@panerelay.dev',
+      extensionVersion: '0.2.0',
+    });
+    await relay.handleExtensionMessage({
+      type: 'webdriver.authorization.changed',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      mode: 'all-tabs',
+    });
+    const response = await fetch(`http://127.0.0.1:${relay.port}/sessions`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${relay.token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        protocol: PANERELAY_PROTOCOL_VERSION,
+        actor: { kind: 'automation', name: 'agent-browser' },
+      }),
+    });
+    assert.equal(response.status, 409);
+    assert.match((await response.json()).error, /duplicate responses/);
+  } finally {
+    await relay.close();
+  }
+});
+
+test('ignores a stale Firefox rendezvous challenge and allocates no participant', async () => {
+  const driver = {
+    ready: true,
+    sessionId: 'real-firefox-session',
+    async request(method: string, path: string, body?: unknown) {
+      if (path.endsWith('/window/handles')) {
+        return { status: 200, body: { value: ['window-1'] } };
+      }
+      if (method === 'GET' && path.endsWith('/window')) {
+        return { status: 200, body: { value: 'window-1' } };
+      }
+      if (path.endsWith('/execute/sync')) {
+        const args = (body as { args: string[] }).args;
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'webdriver.rendezvous.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: args[0]!,
+            challenge: `${args[1]}-stale`,
+            success: true,
+            targetId: 'stale-target',
+            documentId: 'stale-document',
+          });
+        });
+      }
+      return { status: 200, body: { value: null } };
+    },
+  } as unknown as FirefoxDriverManager;
+  const relay = await BrowserRelay.listen({
+    onBrowserDisconnected: () => {},
+    onBrowserRegistered: () => {},
+    sendToExtension: () => {},
+    webdriverDriver: driver,
+  });
+
+  try {
+    await relay.handleExtensionMessage({
+      type: 'browser.register',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      browserId: 'firefox-stale-challenge',
+      browserName: 'Firefox',
+      browserFamily: 'firefox',
+      capabilities: { automation: { transport: 'webdriver', ready: true } },
+      extensionId: 'panerelay@panerelay.dev',
+      extensionVersion: '0.2.0',
+    });
+    await relay.handleExtensionMessage({
+      type: 'webdriver.authorization.changed',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      mode: 'single-tab',
+    });
+    const response = await fetch(`http://127.0.0.1:${relay.port}/sessions`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${relay.token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        protocol: PANERELAY_PROTOCOL_VERSION,
+        actor: { kind: 'automation', name: 'agent-browser' },
+      }),
+    });
+    assert.equal(response.status, 409);
+    assert.match(
+      (await response.json()).error,
+      /No uniquely authorized Firefox window completed WebDriver rendezvous/,
+    );
   } finally {
     await relay.close();
   }

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { TabSummary } from '../shared/messages.js';
+import type { TabSummary } from '../../shared/messages.js';
 import { PageCommentService } from './page-comments.js';
 
 function harness() {

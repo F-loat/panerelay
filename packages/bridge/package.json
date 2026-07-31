@@ -32,6 +32,10 @@
       "types": "./dist/compatibility.d.ts",
       "import": "./dist/compatibility.js"
     },
+    "./firefox-automation": {
+      "types": "./dist/firefox-automation.d.ts",
+      "import": "./dist/firefox-automation.js"
+    },
     "./agent-browser-config": {
       "types": "./dist/agent-browser-config.d.ts",
       "import": "./dist/agent-browser-config.js"

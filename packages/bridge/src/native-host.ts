@@ -4,11 +4,13 @@ import {
   PANERELAY_EXTENSION_ID,
   PANERELAY_NATIVE_TRANSFER_TIMEOUT_MS,
   PANERELAY_PROTOCOL_VERSION,
+  PANERELAY_FIREFOX_EXTENSION_ID,
   NativeTransferReceiver,
   createNativeTransferCancel,
   encodeNativeTransfer,
   isExtensionToHostMessage,
   isNativeTransferEnvelope,
+  normalizeAutomationCapability,
   type AgentRequestMessage,
   type BridgeState,
   type HostToExtensionMessage,
@@ -21,6 +23,8 @@ import { BrowserRelay } from './browser-relay.js';
 import { removeOwnedBridgeState, writeBridgeState } from './state.js';
 import { readRuntimeConfig } from './runtime-config.js';
 import { IntegrationService } from './integration-service.js';
+import { launchManagedFirefox } from './firefox-automation.js';
+import { FirefoxDriverManager } from './firefox-driver.js';
 
 function log(message: string): void {
   process.stderr.write(`[Panerelay] ${message}\n`);
@@ -52,14 +56,59 @@ async function runAgentBrowserPlugin(): Promise<void> {
   process.stdout.write(JSON.stringify(response));
 }
 
+async function runFirefoxLauncher(): Promise<void> {
+  if (process.argv.filter(argument => argument !== '--launch-firefox').length > 2) {
+    throw new Error('The Panerelay Firefox launcher does not accept browser arguments');
+  }
+  const runtimeConfig = await readRuntimeConfig();
+  if (
+    !runtimeConfig.firefoxRuntimeStatePath ||
+    typeof runtimeConfig.firefoxMarionettePort !== 'number'
+  ) {
+    throw new Error('Run Panerelay setup before using the Firefox automation launcher');
+  }
+  const record = await launchManagedFirefox({
+    firefoxPath: runtimeConfig.firefoxPath,
+    firefoxVersion: runtimeConfig.firefoxVersion,
+    firefoxProfile: runtimeConfig.firefoxProfile,
+    geckodriverPath: runtimeConfig.geckodriverPath,
+    geckodriverVersion: runtimeConfig.geckodriverVersion,
+    managedToken: runtimeConfig.firefoxManagedToken,
+    marionettePort: runtimeConfig.firefoxMarionettePort,
+    runtimeStatePath: runtimeConfig.firefoxRuntimeStatePath,
+  });
+  process.stdout.write(`Started managed Firefox process ${record.pid}\n`);
+}
+
 async function main(): Promise<void> {
   const runtimeConfig = await readRuntimeConfig();
   const expectedExtensionId = runtimeConfig.extensionId ?? PANERELAY_EXTENSION_ID;
+  const expectedFirefoxExtensionId =
+    runtimeConfig.firefoxExtensionId ?? PANERELAY_FIREFOX_EXTENSION_ID;
   const agents = new AgentService(sendToExtension);
   const integrations = new IntegrationService(sendToExtension);
+  const firefoxDriver = new FirefoxDriverManager(
+    {
+      firefoxPath: runtimeConfig.firefoxPath,
+      firefoxVersion: runtimeConfig.firefoxVersion,
+      firefoxProfile: runtimeConfig.firefoxProfile,
+      geckodriverPath: runtimeConfig.geckodriverPath,
+      geckodriverVersion: runtimeConfig.geckodriverVersion,
+      managedToken: runtimeConfig.firefoxManagedToken,
+      marionettePort: runtimeConfig.firefoxMarionettePort ?? 2828,
+      runtimeStatePath: runtimeConfig.firefoxRuntimeStatePath ?? '',
+    },
+    {
+      onDisconnect: readiness => {
+        sendToExtension(readiness);
+        relay?.handleWebDriverUnavailable(readiness.message);
+      },
+    },
+  );
   const relay = await BrowserRelay.listen({
-    expectedExtensionId,
+    expectedExtensionIds: [expectedExtensionId, expectedFirefoxExtensionId],
     sendToExtension,
+    webdriverDriver: firefoxDriver,
     onBrowserRegistered: async browser => {
       const state: BridgeState = {
         protocol: PANERELAY_PROTOCOL_VERSION,
@@ -70,10 +119,18 @@ async function main(): Promise<void> {
         browserName: browser.browserName,
         extensionVersion: browser.extensionVersion,
         extensionId: browser.extensionId,
+        ...(browser.browserFamily ? { browserFamily: browser.browserFamily } : {}),
+        ...(browser.capabilities ? { capabilities: browser.capabilities } : {}),
+        automation: normalizeAutomationCapability(browser.capabilities),
         updatedAt: new Date().toISOString(),
       };
       await writeBridgeState(state);
-      log(`Extension registered; CDP relay listening on 127.0.0.1:${relay.port}`);
+      log(
+        `Extension registered; ${state.automation.transport.toUpperCase()} relay listening on 127.0.0.1:${relay.port}`,
+      );
+      if (browser.browserFamily === 'firefox') {
+        sendToExtension(await firefoxDriver.ensureReady());
+      }
     },
     onBrowserDisconnected: removeOwnedBridgeState,
   });
@@ -101,6 +158,9 @@ async function main(): Promise<void> {
     transferReceiver.cancelAll();
     await agents.close().catch(error => log(`Agent shutdown failed: ${String(error)}`));
     await relay.close(reason).catch(error => log(`Relay shutdown failed: ${String(error)}`));
+    await firefoxDriver
+      .close()
+      .catch(error => log(`Firefox driver shutdown failed: ${String(error)}`));
     await removeOwnedBridgeState();
   }
 
@@ -157,7 +217,9 @@ async function main(): Promise<void> {
 
 const operation = process.argv.includes('--agent-browser-plugin')
   ? runAgentBrowserPlugin()
-  : main();
+  : process.argv.includes('--launch-firefox')
+    ? runFirefoxLauncher()
+    : main();
 
 void operation.catch(error => {
   log(`Bridge failed to start: ${error instanceof Error ? error.message : String(error)}`);

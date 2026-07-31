@@ -61,9 +61,16 @@ test('runs setup when the action is omitted', async () => {
             agentBrowserPath: '/tmp/agent-browser',
             agentBrowserSupported: true,
             extensionId: PANERELAY_EXTENSION_ID,
+            firefoxExtensionId: 'panerelay@f-loat.dev',
+            firefoxAutomationReady: false,
+            firefoxLauncherPath: '/tmp/panerelay-firefox',
+            firefoxRuntimeStatePath: '/tmp/firefox-runtime.json',
             hostPath: '/tmp/host.mjs',
             launchPath: '/tmp/host',
             legacyHostPath: '/tmp/legacy-host',
+            legacyManifestPaths: [],
+            chromiumManifestPaths: ['/tmp/chromium-manifest.json'],
+            firefoxManifestPaths: ['/tmp/firefox-manifest.json'],
             manifestPaths: ['/tmp/manifest.json'],
             runtimeConfigPath: '/tmp/runtime.json',
           },
@@ -97,9 +104,16 @@ test('directs custom Extension IDs to their matching build instead of the Store'
           agentBrowserPath: '/tmp/agent-browser',
           agentBrowserSupported: true,
           extensionId,
+          firefoxExtensionId: 'panerelay@f-loat.dev',
+          firefoxAutomationReady: false,
+          firefoxLauncherPath: '/tmp/panerelay-firefox',
+          firefoxRuntimeStatePath: '/tmp/firefox-runtime.json',
           hostPath: '/tmp/host.mjs',
           launchPath: '/tmp/host',
           legacyHostPath: '/tmp/legacy-host',
+          legacyManifestPaths: [],
+          chromiumManifestPaths: ['/tmp/chromium-manifest.json'],
+          firefoxManifestPaths: ['/tmp/firefox-manifest.json'],
           manifestPaths: ['/tmp/manifest.json'],
           runtimeConfigPath: '/tmp/runtime.json',
         },
@@ -124,10 +138,19 @@ test('accepts language options before or after the command', () => {
 
 test('parses custom Extension IDs for setup and doctor', () => {
   const extensionId = 'abcdefghijklmnopabcdefghijklmnop';
+  const firefoxExtensionId = 'custom-panerelay@example.com';
   assert.equal(parseSetupArgs(['update', '--extension-id', extensionId]).extensionId, extensionId);
   assert.equal(
     parseSetupArgs(['doctor', `--extension-id=${extensionId}`]).extensionId,
     extensionId,
+  );
+  assert.equal(
+    parseSetupArgs(['setup', '--firefox-extension-id', firefoxExtensionId]).firefoxExtensionId,
+    firefoxExtensionId,
+  );
+  assert.equal(
+    parseSetupArgs(['doctor', `--firefox-extension-id=${firefoxExtensionId}`]).firefoxExtensionId,
+    firefoxExtensionId,
   );
   assert.throws(() => parseSetupArgs(['setup', '--extension-id']), /EXTENSION_ID_MISSING/);
   assert.throws(
@@ -137,6 +160,10 @@ test('parses custom Extension IDs for setup and doctor', () => {
   );
   assert.throws(
     () => parseSetupArgs(['uninstall', `--extension-id=${extensionId}`]),
+    /not available with uninstall/,
+  );
+  assert.throws(
+    () => parseSetupArgs(['uninstall', `--firefox-extension-id=${firefoxExtensionId}`]),
     /not available with uninstall/,
   );
 });

@@ -8,7 +8,7 @@
     "node": ">=20.19.0"
   },
   "scripts": {
-    "build": "vite build",
+    "build": "node build.mjs",
     "dev": "vite --host 127.0.0.1",
     "package": "node package.mjs",
     "test": "node test.mjs && vitest run",

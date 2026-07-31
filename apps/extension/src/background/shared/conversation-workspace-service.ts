@@ -4,7 +4,7 @@ import type {
   ConversationImageInput,
   ConversationPageContext,
 } from '@panerelay/protocol';
-import type { ConversationWorkspaceSnapshot } from '../shared/conversation-workspaces.js';
+import type { ConversationWorkspaceSnapshot } from '../../shared/conversation-workspaces.js';
 import {
   ConversationWorkspaceStore,
   type ConversationWorkspaceReservation,

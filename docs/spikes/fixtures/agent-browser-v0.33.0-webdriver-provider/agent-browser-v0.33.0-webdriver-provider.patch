@@ -1,0 +1,723 @@
+diff --git a/cli/src/native/actions.rs b/cli/src/native/actions.rs
+index 93a63cd..9c5a518 100644
+--- a/cli/src/native/actions.rs
++++ b/cli/src/native/actions.rs
+@@ -1888,7 +1888,9 @@ fn command_changes_restore_key(cmd: &Value, state: &DaemonState) -> bool {
+ }
+ 
+ fn has_active_browser_session(state: &DaemonState) -> bool {
+-    state.browser.is_some() || state.active_provider_session.is_some()
++    state.browser.is_some()
++        || state.webdriver_backend.is_some()
++        || state.active_provider_session.is_some()
+ }
+ 
+ async fn apply_restore_config_after_confirmation(
+@@ -1918,6 +1920,38 @@ fn remember_active_provider_session(
+     });
+ }
+ 
++fn activate_webdriver_provider_connection(
++    state: &mut DaemonState,
++    connection: &providers::ProviderConnection,
++    provider: &str,
++    plugins: &[crate::plugins::PluginConfig],
++    launch_hash: u64,
++) -> Result<bool, String> {
++    let Some(session_id) = connection.webdriver_session_id.clone() else {
++        return Ok(false);
++    };
++    let heartbeat_interval_ms = connection
++        .metadata
++        .as_ref()
++        .and_then(|metadata| metadata.get("webdriverHeartbeatIntervalMs"))
++        .and_then(Value::as_u64);
++    let client = super::webdriver::client::WebDriverClient::new_with_url_session_and_heartbeat(
++        connection.ws_url.clone(),
++        session_id,
++        heartbeat_interval_ms,
++    )?;
++    state.browser = None;
++    state.webdriver_backend = Some(WebDriverBackend::new(client));
++    state.backend_type = BackendType::WebDriver;
++    state.engine = "webdriver".to_string();
++    state.launch_hash = Some(launch_hash);
++    remember_active_provider_session(state, connection.session.clone(), plugins);
++    write_provider_file(&state.session_id, provider);
++    write_extensions_file(&state.session_id);
++    state.reset_input_state();
++    Ok(true)
++}
++
+ async fn close_active_provider_session(state: &mut DaemonState) {
+     if let Some(active) = state.active_provider_session.take() {
+         providers::close_provider_session_with_plugins(&active.session, &active.plugins).await;
+@@ -1931,6 +1965,11 @@ pub(crate) async fn close_current_browser(state: &mut DaemonState) -> Result<(),
+         None
+     };
+ 
++    if let Some(ref mut webdriver) = state.webdriver_backend {
++        let _ = webdriver.close().await;
++    }
++    state.webdriver_backend = None;
++    state.backend_type = BackendType::Cdp;
+     close_active_provider_session(state).await;
+     state.launch_hash = None;
+     state.network_auto_attach_installed = false;
+@@ -2136,6 +2175,8 @@ pub async fn execute_command(cmd: &Value, state: &mut DaemonState) -> Value {
+             true
+         } else if let Some(ref mut mgr) = state.browser {
+             mgr.has_process_exited() || !mgr.is_connection_alive().await
++        } else if state.webdriver_backend.is_some() {
++            false
+         } else {
+             true
+         }
+@@ -2222,10 +2263,9 @@ pub async fn execute_command(cmd: &Value, state: &mut DaemonState) -> Value {
+ 
+     if !skip_launch {
+         if needs_launch {
+-            lifecycle_relaunched_browser = restore_transition_closed_browser
+-                || state.browser.is_some()
+-                || state.active_provider_session.is_some();
+-            if state.browser.is_some() || state.active_provider_session.is_some() {
++            lifecycle_relaunched_browser =
++                restore_transition_closed_browser || has_active_browser_session(state);
++            if has_active_browser_session(state) {
+                 let _ = auto_save_restore_state(state).await;
+                 let _ = close_current_browser(state).await;
+             }
+@@ -3123,6 +3163,41 @@ async fn auto_launch(
+                 }
+                 return Err(direct_page_allowed_domains_error());
+             }
++            let provider_hash = launch_hash(
++                &options,
++                &allowed_domains,
++                &state.plugin_init_scripts,
++                &enable_features,
++                &init_script_paths,
++                engine.as_deref(),
++                "provider",
++                Some(p.as_str()),
++            );
++            if conn.webdriver_session_id.is_some() {
++                if has_proxy_auth {
++                    if let Some(ref ps) = conn.session {
++                        providers::close_provider_session_with_plugins(ps, &plugins).await;
++                    }
++                    return Err(
++                        "Authenticated proxy configuration is not supported by WebDriver Providers"
++                            .to_string(),
++                    );
++                }
++                if let Err(error) = activate_webdriver_provider_connection(
++                    state,
++                    &conn,
++                    &p,
++                    &plugins,
++                    provider_hash,
++                ) {
++                    if let Some(ref ps) = conn.session {
++                        providers::close_provider_session_with_plugins(ps, &plugins).await;
++                    }
++                    return Err(error);
++                }
++                state.update_stream_client().await;
++                return Ok(());
++            }
+             let ws_headers = if p == "agentcore" {
+                 providers::take_agentcore_ws_headers()
+             } else {
+@@ -3137,19 +3212,9 @@ async fn auto_launch(
+             };
+             match connect_result {
+                 Ok(mgr) => {
+-                    let hash = launch_hash(
+-                        &options,
+-                        &allowed_domains,
+-                        &state.plugin_init_scripts,
+-                        &enable_features,
+-                        &init_script_paths,
+-                        engine.as_deref(),
+-                        "provider",
+-                        Some(p.as_str()),
+-                    );
+                     state.reset_input_state();
+                     state.browser = Some(mgr);
+-                    state.launch_hash = Some(hash);
++                    state.launch_hash = Some(provider_hash);
+                     remember_active_provider_session(state, conn.session.clone(), &plugins);
+                     state.subscribe_to_browser_events();
+                     state.start_fetch_handler();
+@@ -3907,7 +3972,9 @@ async fn handle_launch(cmd: &Value, state: &mut DaemonState) -> Result<Value, St
+     // Hash comparison and fast process-exit check are evaluated before the
+     // async is_connection_alive to skip the expensive CDP liveness probe
+     // when a relaunch is already certain.
+-    let needs_relaunch = if let Some(ref mut mgr) = state.browser {
++    let needs_relaunch = if state.webdriver_backend.is_some() {
++        state.launch_hash != Some(new_hash)
++    } else if let Some(ref mut mgr) = state.browser {
+         let is_external =
+             launch_connection_is_external(cdp_url, cdp_port, auto_connect, provider_name);
+         let was_external = mgr.is_cdp_connection();
+@@ -3922,8 +3989,7 @@ async fn handle_launch(cmd: &Value, state: &mut DaemonState) -> Result<Value, St
+         true
+     };
+ 
+-    let had_browser_before_launch =
+-        state.browser.is_some() || state.active_provider_session.is_some();
++    let had_browser_before_launch = has_active_browser_session(state);
+ 
+     if needs_relaunch {
+         if had_browser_before_launch {
+@@ -4022,6 +4088,41 @@ async fn handle_launch(cmd: &Value, state: &mut DaemonState) -> Result<Value, St
+                     return Err(direct_page_allowed_domains_error());
+                 }
+                 let provider_metadata = conn.metadata.clone();
++                if conn.webdriver_session_id.is_some() {
++                    if has_proxy_auth {
++                        if let Some(ref ps) = conn.session {
++                            providers::close_provider_session_with_plugins(ps, &command_plugins)
++                                .await;
++                        }
++                        restore_domain_filter(state, &previous_domain_filter).await;
++                        return Err(
++                            "Authenticated proxy configuration is not supported by WebDriver Providers"
++                                .to_string(),
++                        );
++                    }
++                    if let Err(error) = activate_webdriver_provider_connection(
++                        state,
++                        &conn,
++                        provider,
++                        &command_plugins,
++                        new_hash,
++                    ) {
++                        if let Some(ref ps) = conn.session {
++                            providers::close_provider_session_with_plugins(ps, &command_plugins)
++                                .await;
++                        }
++                        restore_domain_filter(state, &previous_domain_filter).await;
++                        return Err(error);
++                    }
++                    state.update_stream_client().await;
++                    return Ok(json!({
++                        "launched": true,
++                        "relaunchedBrowser": had_browser_before_launch,
++                        "provider": provider,
++                        "backend": "webdriver",
++                        "providerMetadata": provider_metadata,
++                    }));
++                }
+ 
+                 let ws_headers = if provider.eq_ignore_ascii_case("agentcore") {
+                     providers::take_agentcore_ws_headers()
+@@ -11121,6 +11222,56 @@ mod tests {
+     use tokio::io::{AsyncReadExt, AsyncWriteExt};
+     use tokio::net::TcpListener;
+ 
++    #[test]
++    fn webdriver_provider_connection_selects_existing_backend() {
++        let mut state = DaemonState::new();
++        let connection = providers::ProviderConnection {
++            ws_url: "http://127.0.0.1:4444/participant/opaque".to_string(),
++            webdriver_session_id: Some("virtual-session".to_string()),
++            session: None,
++            direct_page: false,
++            metadata: Some(json!({ "webdriverHeartbeatIntervalMs": 10 })),
++        };
++
++        assert!(activate_webdriver_provider_connection(
++            &mut state,
++            &connection,
++            "panerelay",
++            &[],
++            42,
++        )
++        .unwrap());
++        assert!(state.browser.is_none());
++        assert!(state.webdriver_backend.is_some());
++        assert!(matches!(state.backend_type, BackendType::WebDriver));
++        assert_eq!(state.launch_hash, Some(42));
++        assert!(has_active_browser_session(&state));
++    }
++
++    #[tokio::test]
++    async fn webdriver_provider_connection_keeps_cdp_only_actions_gated() {
++        let mut state = DaemonState::new();
++        state.backend_type = BackendType::WebDriver;
++        state.webdriver_backend = Some(WebDriverBackend::new(
++            crate::native::webdriver::client::WebDriverClient::new_with_url_and_session(
++                "http://127.0.0.1:4444/participant/opaque".to_string(),
++                "virtual-session".to_string(),
++            )
++            .unwrap(),
++        ));
++
++        let response = execute_command(
++            &json!({ "id": "trace", "action": "trace_start" }),
++            &mut state,
++        )
++        .await;
++        assert_eq!(response["success"], false, "{response}");
++        assert!(response["error"]
++            .as_str()
++            .unwrap()
++            .contains("not supported on the WebDriver backend"));
++    }
++
+     /// `find --help`, the MCP tool schema, and the docs/skill references are
+     /// plain text, not generated from `FIND_ACTIONS`; this pins their
+     /// wording to the actual accepted set so an edit to one without the
+@@ -11548,6 +11699,35 @@ mod tests {
+         (port, handle)
+     }
+ 
++    async fn start_webdriver_method_response_server(
++        method: &'static str,
++        expected_path: &'static str,
++        body: Value,
++    ) -> (u16, tokio::task::JoinHandle<usize>) {
++        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
++        let port = listener.local_addr().unwrap().port();
++        let handle = tokio::spawn(async move {
++            let (mut stream, _) = listener.accept().await.unwrap();
++            let mut buf = [0_u8; 2048];
++            let n = stream.read(&mut buf).await.unwrap_or(0);
++            let request = String::from_utf8_lossy(&buf[..n]);
++            assert!(
++                request.starts_with(&format!("{} {} ", method, expected_path)),
++                "unexpected webdriver request: {}",
++                request.lines().next().unwrap_or("")
++            );
++            let body = body.to_string();
++            let response = format!(
++                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
++                body.len(),
++                body
++            );
++            stream.write_all(response.as_bytes()).await.unwrap();
++            1
++        });
++        (port, handle)
++    }
++
+     fn unique_socket_dir(label: &str) -> PathBuf {
+         let nanos = std::time::SystemTime::now()
+             .duration_since(std::time::UNIX_EPOCH)
+@@ -12439,6 +12619,19 @@ printf '%s' '{"protocol":"agent-browser.plugin.v1","success":true,"data":{}}'
+         fs::set_permissions(&plugin_path, perms).unwrap();
+ 
+         let mut state = DaemonState::new();
++        let (webdriver_port, webdriver_server) = start_webdriver_method_response_server(
++            "DELETE",
++            "/session/virtual-session",
++            json!({ "value": null }),
++        )
++        .await;
++        state.webdriver_backend = Some(WebDriverBackend::new(
++            crate::native::webdriver::client::WebDriverClient::new_with_session(
++                webdriver_port,
++                "virtual-session".to_string(),
++            ),
++        ));
++        state.backend_type = BackendType::WebDriver;
+         state.active_provider_session = Some(ActiveProviderSession {
+             session: providers::ProviderSession {
+                 provider: "plugin:cloud-browser".to_string(),
+@@ -12456,6 +12649,9 @@ printf '%s' '{"protocol":"agent-browser.plugin.v1","success":true,"data":{}}'
+         close_current_browser(&mut state).await.unwrap();
+ 
+         assert!(state.active_provider_session.is_none());
++        assert!(state.webdriver_backend.is_none());
++        assert!(matches!(state.backend_type, BackendType::Cdp));
++        assert_eq!(webdriver_server.await.unwrap(), 1);
+         let request = fs::read_to_string(request_path).unwrap();
+         assert!(request.contains(r#""type":"browser.close""#));
+         assert!(request.contains(r#""sessionId":"s1""#));
+diff --git a/cli/src/native/providers.rs b/cli/src/native/providers.rs
+index c6848c0..c201468 100644
+--- a/cli/src/native/providers.rs
++++ b/cli/src/native/providers.rs
+@@ -16,6 +16,8 @@ pub struct ProviderSession {
+ #[derive(Debug)]
+ pub struct ProviderConnection {
+     pub ws_url: String,
++    /// Existing WebDriver session ID when the provider returned a WebDriver transport.
++    pub webdriver_session_id: Option<String>,
+     pub session: Option<ProviderSession>,
+     /// If true, the WebSocket IS the page session (no Target.* commands).
+     pub direct_page: bool,
+@@ -53,6 +55,7 @@ pub async fn connect_provider_with_plugins_and_options(
+             let (url, session) = connect_browserbase().await?;
+             Ok(ProviderConnection {
+                 ws_url: url,
++                webdriver_session_id: None,
+                 session,
+                 direct_page: false,
+                 metadata: None,
+@@ -62,6 +65,7 @@ pub async fn connect_provider_with_plugins_and_options(
+             let (url, session) = connect_browserless().await?;
+             Ok(ProviderConnection {
+                 ws_url: url,
++                webdriver_session_id: None,
+                 session,
+                 direct_page: false,
+                 metadata: None,
+@@ -71,6 +75,7 @@ pub async fn connect_provider_with_plugins_and_options(
+             let (url, session) = connect_browser_use().await?;
+             Ok(ProviderConnection {
+                 ws_url: url,
++                webdriver_session_id: None,
+                 session,
+                 direct_page: false,
+                 metadata: None,
+@@ -80,6 +85,7 @@ pub async fn connect_provider_with_plugins_and_options(
+             let (url, session) = connect_kernel().await?;
+             Ok(ProviderConnection {
+                 ws_url: url,
++                webdriver_session_id: None,
+                 session,
+                 direct_page: false,
+                 metadata: None,
+@@ -89,6 +95,7 @@ pub async fn connect_provider_with_plugins_and_options(
+             let (url, session) = connect_agentcore().await?;
+             Ok(ProviderConnection {
+                 ws_url: url,
++                webdriver_session_id: None,
+                 session,
+                 direct_page: false,
+                 metadata: None,
+@@ -224,6 +231,7 @@ pub async fn connect_plugin_provider_with_plugins_and_options(
+     let request = json!({
+         "provider": provider_name,
+         "session": env::var("AGENT_BROWSER_SESSION").unwrap_or_else(|_| "default".to_string()),
++        "clientCapabilities": ["browser.provider.webdriver-existing-session"],
+         "launchOptions": Value::Object(plugin_launch_options),
+     });
+     let browser =
+@@ -233,8 +241,17 @@ pub async fn connect_plugin_provider_with_plugins_and_options(
+         provider: format!("plugin:{}", provider_name),
+         session_id: serde_json::to_string(cleanup).unwrap_or_else(|_| "{}".to_string()),
+     });
++    let (ws_url, webdriver_session_id) = if browser.transport.as_deref() == Some("webdriver") {
++        (
++            browser.webdriver_url.expect("validated WebDriver URL"),
++            browser.webdriver_session_id,
++        )
++    } else {
++        (browser.cdp_url.expect("validated CDP URL"), None)
++    };
+     Ok(ProviderConnection {
+-        ws_url: browser.cdp_url,
++        ws_url,
++        webdriver_session_id,
+         session,
+         direct_page: browser.direct_page,
+         metadata: browser.metadata,
+@@ -1099,5 +1116,9 @@ printf '%s' '{"protocol":"agent-browser.plugin.v1","success":true,"browser":{"cd
+             request["request"]["launchOptions"]["userAgent"],
+             "cli-agent"
+         );
++        assert_eq!(
++            request["request"]["clientCapabilities"],
++            json!(["browser.provider.webdriver-existing-session"])
++        );
+     }
+ }
+diff --git a/cli/src/native/webdriver/client.rs b/cli/src/native/webdriver/client.rs
+index 003cf49..0c217cb 100644
+--- a/cli/src/native/webdriver/client.rs
++++ b/cli/src/native/webdriver/client.rs
+@@ -4,6 +4,7 @@ use std::time::Duration;
+ pub struct WebDriverClient {
+     base_url: String,
+     session_id: Option<String>,
++    heartbeat_task: Option<tokio::task::JoinHandle<()>>,
+ }
+ 
+ impl WebDriverClient {
+@@ -11,6 +12,7 @@ impl WebDriverClient {
+         Self {
+             base_url: format!("http://127.0.0.1:{}", port),
+             session_id: None,
++            heartbeat_task: None,
+         }
+     }
+ 
+@@ -178,9 +180,66 @@ impl WebDriverClient {
+         Self {
+             base_url: format!("http://127.0.0.1:{}", port),
+             session_id: Some(session_id),
++            heartbeat_task: None,
+         }
+     }
+ 
++    pub fn new_with_url_and_session(base_url: String, session_id: String) -> Result<Self, String> {
++        Self::new_with_url_session_and_heartbeat(base_url, session_id, None)
++    }
++
++    pub fn new_with_url_session_and_heartbeat(
++        base_url: String,
++        session_id: String,
++        heartbeat_interval_ms: Option<u64>,
++    ) -> Result<Self, String> {
++        let parsed = url::Url::parse(&base_url)
++            .map_err(|error| format!("Invalid WebDriver URL: {}", error))?;
++        if parsed.scheme() != "http"
++            || parsed.host_str().is_none()
++            || !parsed.username().is_empty()
++            || parsed.password().is_some()
++            || parsed.query().is_some()
++            || parsed.fragment().is_some()
++        {
++            return Err("WebDriver Provider URL must be an HTTP endpoint without credentials, query, or fragment".to_string());
++        }
++        if session_id.is_empty() {
++            return Err("WebDriver Provider session ID must not be empty".to_string());
++        }
++        if heartbeat_interval_ms.is_some_and(|interval| !(10..=60_000).contains(&interval)) {
++            return Err(
++                "WebDriver Provider heartbeat interval must be from 10 through 60000 milliseconds"
++                    .to_string(),
++            );
++        }
++        let base_url = base_url.trim_end_matches('/').to_string();
++        let heartbeat_task = heartbeat_interval_ms.and_then(|interval| {
++            let heartbeat_url = format!(
++                "{}/session/{}/panerelay/heartbeat",
++                base_url,
++                urlencoding::encode(&session_id)
++            );
++            tokio::runtime::Handle::try_current().ok().map(|runtime| {
++                runtime.spawn(async move {
++                    let mut ticker = tokio::time::interval(Duration::from_millis(interval));
++                    ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
++                    loop {
++                        ticker.tick().await;
++                        if http_request("GET", &heartbeat_url, None).await.is_err() {
++                            break;
++                        }
++                    }
++                })
++            })
++        });
++        Ok(Self {
++            base_url,
++            session_id: Some(session_id),
++            heartbeat_task,
++        })
++    }
++
+     pub async fn execute_actions(&self, session_id: &str, actions: &Value) -> Result<(), String> {
+         self.post(&format!("/session/{}/actions", session_id), actions)
+             .await?;
+@@ -206,6 +265,14 @@ impl WebDriverClient {
+     }
+ }
+ 
++impl Drop for WebDriverClient {
++    fn drop(&mut self) {
++        if let Some(task) = self.heartbeat_task.take() {
++            task.abort();
++        }
++    }
++}
++
+ /// Extract the element id from a WebDriver find-element `value` payload.
+ ///
+ /// A genuine locator miss arrives as a WebDriver error payload
+@@ -340,6 +407,66 @@ mod tests {
+         assert_eq!(client.base_url, "http://127.0.0.1:9515");
+     }
+ 
++    #[test]
++    fn test_client_with_provider_url_preserves_scoped_path() {
++        let client = WebDriverClient::new_with_url_and_session(
++            "http://127.0.0.1:4444/participant/opaque/".to_string(),
++            "virtual-session".to_string(),
++        )
++        .unwrap();
++        assert_eq!(client.base_url, "http://127.0.0.1:4444/participant/opaque");
++        assert_eq!(client.session_id_pub(), Some("virtual-session"));
++    }
++
++    #[test]
++    fn test_client_with_provider_url_rejects_ambiguous_urls() {
++        assert!(WebDriverClient::new_with_url_and_session(
++            "ws://127.0.0.1:4444".to_string(),
++            "virtual-session".to_string(),
++        )
++        .is_err());
++        assert!(WebDriverClient::new_with_url_and_session(
++            "http://user:secret@127.0.0.1:4444".to_string(),
++            "virtual-session".to_string(),
++        )
++        .is_err());
++    }
++
++    #[tokio::test]
++    async fn test_provider_heartbeat_uses_scoped_virtual_session() {
++        use tokio::io::{AsyncReadExt, AsyncWriteExt};
++        use tokio::net::TcpListener;
++
++        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
++        let port = listener.local_addr().unwrap().port();
++        let request = tokio::spawn(async move {
++            let (mut stream, _) = listener.accept().await.unwrap();
++            let mut bytes = vec![0_u8; 4096];
++            let read = stream.read(&mut bytes).await.unwrap();
++            stream
++                .write_all(
++                    b"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 14\r\nConnection: close\r\n\r\n{\"value\":null}",
++                )
++                .await
++                .unwrap();
++            String::from_utf8_lossy(&bytes[..read]).to_string()
++        });
++        let client = WebDriverClient::new_with_url_session_and_heartbeat(
++            format!("http://127.0.0.1:{}/participant/opaque", port),
++            "virtual session".to_string(),
++            Some(10),
++        )
++        .unwrap();
++        let received = tokio::time::timeout(Duration::from_secs(1), request)
++            .await
++            .unwrap()
++            .unwrap();
++        assert!(received.starts_with(
++            "GET /participant/opaque/session/virtual%20session/panerelay/heartbeat HTTP/1.1"
++        ));
++        drop(client);
++    }
++
+     /// In the WebDriver engine a genuine locator miss surfaces as a
+     /// "no such element" error payload; it must translate to the anchored
+     /// locator-miss shape (selector included) so `to_ai_friendly_error`
+diff --git a/cli/src/plugins.rs b/cli/src/plugins.rs
+index bf286c9..4e87556 100644
+--- a/cli/src/plugins.rs
++++ b/cli/src/plugins.rs
+@@ -56,8 +56,15 @@ pub struct ResolvedCredential {
+ #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+ #[serde(rename_all = "camelCase")]
+ pub struct BrowserProviderResult {
++    #[serde(default)]
++    pub transport: Option<String>,
+     #[serde(alias = "wsUrl", alias = "connectUrl", alias = "cdp_url")]
+-    pub cdp_url: String,
++    #[serde(default)]
++    pub cdp_url: Option<String>,
++    #[serde(default)]
++    pub webdriver_url: Option<String>,
++    #[serde(default)]
++    pub webdriver_session_id: Option<String>,
+     #[serde(default)]
+     pub direct_page: bool,
+     #[serde(default)]
+@@ -353,11 +360,40 @@ pub async fn connect_browser_provider_with_plugins(
+         .browser
+         .or(response.data)
+         .ok_or_else(|| format!("Browser provider plugin '{}' returned no browser", provider))?;
+-    if browser.cdp_url.is_empty() {
+-        return Err(format!(
+-            "Browser provider plugin '{}' returned an empty CDP URL",
+-            provider
+-        ));
++    let transport = browser.transport.as_deref().unwrap_or("cdp");
++    match transport {
++        "cdp" => {
++            if browser.cdp_url.as_deref().is_none_or(str::is_empty)
++                || browser.webdriver_url.is_some()
++                || browser.webdriver_session_id.is_some()
++            {
++                return Err(format!(
++                    "Browser provider plugin '{}' returned invalid CDP connection metadata",
++                    provider
++                ));
++            }
++        }
++        "webdriver" => {
++            if browser.webdriver_url.as_deref().is_none_or(str::is_empty)
++                || browser
++                    .webdriver_session_id
++                    .as_deref()
++                    .is_none_or(str::is_empty)
++                || browser.cdp_url.is_some()
++                || browser.direct_page
++            {
++                return Err(format!(
++                    "Browser provider plugin '{}' returned invalid WebDriver connection metadata",
++                    provider
++                ));
++            }
++        }
++        _ => {
++            return Err(format!(
++                "Browser provider plugin '{}' returned an unsupported browser transport",
++                provider
++            ));
++        }
+     }
+     Ok(browser)
+ }
+@@ -1252,12 +1288,57 @@ printf '%s' '{"protocol":"agent-browser.plugin.v1","success":true,"browser":{"cd
+             .await
+             .unwrap();
+ 
+-        assert_eq!(browser.cdp_url, "ws://127.0.0.1:9222/devtools/browser/test");
++        assert_eq!(
++            browser.cdp_url.as_deref(),
++            Some("ws://127.0.0.1:9222/devtools/browser/test")
++        );
+         assert!(browser.direct_page);
+         assert_eq!(browser.metadata.unwrap()["sessionId"], "s1");
+         assert_eq!(browser.cleanup.unwrap()["sessionId"], "s1");
+     }
+ 
++    #[cfg(unix)]
++    #[tokio::test]
++    async fn browser_provider_plugin_returns_webdriver_connection() {
++        use std::os::unix::fs::PermissionsExt;
++
++        let dir = tempfile::tempdir().unwrap();
++        let plugin_path = dir.path().join("mock-webdriver-browser-plugin");
++        std::fs::write(
++            &plugin_path,
++            r#"#!/bin/sh
++cat >/dev/null
++printf '%s' '{"protocol":"agent-browser.plugin.v1","success":true,"browser":{"transport":"webdriver","webdriverUrl":"http://127.0.0.1:43124/opaque","webdriverSessionId":"virtual-session","cleanup":{"sessionId":"s1"}}}'
++"#,
++        )
++        .unwrap();
++        let mut perms = std::fs::metadata(&plugin_path).unwrap().permissions();
++        perms.set_mode(0o755);
++        std::fs::set_permissions(&plugin_path, perms).unwrap();
++
++        let plugins = vec![PluginConfig {
++            name: "webdriverbox".to_string(),
++            command: plugin_path.to_string_lossy().to_string(),
++            capabilities: vec![CAPABILITY_BROWSER_PROVIDER.to_string()],
++            ..PluginConfig::default()
++        }];
++
++        let browser = connect_browser_provider_with_plugins("webdriverbox", &plugins, json!({}))
++            .await
++            .unwrap();
++
++        assert_eq!(browser.transport.as_deref(), Some("webdriver"));
++        assert_eq!(
++            browser.webdriver_url.as_deref(),
++            Some("http://127.0.0.1:43124/opaque")
++        );
++        assert_eq!(
++            browser.webdriver_session_id.as_deref(),
++            Some("virtual-session")
++        );
++        assert_eq!(browser.cleanup.unwrap()["sessionId"], "s1");
++    }
++
+     #[cfg(unix)]
+     #[tokio::test]
+     async fn launch_mutator_plugin_returns_launch_changes() {

@@ -589,6 +589,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
       const response = await client.request({
         type: 'panerelay.conversation.list',
         providerId,
+        ...(stateRef.current.workspace?.cwd ? { cwd: stateRef.current.workspace.cwd } : {}),
       });
       if (stateRef.current.currentProviderId !== providerId) return;
       patch({
@@ -943,6 +944,17 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
     const wasActive = stateRef.current.commentMode;
     patch({ pageCommentsPending: true, error: '' });
     try {
+      if (!wasActive && stateRef.current.extensionStatus?.automationAvailable === false) {
+        const authorization = originAuthorizationForUrl(
+          stateRef.current.extensionStatus.activeTab?.url || '',
+        );
+        if (!authorization) {
+          throw new Error(translate(stateRef.current.locale, 'unsupportedBrowserPage'));
+        }
+        if (!(await client.requestOrigins([authorization.permissionPattern]))) {
+          throw new Error(translate(stateRef.current.locale, 'pageCommentAccessDenied'));
+        }
+      }
       await client.request({
         type: wasActive ? 'panerelay.page-comments.stop' : 'panerelay.page-comments.start',
         ...(!wasActive
@@ -968,6 +980,17 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
   const startContinuousPageComments = useCallback(async () => {
     patch({ pageCommentsPending: true, error: '' });
     try {
+      if (stateRef.current.extensionStatus?.automationAvailable === false) {
+        const authorization = originAuthorizationForUrl(
+          stateRef.current.extensionStatus.activeTab?.url || '',
+        );
+        if (!authorization) {
+          throw new Error(translate(stateRef.current.locale, 'unsupportedBrowserPage'));
+        }
+        if (!(await client.requestOrigins([authorization.permissionPattern]))) {
+          throw new Error(translate(stateRef.current.locale, 'pageCommentAccessDenied'));
+        }
+      }
       await client.request({
         type: 'panerelay.page-comments.start',
         continuous: true,

@@ -33,6 +33,11 @@ async function releaseFixture(overrides = {}) {
     version: overrides.extensionVersion ?? '0.1.0.2',
     version_name: version,
   });
+  await writeJson(root, 'apps/extension/manifest.firefox.json', {
+    optional_host_permissions: ['http://*/*', 'https://*/*', 'file:///*'],
+    version: overrides.extensionVersion ?? '0.1.0.2',
+    version_name: version,
+  });
   await writeJson(root, 'release.config.json', {
     agentBrowserVerifiedVersions: ['0.33.0'],
     channel: overrides.channel ?? 'stable',
@@ -99,11 +104,14 @@ test('updates every release identity field in lockstep', async () => {
       const manifest = JSON.parse(await readFile(join(root, relativePath), 'utf8'));
       assert.equal(manifest.version, '0.1.1', relativePath);
     }
-    const extension = JSON.parse(
-      await readFile(join(root, 'apps/extension/manifest.json'), 'utf8'),
-    );
-    assert.equal(extension.version, '0.1.1.0');
-    assert.equal(extension.version_name, '0.1.1');
+    for (const relativePath of [
+      'apps/extension/manifest.json',
+      'apps/extension/manifest.firefox.json',
+    ]) {
+      const extension = JSON.parse(await readFile(join(root, relativePath), 'utf8'));
+      assert.equal(extension.version, '0.1.1.0');
+      assert.equal(extension.version_name, '0.1.1');
+    }
     const descriptor = JSON.parse(await readFile(join(root, 'release.config.json'), 'utf8'));
     assert.equal(descriptor.channel, 'stable');
     assert.equal(descriptor.version, '0.1.1');

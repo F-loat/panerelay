@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import test from 'node:test';
-import { PANERELAY_EXTENSION_ID } from '@panerelay/protocol';
+import { PANERELAY_EXTENSION_ID, PANERELAY_FIREFOX_EXTENSION_ID } from '@panerelay/protocol';
 
 function chromeExtensionId(publicKey: string): string {
   const digest = createHash('sha256').update(Buffer.from(publicKey, 'base64')).digest();
@@ -24,10 +24,30 @@ test('retains the public manifest key that derives the official Extension ID', a
 
 test('does not request the redundant activeTab permission', async () => {
   const manifest = JSON.parse(await readFile(join(process.cwd(), 'manifest.json'), 'utf8')) as {
+    background?: { service_worker?: string };
     permissions?: string[];
   };
+  assert.equal(manifest.background?.service_worker, 'src/background/chromium/index.ts');
   assert.ok(!manifest.permissions?.includes('activeTab'));
   assert.ok(manifest.permissions?.includes('webNavigation'));
+});
+
+test('keeps Firefox sidebar and identity separate from Chromium automation permissions', async () => {
+  const manifest = JSON.parse(
+    await readFile(join(process.cwd(), 'manifest.firefox.json'), 'utf8'),
+  ) as {
+    background?: { scripts?: string[]; service_worker?: string };
+    browser_specific_settings?: { gecko?: { id?: string } };
+    permissions?: string[];
+    sidebar_action?: { default_panel?: string };
+  };
+  assert.equal(manifest.browser_specific_settings?.gecko?.id, PANERELAY_FIREFOX_EXTENSION_ID);
+  assert.deepEqual(manifest.background?.scripts, ['src/background/firefox/index.ts']);
+  assert.equal(manifest.background?.service_worker, undefined);
+  assert.equal(manifest.sidebar_action?.default_panel, 'src/pages/sidepanel/index.html');
+  assert.ok(!manifest.permissions?.includes('debugger'));
+  assert.ok(!manifest.permissions?.includes('sidePanel'));
+  assert.ok(manifest.permissions?.includes('nativeMessaging'));
 });
 
 test('localizes Extension metadata in English and Simplified Chinese', async () => {

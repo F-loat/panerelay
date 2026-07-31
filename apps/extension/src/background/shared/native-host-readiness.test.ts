@@ -2,10 +2,14 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { nativeHostDisconnectState } from './native-host-readiness.js';
 
-test('recognizes Chrome missing-host diagnostics', () => {
+test('recognizes Chromium and Firefox missing-host diagnostics', () => {
   assert.equal(nativeHostDisconnectState('Specified native messaging host not found.'), 'missing');
   assert.equal(
     nativeHostDisconnectState('Native messaging host org.panerelay.bridge not found'),
+    'missing',
+  );
+  assert.equal(
+    nativeHostDisconnectState('No such native application org.panerelay.bridge'),
     'missing',
   );
 });

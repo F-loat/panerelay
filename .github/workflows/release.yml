@@ -135,6 +135,7 @@ jobs:
           name: panerelay-extension-${{ steps.prepare.outputs.version }}
           path: |
             ${{ steps.prepare.outputs.extension_archive }}
+            ${{ steps.prepare.outputs.firefox_extension_archive }}
             ${{ steps.prepare.outputs.artifact_directory }}/inventory.json
             ${{ steps.prepare.outputs.artifact_directory }}/SHA256SUMS
           if-no-files-found: error
@@ -200,10 +201,12 @@ jobs:
         env:
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
         run: |
-          extension_archive="panerelay-extension-$RELEASE_VERSION.zip"
-          awk -v archive="$extension_archive" '$2 == archive { print }' \
+          chromium_archive="panerelay-extension-chromium-$RELEASE_VERSION.zip"
+          firefox_archive="panerelay-extension-firefox-$RELEASE_VERSION.zip"
+          awk -v chromium="$chromium_archive" -v firefox="$firefox_archive" \
+            '$2 == chromium || $2 == firefox { print }' \
             release-assets/SHA256SUMS > release-assets/SHA256SUMS.public
-          test "$(wc -l < release-assets/SHA256SUMS.public)" -eq 1
+          test "$(wc -l < release-assets/SHA256SUMS.public)" -eq 2
           mv release-assets/SHA256SUMS.public release-assets/SHA256SUMS
 
       - name: Create stable GitHub Release
@@ -213,11 +216,12 @@ jobs:
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           gh release create "$RELEASE_TAG" \
-            release-assets/panerelay-extension-"$RELEASE_VERSION".zip \
+            release-assets/panerelay-extension-chromium-"$RELEASE_VERSION".zip \
+            release-assets/panerelay-extension-firefox-"$RELEASE_VERSION".zip \
             release-assets/SHA256SUMS \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "Panerelay $RELEASE_VERSION" \
-            --notes "Includes Codex and Qoder side-panel Agents. Claude is not included. Requires agent-browser 0.33.0 or newer." \
+            --notes "Includes Codex and Qoder side-panel Agents. Chrome and Edge provide existing-tab automation; Firefox provides the development WebDriver transport described in the compatibility record. Requires agent-browser 0.33.0 or newer for Chromium automation." \
             --generate-notes \
             --latest

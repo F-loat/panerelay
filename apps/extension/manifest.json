@@ -22,7 +22,10 @@
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
   },
-  "background": { "service_worker": "src/background/index.ts", "type": "module" },
+  "background": {
+    "service_worker": "src/background/chromium/index.ts",
+    "type": "module"
+  },
   "side_panel": { "default_path": "src/pages/sidepanel/index.html" },
   "optional_host_permissions": ["http://*/*", "https://*/*", "file:///*"],
   "permissions": [

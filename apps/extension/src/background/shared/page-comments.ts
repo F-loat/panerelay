@@ -1,4 +1,4 @@
-import type { TabSummary } from '../shared/messages.js';
+import type { TabSummary } from '../../shared/messages.js';
 
 interface PageCommentTopPage {
   title: string;

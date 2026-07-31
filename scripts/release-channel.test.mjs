@@ -11,6 +11,7 @@ const VERSION_PATHS = [
   ...PACKAGE_DEFINITIONS.map(definition => `${definition.directory}/package.json`),
   'apps/extension/package.json',
   'apps/extension/manifest.json',
+  'apps/extension/manifest.firefox.json',
   'release.config.json',
 ];
 
@@ -35,6 +36,11 @@ async function releaseFixture() {
     version: '0.1.0',
   });
   await writeJson(root, 'apps/extension/manifest.json', {
+    manifest_version: 3,
+    version: '0.1.0.2',
+    version_name: '0.1.0',
+  });
+  await writeJson(root, 'apps/extension/manifest.firefox.json', {
     manifest_version: 3,
     version: '0.1.0.2',
     version_name: '0.1.0',
@@ -94,8 +100,12 @@ test('temporarily applies beta metadata and restores every source file', async (
         return {
           artifacts: [
             {
-              file: `panerelay-extension-${observedDescriptor.version}.zip`,
-              type: 'extension',
+              file: `panerelay-extension-chromium-${observedDescriptor.version}.zip`,
+              type: 'extension-chromium',
+            },
+            {
+              file: `panerelay-extension-firefox-${observedDescriptor.version}.zip`,
+              type: 'extension-firefox',
             },
           ],
         };
@@ -114,6 +124,8 @@ test('temporarily applies beta metadata and restores every source file', async (
     assert.equal(result.version, '0.1.0-beta.17');
     assert.equal(result.npmTag, 'beta');
     assert.equal(result.releaseTag, '');
+    assert.match(result.extensionArchive, /panerelay-extension-chromium-/);
+    assert.match(result.firefoxExtensionArchive, /panerelay-extension-firefox-/);
     assert.deepEqual(await versionSources(root), before);
   } finally {
     await rm(root, { force: true, recursive: true });
