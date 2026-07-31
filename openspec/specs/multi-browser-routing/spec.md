@@ -105,7 +105,7 @@ Panerelay SHALL bind each allocated agent-browser participant to exactly one bro
 
 ### Requirement: Browser choice does not grant authority
 
-Selecting or saving a browser SHALL NOT grant site access, authorize tabs, acquire a control lease, or copy permission state between browser registrations. Authorization and revocation SHALL remain browser-local and user initiated.
+Selecting or saving a browser SHALL NOT grant site access, authorize tabs, acquire a control lease, or copy permission state between browser registrations. Authorization and revocation SHALL remain browser-local and user-initiated.
 
 #### Scenario: Selected browser lacks authorization
 

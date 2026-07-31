@@ -90,6 +90,16 @@ test('retains independent live registrations and removes only an owned entry', a
 test('ignores malformed, mismatched, and stale registration entries', async () => {
   const { directory, options } = await fixture();
   try {
+    await assert.rejects(
+      writeBrowserRegistration(
+        {
+          ...state('null-capabilities-id', 103, 'chrome'),
+          capabilities: null,
+        } as unknown as BridgeState,
+        options,
+      ),
+      /registration is invalid/,
+    );
     await writeBrowserRegistration(state('live-id', 101, 'chrome'), options);
     await writeFile(browserRegistrationPath('malformed-id', options), '{broken');
     await writeFile(
@@ -169,6 +179,10 @@ test('fails closed for ambiguous families and unavailable defaults', async () =>
 
     await setBrowserDefault('offline-id', options);
     await assert.rejects(selectBrowserRegistration(options), /default.*offline-id.*unavailable/i);
+
+    await writeBrowserRegistration(state('chrome-a', 101, 'chrome', false), options);
+    await setBrowserDefault('chrome-a', options);
+    await assert.rejects(selectBrowserRegistration(options), /default.*chrome-a.*unavailable/i);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

@@ -141,7 +141,7 @@ Daily-Chrome verification of provider warm-up, lazy history, draft-first send, a
 
 ## Release automation evidence
 
-The stable workflow passed candidate preparation, exact npm publication, and GitHub Release creation. The matching tag and Release target the prepared commit, and all four public packages expose the same version through npm tag `latest`.
+The `0.1.0` stable workflow passed candidate preparation, exact npm publication, and GitHub Release creation. The matching tag and Release target the prepared commit, and every package in that release exposes the same version through npm tag `latest`. The current development candidate expands the lockstep publishable set to six packages; its publication evidence begins with the next release.
 
 The workflow-built beta Extension archive was loaded in daily Chrome and passed displayed beta identity, authorization, revocation, and cleanup acceptance. Prepare Release generated a reviewed version pull request without package, tag, Release, or Store side effects before merge.
 

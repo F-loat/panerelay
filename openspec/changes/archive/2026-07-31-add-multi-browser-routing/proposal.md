@@ -33,7 +33,7 @@ Browser ownership remains local to the selected browser installation. Its Extens
 
 ## Impact
 
-- Affects `@panerelay/protocol` Node paths, Bridge state and Native Host lifecycle, the agent-browser Provider plugin, setup CLI/doctor output, Extension native integration, and Extension settings.
+- Affects `@panerelay/protocol` Node paths, Bridge state and Native Host lifecycle, the agent-browser Provider plugin, setup diagnostics, the standalone CLI, Extension native integration, and Extension settings.
 - Pins compatibility to agent-browser 0.33.0 and affects the existing Chrome/Edge desktop-extension, native-messaging, and agent-browser Provider compatibility groups.
 - Replaces last-writer-wins singleton discovery for current lockstep builds; transitional reads of a live legacy singleton may remain when no current registry entries exist.
-- Adds no runtime dependency and does not change the browser-automation command semantics owned by agent-browser.
+- Adds `@panerelay/browser-registry` as an internal runtime package; the follow-up CLI extraction adds `@panerelay/cli`. Neither introduces a new external runtime or automation-engine dependency, and browser-automation command semantics remain owned by agent-browser.

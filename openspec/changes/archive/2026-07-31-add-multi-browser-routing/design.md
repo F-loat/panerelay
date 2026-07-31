@@ -28,11 +28,11 @@ The supported automation baseline remains agent-browser 0.33.0. Its Provider pro
 
 ## Decisions
 
-### Use a small browser-registry package below Bridge, Provider, and setup
+### Use a small browser-registry package below Bridge, Provider, setup diagnostics, and CLI
 
-A new `@panerelay/browser-registry` package will own local registration persistence, liveness validation, selector resolution, and saved-default persistence. Bridge Native Hosts write their own entries; the agent-browser Provider reads and selects entries; setup and Extension integration read or update the saved default.
+A new `@panerelay/browser-registry` package will own local registration persistence, liveness validation, selector resolution, and saved-default persistence. Bridge Native Hosts write their own entries; the agent-browser Provider reads and selects entries; setup diagnostics, the standalone CLI, and Extension integration read or update the saved default.
 
-This keeps filesystem and selection policy out of the shared wire protocol and avoids duplicated validation across three packages. It also avoids a dependency cycle: `@panerelay/bridge` already depends on `@panerelay/agent-browser`, so the Provider cannot import Bridge state helpers.
+This keeps filesystem and selection policy out of the shared wire protocol and avoids duplicated validation across its consumers. It also avoids a dependency cycle: `@panerelay/bridge` already depends on `@panerelay/agent-browser`, so the Provider cannot import Bridge state helpers.
 
 Alternatives considered:
 
@@ -80,15 +80,15 @@ The result contains the current browser's opaque ID, display name, family, curre
 
 The Extension renders this separately from the agent-browser default-Provider toggle and browser authorization controls. No operation grants permission or changes an active participant.
 
-### Extend the existing setup CLI
+### Expose recurring browser commands through a standalone CLI
 
-The `panerelay` binary adds:
+The optional `@panerelay/cli` package exposes the `panerelay` binary with:
 
 - `panerelay browsers` to list live registrations and the saved default;
 - `panerelay browser use <registration-id|family>` to save an exact or unambiguous live registration;
 - `panerelay browser clear` to remove the saved default.
 
-Human output remains localized. Selection commands operate only on local registry/default files and do not contact browser pages or change authorization. `doctor` continues to diagnose installation; browser listing is intentionally a separate runtime-status command.
+Human output remains localized. Selection commands operate only on local registry/default files and do not contact browser pages or change authorization. `@panerelay/setup` remains the one-time setup, update, doctor, and uninstall surface. The standalone boundary is detailed by the follow-up [CLI extraction design](../2026-07-31-extract-panerelay-cli/design.md).
 
 ### Compatibility classifications
 

@@ -71,6 +71,21 @@ test('lists bounded browser metadata and manages the saved default', async () =>
 
     output.length = 0;
     assert.equal(
+      await main(['browsers', '--lang', 'zh-CN'], {
+        environment: {},
+        listBrowserRegistrations: async () => [],
+        readBrowserDefault: async () => ({
+          protocol: 'panerelay.relay.v1',
+          browserId: 'offline-browser-id',
+          updatedAt: state.updatedAt,
+        }),
+      }),
+      0,
+    );
+    assert.match(output.join('\n'), /保存的默认浏览器当前不可用：offline-browser-id/);
+
+    output.length = 0;
+    assert.equal(
       await main(['browser', 'use', 'edge', '--lang', 'en'], {
         environment: { [PANERELAY_BROWSER_ID_ENV]: 'ambient-browser-id' },
         selectBrowserRegistration: async options => {

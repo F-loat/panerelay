@@ -51,11 +51,18 @@ The Panerelay CLI SHALL support English and Simplified Chinese human-readable he
 - **AND** the output contains browser names, families, opaque registration IDs, readiness, and the saved-default marker
 - **AND** it contains no relay token
 
-#### Scenario: User changes the saved default
+#### Scenario: User selects the saved default
 
 - **GIVEN** an exact registration ID or unambiguous browser family selects one live ready browser
-- **WHEN** the user runs `panerelay browser use <selector>` or clears the default
+- **WHEN** the user runs `panerelay browser use <selector>`
 - **THEN** only the routing preference changes
+- **AND** browser permissions, authorization, targets, active participants, and control leases remain unchanged
+
+#### Scenario: User clears the saved default
+
+- **GIVEN** a saved browser preference exists
+- **WHEN** the user runs `panerelay browser clear`
+- **THEN** the saved routing preference is removed without requiring a live browser
 - **AND** browser permissions, authorization, targets, active participants, and control leases remain unchanged
 
 #### Scenario: Browser selector conflicts with ambient process state

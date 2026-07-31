@@ -197,6 +197,12 @@ export async function main(
           console.log(`    ${state.browserId}`);
         }
       }
+      if (
+        saved &&
+        !registrations.some(registration => registration.state.browserId === saved.browserId)
+      ) {
+        console.log(translate(locale, 'browserDefaultStale', { id: saved.browserId }));
+      }
       return 0;
     }
 

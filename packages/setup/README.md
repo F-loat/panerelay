@@ -26,7 +26,9 @@ When Chrome and Edge are both connected, inspect or save the browser used by uns
 
 ```bash
 npx --yes @panerelay/cli browsers
-npx --yes @panerelay/cli browser use <registration-id|chrome|edge>
+npx --yes @panerelay/cli browser use chrome
+# Or use an exact registration ID:
+# npx --yes @panerelay/cli browser use REGISTRATION_ID
 npx --yes @panerelay/cli browser clear
 ```
 

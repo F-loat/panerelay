@@ -106,7 +106,8 @@ function isBridgeState(value: unknown): value is BridgeState {
     state.extensionId.length > 0 &&
     (state.browserFamily === undefined || isBrowserFamily(state.browserFamily)) &&
     (state.capabilities === undefined ||
-      (typeof state.capabilities === 'object' &&
+      (state.capabilities !== null &&
+        typeof state.capabilities === 'object' &&
         typeof state.capabilities.cdpRelay === 'boolean')) &&
     typeof state.updatedAt === 'string' &&
     Number.isFinite(Date.parse(state.updatedAt))
@@ -354,12 +355,12 @@ export async function selectBrowserRegistration(
     const selected = registrations.find(
       registration => registration.state.browserId === savedDefault.browserId,
     );
-    if (!selected) {
+    if (!selected || !selected.ready) {
       throw new Error(
         `The default Panerelay browser (${savedDefault.browserId}) is unavailable. Reopen it, choose another default, or clear the default.`,
       );
     }
-    return { source: selectedSource('default'), state: assertReady(selected.state) };
+    return { source: selectedSource('default'), state: selected.state };
   }
 
   if (ready.length === 1) {

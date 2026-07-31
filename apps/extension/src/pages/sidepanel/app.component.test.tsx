@@ -350,6 +350,15 @@ describe('React Side Panel', () => {
       'aria-pressed',
       'true',
     );
+    await user.click(screen.getByRole('button', { name: 'Clear this browser as default' }));
+    expect(client.requests).toContainEqual({
+      type: 'panerelay.browser-default.set',
+      enabled: false,
+    });
+    expect(screen.getByRole('button', { name: 'Use this browser by default' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
   });
 
   it('guides a missing Native Host with setup and retry', async () => {

@@ -88,7 +88,9 @@ agent-browser 从 `~/.agent-browser/config.json` 读取用户级默认值，当�
 
 ```bash
 npx --yes @panerelay/cli browsers
-npx --yes @panerelay/cli browser use <注册ID|chrome|edge>
+npx --yes @panerelay/cli browser use chrome
+# 也可以使用精确的注册 ID：
+# npx --yes @panerelay/cli browser use REGISTRATION_ID
 npx --yes @panerelay/cli browser clear
 PANERELAY_BROWSER=edge agent-browser --provider panerelay tab list
 ```

@@ -88,7 +88,9 @@ Browser selection is a separate setting. Panerelay uses an explicit `PANERELAY_B
 
 ```bash
 npx --yes @panerelay/cli browsers
-npx --yes @panerelay/cli browser use <registration-id|chrome|edge>
+npx --yes @panerelay/cli browser use chrome
+# Or use an exact registration ID:
+# npx --yes @panerelay/cli browser use REGISTRATION_ID
 npx --yes @panerelay/cli browser clear
 PANERELAY_BROWSER=edge agent-browser --provider panerelay tab list
 ```
