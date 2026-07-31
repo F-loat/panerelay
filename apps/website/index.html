@@ -1,0 +1,883 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      data-i18n-content="meta.description"
+      content="Panerelay lets AI agents work in the Chrome or Edge browser you already use—with explicit tab authorization, visible control, and instant release."
+    />
+    <meta name="theme-color" content="#080b0a" />
+    <meta name="color-scheme" content="dark" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Panerelay" />
+    <meta property="og:title" content="Panerelay — Your browser. Agent-ready." />
+    <meta
+      property="og:description"
+      content="Let AI agents work in the browser you already use. Local-first, explicitly authorized, and always visible."
+    />
+    <meta property="og:url" content="https://f-loat.github.io/panerelay/" />
+    <meta property="og:image" content="https://f-loat.github.io/panerelay/social-card.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Panerelay — Your browser. Agent-ready." />
+    <meta name="twitter:description" content="Let AI agents work in the browser you already use." />
+    <meta name="twitter:image" content="https://f-loat.github.io/panerelay/social-card.png" />
+    <link rel="canonical" href="https://f-loat.github.io/panerelay/" />
+    <link rel="icon" href="./panerelay-icon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="./site.webmanifest" />
+    <link rel="preconnect" href="https://fontsapi.zeoseven.com" crossorigin />
+    <link rel="stylesheet" href="https://fontsapi.zeoseven.com/292/main/result.css" />
+    <title data-i18n="meta.title">Panerelay — Your browser. Agent-ready.</title>
+  </head>
+  <body>
+    <a class="skip-link" href="#main-content" data-i18n="nav.skip">Skip to content</a>
+
+    <header class="site-header">
+      <div class="shell header-inner">
+        <a class="brand" href="#top" aria-label="Panerelay home" data-i18n-aria-label="nav.home">
+          <img src="./panerelay-icon.svg" width="32" height="32" alt="" />
+          <span>Panerelay</span>
+        </a>
+
+        <button
+          class="menu-button"
+          type="button"
+          aria-expanded="false"
+          aria-controls="primary-navigation"
+          aria-label="Open navigation"
+          data-i18n-aria-label="nav.open"
+          data-menu-button
+        >
+          <span></span>
+          <span></span>
+        </button>
+
+        <nav
+          class="primary-navigation"
+          id="primary-navigation"
+          aria-label="Primary navigation"
+          data-i18n-aria-label="nav.primary"
+          data-navigation
+          data-open="false"
+        >
+          <a href="#workflows" data-i18n="nav.workflows">Workflows</a>
+          <a href="#setup" data-i18n="nav.setup">Setup</a>
+          <a href="#trust" data-i18n="nav.trust">Trust</a>
+          <div
+            class="language-switcher"
+            role="group"
+            aria-label="Language"
+            data-language-switcher
+            data-i18n-aria-label="language.group"
+          >
+            <button
+              type="button"
+              data-language-option="zh-CN"
+              aria-pressed="false"
+              aria-label="Switch to Chinese"
+              data-i18n-aria-label="language.chinese"
+            >
+              中
+            </button>
+            <span aria-hidden="true">/</span>
+            <button
+              type="button"
+              data-language-option="en"
+              aria-pressed="true"
+              aria-label="Switch to English"
+              data-i18n-aria-label="language.english"
+            >
+              EN
+            </button>
+          </div>
+          <a
+            class="button button-small button-solid"
+            href="https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <span data-i18n="nav.add">Add to browser</span>
+          </a>
+          <a
+            class="nav-github"
+            href="https://github.com/F-loat/panerelay"
+            target="_blank"
+            rel="noreferrer"
+            aria-label="GitHub"
+            title="GitHub"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M12 .7a11.5 11.5 0 0 0-3.6 22.4c.6.1.8-.2.8-.6v-2.2c-3.3.7-4-1.4-4-1.4-.5-1.4-1.3-1.8-1.3-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.5-1.3-5.5-5.8 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.6.1-3.1 0 0 1-.3 3.2 1.2a11 11 0 0 1 5.8 0C17 4.7 18 5 18 5c.6 1.5.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.5-2.8 5.5-5.5 5.8.4.4.8 1.1.8 2.2v3.3c0 .4.2.7.8.6A11.5 11.5 0 0 0 12 .7Z"
+              />
+            </svg>
+          </a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main-content">
+      <section class="hero" id="top">
+        <div class="hero-grid" aria-hidden="true"></div>
+        <div class="hero-glow hero-glow-one" aria-hidden="true"></div>
+        <div class="hero-glow hero-glow-two" aria-hidden="true"></div>
+
+        <div class="shell hero-layout">
+          <div class="hero-copy">
+            <div class="eyebrow">
+              <span class="status-dot"></span>
+              <span data-i18n="hero.eyebrow">Open browser relay · local-first</span>
+            </div>
+            <h1 data-i18n-html="hero.title">
+              Your browser.
+              <span>Agent-ready.</span>
+            </h1>
+            <p class="hero-lede" data-i18n="hero.lede">
+              Let AI agents work in the Chrome or Edge browser you already use—without a second
+              profile, repeated logins, or exported cookies.
+            </p>
+
+            <div class="hero-actions">
+              <a
+                class="button button-solid"
+                href="https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi"
+                target="_blank"
+                rel="noreferrer"
+              >
+                <span data-i18n="action.add">Add Panerelay</span>
+                <svg viewBox="0 0 20 20" aria-hidden="true">
+                  <path
+                    d="M4 10h11M11 6l4 4-4 4"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.6"
+                  />
+                </svg>
+              </a>
+              <a
+                class="button button-ghost"
+                href="https://github.com/F-loat/panerelay"
+                target="_blank"
+                rel="noreferrer"
+              >
+                <span data-i18n="action.source">Explore the source</span>
+              </a>
+            </div>
+
+            <div
+              class="command"
+              role="group"
+              aria-label="Local setup command"
+              data-i18n-aria-label="command.group"
+            >
+              <span class="command-prompt" aria-hidden="true">$</span>
+              <code>npx --yes @panerelay/setup</code>
+              <button
+                class="copy-button"
+                type="button"
+                aria-label="Copy setup command"
+                data-i18n-aria-label="command.copy"
+                data-copy-command="npx --yes @panerelay/setup"
+                data-copied="false"
+              >
+                <svg class="copy-icon" viewBox="0 0 20 20" aria-hidden="true">
+                  <rect
+                    x="6.5"
+                    y="6.5"
+                    width="9"
+                    height="9"
+                    rx="1.5"
+                    fill="none"
+                    stroke="currentColor"
+                  />
+                  <path
+                    d="M4.5 12.5h-1a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1"
+                    fill="none"
+                    stroke="currentColor"
+                  />
+                </svg>
+                <svg class="check-icon" viewBox="0 0 20 20" aria-hidden="true">
+                  <path d="m4 10 4 4 8-9" fill="none" stroke="currentColor" stroke-width="1.8" />
+                </svg>
+                <span class="copy-label" data-copy-label data-i18n="command.copyShort">Copy</span>
+              </button>
+            </div>
+            <p class="sr-only" role="status" aria-live="polite" data-copy-status></p>
+
+            <ul
+              class="hero-trust"
+              aria-label="Key properties"
+              data-i18n-aria-label="hero.properties"
+            >
+              <li data-i18n="hero.explicitTabs">Explicit tabs</li>
+              <li data-i18n="hero.visibleControl">Visible control</li>
+              <li data-i18n="hero.instantRelease">Instant release</li>
+            </ul>
+          </div>
+
+          <div
+            class="hero-visual"
+            role="img"
+            aria-label="Panerelay connects an agent-browser terminal and local Agent side panel to an explicitly authorized browser tab."
+            data-i18n-aria-label="visual.hero"
+          >
+            <div class="browser-window">
+              <div class="browser-chrome">
+                <div class="window-dots" aria-hidden="true">
+                  <span></span><span></span><span></span>
+                </div>
+                <div class="browser-tab">
+                  <span class="tab-favicon"></span>
+                  <span data-i18n="visual.dailyBrowser">Daily browser</span>
+                </div>
+                <div class="address-bar">
+                  <svg viewBox="0 0 16 16" aria-hidden="true">
+                    <rect
+                      x="3.4"
+                      y="6.8"
+                      width="9.2"
+                      height="6.5"
+                      rx="1.5"
+                      fill="none"
+                      stroke="currentColor"
+                    />
+                    <path
+                      d="M5.5 6.8V5.4a2.5 2.5 0 0 1 5 0v1.4"
+                      fill="none"
+                      stroke="currentColor"
+                    />
+                  </svg>
+                  your-app.example
+                </div>
+              </div>
+
+              <div class="browser-content">
+                <div class="app-surface">
+                  <div class="app-kicker" data-i18n="visual.existingSession">
+                    YOUR EXISTING SESSION
+                  </div>
+                  <div class="app-heading"></div>
+                  <div class="app-line app-line-long"></div>
+                  <div class="app-line"></div>
+                  <div class="app-cards">
+                    <div></div>
+                    <div></div>
+                    <div></div>
+                  </div>
+                  <div class="authorization-pill">
+                    <span></span>
+                    <span data-i18n="visual.authorized">Tab authorized</span>
+                  </div>
+                </div>
+
+                <aside
+                  class="side-panel"
+                  aria-label="Panerelay side panel example"
+                  data-i18n-aria-label="visual.sidePanel"
+                >
+                  <div class="panel-header">
+                    <img src="./panerelay-icon.svg" alt="" width="22" height="22" />
+                    <strong>Panerelay</strong>
+                    <span class="panel-status" data-i18n="visual.ready">Ready</span>
+                  </div>
+                  <div class="panel-context">
+                    <span data-i18n="visual.context">CONTEXT</span>
+                    <strong data-i18n="visual.currentTab">Current tab</strong>
+                  </div>
+                  <div class="agent-message">
+                    <span class="agent-avatar">C</span>
+                    <div>
+                      <strong>Codex</strong>
+                      <p data-i18n="visual.agentMessage">
+                        I can work here when you authorize control.
+                      </p>
+                    </div>
+                  </div>
+                  <div class="control-card">
+                    <div>
+                      <span class="live-dot"></span>
+                      <strong data-i18n="visual.controlVisible">Control visible</strong>
+                    </div>
+                    <span class="control-release" data-i18n="visual.release">Release</span>
+                  </div>
+                  <div class="agent-picker">
+                    <span>Codex</span>
+                    <span>Claude</span>
+                    <span>Qoder</span>
+                  </div>
+                </aside>
+              </div>
+            </div>
+
+            <div class="terminal-card">
+              <div class="terminal-header">
+                <span><i></i> agent-browser</span>
+                <span data-i18n="visual.local">local</span>
+              </div>
+              <pre><span class="terminal-muted">$</span> agent-browser <span class="terminal-accent">--provider panerelay</span> snapshot -i
+
+<span class="terminal-success">✓</span> <span data-i18n="visual.connected">Connected to authorized browser</span>
+<span class="terminal-muted">-</span> heading "Workspace" [ref=e1]
+<span class="terminal-muted">-</span> button "Continue" [ref=e2]</pre>
+            </div>
+
+            <div class="relay-path" aria-hidden="true">
+              <span></span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section
+        class="signal-strip"
+        aria-label="Panerelay positioning"
+        data-i18n-aria-label="signal.label"
+      >
+        <div class="shell signal-row">
+          <span data-i18n="signal.browser">One browser</span>
+          <i></i>
+          <span data-i18n="signal.agent">Any shell-capable Agent</span>
+          <i></i>
+          <span data-i18n="signal.boundary">One explicit boundary</span>
+        </div>
+      </section>
+
+      <section class="section problem-section">
+        <div class="shell">
+          <div class="section-heading centered" data-reveal>
+            <span class="section-index" data-i18n="why.index">01 · WHY PANERELAY</span>
+            <h2 data-i18n-html="why.title">Stop rebuilding<br /><em>browser context.</em></h2>
+            <p data-i18n="why.lede">
+              Your authenticated state, open tabs, and real work already live in your daily browser.
+              Panerelay keeps them there.
+            </p>
+          </div>
+
+          <div class="value-grid">
+            <article class="value-card" data-reveal>
+              <span class="card-number">01</span>
+              <div class="value-icon session-icon" aria-hidden="true">
+                <span></span><span></span><span></span>
+              </div>
+              <h3 data-i18n="why.session.title">Keep the session</h3>
+              <p data-i18n="why.session.body">
+                Use the Chrome or Edge profile where you are already signed in. No cookie export.
+              </p>
+            </article>
+            <article class="value-card" data-reveal>
+              <span class="card-number">02</span>
+              <div class="value-icon target-icon" aria-hidden="true">
+                <span></span>
+              </div>
+              <h3 data-i18n="why.target.title">Choose the target</h3>
+              <p data-i18n="why.target.body">
+                Site permission and tab authorization remain explicit decisions—not side effects of
+                focus.
+              </p>
+            </article>
+            <article class="value-card" data-reveal>
+              <span class="card-number">03</span>
+              <div class="value-icon visible-icon" aria-hidden="true">
+                <span></span>
+              </div>
+              <h3 data-i18n="why.control.title">See who controls</h3>
+              <p data-i18n="why.control.body">
+                Active control stays visible in the Extension, with release always within reach.
+              </p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="section workflows-section" id="workflows">
+        <div class="shell">
+          <div class="section-heading split-heading" data-reveal>
+            <div>
+              <span class="section-index" data-i18n="workflows.index"> 02 · TWO DIRECTIONS </span>
+              <h2 data-i18n-html="workflows.title">Meet agents<br /><em>where you work.</em></h2>
+            </div>
+            <p data-i18n="workflows.lede">
+              Panerelay carries browser context both ways while the Bridge remains the local routing
+              and policy boundary.
+            </p>
+          </div>
+
+          <article class="workflow workflow-cli" data-reveal>
+            <div class="workflow-copy">
+              <span class="workflow-label" data-i18n="workflow.cli.label">FROM ANY AGENT</span>
+              <h3 data-i18n-html="workflow.cli.title">Bring agent-browser into your daily tabs.</h3>
+              <p data-i18n="workflow.cli.body">
+                Any Agent that can run CLI or MCP tools can use agent-browser through Panerelay.
+                Snapshots, locators, input, waits, screenshots, tabs, and diagnostics stay in the
+                automation engine built for them.
+              </p>
+              <ul class="check-list">
+                <li data-i18n="workflow.cli.point1">Works with shell-capable Agents</li>
+                <li data-i18n="workflow.cli.point2">
+                  Background automation does not steal visible tab focus
+                </li>
+                <li data-i18n="workflow.cli.point3">
+                  Current profile and login state stay in the browser
+                </li>
+              </ul>
+              <a
+                class="text-link"
+                href="https://agent-browser.dev/"
+                target="_blank"
+                rel="noreferrer"
+              >
+                <span data-i18n="workflow.cli.link">Read the agent-browser quickstart</span>
+                <span aria-hidden="true">↗</span>
+              </a>
+            </div>
+            <div
+              class="workflow-demo cli-demo"
+              role="img"
+              aria-label="CLI flow example"
+              data-i18n-aria-label="workflow.cli.demo"
+            >
+              <div class="code-window">
+                <div class="code-title">
+                  <span></span><span data-i18n="workflow.cli.terminal">terminal</span>
+                </div>
+                <pre><span class="code-comment" data-i18n="workflow.cli.comment1"># See the tabs you authorized</span>
+<span class="code-prompt">$</span> agent-browser \
+  <span class="code-green">--provider panerelay</span> tab list
+
+<span class="code-output" data-i18n="workflow.cli.output1">→ t1  Project board</span>
+<span class="code-output" data-i18n="workflow.cli.output2">→ t2  Pull request · Panerelay</span>
+
+<span class="code-comment" data-i18n="workflow.cli.comment2"># Work without switching your visible tab</span>
+<span class="code-prompt">$</span> agent-browser <span class="code-green">--provider panerelay</span> \
+  --session research snapshot -i</pre>
+              </div>
+              <div class="flow-labels" aria-hidden="true">
+                <span>Agent</span><i></i><span>agent-browser</span><i></i><span>Panerelay</span>
+              </div>
+            </div>
+          </article>
+
+          <article class="workflow workflow-panel" data-reveal>
+            <div class="workflow-copy">
+              <span class="workflow-label" data-i18n="workflow.panel.label">FROM THE BROWSER</span>
+              <h3 data-i18n-html="workflow.panel.title">Bring local Agents into the side panel.</h3>
+              <p data-i18n="workflow.panel.body">
+                Open Panerelay beside the page and talk to installed local Agents without leaving
+                Chrome or Edge. Conversations, approvals, activity, interruption, and release live
+                next to the tab they concern.
+              </p>
+              <ul
+                class="agent-list"
+                aria-label="Supported local Agents"
+                data-i18n-aria-label="workflow.panel.agents"
+              >
+                <li><span>C</span>Codex</li>
+                <li><span>Cl</span>Claude Code</li>
+                <li><span>Q</span>Qoder</li>
+              </ul>
+              <p class="workflow-note" data-i18n="workflow.panel.note">
+                Agent CLIs stay local and must already be installed and signed in.
+              </p>
+            </div>
+            <div
+              class="workflow-demo panel-demo"
+              role="img"
+              aria-label="Side panel conversation example"
+              data-i18n-aria-label="workflow.panel.demo"
+            >
+              <div class="demo-page">
+                <div class="demo-page-top"><span></span><span></span><span></span></div>
+                <div class="demo-skeleton"><b></b><i></i><i></i><i></i></div>
+              </div>
+              <div class="demo-panel">
+                <div class="demo-panel-head">
+                  <img src="./panerelay-icon.svg" alt="" width="24" height="24" />
+                  <strong>Panerelay</strong>
+                  <span>•••</span>
+                </div>
+                <div class="demo-context" data-i18n="workflow.panel.context">
+                  Context · this tab
+                </div>
+                <div class="demo-bubble user-bubble" data-i18n="workflow.panel.prompt">
+                  Summarize the decision on this page.
+                </div>
+                <div class="demo-bubble agent-bubble">
+                  <span>C</span>
+                  <p data-i18n="workflow.panel.response">
+                    I found three decisions. The key boundary is explicit authorization…
+                  </p>
+                </div>
+                <div class="demo-composer">
+                  <span data-i18n="workflow.panel.composer">Ask Codex…</span>
+                  <span>↗</span>
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section setup-section" id="setup">
+        <div class="shell setup-shell">
+          <div class="section-heading" data-reveal>
+            <span class="section-index" data-i18n="setup.index">03 · SETUP</span>
+            <h2 data-i18n-html="setup.title">
+              Three deliberate steps.<br /><em>Then it stays local.</em>
+            </h2>
+          </div>
+
+          <ol class="setup-steps">
+            <li data-reveal>
+              <span class="step-index">01</span>
+              <div class="step-content">
+                <span class="step-kicker" data-i18n="setup.extension.label">EXTENSION</span>
+                <h3 data-i18n="setup.extension.title">Add Panerelay to Chrome or Edge.</h3>
+                <p data-i18n="setup.extension.body">
+                  Install the official Chrome Web Store build. Edge may first ask you to allow
+                  extensions from other stores.
+                </p>
+                <a
+                  class="button button-outline"
+                  href="https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <span data-i18n="setup.extension.link">Open Chrome Web Store</span>
+                  <span aria-hidden="true">↗</span>
+                </a>
+              </div>
+              <div class="step-visual extension-visual" aria-hidden="true">
+                <div class="extension-card">
+                  <img src="./panerelay-icon.svg" alt="" />
+                  <div>
+                    <b>Panerelay</b><span data-i18n="setup.extension.card">Open browser relay</span>
+                  </div>
+                  <i data-i18n="setup.extension.added">Added</i>
+                </div>
+              </div>
+            </li>
+
+            <li data-reveal>
+              <span class="step-index">02</span>
+              <div class="step-content">
+                <span class="step-kicker" data-i18n="setup.bridge.label">LOCAL BRIDGE</span>
+                <h3 data-i18n="setup.bridge.title">Connect the browser to local tools.</h3>
+                <p data-i18n="setup.bridge.body">
+                  One setup command installs or updates the user-scoped Native Messaging
+                  integration. No administrator account is required.
+                </p>
+                <div
+                  class="command command-inline"
+                  role="group"
+                  aria-label="Local setup command"
+                  data-i18n-aria-label="command.group"
+                >
+                  <span class="command-prompt" aria-hidden="true">$</span>
+                  <code>npx --yes @panerelay/setup</code>
+                  <button
+                    class="copy-button"
+                    type="button"
+                    aria-label="Copy setup command"
+                    data-i18n-aria-label="command.copy"
+                    data-copy-command="npx --yes @panerelay/setup"
+                    data-copied="false"
+                  >
+                    <svg class="copy-icon" viewBox="0 0 20 20" aria-hidden="true">
+                      <rect
+                        x="6.5"
+                        y="6.5"
+                        width="9"
+                        height="9"
+                        rx="1.5"
+                        fill="none"
+                        stroke="currentColor"
+                      />
+                      <path
+                        d="M4.5 12.5h-1a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1"
+                        fill="none"
+                        stroke="currentColor"
+                      />
+                    </svg>
+                    <svg class="check-icon" viewBox="0 0 20 20" aria-hidden="true">
+                      <path
+                        d="m4 10 4 4 8-9"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.8"
+                      />
+                    </svg>
+                    <span class="copy-label" data-copy-label data-i18n="command.copyShort"
+                      >Copy</span
+                    >
+                  </button>
+                </div>
+              </div>
+              <div class="step-visual bridge-visual" aria-hidden="true">
+                <div class="bridge-node">
+                  <span data-i18n="setup.bridge.browser">Browser</span><i></i>
+                </div>
+                <div class="bridge-line"><b></b></div>
+                <div class="bridge-node bridge-node-accent">
+                  <span data-i18n="setup.bridge.bridge">Bridge</span><i></i>
+                </div>
+                <div class="bridge-line"><b></b></div>
+                <div class="bridge-node">
+                  <span data-i18n="setup.bridge.agent">Agent</span><i></i>
+                </div>
+              </div>
+            </li>
+
+            <li data-reveal>
+              <span class="step-index">03</span>
+              <div class="step-content">
+                <span class="step-kicker" data-i18n="setup.authorization.label">
+                  AUTHORIZATION
+                </span>
+                <h3 data-i18n="setup.authorization.title">
+                  Choose the tabs. Keep the release switch.
+                </h3>
+                <p data-i18n="setup.authorization.body">
+                  Open Panerelay from the toolbar, authorize the current page or supported web tabs,
+                  and release active control whenever you want.
+                </p>
+                <a
+                  class="text-link"
+                  href="https://github.com/F-loat/panerelay#quickstart"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <span data-i18n="setup.authorization.link"> Follow the complete quickstart </span>
+                  <span aria-hidden="true">↗</span>
+                </a>
+              </div>
+              <div class="step-visual authorize-visual" aria-hidden="true">
+                <div class="authorize-row">
+                  <span class="authorize-favicon"></span>
+                  <div>
+                    <b data-i18n="setup.authorization.currentTab">Current tab</b
+                    ><small data-i18n="setup.authorization.ready">Ready to authorize</small>
+                  </div>
+                  <i class="toggle"><b></b></i>
+                </div>
+                <div class="authorize-row active">
+                  <span class="authorize-favicon second"></span>
+                  <div>
+                    <b data-i18n="setup.authorization.project">Project board</b
+                    ><small data-i18n="setup.authorization.authorized">Authorized</small>
+                  </div>
+                  <i class="toggle"><b></b></i>
+                </div>
+              </div>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <section class="section trust-section" id="trust">
+        <div class="shell">
+          <div class="trust-panel" data-reveal>
+            <div class="trust-copy">
+              <span class="section-index section-index-light" data-i18n="trust.index">
+                04 · TRUST BOUNDARY
+              </span>
+              <h2 data-i18n-html="trust.title">
+                Access is not focus.<br /><em>Control is never invisible.</em>
+              </h2>
+              <p data-i18n="trust.lede">
+                Panerelay separates permission to see a site, authorization to include a tab, and
+                the live lease required for mutation. Unsupported or unauthorized actions fail
+                closed.
+              </p>
+              <a
+                class="button button-light"
+                href="https://github.com/F-loat/panerelay/tree/main/docs/rfcs"
+                target="_blank"
+                rel="noreferrer"
+              >
+                <span data-i18n="trust.link">Read the architecture RFCs</span>
+                <span aria-hidden="true">↗</span>
+              </a>
+            </div>
+
+            <div class="boundary-stack">
+              <div class="boundary-item">
+                <span>01</span>
+                <div>
+                  <strong data-i18n="trust.site.title">Site permission</strong>
+                  <p data-i18n="trust.site.body">Which origins the Extension may observe.</p>
+                </div>
+                <i data-i18n="trust.site.status">Separate</i>
+              </div>
+              <div class="boundary-connector" aria-hidden="true"></div>
+              <div class="boundary-item">
+                <span>02</span>
+                <div>
+                  <strong data-i18n="trust.tab.title">Tab authorization</strong>
+                  <p data-i18n="trust.tab.body">Which eligible tabs an Agent may target.</p>
+                </div>
+                <i data-i18n="trust.tab.status">Explicit</i>
+              </div>
+              <div class="boundary-connector" aria-hidden="true"></div>
+              <div class="boundary-item boundary-active">
+                <span>03</span>
+                <div>
+                  <strong data-i18n="trust.lease.title">Active control lease</strong>
+                  <p data-i18n="trust.lease.body">
+                    Who may mutate right now—with immediate release.
+                  </p>
+                </div>
+                <i data-i18n="trust.lease.status">Visible</i>
+              </div>
+            </div>
+          </div>
+
+          <div class="trust-facts">
+            <article data-reveal>
+              <span class="fact-icon" aria-hidden="true">⌁</span>
+              <h3 data-i18n="trust.credentials.title">Credentials stay in the browser.</h3>
+              <p data-i18n="trust.credentials.body">
+                Panerelay reuses an authorized existing tab. It does not export cookies or log
+                credentials, prompts, screenshots, page content, or request bodies by default.
+              </p>
+            </article>
+            <article data-reveal>
+              <span class="fact-icon" aria-hidden="true">×</span>
+              <h3 data-i18n="trust.ownership.title">No browser-process ownership.</h3>
+              <p data-i18n="trust.ownership.body">
+                Isolated profiles, launch-time proxy changes, and closing your browser remain
+                outside an Extension-backed connection.
+              </p>
+            </article>
+            <article data-reveal>
+              <span class="fact-icon fact-icon-status" aria-hidden="true"></span>
+              <h3 data-i18n="trust.compatibility.title">Compatibility, without hand-waving.</h3>
+              <p data-i18n-html="trust.compatibility.body">
+                agent-browser 0.33.0 is the pinned evidence baseline. Chrome has recorded
+                version-specific classifications; Edge remains <code>Forwarded</code> pending
+                representative acceptance.
+              </p>
+              <a
+                class="text-link"
+                href="https://github.com/F-loat/panerelay/blob/main/docs/compatibility/browser-platforms.md"
+                target="_blank"
+                rel="noreferrer"
+              >
+                <span data-i18n="trust.compatibility.link"> Inspect the compatibility record </span>
+                <span aria-hidden="true">↗</span>
+              </a>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="final-section">
+        <div class="final-grid" aria-hidden="true"></div>
+        <div class="shell final-content" data-reveal>
+          <img src="./panerelay-icon.svg" width="64" height="64" alt="" />
+          <span class="section-index" data-i18n="final.index">OPEN SOURCE · MIT LICENSE</span>
+          <h2 data-i18n-html="final.title">
+            Keep your browser.<br /><em>Invite better tools.</em>
+          </h2>
+          <p data-i18n="final.body">
+            Install the Extension, connect the local Bridge, and decide exactly where Agents can
+            work.
+          </p>
+          <div class="final-actions">
+            <a
+              class="button button-solid"
+              href="https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <span data-i18n="action.add">Add Panerelay</span>
+              <span aria-hidden="true">↗</span>
+            </a>
+            <a
+              class="button button-ghost"
+              href="https://github.com/F-loat/panerelay"
+              target="_blank"
+              rel="noreferrer"
+            >
+              <span data-i18n="action.star">Star on GitHub</span>
+            </a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="shell footer-grid">
+        <div class="footer-brand">
+          <a class="brand" href="#top">
+            <img src="./panerelay-icon.svg" width="28" height="28" alt="" />
+            <span>Panerelay</span>
+          </a>
+          <p data-i18n="footer.tagline">Open browser relay for people, browsers, and AI Agents.</p>
+        </div>
+        <div class="footer-column">
+          <strong data-i18n="footer.project">Project</strong>
+          <a href="https://github.com/F-loat/panerelay" target="_blank" rel="noreferrer">GitHub</a>
+          <a href="https://github.com/F-loat/panerelay#quickstart" target="_blank" rel="noreferrer"
+            ><span data-i18n="footer.quickstart">Quickstart</span></a
+          >
+          <a href="https://github.com/F-loat/panerelay/releases" target="_blank" rel="noreferrer"
+            ><span data-i18n="footer.releases">Releases</span></a
+          >
+        </div>
+        <div class="footer-column">
+          <strong data-i18n="footer.reference">Reference</strong>
+          <a
+            href="https://github.com/F-loat/panerelay/tree/main/docs/rfcs"
+            target="_blank"
+            rel="noreferrer"
+          >
+            RFCs
+          </a>
+          <a
+            href="https://github.com/F-loat/panerelay/tree/main/docs/compatibility"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <span data-i18n="footer.compatibility">Compatibility</span>
+          </a>
+          <a
+            href="https://github.com/F-loat/panerelay/blob/main/LICENSE"
+            target="_blank"
+            rel="noreferrer"
+          >
+            MIT License
+          </a>
+        </div>
+        <div class="footer-column">
+          <strong data-i18n="footer.install">Install</strong>
+          <a
+            href="https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Chrome Web Store
+          </a>
+          <a href="https://www.npmjs.com/package/@panerelay/setup" target="_blank" rel="noreferrer">
+            npm
+          </a>
+        </div>
+      </div>
+      <div class="shell footer-bottom">
+        <span>
+          © <span data-current-year>2026</span>
+          <span data-i18n="footer.contributors">Panerelay contributors</span>
+        </span>
+        <span class="footer-status">
+          <i></i><span data-i18n="footer.local">Local-first by design</span>
+        </span>
+      </div>
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -11,7 +11,7 @@
   "bugs": {
     "url": "https://github.com/F-loat/panerelay/issues"
   },
-  "homepage": "https://github.com/F-loat/panerelay#readme",
+  "homepage": "https://f-loat.github.io/panerelay/",
   "packageManager": "pnpm@10.34.5",
   "engines": {
     "node": ">=20.19.0"
@@ -19,7 +19,9 @@
   "scripts": {
     "build": "pnpm -r --if-present build",
     "dev": "pnpm --filter @panerelay/extension dev",
+    "dev:website": "pnpm --filter @panerelay/website dev",
     "package": "pnpm --filter @panerelay/extension package",
+    "preview:website": "pnpm --filter @panerelay/website preview",
     "typecheck": "pnpm --filter @panerelay/protocol build && pnpm --filter @panerelay/browser-registry build && pnpm --filter @panerelay/cli build && pnpm --filter @panerelay/agent-browser build && pnpm --filter @panerelay/bridge build && pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test && node --test scripts/*.test.mjs",
     "lint": "eslint \"{apps,packages}/**/src/**/*.{ts,tsx}\"",

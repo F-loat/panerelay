@@ -1,0 +1,21 @@
+{
+  "name": "@panerelay/website",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Panerelay project website.",
+  "type": "module",
+  "engines": {
+    "node": ">=20.19.0"
+  },
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite --host 127.0.0.1",
+    "preview": "vite preview --host 127.0.0.1",
+    "test": "pnpm run build && node --test test.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3",
+    "vite": "7.3.6"
+  }
+}

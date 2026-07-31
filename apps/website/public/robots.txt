@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://f-loat.github.io/panerelay/sitemap.xml
