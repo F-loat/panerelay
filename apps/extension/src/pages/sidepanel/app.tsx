@@ -1101,7 +1101,6 @@ function Timeline({
                   data-status={item.activity.status}
                 >
                   <summary aria-label={t('errorDetails')} className="activity-card-summary">
-                    <ChevronRight aria-hidden="true" className="activity-chevron" />
                     <Icon aria-hidden="true" className="activity-icon" />
                     <div className="activity-copy">
                       <div className="activity-title">{activityTitle(item.activity.title)}</div>

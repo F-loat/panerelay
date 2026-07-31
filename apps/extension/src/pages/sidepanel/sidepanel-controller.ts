@@ -46,6 +46,12 @@ export type TurnFeedbackPhase = 'starting' | 'working';
 export const AUTO_APPROVE_KEY = 'panerelay.agentAutoApprove';
 const SUPPORTED_IMAGE_MIME_TYPES = new Set<string>(CONVERSATION_IMAGE_MIME_TYPES);
 
+function isIgnoredCloseFailure(activity: import('@panerelay/protocol').ConversationActivity) {
+  return (
+    activity.status === 'failed' && activity.title.toLowerCase().includes('agent_browser_close')
+  );
+}
+
 export interface PastedImage extends ConversationImageInput {
   id: string;
   size: number;
@@ -264,6 +270,16 @@ export function sidepanelReducer(state: SidepanelState, action: SidepanelAction)
       return { ...state, timeline, turnFeedback: 'working', activeReasoning };
     }
     case 'activity.updated': {
+      if (isIgnoredCloseFailure(event.activity)) {
+        return {
+          ...state,
+          timeline: state.timeline.filter(
+            item => item.type !== 'activity' || item.activity.id !== event.activity.id,
+          ),
+          turnFeedback: null,
+          activeReasoning: null,
+        };
+      }
       const existingIndex = state.timeline.findIndex(
         item => item.type === 'activity' && item.activity.id === event.activity.id,
       );

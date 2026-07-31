@@ -1686,7 +1686,7 @@ summary:focus-visible {
 .activity-card-summary {
   display: grid;
   min-height: 36px;
-  grid-template-columns: 12px 22px minmax(0, 1fr) auto;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
   align-items: center;
   gap: 7px;
   cursor: pointer;
@@ -1700,7 +1700,6 @@ summary:focus-visible {
   display: none;
 }
 
-.activity-chevron,
 .timeline-error-chevron,
 .error-chevron {
   width: 12px;
@@ -1711,14 +1710,13 @@ summary:focus-visible {
   transition: transform 120ms ease;
 }
 
-.activity-card-expandable[open] .activity-chevron,
 .timeline-error[open] .timeline-error-chevron,
 .error-copy[open] .error-chevron {
   transform: rotate(90deg);
 }
 
 .activity-detail-expanded {
-  border-top: 1px solid color-mix(in srgb, var(--danger) 22%, var(--border));
+  border-top: 1px solid var(--border);
   color: var(--danger);
   padding: 8px 9px;
   font-family: 'SFMono-Regular', Consolas, monospace;

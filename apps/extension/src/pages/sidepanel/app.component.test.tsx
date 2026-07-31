@@ -735,6 +735,7 @@ describe('React Side Panel', () => {
     expect(screen.getByText('npx --yes @panerelay/setup')).toBeVisible();
     const activityDetails = screen.getByText('agent-browser').closest('details');
     expect(activityDetails).not.toHaveAttribute('open');
+    expect(activityDetails?.querySelector('.activity-chevron')).toBeNull();
     await user.click(within(activityDetails as HTMLElement).getByLabelText('Show error details'));
     expect(activityDetails).toHaveAttribute('open');
     expect(
@@ -742,6 +743,43 @@ describe('React Side Panel', () => {
         "Plugin 'panerelay' returned success=false",
       ),
     ).toHaveLength(2);
+
+    act(() => {
+      client.emit({
+        type: 'panerelay.conversation.event',
+        event: {
+          kind: 'activity.updated',
+          conversationId: 'conversation-1',
+          turnId: 'turn-1',
+          activity: {
+            id: 'activity-close',
+            kind: 'browser',
+            title: 'panerelay_browser · agent_browser_close',
+            status: 'running',
+          },
+        },
+      });
+    });
+    expect(screen.getByText('panerelay · agent_browser_close')).toBeVisible();
+    act(() => {
+      client.emit({
+        type: 'panerelay.conversation.event',
+        event: {
+          kind: 'activity.updated',
+          conversationId: 'conversation-1',
+          turnId: 'turn-1',
+          activity: {
+            id: 'activity-close',
+            kind: 'browser',
+            title: 'panerelay_browser · agent_browser_close',
+            detail: 'user rejected MCP tool call',
+            status: 'failed',
+          },
+        },
+      });
+    });
+    expect(screen.queryByText('panerelay · agent_browser_close')).not.toBeInTheDocument();
+    expect(screen.queryByText('user rejected MCP tool call')).not.toBeInTheDocument();
 
     act(() => {
       client.emit({
