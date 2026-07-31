@@ -22,6 +22,9 @@ Read the relevant documents in `docs/rfcs/` before changing browser attachment, 
 - The Bridge is the local routing and policy boundary.
 - The Extension must not store model credentials or spawn native agent processes.
 - Protocol identifiers are opaque; do not expose raw Chrome tab IDs as stable public IDs.
+- Do not patch, fork, vendor, or directly modify an external dependency to complete Panerelay work without explicit user confirmation.
+- Avoid excessive workarounds that infer high-level behavior from low-level commands, intercept another component's semantics, or otherwise bypass an established architectural boundary.
+- When a necessary fix appears to require an external dependency change or a boundary-crossing workaround, document the evidence, alternatives, compatibility impact, and maintenance cost, then discuss and confirm the direction with the user before implementation.
 
 ## Security invariants
 
