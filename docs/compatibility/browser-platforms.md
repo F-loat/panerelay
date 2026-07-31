@@ -7,11 +7,11 @@
 
 ## Status meanings
 
-- **Verified**: covered by deterministic tests and the retained real-browser evidence linked from the relevant compatibility record.
+- **Verified**: covered by deterministic tests; runtime capabilities also require retained real-browser evidence linked from the relevant compatibility record.
 - **Forwarded**: shares the tested Chromium API and Panerelay relay path, but a dedicated real-browser acceptance run is pending.
 - **Unsupported**: the capability requires browser-process ownership or another guarantee the Extension-backed architecture cannot provide and fails explicitly.
 
-This record distinguishes deterministic coverage from real-browser evidence. Chrome daily-profile evidence remains in [agent-browser 0.33.0 compatibility](agent-browser-0.33.0.md). A dedicated real-Edge run is not yet recorded, so Edge does not inherit Chrome's `Verified` classification.
+This record distinguishes deterministic installation and artifact coverage from runtime evidence. Chrome daily-profile evidence remains in [agent-browser 0.33.0 compatibility](agent-browser-0.33.0.md). Complete representative Edge runtime acceptance is not yet recorded, so Edge runtime capabilities do not inherit Chrome's `Verified` classification.
 
 ## Runtime capabilities
 

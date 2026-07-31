@@ -101,8 +101,8 @@ On Linux, setup writes it into Edge stable, Beta, and Dev per-user configuration
 On Windows, setup writes one managed Chromium manifest and registers its absolute path beneath:
 
 ```text
-HKCU\SOFTWARE\Google\Chrome\NativeMessagingHosts\com.panerelay.bridge
-HKCU\SOFTWARE\Microsoft\Edge\NativeMessagingHosts\com.panerelay.bridge
+HKCU\SOFTWARE\Google\Chrome\NativeMessagingHosts\org.panerelay.bridge
+HKCU\SOFTWARE\Microsoft\Edge\NativeMessagingHosts\org.panerelay.bridge
 ```
 
 Both keys remain current-user scoped and require no administrator privileges. Setup, update, doctor, and uninstall address the keys independently. Uninstall removes only the exact Panerelay keys and Panerelay-owned files.

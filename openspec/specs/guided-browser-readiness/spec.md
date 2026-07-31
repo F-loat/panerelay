@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Define how Panerelay guides users from an unconfigured or unauthorized browser state to a ready integration without silently changing defaults, installing software, or granting Chrome permissions.
+Define how Panerelay guides users from an unconfigured or unauthorized browser state to a ready integration without silently changing defaults, installing software, or granting Chromium browser permissions.
 
 ## Requirements
 

@@ -29,6 +29,8 @@ Local Agents ← browser side panel ← Panerelay Extension ↔ Authorized tabs
 
 Requirements: Chrome or Microsoft Edge on macOS, Linux, or Windows; Node.js 20+; and a compatible agent-browser.
 
+Microsoft Edge runtime capabilities are currently classified as `Forwarded` pending complete representative acceptance. See the [browser platform compatibility record](docs/compatibility/browser-platforms.md) for the evidence boundary.
+
 1. Install [Panerelay from the Chrome Web Store](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi) in Chrome or Edge. Edge may first ask you to allow extensions from other stores.
 2. Install the local integration:
 

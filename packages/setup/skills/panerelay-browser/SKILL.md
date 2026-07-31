@@ -7,6 +7,8 @@ description: Use agent-browser through Panerelay to work in the user's existing 
 
 Use standard `agent-browser` commands with the `panerelay` browser Provider. Panerelay supplies the connection to the user's browser; agent-browser retains browser automation semantics.
 
+Chrome is the verified runtime baseline. Microsoft Edge operations use the shared Chromium implementation and remain `Forwarded` pending complete representative acceptance; see the [browser platform compatibility record](https://github.com/F-loat/panerelay/blob/main/docs/compatibility/browser-platforms.md).
+
 ## Workflow
 
 1. Before the first browser command, load the installed agent-browser core skill when available:

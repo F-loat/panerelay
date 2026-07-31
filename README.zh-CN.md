@@ -29,6 +29,8 @@ Panerelay 是连接 AI Agent 与用户现有 Chrome 或 Microsoft Edge 会话的
 
 环境要求：macOS、Linux 或 Windows 上的 Chrome 或 Microsoft Edge、Node.js 20+ 和兼容的 agent-browser。
 
+Microsoft Edge 运行时能力目前归类为 `Forwarded`，仍需完成有代表性的完整验收；证据边界见[浏览器平台兼容性记录](docs/compatibility/browser-platforms.md)。
+
 1. 在 Chrome 或 Edge 中从 [Chrome 应用商店安装 Panerelay](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi)。Edge 可能会先要求允许来自其他商店的扩展。
 2. 安装本地集成：
 
