@@ -1,11 +1,16 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { PANERELAY_PROTOCOL_VERSION, type BridgeState } from '@panerelay/protocol';
-import { PANERELAY_STATE_PATH_ENV } from '@panerelay/protocol/node';
+import {
+  PANERELAY_BROWSER_DEFAULT_PATH_ENV,
+  PANERELAY_BROWSER_REGISTRY_PATH_ENV,
+  setBrowserDefault,
+  writeBrowserRegistration,
+} from '@panerelay/browser-registry';
 import { AGENT_BROWSER_PLUGIN_PROTOCOL, handlePluginRequest } from './plugin.js';
 
 test('publishes the browser provider manifest', async () => {
@@ -19,15 +24,17 @@ test('publishes the browser provider manifest', async () => {
   assert.deepEqual(response.manifest, {
     name: 'panerelay',
     capabilities: ['browser.provider'],
-    description: "Connect agent-browser to a user's authorized Chrome targets through Panerelay.",
+    description:
+      "Connect agent-browser to a user's selected authorized Chrome or Edge browser through Panerelay.",
   });
 });
 
 test('creates and releases a browser-level relay session through live Bridge state', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'panerelay-provider-'));
-  const statePath = join(directory, 'bridge.json');
-  const previousStatePath = process.env[PANERELAY_STATE_PATH_ENV];
-  process.env[PANERELAY_STATE_PATH_ENV] = statePath;
+  const previousRegistryPath = process.env[PANERELAY_BROWSER_REGISTRY_PATH_ENV];
+  const previousDefaultPath = process.env[PANERELAY_BROWSER_DEFAULT_PATH_ENV];
+  process.env[PANERELAY_BROWSER_REGISTRY_PATH_ENV] = join(directory, 'browsers');
+  process.env[PANERELAY_BROWSER_DEFAULT_PATH_ENV] = join(directory, 'browser-default.json');
   const requests: Array<{
     method?: string;
     url?: string;
@@ -85,7 +92,7 @@ test('creates and releases a browser-level relay session through live Bridge sta
     extensionId: 'extension-1',
     updatedAt: new Date().toISOString(),
   };
-  await writeFile(statePath, JSON.stringify(state));
+  await writeBrowserRegistration(state);
 
   try {
     const response = await handlePluginRequest({
@@ -126,6 +133,16 @@ test('creates and releases a browser-level relay session through live Bridge sta
       },
     });
 
+    await writeBrowserRegistration({
+      ...state,
+      port: 9,
+      token: 'edge token',
+      browserId: 'browser-2',
+      browserName: 'Test Edge',
+      browserFamily: 'edge',
+    });
+    await setBrowserDefault('browser-2');
+
     const closeResponse = await handlePluginRequest({
       protocol: AGENT_BROWSER_PLUGIN_PROTOCOL,
       type: 'browser.close',
@@ -143,10 +160,15 @@ test('creates and releases a browser-level relay session through live Bridge sta
       authorization: 'Bearer test token',
     });
   } finally {
-    if (previousStatePath === undefined) {
-      delete process.env[PANERELAY_STATE_PATH_ENV];
+    if (previousRegistryPath === undefined) {
+      delete process.env[PANERELAY_BROWSER_REGISTRY_PATH_ENV];
     } else {
-      process.env[PANERELAY_STATE_PATH_ENV] = previousStatePath;
+      process.env[PANERELAY_BROWSER_REGISTRY_PATH_ENV] = previousRegistryPath;
+    }
+    if (previousDefaultPath === undefined) {
+      delete process.env[PANERELAY_BROWSER_DEFAULT_PATH_ENV];
+    } else {
+      process.env[PANERELAY_BROWSER_DEFAULT_PATH_ENV] = previousDefaultPath;
     }
     await rm(directory, { recursive: true, force: true });
     await new Promise<void>(resolve => server.close(() => resolve()));
@@ -155,9 +177,10 @@ test('creates and releases a browser-level relay session through live Bridge sta
 
 test('fails before contacting the Bridge when the browser explicitly lacks CDP support', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'panerelay-provider-unsupported-'));
-  const statePath = join(directory, 'bridge.json');
-  const previousStatePath = process.env[PANERELAY_STATE_PATH_ENV];
-  process.env[PANERELAY_STATE_PATH_ENV] = statePath;
+  const previousRegistryPath = process.env[PANERELAY_BROWSER_REGISTRY_PATH_ENV];
+  const previousDefaultPath = process.env[PANERELAY_BROWSER_DEFAULT_PATH_ENV];
+  process.env[PANERELAY_BROWSER_REGISTRY_PATH_ENV] = join(directory, 'browsers');
+  process.env[PANERELAY_BROWSER_DEFAULT_PATH_ENV] = join(directory, 'browser-default.json');
   const state: BridgeState = {
     protocol: PANERELAY_PROTOCOL_VERSION,
     pid: process.pid,
@@ -171,7 +194,7 @@ test('fails before contacting the Bridge when the browser explicitly lacks CDP s
     extensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
     updatedAt: new Date().toISOString(),
   };
-  await writeFile(statePath, JSON.stringify(state));
+  await writeBrowserRegistration(state);
 
   try {
     const response = await handlePluginRequest({
@@ -182,12 +205,17 @@ test('fails before contacting the Bridge when the browser explicitly lacks CDP s
     });
 
     assert.equal(response.success, false);
-    assert.match(String(response.error), /cannot provide a CDP relay/);
+    assert.match(String(response.error), /provide a CDP relay/);
   } finally {
-    if (previousStatePath === undefined) {
-      delete process.env[PANERELAY_STATE_PATH_ENV];
+    if (previousRegistryPath === undefined) {
+      delete process.env[PANERELAY_BROWSER_REGISTRY_PATH_ENV];
     } else {
-      process.env[PANERELAY_STATE_PATH_ENV] = previousStatePath;
+      process.env[PANERELAY_BROWSER_REGISTRY_PATH_ENV] = previousRegistryPath;
+    }
+    if (previousDefaultPath === undefined) {
+      delete process.env[PANERELAY_BROWSER_DEFAULT_PATH_ENV];
+    } else {
+      process.env[PANERELAY_BROWSER_DEFAULT_PATH_ENV] = previousDefaultPath;
     }
     await rm(directory, { recursive: true, force: true });
   }

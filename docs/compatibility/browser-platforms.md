@@ -24,6 +24,7 @@ This record distinguishes deterministic installation and artifact coverage from 
 | Explicit site and tab authorization                         | Verified          | Forwarded      |
 | Browser-level CDP relay                                     | Verified          | Forwarded      |
 | agent-browser 0.33.0 Provider                               | Verified          | Forwarded      |
+| Independent registration and deterministic browser routing  | Verified          | Forwarded      |
 | Target lifecycle, control badge, and favicon                | Verified          | Forwarded      |
 | Immediate revocation and cleanup                            | Verified          | Forwarded      |
 | Isolated contexts and disposable profiles                   | Unsupported       | Unsupported    |
@@ -31,6 +32,8 @@ This record distinguishes deterministic installation and artifact coverage from 
 | Browser-wide close and top-level request containment        | Unsupported       | Unsupported    |
 
 Edge uses the same Chromium Manifest V3 artifact, side-panel graph, debugger relay, permission flow, opaque target model, control lease, and revocation implementation as Chrome. It registers `browserFamily: "edge"` and declares CDP relay support only from feature detection.
+
+Chrome and Edge Native Hosts persist independent protected registrations. Provider contract tests verify explicit selection, saved defaults, single-ready selection, ambiguity failures, unavailable-default failures, browser-pinned cleanup, and legacy-singleton migration. These deterministic routing claims do not upgrade Edge's runtime classification: representative Edge Provider evidence is still pending.
 
 ## Installation and artifacts
 
@@ -47,4 +50,4 @@ Edge uses the same Chromium Manifest V3 artifact, side-panel graph, debugger rel
 
 ## Security boundary
 
-Browser family and CDP capability metadata do not grant access. Site permission, tab authorization, and the current control lease remain separate. Focus never grants authorization. Compatible older Chrome registrations without capability data retain prior behavior, while any explicit `cdpRelay: false` value is authoritative and fails before automation state is allocated.
+Browser family and CDP capability metadata do not grant access. Site permission, tab authorization, browser selection, and the current control lease remain separate. Focus never grants authorization or selects a browser. Compatible older Chrome registrations without capability data retain prior behavior, while any explicit `cdpRelay: false` value is authoritative and fails before automation state is allocated.

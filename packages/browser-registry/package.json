@@ -1,13 +1,13 @@
 {
-  "name": "@panerelay/setup",
+  "name": "@panerelay/browser-registry",
   "version": "0.2.0",
-  "description": "Installer, diagnostics, and Agent integration for Panerelay.",
+  "description": "Protected local browser registration and deterministic routing for Panerelay.",
   "type": "module",
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/F-loat/panerelay.git",
-    "directory": "packages/setup"
+    "directory": "packages/browser-registry"
   },
   "homepage": "https://github.com/F-loat/panerelay#readme",
   "bugs": {
@@ -22,16 +22,12 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "default": "./dist/index.js"
     }
-  },
-  "bin": {
-    "panerelay": "./dist/cli.js"
   },
   "files": [
     "dist",
     "!dist/**/*.test.*",
-    "skills",
     "README.md",
     "LICENSE"
   ],
@@ -42,8 +38,6 @@
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
-    "@panerelay/bridge": "workspace:*",
-    "@panerelay/browser-registry": "workspace:*",
     "@panerelay/protocol": "workspace:*"
   }
 }

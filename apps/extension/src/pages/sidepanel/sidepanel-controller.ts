@@ -106,6 +106,7 @@ export interface SidepanelState {
   authorizationPending: boolean;
   nativeRetryPending: boolean;
   defaultProviderPending: boolean;
+  browserDefaultPending: boolean;
   controlledTabPendingId: number | null;
   settingsOpen: boolean;
   composerText: string;
@@ -158,6 +159,7 @@ export function createInitialSidepanelState(language?: string): SidepanelState {
     authorizationPending: false,
     nativeRetryPending: false,
     defaultProviderPending: false,
+    browserDefaultPending: false,
     controlledTabPendingId: null,
     settingsOpen: false,
     composerText: '',
@@ -350,6 +352,7 @@ export interface SidepanelController {
   setAuthorization(mode: AuthorizationMode): Promise<void>;
   retryNativeHost(): Promise<void>;
   setDefaultProvider(enabled: boolean): Promise<void>;
+  setBrowserDefault(enabled: boolean): Promise<void>;
   activateControlledTab(tabId: number): Promise<void>;
   closeControlledTab(tabId: number): Promise<void>;
   setComposerText(text: string): void;
@@ -865,6 +868,25 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
     [client, patch],
   );
 
+  const setBrowserDefault = useCallback(
+    async (enabled: boolean) => {
+      if (stateRef.current.browserDefaultPending) return;
+      patch({ browserDefaultPending: true, error: '' });
+      try {
+        const response = await client.request({
+          type: 'panerelay.browser-default.set',
+          enabled,
+        });
+        patch({ extensionStatus: response.status ?? stateRef.current.extensionStatus });
+      } catch (error) {
+        patch({ error: errorText(error) });
+      } finally {
+        patch({ browserDefaultPending: false });
+      }
+    },
+    [client, patch],
+  );
+
   const activateControlledTab = useCallback(
     async (tabId: number) => {
       try {
@@ -1306,7 +1328,19 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
     [client, patch],
   );
 
-  const setSettingsOpen = useCallback((settingsOpen: boolean) => patch({ settingsOpen }), [patch]);
+  const setSettingsOpen = useCallback(
+    (settingsOpen: boolean) => {
+      patch({ settingsOpen });
+      if (!settingsOpen || !stateRef.current.extensionStatus?.bridgeConnected) return;
+      void client
+        .request({ type: 'panerelay.browser-default.refresh' })
+        .then(response => {
+          patch({ extensionStatus: response.status ?? stateRef.current.extensionStatus });
+        })
+        .catch(error => patch({ error: errorText(error) }));
+    },
+    [client, patch],
+  );
   const dismissError = useCallback(() => patch({ error: '' }), [patch]);
 
   useLayoutEffect(() => {
@@ -1444,6 +1478,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
     setAuthorization,
     retryNativeHost,
     setDefaultProvider,
+    setBrowserDefault,
     activateControlledTab,
     closeControlledTab,
     setComposerText,

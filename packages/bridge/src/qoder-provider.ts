@@ -15,6 +15,7 @@ import type {
   ConversationStartOptions,
   ConversationSummary,
 } from '@panerelay/protocol';
+import { PANERELAY_BROWSER_ID_ENV } from '@panerelay/browser-registry';
 import type { AgentProvider } from './agent-provider.js';
 import {
   createConversationContextInstructions,
@@ -186,6 +187,7 @@ function qoderBrowserSession(
 export function qoderBrowserMcpServers(
   config: PanerelayRuntimeConfig,
   sessionLabel: string,
+  browserId = process.env[PANERELAY_BROWSER_ID_ENV],
 ): acp.McpServer[] {
   const browserSession = qoderBrowserSession(config, sessionLabel);
   if (!browserSession) return [];
@@ -198,6 +200,7 @@ export function qoderBrowserMcpServers(
         { name: 'AGENT_BROWSER_CONFIG', value: browserSession.configPath },
         { name: 'AGENT_BROWSER_PROVIDER', value: 'panerelay' },
         { name: 'AGENT_BROWSER_SESSION', value: browserSession.label },
+        ...(browserId ? [{ name: PANERELAY_BROWSER_ID_ENV, value: browserId }] : []),
       ],
     },
   ];
@@ -493,7 +496,11 @@ export class QoderProvider implements AgentProvider {
         acp.methods.agent.session.new,
         {
           cwd,
-          mcpServers: qoderBrowserMcpServers(config, sessionLabel),
+          mcpServers: qoderBrowserMcpServers(
+            config,
+            sessionLabel,
+            (this.options.environment ?? process.env)[PANERELAY_BROWSER_ID_ENV],
+          ),
         },
         'Qoder session creation',
       )) as acp.NewSessionResponse;
@@ -535,7 +542,11 @@ export class QoderProvider implements AgentProvider {
     const request = {
       sessionId: conversationId,
       cwd,
-      mcpServers: qoderBrowserMcpServers(config, sessionLabel),
+      mcpServers: qoderBrowserMcpServers(
+        config,
+        sessionLabel,
+        (this.options.environment ?? process.env)[PANERELAY_BROWSER_ID_ENV],
+      ),
     };
     let messages: ConversationMessage[] = [];
     try {

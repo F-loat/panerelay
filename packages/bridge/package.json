@@ -58,6 +58,7 @@
   "dependencies": {
     "@agentclientprotocol/sdk": "^1.3.0",
     "@panerelay/agent-browser": "workspace:*",
+    "@panerelay/browser-registry": "workspace:*",
     "@panerelay/protocol": "workspace:*",
     "ws": "^8.21.1"
   }

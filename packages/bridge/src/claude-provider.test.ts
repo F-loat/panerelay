@@ -121,6 +121,7 @@ function createProvider(cli = new FakeClaudeCli()) {
   const permissions = new FakePermissionServerFactory();
   const provider = new ClaudeProvider({
     cli,
+    environment: { PANERELAY_BROWSER_ID: 'sidepanel-browser-id' },
     runtimeConfig: async () => ({
       claudePath: '/usr/local/bin/claude',
       claudeVersion: '2.1.206',
@@ -309,6 +310,10 @@ test('streams text, reasoning, tool activity, images, usage, and terminal events
   assert.equal(
     browserMcp && 'command' in browserMcp ? browserMcp.command : undefined,
     '/usr/local/bin/agent-browser',
+  );
+  assert.equal(
+    browserMcp && 'env' in browserMcp ? browserMcp.env?.PANERELAY_BROWSER_ID : undefined,
+    'sidepanel-browser-id',
   );
   assert.equal(cli.queryParameters?.permissionPromptTool, 'mcp__panerelay_permission__approve');
   assert.equal(cli.queryParameters?.mcpServers?.panerelay_permission?.type, 'http');

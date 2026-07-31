@@ -6,6 +6,13 @@ const englishMessages = {
   agentBrowserMissing: 'Warning: agent-browser was not found.',
   agentCommand: 'Agent command: agent-browser --provider panerelay tab list',
   agentSkill: 'Agent Skill: {path}',
+  browserDefaultCleared: 'Saved browser default cleared.',
+  browserDefaultMarker: 'default',
+  browserDefaultSet: 'Default browser: {name} ({id})',
+  browserListEmpty: 'No live Panerelay browsers are registered.',
+  browserListTitle: 'Panerelay browsers',
+  browserReady: 'ready',
+  browserUnavailable: 'CDP unavailable',
   claudeMissing: 'Warning: a supported Claude Code CLI was not found (optional).',
   codexMissing: 'Warning: Codex CLI was not found.',
   doctorAttention: 'Panerelay needs attention.',
@@ -29,6 +36,7 @@ const englishMessages = {
   errorLanguageMissing: '--lang requires a language',
   errorLanguageRepeated: '--lang can only be provided once',
   errorLanguageUnsupported: 'Unsupported language: {language}. Use en or zh-CN.',
+  errorBrowserSelectorMissing: 'browser use requires a registration ID or browser family',
   errorUnknownCommand: 'Unknown command: {command}',
   errorUnknownOption: 'Unknown option: {option}',
   extensionCustomNextStep: 'Extension: Load the build matching ID {id}, then open its side panel.',
@@ -41,11 +49,18 @@ Usage:
   npx --yes @panerelay/setup [--project-provider] [--global-provider] [--extension-id <id>] [--lang <language>]
   npx --yes @panerelay/setup doctor [--project-provider] [--global-provider] [--extension-id <id>] [--json] [--lang <language>]
   npx --yes @panerelay/setup uninstall [--project-provider] [--yes] [--lang <language>]
+  npx --yes @panerelay/setup browsers [--lang <language>]
+  npx --yes @panerelay/setup browser use <registration-id|family> [--lang <language>]
+  npx --yes @panerelay/setup browser clear [--lang <language>]
 
 Commands:
   setup       Install the Native Host, agent-browser provider, and Agent Skill (default)
   doctor      Diagnose the local Panerelay integration
   uninstall   Remove Panerelay-managed local integration files
+  browsers    List live Chrome and Edge registrations
+  browser use Save one live registration as the agent-browser default
+  browser clear
+              Clear the saved browser default
 
 Options:
   --project-provider   Also configure the current project to default to Panerelay
@@ -75,6 +90,13 @@ const chineseMessages: Record<MessageKey, string> = {
   agentBrowserMissing: '警告：未找到 agent-browser。',
   agentCommand: 'Agent 命令：agent-browser --provider panerelay tab list',
   agentSkill: 'Agent Skill：{path}',
+  browserDefaultCleared: '已清除保存的默认浏览器。',
+  browserDefaultMarker: '默认',
+  browserDefaultSet: '默认浏览器：{name}（{id}）',
+  browserListEmpty: '当前没有已注册的 Panerelay 浏览器。',
+  browserListTitle: 'Panerelay 浏览器',
+  browserReady: '可用',
+  browserUnavailable: 'CDP 不可用',
   claudeMissing: '警告：未找到受支持的 Claude Code CLI（可选）。',
   codexMissing: '警告：未找到 Codex CLI。',
   doctorAttention: 'Panerelay 需要处理以下问题。',
@@ -98,6 +120,7 @@ const chineseMessages: Record<MessageKey, string> = {
   errorLanguageMissing: '--lang 后需要指定语言',
   errorLanguageRepeated: '--lang 只能指定一次',
   errorLanguageUnsupported: '不支持的语言：{language}。请使用 en 或 zh-CN。',
+  errorBrowserSelectorMissing: 'browser use 后需要指定注册 ID 或浏览器类型',
   errorUnknownCommand: '未知命令：{command}',
   errorUnknownOption: '未知选项：{option}',
   extensionCustomNextStep: '扩展：请加载与 ID {id} 匹配的构建，然后打开其侧边栏。',
@@ -110,11 +133,18 @@ const chineseMessages: Record<MessageKey, string> = {
   npx --yes @panerelay/setup [--project-provider] [--global-provider] [--extension-id <id>] [--lang <语言>]
   npx --yes @panerelay/setup doctor [--project-provider] [--global-provider] [--extension-id <id>] [--json] [--lang <语言>]
   npx --yes @panerelay/setup uninstall [--project-provider] [--yes] [--lang <语言>]
+  npx --yes @panerelay/setup browsers [--lang <语言>]
+  npx --yes @panerelay/setup browser use <注册 ID|浏览器类型> [--lang <语言>]
+  npx --yes @panerelay/setup browser clear [--lang <语言>]
 
 命令：
   setup       安装 Native Host、agent-browser Provider 和 Agent Skill（默认）
   doctor      诊断本地 Panerelay 集成
   uninstall   移除由 Panerelay 管理的本地集成文件
+  browsers    列出在线的 Chrome 和 Edge 注册
+  browser use 保存一个在线注册作为 agent-browser 默认浏览器
+  browser clear
+              清除保存的默认浏览器
 
 选项：
   --project-provider   同时将当前项目的默认 Provider 配置为 Panerelay

@@ -2,6 +2,15 @@
 
 import { PANERELAY_EXTENSION_ID } from '@panerelay/protocol';
 import { isClaudeCodeSupported } from '@panerelay/bridge/compatibility';
+import {
+  PANERELAY_BROWSER_ID_ENV,
+  PANERELAY_BROWSER_ENV,
+  clearBrowserDefault,
+  listBrowserRegistrations,
+  readBrowserDefault,
+  selectBrowserRegistration,
+  setBrowserDefault,
+} from '@panerelay/browser-registry';
 import { realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { stdin, stdout } from 'node:process';
@@ -14,7 +23,8 @@ import { setupPanerelay, uninstallPanerelay } from './lifecycle.js';
 const PANERELAY_CHROME_WEB_STORE_URL =
   'https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi';
 
-export type SetupOperation = 'setup' | 'doctor' | 'uninstall';
+export type SetupOperation =
+  'setup' | 'doctor' | 'uninstall' | 'browsers' | 'browser-use' | 'browser-clear';
 
 export interface ParsedSetupArgs {
   extensionId?: string;
@@ -23,6 +33,7 @@ export interface ParsedSetupArgs {
   json: boolean;
   language?: SupportedLocale;
   operation: SetupOperation;
+  browserSelector?: string;
   project: boolean;
   yes: boolean;
 }
@@ -78,14 +89,37 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
   }
   const command =
     localized.argv[0] && !localized.argv[0].startsWith('-') ? localized.argv[0] : 'setup';
-  const operation =
-    command === 'setup' || command === 'install' || command === 'update'
-      ? 'setup'
-      : command === 'doctor'
-        ? 'doctor'
-        : command === 'uninstall'
-          ? 'uninstall'
-          : undefined;
+  let browserSelector: string | undefined;
+  let optionStart: number;
+  let operation: SetupOperation | undefined;
+  if (command === 'browser') {
+    const action = localized.argv[1];
+    if (action === 'use') {
+      browserSelector = localized.argv[2];
+      if (!browserSelector || browserSelector.startsWith('-')) {
+        throw new Error('BROWSER_SELECTOR_MISSING');
+      }
+      operation = 'browser-use';
+      optionStart = 3;
+    } else if (action === 'clear') {
+      operation = 'browser-clear';
+      optionStart = 2;
+    } else {
+      throw new Error(`Unknown command: browser${action ? ` ${action}` : ''}`);
+    }
+  } else {
+    operation =
+      command === 'setup' || command === 'install' || command === 'update'
+        ? 'setup'
+        : command === 'doctor'
+          ? 'doctor'
+          : command === 'uninstall'
+            ? 'uninstall'
+            : command === 'browsers'
+              ? 'browsers'
+              : undefined;
+    optionStart = command === localized.argv[0] ? 1 : 0;
+  }
   if (!operation) throw new Error(`Unknown command: ${command}`);
 
   let project = false;
@@ -93,7 +127,6 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
   let json = false;
   let yes = false;
   let extensionId: string | undefined;
-  const optionStart = command === localized.argv[0] ? 1 : 0;
   for (let index = optionStart; index < localized.argv.length; index += 1) {
     const argument = localized.argv[index]!;
     if (argument === '--project-provider') project = true;
@@ -122,7 +155,14 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
   if (extensionId && operation === 'uninstall') {
     throw new Error('--extension-id is not available with uninstall');
   }
+  if (
+    ['browsers', 'browser-use', 'browser-clear'].includes(operation) &&
+    (project || globalProvider || yes || extensionId)
+  ) {
+    throw new Error(`Setup options are not available with ${command}`);
+  }
   return {
+    ...(browserSelector ? { browserSelector } : {}),
     ...(extensionId ? { extensionId } : {}),
     globalProvider,
     help: false,
@@ -308,9 +348,14 @@ async function confirmUninstall(locale: SupportedLocale): Promise<boolean> {
 }
 
 export interface CliDependencies {
+  clearBrowserDefault?: typeof clearBrowserDefault;
   confirm?: () => Promise<boolean>;
   doctor?: typeof doctorPanerelay;
   environment?: NodeJS.ProcessEnv;
+  listBrowserRegistrations?: typeof listBrowserRegistrations;
+  readBrowserDefault?: typeof readBrowserDefault;
+  selectBrowserRegistration?: typeof selectBrowserRegistration;
+  setBrowserDefault?: typeof setBrowserDefault;
   setup?: typeof setupPanerelay;
   systemLocale?: string;
   uninstall?: typeof uninstallPanerelay;
@@ -320,6 +365,9 @@ function localizeArgumentError(error: unknown, locale: SupportedLocale): string 
   const message = error instanceof Error ? error.message : String(error);
   if (message === 'LANGUAGE_MISSING') return translate(locale, 'errorLanguageMissing');
   if (message === 'LANGUAGE_REPEATED') return translate(locale, 'errorLanguageRepeated');
+  if (message === 'BROWSER_SELECTOR_MISSING') {
+    return translate(locale, 'errorBrowserSelectorMissing');
+  }
   if (message === 'EXTENSION_ID_MISSING') return translate(locale, 'errorExtensionIdMissing');
   if (message === 'EXTENSION_ID_REPEATED') return translate(locale, 'errorExtensionIdRepeated');
   if (message.startsWith('LANGUAGE_UNSUPPORTED:')) {
@@ -373,6 +421,61 @@ export async function main(
   }
 
   try {
+    const registryOptions = { environment: dependencies.environment };
+    if (parsed.operation === 'browsers') {
+      const registrations = await (
+        dependencies.listBrowserRegistrations ?? listBrowserRegistrations
+      )(registryOptions);
+      const saved = await (dependencies.readBrowserDefault ?? readBrowserDefault)(registryOptions);
+      console.log(translate(locale, 'browserListTitle'));
+      if (registrations.length === 0) {
+        console.log(translate(locale, 'browserListEmpty'));
+      } else {
+        for (const registration of registrations) {
+          const { state } = registration;
+          const details = [
+            state.browserFamily ?? 'unknown',
+            registration.ready
+              ? translate(locale, 'browserReady')
+              : translate(locale, 'browserUnavailable'),
+            ...(saved?.browserId === state.browserId
+              ? [translate(locale, 'browserDefaultMarker')]
+              : []),
+          ];
+          console.log(`  ${state.browserName} (${details.join(', ')})`);
+          console.log(`    ${state.browserId}`);
+        }
+      }
+      return 0;
+    }
+    if (parsed.operation === 'browser-use') {
+      const selection = await (dependencies.selectBrowserRegistration ?? selectBrowserRegistration)(
+        {
+          ...registryOptions,
+          environment: {
+            ...(dependencies.environment ?? process.env),
+            [PANERELAY_BROWSER_ID_ENV]: undefined,
+            [PANERELAY_BROWSER_ENV]: parsed.browserSelector,
+          },
+        },
+      );
+      await (dependencies.setBrowserDefault ?? setBrowserDefault)(
+        selection.state.browserId,
+        registryOptions,
+      );
+      console.log(
+        translate(locale, 'browserDefaultSet', {
+          id: selection.state.browserId,
+          name: selection.state.browserName,
+        }),
+      );
+      return 0;
+    }
+    if (parsed.operation === 'browser-clear') {
+      await (dependencies.clearBrowserDefault ?? clearBrowserDefault)(undefined, registryOptions);
+      console.log(translate(locale, 'browserDefaultCleared'));
+      return 0;
+    }
     if (parsed.operation === 'doctor') {
       const report = await (dependencies.doctor ?? doctorPanerelay)({
         environment: dependencies.environment,

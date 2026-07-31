@@ -1,11 +1,14 @@
-import { readFile } from 'node:fs/promises';
+import {
+  readLiveBrowserRegistration,
+  readLiveLegacyBrowserRegistration,
+  selectBrowserRegistration,
+} from '@panerelay/browser-registry';
 import {
   PANERELAY_PROTOCOL_VERSION,
   type BridgeState,
   type RelaySessionCreated,
   type RelaySessionError,
 } from '@panerelay/protocol';
-import { bridgeStatePath } from '@panerelay/protocol/node';
 
 export const AGENT_BROWSER_PLUGIN_PROTOCOL = 'agent-browser.plugin.v1' as const;
 
@@ -25,6 +28,7 @@ interface PluginResponse {
 interface BrowserCleanup {
   bridgePid: number;
   browserId: string;
+  legacy?: boolean;
   sessionId: string;
 }
 
@@ -42,34 +46,6 @@ function failure(error: string): PluginResponse {
     success: false,
     error,
   };
-}
-
-async function readLiveBridgeState(): Promise<BridgeState> {
-  let state: BridgeState;
-  try {
-    state = JSON.parse(await readFile(bridgeStatePath(), 'utf8')) as BridgeState;
-  } catch {
-    throw new Error(
-      'Panerelay Bridge is unavailable. Build and load the extension, then authorize a tab.',
-    );
-  }
-
-  if (
-    state.protocol !== PANERELAY_PROTOCOL_VERSION ||
-    typeof state.pid !== 'number' ||
-    typeof state.port !== 'number' ||
-    typeof state.token !== 'string'
-  ) {
-    throw new Error('Panerelay Bridge state is invalid or incompatible');
-  }
-
-  try {
-    process.kill(state.pid, 0);
-  } catch {
-    throw new Error('Panerelay Bridge state is stale; reopen the extension and retry');
-  }
-
-  return state;
 }
 
 function sessionLabel(request: unknown): string | undefined {
@@ -123,6 +99,7 @@ function browserCleanup(value: unknown): BrowserCleanup | null {
   if (
     typeof candidate.bridgePid !== 'number' ||
     typeof candidate.browserId !== 'string' ||
+    (candidate.legacy !== undefined && typeof candidate.legacy !== 'boolean') ||
     typeof candidate.sessionId !== 'string'
   ) {
     return null;
@@ -134,12 +111,10 @@ async function releaseRelaySession(value: unknown): Promise<void> {
   const cleanup = browserCleanup(value);
   if (!cleanup) return;
 
-  let state: BridgeState;
-  try {
-    state = await readLiveBridgeState();
-  } catch {
-    return;
-  }
+  const state = cleanup.legacy
+    ? await readLiveLegacyBrowserRegistration({})
+    : await readLiveBrowserRegistration(cleanup.browserId);
+  if (!state) return;
   if (state.pid !== cleanup.bridgePid || state.browserId !== cleanup.browserId) return;
 
   const response = await fetch(
@@ -166,7 +141,7 @@ export async function handlePluginRequest(input: PluginRequest): Promise<PluginR
         name: 'panerelay',
         capabilities: ['browser.provider'],
         description:
-          "Connect agent-browser to a user's authorized Chrome targets through Panerelay.",
+          "Connect agent-browser to a user's selected authorized Chrome or Edge browser through Panerelay.",
       },
     });
   }
@@ -185,7 +160,8 @@ export async function handlePluginRequest(input: PluginRequest): Promise<PluginR
   }
 
   try {
-    const state = await readLiveBridgeState();
+    const selection = await selectBrowserRegistration();
+    const state = selection.state;
     const session = await createRelaySession(state, input.request);
     return success({
       browser: {
@@ -201,6 +177,7 @@ export async function handlePluginRequest(input: PluginRequest): Promise<PluginR
         cleanup: {
           bridgePid: state.pid,
           browserId: state.browserId,
+          ...(selection.source === 'legacy' ? { legacy: true } : {}),
           sessionId: session.sessionId,
         },
       },

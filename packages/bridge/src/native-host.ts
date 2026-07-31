@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 
 import {
+  PANERELAY_BROWSER_ID_ENV,
+  removeOwnedBrowserRegistration,
+  writeBrowserRegistration,
+} from '@panerelay/browser-registry';
+import {
   PANERELAY_EXTENSION_ID,
   PANERELAY_NATIVE_TRANSFER_TIMEOUT_MS,
   PANERELAY_PROTOCOL_VERSION,
@@ -18,7 +23,6 @@ import { handlePluginRequest } from '@panerelay/agent-browser';
 import { AgentService } from './agent-service.js';
 import { NativeMessageDecoder, encodeNativeMessage } from './native-messaging.js';
 import { BrowserRelay } from './browser-relay.js';
-import { removeOwnedBridgeState, writeBridgeState } from './state.js';
 import { readRuntimeConfig } from './runtime-config.js';
 import { IntegrationService } from './integration-service.js';
 
@@ -55,8 +59,11 @@ async function runAgentBrowserPlugin(): Promise<void> {
 async function main(): Promise<void> {
   const runtimeConfig = await readRuntimeConfig();
   const expectedExtensionId = runtimeConfig.extensionId ?? PANERELAY_EXTENSION_ID;
+  let currentBrowser: BridgeState | null = null;
   const agents = new AgentService(sendToExtension);
-  const integrations = new IntegrationService(sendToExtension);
+  const integrations = new IntegrationService(sendToExtension, {
+    currentBrowser: () => currentBrowser,
+  });
   const relay = await BrowserRelay.listen({
     expectedExtensionId,
     sendToExtension,
@@ -74,10 +81,21 @@ async function main(): Promise<void> {
         ...(browser.capabilities ? { capabilities: browser.capabilities } : {}),
         updatedAt: new Date().toISOString(),
       };
-      await writeBridgeState(state);
+      await writeBrowserRegistration(state);
+      if (currentBrowser && currentBrowser.browserId !== state.browserId) {
+        await removeOwnedBrowserRegistration(currentBrowser.browserId, currentBrowser.pid);
+      }
+      currentBrowser = state;
+      process.env[PANERELAY_BROWSER_ID_ENV] = state.browserId;
       log(`Extension registered; CDP relay listening on 127.0.0.1:${relay.port}`);
     },
-    onBrowserDisconnected: removeOwnedBridgeState,
+    onBrowserDisconnected: async () => {
+      if (currentBrowser) {
+        await removeOwnedBrowserRegistration(currentBrowser.browserId, currentBrowser.pid);
+      }
+      currentBrowser = null;
+      delete process.env[PANERELAY_BROWSER_ID_ENV];
+    },
   });
 
   const decoder = new NativeMessageDecoder();
@@ -103,7 +121,11 @@ async function main(): Promise<void> {
     transferReceiver.cancelAll();
     await agents.close().catch(error => log(`Agent shutdown failed: ${String(error)}`));
     await relay.close(reason).catch(error => log(`Relay shutdown failed: ${String(error)}`));
-    await removeOwnedBridgeState();
+    if (currentBrowser) {
+      await removeOwnedBrowserRegistration(currentBrowser.browserId, currentBrowser.pid);
+      currentBrowser = null;
+    }
+    delete process.env[PANERELAY_BROWSER_ID_ENV];
   }
 
   process.stdin.on('data', (chunk: Buffer) => {

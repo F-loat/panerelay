@@ -15,6 +15,15 @@ const readyStatus: ExtensionStatus = {
   bridgeConnected: true,
   nativeHostState: 'connected',
   defaultProvider: { provider: null, isPanerelay: false },
+  browserDefault: {
+    currentBrowser: {
+      browserId: 'edge-browser-id',
+      browserName: 'Microsoft Edge',
+      browserFamily: 'edge',
+    },
+    defaultBrowserId: 'chrome-browser-id',
+    isCurrentBrowser: false,
+  },
   authorizationRequest: null,
   activeTab: { id: 8, title: 'Fixture page', url: 'https://example.com/page' },
   authorizationMode: 'none',
@@ -191,6 +200,18 @@ class AppClient implements SidepanelClient {
           },
         };
         return { success: true as const, status: this.status };
+      case 'panerelay.browser-default.set':
+        this.status = {
+          ...this.status,
+          browserDefault: {
+            ...this.status.browserDefault!,
+            defaultBrowserId: message.enabled ? 'edge-browser-id' : null,
+            isCurrentBrowser: message.enabled,
+          },
+        };
+        return { success: true as const, status: this.status };
+      case 'panerelay.browser-default.refresh':
+        return { success: true as const, status: this.status };
       case 'panerelay.controlled-tab.activate':
       case 'panerelay.controlled-tab.close':
       case 'panerelay.page-comments.start':
@@ -293,14 +314,16 @@ describe('React Side Panel', () => {
     expect(client.stored['panerelay.locale']).toBe('zh-CN');
   });
 
-  it('sets and clears the user-level default Provider from settings', async () => {
+  it('sets and clears the user-level Provider and browser defaults from settings', async () => {
     const { client, user } = await renderReady();
 
     await user.click(screen.getByRole('button', { name: /Browser access:/ }));
     expect(screen.getByText('Default Provider')).toBeVisible();
     expect(screen.getByText('agent-browser')).toBeVisible();
+    expect(screen.getByText('Default Browser')).toBeVisible();
+    expect(screen.getByText('Edge')).toBeVisible();
     expect(screen.queryByText('Native Host unavailable')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Set default' }));
+    await user.click(screen.getByRole('button', { name: 'Set agent-browser as default Provider' }));
 
     await waitFor(() =>
       expect(client.requests).toContainEqual({
@@ -308,16 +331,25 @@ describe('React Side Panel', () => {
         enabled: true,
       }),
     );
-    expect(screen.getByRole('button', { name: 'Clear default' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
+    expect(
+      screen.getByRole('button', { name: 'Clear agent-browser default Provider' }),
+    ).toHaveAttribute('aria-pressed', 'true');
 
-    await user.click(screen.getByRole('button', { name: 'Clear default' }));
+    await user.click(screen.getByRole('button', { name: 'Clear agent-browser default Provider' }));
     expect(client.requests).toContainEqual({
       type: 'panerelay.default-provider.set',
       enabled: false,
     });
+
+    await user.click(screen.getByRole('button', { name: 'Use this browser by default' }));
+    expect(client.requests).toContainEqual({
+      type: 'panerelay.browser-default.set',
+      enabled: true,
+    });
+    expect(screen.getByRole('button', { name: 'Clear this browser as default' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
   });
 
   it('guides a missing Native Host with setup and retry', async () => {

@@ -39,13 +39,20 @@ Microsoft Edge 运行时能力目前归类为 `Forwarded`，仍需完成有代�
    ```
 
 3. 从 Chrome 或 Edge 工具栏打开 Panerelay，授权当前网页标签页或所有受支持的网页标签页。
-4. 验证任意 Agent 可以通过 agent-browser 访问已授权的浏览器：
+4. 如果 Panerelay 同时连接了多个浏览器，在扩展设置中选择“默认浏览器”，或通过 CLI 明确选择：
+
+   ```bash
+   npx --yes @panerelay/setup browsers
+   npx --yes @panerelay/setup browser use edge
+   ```
+
+5. 验证任意 Agent 可以通过 agent-browser 访问所选的已授权浏览器：
 
    ```bash
    agent-browser --provider panerelay tab list
    ```
 
-5. 如果希望直接在浏览器中工作，打开侧边栏并选择本机已安装的 Agent。Panerelay 会自动发现 Codex、Claude Code 和 Qoder；对应的 Agent CLI 仍需提前安装并登录。
+6. 如果希望直接在浏览器中工作，打开侧边栏并选择本机已安装的 Agent。Panerelay 会自动发现 Codex、Claude Code 和 Qoder；对应的 Agent CLI 仍需提前安装并登录。侧边栏 Agent 始终绑定到打开该侧边栏的浏览器，不受保存的默认浏览器影响。
 
 如需在后续命令中省略 `--provider panerelay`，可在扩展设置中将 Panerelay 设为用户级默认 Agent，或安装时加上 `--global-provider`；如果只想影响当前项目，请改用 `--project-provider`。默认 Agent 只改变路由，不会授予浏览器权限，也不会授权任何标签页。
 
@@ -76,6 +83,17 @@ npx --yes @panerelay/setup --project-provider
 ```
 
 agent-browser 从 `~/.agent-browser/config.json` 读取用户级默认值，当前项目的 `./agent-browser.json` 优先级更高。如需恢复其他默认 Agent，修改或删除对应配置中的 `provider` 字段即可。Panerelay 会继续保留，始终可以通过 `--provider panerelay` 使用。
+
+浏览器选择是另一项独立设置。Panerelay 依次使用显式的 `PANERELAY_BROWSER_ID` 或 `PANERELAY_BROWSER`、保存的默认浏览器、唯一在线且可用的浏览器。多个浏览器同时可用但没有明确选择时会直接报错，不会根据焦点或注册顺序猜测：
+
+```bash
+npx --yes @panerelay/setup browsers
+npx --yes @panerelay/setup browser use <注册ID|chrome|edge>
+npx --yes @panerelay/setup browser clear
+PANERELAY_BROWSER=edge agent-browser --provider panerelay tab list
+```
+
+显式选择或保存的默认浏览器离线时不会自动切换到其他浏览器。每个 agent-browser 会话在关闭前始终固定到创建它的浏览器。
 
 官方构建使用扩展 ID `panplnkjlkoceaonlmpdekjphgmbggmi`。自行构建的扩展可以注册自己的 32 位 ID：
 

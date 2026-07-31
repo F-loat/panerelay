@@ -104,6 +104,7 @@ function harness(
       browserSessionClosures.push(session);
     },
     cwd: () => '/workspace',
+    environment: { PANERELAY_BROWSER_ID: 'sidepanel-browser-id' },
     onDiagnostic: message => diagnostics.push(message),
     runtimeConfig: async () => ({
       agentBrowserConfigPath: 'C:\\Panerelay Data\\agent-browser.json',
@@ -643,6 +644,7 @@ test('builds Windows MCP and cleanup commands without widening Provider scope', 
       agentBrowserPath: 'C:\\npm wrappers\\agent-browser.cmd',
     },
     'qoder-session-1',
+    'sidepanel-browser-id',
   );
   assert.deepEqual(servers, [
     {
@@ -656,6 +658,7 @@ test('builds Windows MCP and cleanup commands without widening Provider scope', 
         },
         { name: 'AGENT_BROWSER_PROVIDER', value: 'panerelay' },
         { name: 'AGENT_BROWSER_SESSION', value: 'qoder-session-1' },
+        { name: 'PANERELAY_BROWSER_ID', value: 'sidepanel-browser-id' },
       ],
     },
   ]);

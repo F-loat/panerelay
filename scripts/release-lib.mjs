@@ -28,6 +28,17 @@ export const PACKAGE_DEFINITIONS = [
     ],
   },
   {
+    directory: 'packages/browser-registry',
+    name: '@panerelay/browser-registry',
+    requiredEntries: [
+      'package/LICENSE',
+      'package/README.md',
+      'package/dist/index.d.ts',
+      'package/dist/index.js',
+      'package/package.json',
+    ],
+  },
+  {
     directory: 'packages/agent-browser',
     name: '@panerelay/agent-browser',
     requiredEntries: [

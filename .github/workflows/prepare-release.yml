@@ -144,6 +144,7 @@ jobs:
 
           for package_name in \
             @panerelay/protocol \
+            @panerelay/browser-registry \
             @panerelay/agent-browser \
             @panerelay/bridge \
             @panerelay/setup; do
