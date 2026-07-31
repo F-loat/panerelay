@@ -161,6 +161,82 @@ test('rejects a browser registration from a different configured Extension ID', 
   }
 });
 
+test('preserves Edge registration metadata', async () => {
+  let registered:
+    | {
+        browserFamily?: string;
+        capabilities?: { cdpRelay: boolean };
+      }
+    | undefined;
+  const relay = await BrowserRelay.listen({
+    onBrowserDisconnected: () => {},
+    onBrowserRegistered: browser => {
+      registered = browser;
+    },
+    sendToExtension: () => {},
+  });
+  try {
+    await relay.handleExtensionMessage({
+      type: 'browser.register',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      browserId: 'edge-1',
+      browserName: 'Microsoft Edge',
+      browserFamily: 'edge',
+      capabilities: { cdpRelay: true },
+      extensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
+      extensionVersion: '0.2.0',
+    });
+    assert.deepEqual(registered?.browserFamily, 'edge');
+    assert.deepEqual(registered?.capabilities, { cdpRelay: true });
+  } finally {
+    await relay.close();
+  }
+});
+
+test('rejects relay allocation when the registered browser lacks CDP support', async () => {
+  const controlMessages: HostToExtensionMessage[] = [];
+  const relay = await BrowserRelay.listen({
+    onBrowserDisconnected: () => {},
+    onBrowserRegistered: () => {},
+    sendToExtension: message => controlMessages.push(message),
+  });
+  try {
+    await relay.handleExtensionMessage({
+      type: 'browser.register',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      browserId: 'unsupported-1',
+      browserName: 'Unsupported browser',
+      browserFamily: 'unknown',
+      capabilities: { cdpRelay: false },
+      extensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
+      extensionVersion: '0.2.0',
+    });
+    const response = await fetch(`http://127.0.0.1:${relay.port}/sessions`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${relay.token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        protocol: PANERELAY_PROTOCOL_VERSION,
+        actor: { kind: 'automation', name: 'agent-browser' },
+      }),
+    });
+
+    assert.equal(response.status, 409);
+    assert.match(
+      String(((await response.json()) as { error?: string }).error),
+      /cannot provide a CDP relay/,
+    );
+    assert.equal(
+      controlMessages.some(message => message.type === 'control.session.changed'),
+      false,
+    );
+  } finally {
+    await relay.close();
+  }
+});
+
 test('implements the browser-level target handshake with lazy debugger attachment', async () => {
   const extensionMessages: HostToExtensionMessage[] = [];
   const firstTarget = target('target-1', 'https://example.test/', true);

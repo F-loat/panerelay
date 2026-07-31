@@ -163,9 +163,13 @@ const doctorLabels: Record<string, { en: string; 'zh-CN': string }> = {
   },
   qoder: { en: 'Qoder (optional)', 'zh-CN': 'Qoder（可选）' },
   skill: { en: 'Agent Skill', 'zh-CN': 'Agent Skill' },
-  'windows-registry': {
-    en: 'Native Messaging registry',
-    'zh-CN': 'Native Messaging 注册表',
+  'windows-registry-chrome': {
+    en: 'Chrome Native Messaging registry',
+    'zh-CN': 'Chrome Native Messaging 注册表',
+  },
+  'windows-registry-edge': {
+    en: 'Edge Native Messaging registry',
+    'zh-CN': 'Edge Native Messaging 注册表',
   },
 };
 
@@ -179,7 +183,8 @@ const doctorGroups = [
       'native-host',
       'native-launcher',
       'native-manifest',
-      'windows-registry',
+      'windows-registry-chrome',
+      'windows-registry-edge',
       'extension-id',
       'provider',
       'skill',

@@ -1,10 +1,4 @@
-# windows-native-messaging Specification
-
-## Purpose
-
-Define safe, user-scoped Chromium Native Messaging installation and lifecycle behavior for Panerelay on supported Windows systems.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Windows setup installs a launchable user-scoped Native Host
 
@@ -37,22 +31,6 @@ Panerelay SHALL invoke Windows command wrappers and registry tools without inter
 - **GIVEN** the manifest is installed on Windows
 - **WHEN** an Extension origin not listed in `allowed_origins` attempts Native Messaging through Chrome or Edge
 - **THEN** the browser and Panerelay do not grant it a Host connection
-
-### Requirement: Windows setup configures launchable local tools
-
-Panerelay SHALL discover Windows executable and command-wrapper forms for Node-based tools and write agent-browser Provider and Agent runtime configuration that can be spawned on Windows.
-
-#### Scenario: npm installs command wrappers
-
-- **GIVEN** agent-browser, Codex, or Qoder is exposed through a `.cmd` wrapper
-- **WHEN** setup discovers and later launches that tool
-- **THEN** Panerelay uses the Windows command interpreter safely and preserves the intended argument vector
-
-#### Scenario: Tool is not executable on Windows
-
-- **GIVEN** a candidate path exists but cannot complete its version or capability probe
-- **WHEN** setup or doctor evaluates it
-- **THEN** Panerelay rejects that candidate and reports an actionable unavailable status
 
 ### Requirement: Windows doctor verifies registry and manifest agreement
 

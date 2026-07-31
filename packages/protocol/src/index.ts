@@ -9,11 +9,19 @@ export * from './constants.js';
 export * from './control-activity.js';
 export * from './native-transfer.js';
 
+export type BrowserFamily = 'chrome' | 'chromium' | 'edge' | 'unknown';
+
+export interface BrowserCapabilities {
+  cdpRelay: boolean;
+}
+
 export interface BrowserRegistration {
   browserId: string;
   browserName: string;
   extensionId: string;
   extensionVersion: string;
+  browserFamily?: BrowserFamily;
+  capabilities?: BrowserCapabilities;
 }
 
 export interface BrowserRegisterMessage extends BrowserRegistration {
@@ -428,6 +436,8 @@ export interface BridgeState {
   browserName: string;
   extensionVersion: string;
   extensionId: string;
+  browserFamily?: BrowserFamily;
+  capabilities?: BrowserCapabilities;
   updatedAt: string;
 }
 
@@ -466,7 +476,13 @@ export function isExtensionToHostMessage(value: unknown): value is ExtensionToHo
       typeof candidate.browserId === 'string' &&
       typeof candidate.browserName === 'string' &&
       typeof candidate.extensionId === 'string' &&
-      typeof candidate.extensionVersion === 'string'
+      typeof candidate.extensionVersion === 'string' &&
+      (candidate.browserFamily === undefined ||
+        ['chrome', 'chromium', 'edge', 'unknown'].includes(candidate.browserFamily as string)) &&
+      (candidate.capabilities === undefined ||
+        (typeof candidate.capabilities === 'object' &&
+          candidate.capabilities !== null &&
+          typeof (candidate.capabilities as Record<string, unknown>).cdpRelay === 'boolean'))
     );
   }
   return [

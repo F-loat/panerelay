@@ -61,6 +61,8 @@ interface StoredRuntimeConfig {
   extensionId?: unknown;
 }
 
+export type WindowsNativeMessagingBrowser = 'chrome' | 'edge';
+
 export function validateExtensionId(value: string): string {
   if (!CHROME_EXTENSION_ID_PATTERN.test(value)) {
     throw new Error('Extension ID must contain exactly 32 lowercase letters from a through p.');
@@ -83,20 +85,34 @@ export function resolveEffectiveExtensionId(options: {
   return validateExtensionId(value);
 }
 
-export function windowsNativeHostRegistryKey(hostName = PANERELAY_NATIVE_HOST_NAME): string {
-  return `HKCU\\SOFTWARE\\Google\\Chrome\\NativeMessagingHosts\\${hostName}`;
+export function windowsNativeHostRegistryKey(
+  hostName = PANERELAY_NATIVE_HOST_NAME,
+  browser: WindowsNativeMessagingBrowser = 'chrome',
+): string {
+  const owner = browser === 'edge' ? 'Microsoft\\Edge' : 'Google\\Chrome';
+  return `HKCU\\SOFTWARE\\${owner}\\NativeMessagingHosts\\${hostName}`;
 }
 
 export async function registerWindowsNativeHost(
   manifestPath: string,
   options: {
+    browser?: WindowsNativeMessagingBrowser;
     environment?: NodeJS.ProcessEnv;
     runner?: CommandRunner;
   } = {},
 ): Promise<void> {
   const result = await (options.runner ?? runCommand)(
     'reg.exe',
-    ['add', windowsNativeHostRegistryKey(), '/ve', '/t', 'REG_SZ', '/d', manifestPath, '/f'],
+    [
+      'add',
+      windowsNativeHostRegistryKey(PANERELAY_NATIVE_HOST_NAME, options.browser),
+      '/ve',
+      '/t',
+      'REG_SZ',
+      '/d',
+      manifestPath,
+      '/f',
+    ],
     { environment: options.environment, timeoutMs: 10_000 },
   );
   if (result.code !== 0) {
@@ -106,13 +122,14 @@ export async function registerWindowsNativeHost(
 
 export async function unregisterWindowsNativeHost(
   options: {
+    browser?: WindowsNativeMessagingBrowser;
     environment?: NodeJS.ProcessEnv;
     runner?: CommandRunner;
   } = {},
 ): Promise<void> {
   const result = await (options.runner ?? runCommand)(
     'reg.exe',
-    ['delete', windowsNativeHostRegistryKey(), '/f'],
+    ['delete', windowsNativeHostRegistryKey(PANERELAY_NATIVE_HOST_NAME, options.browser), '/f'],
     { environment: options.environment, timeoutMs: 10_000 },
   );
   if (result.code !== 0 && result.code !== 1) {
@@ -132,13 +149,14 @@ export function parseWindowsRegistryString(output: string): string | undefined {
 
 export async function readWindowsNativeHostRegistryValue(
   options: {
+    browser?: WindowsNativeMessagingBrowser;
     environment?: NodeJS.ProcessEnv;
     runner?: CommandRunner;
   } = {},
 ): Promise<string | undefined> {
   const result = await (options.runner ?? runCommand)(
     'reg.exe',
-    ['query', windowsNativeHostRegistryKey(), '/ve'],
+    ['query', windowsNativeHostRegistryKey(PANERELAY_NATIVE_HOST_NAME, options.browser), '/ve'],
     { environment: options.environment, timeoutMs: 10_000 },
   );
   if (result.code !== 0) return undefined;
@@ -193,6 +211,10 @@ export function nativeHostManifestPaths(options: NativeHostPathOptions = {}): st
         ['Google', 'Chrome Canary'],
         ['Google', 'Chrome for Testing'],
         ['Chromium'],
+        ['Microsoft Edge'],
+        ['Microsoft Edge Beta'],
+        ['Microsoft Edge Dev'],
+        ['Microsoft Edge Canary'],
       ].map(parts =>
         join(home, 'Library', 'Application Support', ...parts, 'NativeMessagingHosts', filename),
       );
@@ -205,6 +227,9 @@ export function nativeHostManifestPaths(options: NativeHostPathOptions = {}): st
         'google-chrome-unstable',
         'google-chrome-for-testing',
         'chromium',
+        'microsoft-edge',
+        'microsoft-edge-beta',
+        'microsoft-edge-dev',
       ].map(browser => join(home, '.config', browser, 'NativeMessagingHosts', filename));
       return [...profilePaths, ...browserPaths];
     }
@@ -363,10 +388,15 @@ export async function installNativeHost(
     await writeFile(manifestPath, manifest, { mode: 0o644 });
   }
   if (platform === 'win32') {
-    await registerWindowsNativeHost(paths.manifestPaths[0]!, {
-      environment,
-      runner: options.registryRunner,
-    });
+    await Promise.all(
+      (['chrome', 'edge'] as const).map(browser =>
+        registerWindowsNativeHost(paths.manifestPaths[0]!, {
+          browser,
+          environment,
+          runner: options.registryRunner,
+        }),
+      ),
+    );
   }
 
   return {
@@ -389,10 +419,15 @@ export async function uninstallNativeHost(
   const platform = options.platform ?? process.platform;
   const paths = resolveNativeHostInstallationPaths(options);
   if (platform === 'win32') {
-    await unregisterWindowsNativeHost({
-      environment: options.environment,
-      runner: options.registryRunner,
-    });
+    await Promise.all(
+      (['chrome', 'edge'] as const).map(browser =>
+        unregisterWindowsNativeHost({
+          browser,
+          environment: options.environment,
+          runner: options.registryRunner,
+        }),
+      ),
+    );
   }
   await Promise.all(paths.manifestPaths.map(manifestPath => rm(manifestPath, { force: true })));
   await Promise.all([

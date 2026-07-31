@@ -216,6 +216,45 @@ test('groups human-readable doctor checks with actionable remediation', async ()
   assert.doesNotMatch(rendered, /\b(?:PASS|FAIL|WARN)\b/);
 });
 
+test('localizes Chrome and Edge Native Messaging registry checks independently', async () => {
+  const report: DoctorReport = {
+    checks: [
+      {
+        detail: 'C:\\Panerelay\\manifest.json',
+        id: 'windows-registry-chrome',
+        label: 'Chrome Native Messaging registry',
+        status: 'pass',
+      },
+      {
+        detail: 'Not found',
+        hint: 'Run: npx --yes @panerelay/setup',
+        id: 'windows-registry-edge',
+        label: 'Edge Native Messaging registry',
+        status: 'fail',
+      },
+    ],
+    ok: false,
+  };
+  const output: string[] = [];
+  const originalLog = console.log;
+  console.log = (...values: unknown[]) => output.push(values.join(' '));
+  try {
+    assert.equal(
+      await main(['doctor', '--lang', 'zh-CN'], {
+        doctor: async () => report,
+        environment: {},
+        systemLocale: 'en',
+      }),
+      1,
+    );
+  } finally {
+    console.log = originalLog;
+  }
+  const rendered = output.join('\n');
+  assert.match(rendered, /Chrome Native Messaging 注册表/);
+  assert.match(rendered, /Edge Native Messaging 注册表 — 未找到/);
+});
+
 test('keeps doctor JSON identical across supported languages', async () => {
   const report: DoctorReport = {
     checks: [

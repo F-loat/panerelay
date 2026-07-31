@@ -51,7 +51,7 @@ candidate_directory=".artifacts/panerelay-$release_version"
 ```
 
 - [ ] Confirm `$candidate_directory/inventory.json` records channel `stable`, the intended version and commit, `"dirty": false`, official Extension ID, minimum agent-browser and Claude Code versions, and the verified agent-browser version list.
-- [ ] Confirm the directory contains four `@panerelay` npm tarballs, one Extension zip, `inventory.json`, and `SHA256SUMS`.
+- [ ] Confirm the directory contains four `@panerelay` npm tarballs, one shared Chrome/Edge Extension zip, `inventory.json`, and `SHA256SUMS`.
 - [ ] Verify checksums from inside the candidate directory:
 
   ```bash
@@ -59,7 +59,7 @@ candidate_directory=".artifacts/panerelay-$release_version"
   ```
 
 - [ ] Inspect every npm tarball for its intended public files, exact internal dependency pins matching the candidate version, the ACP dependency, no Claude Agent SDK or Claude platform runtime, and absence of tests, workspace ranges, credentials, logs, and signing keys.
-- [ ] Inspect the Extension archive for all manifest/HTML-referenced assets, versions, public key, and derived official ID.
+- [ ] Inspect the shared Chrome/Edge Extension archive for all manifest/HTML-referenced assets, versions, public key, and derived official ID; confirm it contains no Firefox manifest, Gecko identity, WebDriver transport, or browser launcher.
 - [ ] Install all four packed tarballs in one disposable consumer and confirm setup → doctor → update → doctor → uninstall, including a persisted custom Extension ID.
 
 ## Runtime acceptance
@@ -67,14 +67,15 @@ candidate_directory=".artifacts/panerelay-$release_version"
 - [ ] Extract and load the retained Extension archive in the daily Chrome profile.
 - [ ] Run `panerelay doctor`; confirm the Native Host, exact Extension origin, actual registered Extension ID, agent-browser version, Provider config, and optional Claude/Qoder status.
 - [ ] With agent-browser 0.33.0, authorize a local fixture tab, run one bounded Provider session, observe visible control, revoke it, and confirm debugger/session cleanup.
+- [ ] Load the same retained archive in a daily Edge profile, confirm Edge registration and side-panel identity, repeat the bounded fixture flow, and retain the result before changing Edge groups from `Forwarded` to `Verified`.
 - [ ] Run one bounded Codex browser-MCP turn, one external Claude Code CLI browser-MCP turn, and one Qoder ACP browser-MCP turn when each optional runtime is available. Exercise a permission decision, interruption, and browser authorization revocation without retaining prompts or page data.
-- [ ] On real Windows Chrome, repeat setup, registry discovery, Host launch, doctor, update, uninstall, and cleanup from paths containing spaces. Confirm only the exact HKCU Panerelay Native Messaging key and user-owned files change.
+- [ ] On real Windows Chrome and Edge, repeat setup, registry discovery, Host launch, doctor, update, uninstall, and cleanup from paths containing spaces. Confirm only the exact Google Chrome and Microsoft Edge HKCU Panerelay Native Messaging keys and user-owned files change.
 - [ ] Remove disposable consumers, browser state, and temporary candidates, retaining only the intentionally accepted `$candidate_directory`.
 
 ## Compatibility and distribution boundaries
 
 - Panerelay components remain one lockstep compatibility unit; the protocol does not yet negotiate across versions.
-- Panerelay reuses the existing Chrome process and cannot own isolated contexts, launch-time proxy or profile selection, whole-browser close, or top-level request containment.
+- Panerelay reuses the existing Chrome or Edge process and cannot own isolated contexts, launch-time proxy or profile selection, whole-browser close, or top-level request containment.
 - Activity is sanitized, bounded, memory-only, and not a durable audit history.
 - Claude Code and Qoder are optional; their absence must not block Codex or browser automation.
 - Manual unpacked Extension loading does not use or require a private signing key.
@@ -130,7 +131,7 @@ Run **Release** from the default branch with channel `stable`, then approve the 
 4. creates `v<version>` and a GitHub Release for the selected commit; and
 5. attaches the Extension zip and its checksum to the Release.
 
-The complete Actions artifact remains the audit and recovery source for `inventory.json` and full candidate checksums. The [Chrome Web Store listing](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi) is the default end-user installation channel; the GitHub Release zip is retained for manual and offline verification.
+The complete Actions artifact remains the audit and recovery source for `inventory.json` and full candidate checksums. The [Chrome Web Store listing](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi) is the default end-user installation channel for Chrome and Edge; the GitHub Release zip is retained for manual and offline verification.
 
 Afterward:
 

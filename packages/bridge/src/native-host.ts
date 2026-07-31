@@ -70,6 +70,8 @@ async function main(): Promise<void> {
         browserName: browser.browserName,
         extensionVersion: browser.extensionVersion,
         extensionId: browser.extensionId,
+        ...(browser.browserFamily ? { browserFamily: browser.browserFamily } : {}),
+        ...(browser.capabilities ? { capabilities: browser.capabilities } : {}),
         updatedAt: new Date().toISOString(),
       };
       await writeBridgeState(state);

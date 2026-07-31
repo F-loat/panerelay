@@ -160,8 +160,11 @@ test('keeps official installation guidance Store-first and version-neutral', () 
   }
   assert.doesNotMatch(englishQuickstart, /Panerelay Releases|chrome:\/\/extensions/);
   assert.doesNotMatch(chineseQuickstart, /Panerelay Releases|chrome:\/\/extensions/);
-  assert.match(rootReadme, /load `apps\/extension\/dist` as an unpacked Extension/);
-  assert.match(rootReadmeZhCn, /将 `apps\/extension\/dist` 加载为未打包扩展/);
+  assert.match(
+    rootReadme,
+    /load `apps\/extension\/dist` as an unpacked Extension in Chrome or Edge/,
+  );
+  assert.match(rootReadmeZhCn, /在 Chrome 或 Edge 中将 `apps\/extension\/dist` 加载为未打包扩展/);
 });
 
 test('keeps selectable release preparation reviewable and non-publishing', () => {

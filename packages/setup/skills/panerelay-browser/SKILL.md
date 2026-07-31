@@ -1,6 +1,6 @@
 ---
 name: panerelay-browser
-description: Use agent-browser through Panerelay to work in the user's existing Chrome session and explicitly authorized tabs. Use when the user asks to operate their current browser, reuse an existing login or cookies, work through Panerelay or its side panel, or control a tab they authorized.
+description: Use agent-browser through Panerelay to work in the user's existing Chrome or Microsoft Edge session and explicitly authorized tabs. Use when the user asks to operate their current browser, reuse an existing login or cookies, work through Panerelay or its side panel, or control a tab they authorized.
 ---
 
 # Panerelay Browser
@@ -26,11 +26,11 @@ Use standard `agent-browser` commands with the `panerelay` browser Provider. Pan
 
 3. Follow the normal snapshot-and-ref workflow. Refresh the snapshot after navigation or meaningful page changes because refs become stale.
 
-4. Treat `tab <id>` as an Agent-local selection. Panerelay keeps the user's visible Chrome tab and window focus unchanged, and `tab new` opens in the background. Use the selected target normally; do not add foregrounding workarounds.
+4. Treat `tab <id>` as an Agent-local selection. Panerelay keeps the user's visible Chrome or Edge tab and window focus unchanged, and `tab new` opens in the background. Use the selected target normally; do not add foregrounding workarounds.
 
 5. If Panerelay reports no authorized tab, ask the user to open the Panerelay side panel and authorize the current tab or all eligible tabs. Never widen authorization, switch scopes, or bypass a denial without the user's action.
 
-6. Close the agent-browser session after a completed one-shot task so Panerelay releases only that participant. `close` does not close the user's Chrome or another participant. Keep the session open only when the user expects continued interaction, and never use `close --all`.
+6. Close the agent-browser session after a completed one-shot task so Panerelay releases only that participant. `close` does not close the user's browser or another participant. Keep the session open only when the user expects continued interaction, and never use `close --all`.
 
 ## Capability rules
 
@@ -38,7 +38,7 @@ Use standard `agent-browser` commands with the `panerelay` browser Provider. Pan
 - Use normal page commands, including `snapshot`, `get`, `eval`, navigation, interaction, `screenshot` (viewport or `--full`), `pdf`, `upload`, supported tab operations, origin-scoped cookies and storage, network inspection, accessibility audits, tracing, and profiling.
 - Do not use `inspect`; opening DevTools displaces the Extension debugger from the controlled tab.
 - Do not use `--allowed-domains`, `--profile`, `--state`, `--restore`, `--proxy`, `--proxy-bypass`, `--executable-path`, `--args`, `--extension`, `--headed`, `--engine`, or `--download-path`. These launch, profile, or browser-wide options cannot apply to an already running user browser.
-- Do not clear or read cookies for the whole Chrome profile, create isolated browser contexts, or close the Chrome browser. `tab new`, `tab close`, and closing the current Panerelay Provider participant remain supported.
+- Do not clear or read cookies for the whole Chrome or Edge profile, create isolated browser contexts, or close the browser. `tab new`, `tab close`, and closing the current Panerelay Provider participant remain supported.
 - Use a distinct stable `--session` for independent Agent work. Panerelay can share one authorized browser lease across bounded local participants while keeping credentials, virtual CDP sessions, refs, pending commands, heartbeat, and cleanup isolated. Always close the exact session you opened.
 - If the Provider is missing or unhealthy, run `npx --yes @panerelay/setup doctor`. It reports the detected agent-browser version; Panerelay requires 0.33.0 or newer. Do not reinstall or change browser authorization unless the user asks.
 - Use default agent-browser behavior when the user did not request their existing browser or Panerelay.

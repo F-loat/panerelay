@@ -82,6 +82,11 @@ async function createRelaySession(
   state: BridgeState,
   request: unknown,
 ): Promise<RelaySessionCreated> {
+  if (state.capabilities?.cdpRelay === false) {
+    throw new Error(
+      `${state.browserName} does not support Panerelay browser automation because its Extension cannot provide a CDP relay`,
+    );
+  }
   const label = sessionLabel(request);
   const response = await fetch(`http://127.0.0.1:${state.port}/sessions`, {
     method: 'POST',
