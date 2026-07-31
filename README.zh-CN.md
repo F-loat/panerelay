@@ -2,6 +2,8 @@
 
 中文版 ｜ [English](README.md)
 
+[官网](https://f-loat.github.io/panerelay/) · [Chrome 应用商店](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi) · [版本发布](https://github.com/F-loat/panerelay/releases)
+
 **让 AI Agent 直接在你正在使用的 Chromium 浏览器中工作。**
 
 Panerelay 是连接 AI Agent 与用户现有 Chrome 或 Microsoft Edge 会话的开源本地桥梁。它在确保浏览器访问明确、可见且可撤销的前提下，解决两个问题：

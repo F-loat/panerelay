@@ -1,0 +1,18 @@
+{
+  "name": "Panerelay",
+  "short_name": "Panerelay",
+  "description": "Let AI agents work in the browser you already use.",
+  "start_url": "./",
+  "scope": "./",
+  "icons": [
+    {
+      "src": "./panerelay-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "theme_color": "#080b0a",
+  "background_color": "#080b0a",
+  "display": "standalone"
+}

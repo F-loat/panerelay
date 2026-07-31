@@ -88,6 +88,15 @@ importers:
         specifier: ^3.2.7
         version: 3.2.7(@types/node@20.19.43)(happy-dom@18.0.1)(jiti@2.7.0)(lightningcss@1.33.0)
 
+  apps/website:
+    devDependencies:
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+      vite:
+        specifier: 7.3.6
+        version: 7.3.6(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.33.0)
+
   packages/agent-browser:
     dependencies:
       '@panerelay/browser-registry':

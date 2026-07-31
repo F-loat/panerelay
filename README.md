@@ -2,6 +2,8 @@
 
 English ｜ [简体中文](README.zh-CN.md)
 
+[Website](https://f-loat.github.io/panerelay/) · [Chrome Web Store](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi) · [Releases](https://github.com/F-loat/panerelay/releases)
+
 **Let AI agents work in the Chromium browser you already use.**
 
 Panerelay is an open-source local bridge between AI agents and your existing Chrome or Microsoft Edge session. It solves two problems while keeping browser access explicit and revocable:
