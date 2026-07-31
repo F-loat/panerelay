@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import {
   spawn,
   type ChildProcessWithoutNullStreams,
@@ -22,12 +21,20 @@ const MAX_SESSION_MESSAGES = 1_000;
 const TERMINATION_GRACE_MS = 2_000;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export interface ClaudeMcpServer {
-  args?: string[];
-  command: string;
-  env?: Record<string, string>;
-  type?: 'stdio';
-}
+export type ClaudeMcpServer =
+  | {
+      alwaysLoad?: boolean;
+      args?: string[];
+      command: string;
+      env?: Record<string, string>;
+      type?: 'stdio';
+    }
+  | {
+      alwaysLoad?: boolean;
+      headers?: Record<string, string>;
+      type: 'http';
+      url: string;
+    };
 
 export interface ClaudeCliUserMessage {
   message: {
@@ -75,6 +82,7 @@ export interface ClaudeCliQueryParameters {
   environment?: NodeJS.ProcessEnv;
   executable: string;
   mcpServers?: Record<string, ClaudeMcpServer>;
+  permissionPromptTool: string;
   platform?: NodeJS.Platform;
   prompt: ClaudeCliUserMessage;
   resume?: string;
@@ -85,8 +93,6 @@ export interface ClaudeCliQueryParameters {
 export interface ClaudeCliQuery extends AsyncIterable<ClaudeCliMessage> {
   close(): void;
   interrupt(): Promise<void>;
-  respondToControl(requestId: string, response: Record<string, unknown>): Promise<void>;
-  respondToControlError(requestId: string, message: string): Promise<void>;
 }
 
 export interface ClaudeCli {
@@ -183,7 +189,6 @@ function writeRecord(child: ChildProcessWithoutNullStreams, record: object): Pro
 
 class SpawnedClaudeQuery implements ClaudeCliQuery {
   private readonly child: ChildProcessWithoutNullStreams;
-  private readonly initializeRequestId = `initialize-${randomUUID()}`;
   private readonly queue = new AsyncQueue<ClaudeCliMessage>();
   private stderr = '';
   private exited = false;
@@ -214,10 +219,34 @@ class SpawnedClaudeQuery implements ClaudeCliQuery {
       'stream-json',
       '--include-partial-messages',
       '--permission-prompt-tool',
-      'stdio',
+      parameters.permissionPromptTool,
       '--permission-mode',
       'default',
+      '--strict-mcp-config',
+      '--settings',
+      JSON.stringify({
+        permissions: {
+          ask: [
+            'Agent',
+            'Bash',
+            'CronCreate',
+            'CronDelete',
+            'Edit',
+            'Monitor',
+            'MultiEdit',
+            'NotebookEdit',
+            'PowerShell',
+            'Task',
+            'WebFetch',
+            'Write',
+            'mcp__panerelay_browser__*',
+          ],
+          disableBypassPermissionsMode: 'disable',
+        },
+        sandbox: { autoAllowBashIfSandboxed: false },
+      }),
       '--setting-sources=user,project,local',
+      ...(parameters.systemPrompt ? ['--append-system-prompt', parameters.systemPrompt] : []),
       ...(parameters.resume
         ? [`--resume=${parameters.resume}`]
         : parameters.sessionId
@@ -236,6 +265,11 @@ class SpawnedClaudeQuery implements ClaudeCliQuery {
     });
     this.readStdout();
     this.readStderr();
+    this.child.stdin.on('error', error => {
+      if (!this.sawResult && !this.exited) {
+        this.fail(new Error(`Claude Code input failed: ${error.message}`));
+      }
+    });
     this.child.once('error', error =>
       this.fail(new Error(`Claude Code failed to start: ${error.message}`)),
     );
@@ -245,22 +279,13 @@ class SpawnedClaudeQuery implements ClaudeCliQuery {
       this.finishIfReady();
     });
 
-    void writeRecord(this.child, {
-      type: 'control_request',
-      request_id: this.initializeRequestId,
-      request: {
-        subtype: 'initialize',
-        ...(parameters.systemPrompt ? { appendSystemPrompt: parameters.systemPrompt } : {}),
-      },
-    })
-      .then(() => writeRecord(this.child, parameters.prompt))
-      .catch(error =>
-        this.fail(
-          new Error(
-            `Claude Code input failed: ${error instanceof Error ? error.message : String(error)}`,
-          ),
+    void writeRecord(this.child, parameters.prompt).catch(error =>
+      this.fail(
+        new Error(
+          `Claude Code input failed: ${error instanceof Error ? error.message : String(error)}`,
         ),
-      );
+      ),
+    );
   }
 
   private readStdout(): void {
@@ -321,20 +346,6 @@ class SpawnedClaudeQuery implements ClaudeCliQuery {
       this.fail(new Error('Claude Code emitted an invalid stream record'));
       return;
     }
-    if (
-      message.type === 'control_response' &&
-      asRecord(message.response).request_id === this.initializeRequestId
-    ) {
-      const response = asRecord(message.response);
-      if (response.subtype === 'error') {
-        this.fail(
-          new Error(
-            `Claude Code initialization failed: ${diagnostic(String(response.error ?? 'unknown error'))}`,
-          ),
-        );
-      }
-      return;
-    }
     if (message.type === 'keep_alive') return;
     if (message.type === 'result') {
       this.sawResult = true;
@@ -379,47 +390,8 @@ class SpawnedClaudeQuery implements ClaudeCliQuery {
     this.terminationTimer.unref();
   }
 
-  async respondToControl(requestId: string, response: Record<string, unknown>): Promise<void> {
-    try {
-      await writeRecord(this.child, {
-        type: 'control_response',
-        response: {
-          subtype: 'success',
-          request_id: requestId,
-          response,
-        },
-      });
-    } catch {
-      const error = new Error('Claude Code permission response could not be delivered');
-      this.fail(error);
-      throw error;
-    }
-  }
-
-  async respondToControlError(requestId: string, message: string): Promise<void> {
-    try {
-      await writeRecord(this.child, {
-        type: 'control_response',
-        response: {
-          subtype: 'error',
-          request_id: requestId,
-          error: diagnostic(message),
-        },
-      });
-    } catch {
-      const error = new Error('Claude Code control error could not be delivered');
-      this.fail(error);
-      throw error;
-    }
-  }
-
   async interrupt(): Promise<void> {
     if (this.exited || this.failed) return;
-    await writeRecord(this.child, {
-      type: 'control_request',
-      request_id: `interrupt-${randomUUID()}`,
-      request: { subtype: 'interrupt' },
-    }).catch(() => {});
     this.terminate();
   }
 
@@ -471,13 +443,15 @@ async function candidateProjectDirectories(
   const directories = entries
     .filter(entry => entry.isDirectory())
     .map(entry => entry.name)
-    .sort()
-    .slice(0, MAX_PROJECT_DIRECTORIES);
-  if (!directory) return directories.map(name => join(root, name));
+    .sort();
+  if (!directory) {
+    return directories.slice(0, MAX_PROJECT_DIRECTORIES).map(name => join(root, name));
+  }
   const canonical = await canonicalDirectory(directory);
   const key = projectDirectoryName(canonical);
   return directories
     .filter(name => name === key || name.startsWith(`${key}--claude-worktrees-`))
+    .slice(0, MAX_PROJECT_DIRECTORIES)
     .map(name => join(root, name));
 }
 

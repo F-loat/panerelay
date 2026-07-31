@@ -49,3 +49,27 @@ Panerelay SHALL execute each Claude Code turn in the conversation's canonical wo
 - **WHEN** Panerelay parses the record
 - **THEN** it fails the turn closed without logging the record body
 - **AND** no raw provider payload crosses the Bridge protocol boundary
+
+### Requirement: Claude Code approvals remain user controlled
+
+Panerelay SHALL route Claude Code tool permission requests through a turn-scoped MCP permission tool and the existing normalized approval flow, SHALL keep each request correlated to one conversation and turn, SHALL ensure lower-priority user or project allow rules cannot bypass approval for mutating built-in or Panerelay browser tools, and SHALL fail closed when a request is cancelled, stale, unsupported, disconnected, or unanswered.
+
+#### Scenario: User approves one Claude Code tool call
+
+- **GIVEN** Claude Code invokes the configured Panerelay MCP permission tool for a pending tool call
+- **WHEN** the user selects the one-request accept decision
+- **THEN** Panerelay returns one allow result containing the original tool input
+- **AND** it reports the approval resolved without widening future permissions
+
+#### Scenario: User declines or abandons an approval
+
+- **GIVEN** Claude Code is waiting on the turn-scoped MCP permission tool
+- **WHEN** the user declines, cancels, interrupts, closes, disconnects, or switches away from the live turn
+- **THEN** Panerelay returns or records a deny result and resolves the displayed approval
+- **AND** the scoped permission endpoint is closed during terminal cleanup
+
+#### Scenario: Lower-priority settings allow a mutating tool
+
+- **GIVEN** user or project Claude settings contain an allow rule for a mutating built-in or Panerelay browser tool
+- **WHEN** Claude Code runs through Panerelay
+- **THEN** the scoped command-line ask rule takes precedence and invokes the Panerelay permission tool

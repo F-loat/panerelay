@@ -25,9 +25,9 @@ The Bridge launches the exact executable persisted by setup with print mode, `st
 
 Loading a globally installed SDK was rejected because Node does not resolve global modules portably and global roots differ across npm, pnpm, nvm, bun, and operating-system installations. A separate optional Provider package remains a fallback if the documented CLI protocol proves insufficient.
 
-### Require Claude Code CLI 2.1.0 or newer
+### Require Claude Code CLI 2.1.206 or newer
 
-Setup continues to probe `claude --version` and records a normalized semantic version. Provider readiness and doctor require 2.1.0 or newer, a conservative floor for the documented stream input/output, partial-message, session resume, MCP config, and permission-prompt surfaces used by this adapter. Unknown or older versions remain installed but unavailable to Panerelay.
+Setup continues to probe `claude --version` and records a normalized stable semantic version. Provider readiness and doctor require 2.1.206 or newer, the first documented release where `--permission-prompt-tool` waits deterministically for its configured MCP server instead of racing startup and reporting that the tool was not found. Prerelease, unknown, or older versions remain installed but unavailable to Panerelay.
 
 ### Keep the CLI protocol behind one facade
 
@@ -35,11 +35,13 @@ Setup continues to probe `claude --version` and records a normalized semantic ve
 
 Each process must produce a terminal `result` record and exit successfully. Malformed JSON, an over-limit line, unexpected termination, or a non-zero exit fails the turn closed. Stderr is bounded and used only as actionable failure detail; raw stdout, prompts, tool input, and transcript records are not logged.
 
-### Route approvals through the CLI stdio control protocol
+### Route approvals through a scoped MCP permission tool
 
-The CLI is launched with `--permission-prompt-tool stdio`, the same transport mode used by the official Agent SDK when a `canUseTool` callback is supplied. `control_request` records with subtype `can_use_tool` become correlated Panerelay approvals. The Bridge writes exactly one `control_response` with the matching request ID and a one-request `allow` or `deny` result. A `control_cancel_request`, interrupt, disconnect, timeout, duplicate request ID, or stale tool-use ID denies or cancels the pending request.
+The CLI is launched with the documented `--permission-prompt-tool mcp__panerelay_permission__approve` form. For each active turn, the Bridge starts a dependency-free MCP Streamable HTTP endpoint on an ephemeral loopback port and a random path, rejects browser-originated requests, and exposes only the permission tool. The permission MCP server implements only initialization, ping, tool listing, tool calling, notification acknowledgement, and cancellation needed by Claude Code; provider-native inputs and results never cross the shared protocol.
 
-This avoids a second MCP process and loopback approval endpoint. The existing participant-scoped `panerelay_browser` MCP server remains a normal CLI `--mcp-config` entry and grants no browser authority by itself; Chrome authorization remains explicit in the Extension.
+Each permission-tool call becomes one correlated Panerelay approval. The Bridge resolves the MCP request exactly once with a one-request `allow` result containing the original input or a `deny` result. HTTP disconnect, MCP cancellation, interrupt, turn cleanup, duplicate or stale tool-use IDs, and unsupported requests deny or cancel the pending operation. The CLI receives explicit command-line `ask` rules for mutating built-in tools and Panerelay browser MCP tools, so lower-priority user and project allow rules cannot bypass the side-panel decision.
+
+The existing participant-scoped `panerelay_browser` MCP server remains a separate CLI `--mcp-config` entry and grants no browser authority by itself; browser authorization remains explicit in the Extension.
 
 ### Read local history through a bounded transcript adapter
 
@@ -55,7 +57,8 @@ Interrupt marks the turn interrupted, denies pending approvals, closes stdin, se
 
 - [CLI event shapes drift despite documented flags] → Gate on the tested minimum, keep fixtures for representative records, bound unknown records, and classify newer live behavior separately until verified.
 - [Transcript layout changes] → Treat history as optional/Partial, validate paths and IDs, and keep new conversations and explicit resume independent of listing.
-- [The stdio control protocol is less prominently documented than CLI flags] → Gate it behind the tested CLI floor, preserve official-SDK-derived request and response fixtures, and reject unknown control subtypes.
+- [The minimal MCP implementation drifts from the MCP transport contract] → Keep it limited to the stable JSON-RPC methods used by Claude Code, cover the HTTP lifecycle with protocol fixtures, reject unsupported methods, and gate Claude Code on the release where permission-tool startup became deterministic.
+- [User or project settings already allow a mutating tool] → Inject higher-priority ask rules for mutating tools and disable sandbox auto-allow for the scoped process while retaining deny rules.
 - [Windows process termination differs from POSIX] → Put termination in the platform adapter and cover command construction and escalation with tests.
 - [Images use a provider-native stream schema] → Add fixture coverage and fail unsupported image records before starting the process rather than degrading silently.
 

@@ -26,7 +26,7 @@ Prepare Release requires repository **Settings → Actions → General → Workf
 - [ ] Confirm the four-component Chrome numeric version matches `release.config.json` and sorts after the prior stable Store version.
 - [ ] Confirm the retained public manifest key derives official Extension ID `panplnkjlkoceaonlmpdekjphgmbggmi` and no private signing material exists in source or artifacts.
 - [ ] Confirm agent-browser 0.33.0 is the minimum and each version in the verified list has a version-specific compatibility record.
-- [ ] Confirm Claude Code 2.1.0 is the minimum external CLI version and Panerelay does not package a Claude runtime.
+- [ ] Confirm Claude Code 2.1.206 is the minimum external CLI version and Panerelay does not package a Claude runtime.
 - [ ] Confirm the Bridge packages its ACP SDK runtime, excludes the Claude Agent SDK and Claude platform binaries, and keeps the bounded Claude/Qoder CLI compatibility probes current.
 - [ ] Run:
 

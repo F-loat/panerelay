@@ -26,10 +26,13 @@ test('accepts the minimum and newer agent-browser versions but rejects older ver
 });
 
 test('accepts only supported semantic Claude Code CLI versions', () => {
-  assert.equal(CLAUDE_CODE_MINIMUM_VERSION, '2.1.0');
-  assert.equal(isClaudeCodeSupported('2.0.99'), false);
-  assert.equal(isClaudeCodeSupported('2.1.0'), true);
+  assert.equal(CLAUDE_CODE_MINIMUM_VERSION, '2.1.206');
+  assert.equal(isClaudeCodeSupported('2.1.205'), false);
+  assert.equal(isClaudeCodeSupported('2.1.206'), true);
   assert.equal(isClaudeCodeSupported('3.0.0'), true);
+  assert.equal(isClaudeCodeSupported('2.1.206-rc.1'), false);
+  assert.equal(isClaudeCodeSupported('2.1.206+build.1'), false);
+  assert.equal(isClaudeCodeSupported('02.1.206'), false);
   assert.equal(isClaudeCodeSupported(undefined), false);
   assert.equal(isClaudeCodeSupported('unknown'), false);
 });

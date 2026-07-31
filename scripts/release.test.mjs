@@ -39,7 +39,7 @@ function releaseFixture() {
     extensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
     agentBrowserMinimumVersion: '0.33.0',
     agentBrowserVerifiedVersions: ['0.33.0'],
-    claudeCodeMinimumVersion: '2.1.0',
+    claudeCodeMinimumVersion: '2.1.206',
     packages: PACKAGE_DEFINITIONS.map(definition => definition.name),
   };
   const repository = { url: 'git+https://github.com/F-loat/panerelay.git' };
@@ -69,7 +69,7 @@ function releaseFixture() {
     extensionManifest: { version: '0.1.0.2', version_name: version, key: extensionKey },
     extensionPackage: { version, private: true },
     implementationSources: {
-      bridgeCompatibility: "export const CLAUDE_CODE_MINIMUM_VERSION = '2.1.0'",
+      bridgeCompatibility: "export const CLAUDE_CODE_MINIMUM_VERSION = '2.1.206'",
       browserRelay: 'message.extensionId !== this.options.expectedExtensionId',
       extensionBackground: 'extensionId: chrome.runtime.id',
       hostInstallation:
@@ -296,6 +296,14 @@ test('rejects stale prerelease metadata, identity drift, missing evidence, and i
     manifest => manifest.name === '@panerelay/bridge',
   ).dependencies['@anthropic-ai/claude-agent-sdk'] = '^0.3.220';
   assert.throws(() => validateReleaseMetadata(bundledClaude), /must not package/);
+
+  const optionalClaude = releaseFixture();
+  optionalClaude.packageManifests.find(
+    manifest => manifest.name === '@panerelay/bridge',
+  ).optionalDependencies = {
+    '@anthropic-ai/claude-agent-sdk': '^0.3.220',
+  };
+  assert.throws(() => validateReleaseMetadata(optionalClaude), /must not package/);
 });
 
 test('rejects workspace references and incomplete packed package contents', () => {
@@ -382,6 +390,25 @@ test('accepts an external-Claude bridge tarball and rejects a bundled Claude SDK
         name: bundled.name,
         requiredEntries,
         version: bundled.version,
+      }),
+    /must not package/,
+  );
+
+  const optional = {
+    ...manifest,
+    optionalDependencies: {
+      '@anthropic-ai/claude-agent-sdk': '^0.3.220',
+    },
+  };
+  assert.throws(
+    () =>
+      validatePackedPackage({
+        entries: requiredEntries,
+        manifest: optional,
+        manifestText: JSON.stringify(optional),
+        name: optional.name,
+        requiredEntries,
+        version: optional.version,
       }),
     /must not package/,
   );

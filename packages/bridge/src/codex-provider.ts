@@ -339,7 +339,7 @@ export class CodexProvider implements AgentProvider {
     }
   }
 
-  async listConversations(): Promise<ConversationSummary[]> {
+  async listConversations(cwd?: string): Promise<ConversationSummary[]> {
     const client = await this.ensureClient();
     const result = asRecord(
       await client.request('thread/list', {
@@ -348,6 +348,7 @@ export class CodexProvider implements AgentProvider {
         sortKey: 'updated_at',
         sortDirection: 'desc',
         archived: false,
+        ...(cwd ? { cwd } : {}),
       }),
     );
     const data = Array.isArray(result.data) ? result.data : [];

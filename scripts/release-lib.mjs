@@ -49,6 +49,7 @@ export const PACKAGE_DEFINITIONS = [
       'package/dist/host-installation.js',
       'package/dist/install.js',
       'package/dist/claude-cli.js',
+      'package/dist/claude-permission-server.js',
       'package/dist/claude-provider.js',
       'package/dist/native-host.bundle.cjs',
       'package/dist/platform.js',
@@ -75,7 +76,7 @@ export const PACKAGE_DEFINITIONS = [
 
 const OFFICIAL_EXTENSION_ID = 'panplnkjlkoceaonlmpdekjphgmbggmi';
 const AGENT_BROWSER_MINIMUM_VERSION = '0.33.0';
-const CLAUDE_CODE_MINIMUM_VERSION = '2.1.0';
+const CLAUDE_CODE_MINIMUM_VERSION = '2.1.206';
 const ACP_SDK_MINIMUM_VERSION = '1.2.1';
 const CLAUDE_AGENT_SDK_PACKAGE = '@anthropic-ai/claude-agent-sdk';
 const CHROME_EXTENSION_ID_PATTERN = /^[a-p]{32}$/;
@@ -409,7 +410,8 @@ export function validateReleaseMetadata({
     `@panerelay/bridge must package @agentclientprotocol/sdk ${ACP_SDK_MINIMUM_VERSION} or newer`,
   );
   invariant(
-    !bridgeManifest?.dependencies?.[CLAUDE_AGENT_SDK_PACKAGE],
+    !bridgeManifest?.dependencies?.[CLAUDE_AGENT_SDK_PACKAGE] &&
+      !bridgeManifest?.optionalDependencies?.[CLAUDE_AGENT_SDK_PACKAGE],
     `@panerelay/bridge must not package ${CLAUDE_AGENT_SDK_PACKAGE}`,
   );
   invariant(
@@ -498,7 +500,8 @@ export function validatePackedPackage({
       `${name} tarball does not package a supported ACP SDK`,
     );
     invariant(
-      !manifest.dependencies?.[CLAUDE_AGENT_SDK_PACKAGE],
+      !manifest.dependencies?.[CLAUDE_AGENT_SDK_PACKAGE] &&
+        !manifest.optionalDependencies?.[CLAUDE_AGENT_SDK_PACKAGE],
       `${name} tarball must not package ${CLAUDE_AGENT_SDK_PACKAGE}`,
     );
   }

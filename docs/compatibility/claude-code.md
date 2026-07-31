@@ -1,13 +1,13 @@
 # Claude Code compatibility
 
 - Panerelay release: current development candidate
-- Integration: user-installed Claude Code CLI 2.1.0 or newer
+- Integration: user-installed Claude Code CLI 2.1.206 or newer
 - Provider ID: `claude`
 - Last verified: 2026-07-31
 
 ## Status meanings
 
-- **Verified**: covered by deterministic Bridge, protocol, setup, and Extension tests against CLI process, stream, control, and transcript fixtures.
+- **Verified**: covered by deterministic Bridge, protocol, setup, and Extension tests against CLI process, stream, MCP permission, and transcript fixtures.
 - **Forwarded**: uses a supported Claude Code CLI surface, but has not yet been exercised against a signed-in local runtime.
 - **Partial**: the primary workflow is supported with a documented compatibility limitation.
 - **Unsupported**: Panerelay rejects the operation instead of widening access or reporting false success.
@@ -16,7 +16,7 @@ No signed-in live Claude turn is claimed by this record. Add dated runtime evide
 
 ## Runtime boundary
 
-Panerelay does not depend on, install, or bundle the Claude Agent SDK or a Claude platform binary. Setup discovers a user-owned `claude` executable, records its normalized version, and requires 2.1.0 or newer before reporting the Provider ready. The user remains responsible for installing, updating, and authenticating Claude Code.
+Panerelay does not depend on, install, or bundle the Claude Agent SDK or a Claude platform binary. Setup discovers a user-owned `claude` executable, records its normalized version, and requires stable version 2.1.206 or newer before reporting the Provider ready. This floor includes Claude Code's deterministic MCP permission-tool startup behavior; prerelease versions remain unavailable. The user remains responsible for installing, updating, and authenticating Claude Code.
 
 ## Provider and conversations
 
@@ -40,12 +40,12 @@ Panerelay does not depend on, install, or bundle the Claude Agent SDK or a Claud
 | --- | --- | --- |
 | PNG, JPEG, WebP, and GIF input | Verified | Bounded Extension image input maps to Claude base64 image blocks over stdin; protocol and provider tests cover image-only turns. |
 | Browser tools | Partial | Claude receives a scoped `panerelay_browser` MCP server through `--mcp-config` when agent-browser is installed. Chrome still requires explicit user authorization. |
-| One-request approval | Verified | CLI `control_request` records are correlated by request and tool-use IDs; `accept`, `decline`, and `cancel` write one matching `control_response`. |
-| Cancelled, duplicate, stale, or unknown approval control | Verified | Pending state is removed on cancellation; repeated IDs are denied and unknown control subtypes receive an error response. |
+| One-request approval | Verified | A turn-scoped loopback MCP permission tool correlates each request by tool-use ID; `accept`, `decline`, and `cancel` return one JSON-stringified allow or deny decision. |
+| Cancelled, duplicate, stale, or unknown approval control | Verified | Pending state is removed on MCP cancellation or disconnect; repeated IDs are denied and unsupported MCP requests fail closed. |
 | Session-wide approval changes | Unsupported | Claude permission suggestions are never applied; `acceptForSession` and `declineForSession` fail closed. |
 | Interruption | Verified | Matching active turns deny pending approvals, request interruption, terminate the child deterministically, and emit one interrupted terminal state. |
 | Close and terminal cleanup | Verified | Pending approvals fail closed and scoped browser sessions close on normal completion, failure, interruption, or Provider shutdown. |
-| User/project/local Claude settings | Forwarded | The CLI loads these setting sources; Panerelay does not modify their contents. |
-| Automatic permission widening | Unsupported | The Provider uses Claude's default permission mode and never turns an approval into a persistent rule. |
+| User/project/local Claude settings | Forwarded | The CLI loads these setting sources; command-line ask rules take precedence for mutating built-in and Panerelay browser tools without modifying the files. |
+| Automatic permission widening | Unsupported | The Provider uses Claude's default permission mode, disables sandbox auto-allow for the scoped process, and never turns an approval into a persistent rule. |
 
 Provider-native CLI payloads remain inside the Bridge. Panerelay emits only bounded protocol events and does not log prompts, model output, tool inputs, or transcript records by default.

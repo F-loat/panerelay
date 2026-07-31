@@ -7,6 +7,11 @@ import type {
   ClaudeCliQuery,
   ClaudeCliQueryParameters,
 } from './claude-cli.js';
+import type {
+  ClaudePermissionHandler,
+  ClaudePermissionServer,
+  ClaudePermissionToolRequest,
+} from './claude-permission-server.js';
 import { ClaudeProvider } from './claude-provider.js';
 
 function queryFrom(cli: FakeClaudeCli, parameters: ClaudeCliQueryParameters): ClaudeCliQuery {
@@ -17,24 +22,11 @@ function queryFrom(cli: FakeClaudeCli, parameters: ClaudeCliQueryParameters): Cl
     close() {
       cli.controls.closed = true;
     },
-    async respondToControl(requestId: string, response: Record<string, unknown>) {
-      cli.controlResponses.push({ requestId, response });
-      cli.permissionResult = response;
-    },
-    async respondToControlError(requestId: string, message: string) {
-      cli.controlErrors.push({ message, requestId });
-    },
   });
 }
 
 class FakeClaudeCli implements ClaudeCli {
   readonly controls = { closed: false, interrupted: false };
-  readonly controlErrors: Array<{ message: string; requestId: string }> = [];
-  readonly controlResponses: Array<{
-    requestId: string;
-    response: Record<string, unknown>;
-  }> = [];
-  permissionResult: unknown;
   queryParameters: ClaudeCliQueryParameters | undefined;
   run: (parameters: ClaudeCliQueryParameters) => AsyncGenerator<ClaudeCliMessage, void> =
     async function* () {
@@ -95,23 +87,53 @@ class FakeClaudeCli implements ClaudeCli {
   }
 }
 
+class FakePermissionServerFactory {
+  closed = 0;
+  private handler: ClaudePermissionHandler | undefined;
+
+  create = async (handler: ClaudePermissionHandler): Promise<ClaudePermissionServer> => {
+    this.handler = handler;
+    return {
+      toolName: 'mcp__panerelay_permission__approve',
+      mcpServer: {
+        type: 'http',
+        url: 'http://127.0.0.1:54321/random/mcp',
+        alwaysLoad: true,
+      },
+      close: async () => {
+        this.closed += 1;
+      },
+    };
+  };
+
+  request(
+    request: ClaudePermissionToolRequest,
+    signal: AbortSignal = new AbortController().signal,
+  ) {
+    if (!this.handler) throw new Error('Permission server has not started');
+    return this.handler(request, signal);
+  }
+}
+
 function createProvider(cli = new FakeClaudeCli()) {
   const events: ConversationEvent[] = [];
   const browserSessions: string[] = [];
+  const permissions = new FakePermissionServerFactory();
   const provider = new ClaudeProvider({
     cli,
     runtimeConfig: async () => ({
       claudePath: '/usr/local/bin/claude',
-      claudeVersion: '2.1.0',
+      claudeVersion: '2.1.206',
       agentBrowserPath: '/usr/local/bin/agent-browser',
       agentBrowserConfigPath: '/Users/test/.panerelay/agent-browser.json',
     }),
+    createPermissionServer: permissions.create,
     closeBrowserSession: async session => {
       browserSessions.push(session.label);
     },
   });
   provider.onEvent(event => events.push(event));
-  return { browserSessions, cli, events, provider };
+  return { browserSessions, cli, events, permissions, provider };
 }
 
 async function waitFor(
@@ -133,7 +155,7 @@ test('exposes Claude Code and normalizes cwd-scoped session history', async () =
     name: 'Claude Code',
     status: 'ready',
     description: 'Local Claude Code through the installed Claude Code CLI.',
-    version: '2.1.0',
+    version: '2.1.206',
     capabilities: {
       approvals: true,
       imageInput: true,
@@ -197,6 +219,16 @@ test('streams text, reasoning, tool activity, images, usage, and terminal events
     };
     yield {
       type: 'stream_event',
+      parent_tool_use_id: 'subagent-tool',
+      event: {
+        type: 'content_block_delta',
+        delta: { type: 'text_delta', text: 'Hidden subagent delta' },
+      },
+      uuid: 'subagent-partial',
+      session_id: 'session-1',
+    };
+    yield {
+      type: 'stream_event',
       event: {
         type: 'content_block_delta',
         delta: { type: 'text_delta', text: 'Hello' },
@@ -214,6 +246,22 @@ test('streams text, reasoning, tool activity, images, usage, and terminal events
           { type: 'text', text: 'Hello' },
           { type: 'tool_use', id: 'tool-1', name: 'Bash', input: { command: 'pwd' } },
         ],
+      },
+    };
+    yield {
+      type: 'tool_progress',
+      tool_use_id: 'tool-progress-1',
+      tool_name: 'WebFetch',
+      elapsed_time_seconds: 1,
+    };
+    yield {
+      type: 'assistant',
+      parent_tool_use_id: 'subagent-tool',
+      uuid: 'subagent-assistant',
+      session_id: 'session-1',
+      message: {
+        role: 'assistant',
+        content: [{ type: 'text', text: 'Hidden subagent response' }],
       },
     };
     yield {
@@ -256,21 +304,46 @@ test('streams text, reasoning, tool activity, images, usage, and terminal events
   assert.equal(cli.queryParameters?.resume, undefined);
   assert.match(cli.queryParameters?.systemPrompt ?? '', /App/);
   assert.doesNotMatch(cli.queryParameters?.systemPrompt ?? '', /secret/);
+  const browserMcp = cli.queryParameters?.mcpServers?.panerelay_browser;
+  assert.equal(browserMcp?.type, 'stdio');
   assert.equal(
-    cli.queryParameters?.mcpServers?.panerelay_browser?.command,
+    browserMcp && 'command' in browserMcp ? browserMcp.command : undefined,
     '/usr/local/bin/agent-browser',
   );
+  assert.equal(cli.queryParameters?.permissionPromptTool, 'mcp__panerelay_permission__approve');
+  assert.equal(cli.queryParameters?.mcpServers?.panerelay_permission?.type, 'http');
   assert.match(JSON.stringify(cli.queryParameters?.prompt), /image/);
   assert.match(JSON.stringify(cli.queryParameters?.prompt), /AQID/);
 
   assert.ok(events.some(event => event.kind === 'reasoning.delta' && event.delta === 'Checking'));
   assert.ok(events.some(event => event.kind === 'message.delta' && event.delta === 'Hello'));
   assert.ok(
+    !events.some(
+      event =>
+        (event.kind === 'message.delta' && event.delta.includes('Hidden subagent')) ||
+        (event.kind === 'message.completed' && event.message.text.includes('Hidden subagent')),
+    ),
+  );
+  const delta = events.find(event => event.kind === 'message.delta');
+  const completedMessage = events.find(event => event.kind === 'message.completed');
+  assert.equal(
+    delta?.kind === 'message.delta' ? delta.messageId : undefined,
+    completedMessage?.kind === 'message.completed' ? completedMessage.message.id : undefined,
+  );
+  assert.ok(
     events.some(
       event =>
         event.kind === 'activity.updated' &&
         event.activity.id === 'tool-1' &&
         event.activity.status === 'completed',
+    ),
+  );
+  assert.ok(
+    events.some(
+      event =>
+        event.kind === 'activity.updated' &&
+        event.activity.id === 'tool-progress-1' &&
+        event.activity.status === 'running',
     ),
   );
   assert.ok(
@@ -291,21 +364,10 @@ test('streams text, reasoning, tool activity, images, usage, and terminal events
   assert.equal(browserSessions.length, 1);
 });
 
-test('correlates one-request stdio approvals and interrupts an active query', async () => {
+test('correlates one-request MCP approvals and interrupts an active query', async () => {
   const cli = new FakeClaudeCli();
   let release!: () => void;
   cli.run = async function* () {
-    yield {
-      type: 'control_request',
-      request_id: 'request-1',
-      request: {
-        subtype: 'can_use_tool',
-        tool_name: 'Bash',
-        input: { command: 'git status', cwd: '/workspace/repo' },
-        tool_use_id: 'approval-1',
-        title: 'Run git status?',
-      },
-    };
     await new Promise<void>(resolve => {
       release = resolve;
     });
@@ -317,10 +379,15 @@ test('correlates one-request stdio approvals and interrupts an active query', as
       session_id: 'session-1',
     };
   };
-  const { events, provider } = createProvider(cli);
+  const { events, permissions, provider } = createProvider(cli);
   const detail = await provider.startConversation({ cwd: process.cwd() });
   const conversationId = detail.conversation.id;
   const { turnId } = await provider.sendMessage(conversationId, 'Check status');
+  const permissionResult = permissions.request({
+    toolName: 'Bash',
+    input: { command: 'git status', cwd: '/workspace/repo' },
+    toolUseId: 'approval-1',
+  });
   await waitFor(() => events.some(event => event.kind === 'approval.requested'));
 
   await assert.rejects(
@@ -328,17 +395,37 @@ test('correlates one-request stdio approvals and interrupts an active query', as
     /one-request/,
   );
   await provider.respondToApproval(conversationId, 'approval-1', 'accept');
-  assert.deepEqual(cli.permissionResult, {
+  assert.deepEqual(await permissionResult, {
     behavior: 'allow',
-    toolUseID: 'approval-1',
-  });
-  assert.deepEqual(cli.controlResponses[0], {
-    requestId: 'request-1',
-    response: { behavior: 'allow', toolUseID: 'approval-1' },
+    updatedInput: { command: 'git status', cwd: '/workspace/repo' },
   });
   assert.ok(events.some(event => event.kind === 'approval.resolved'));
 
+  const declinedPermission = permissions.request({
+    toolName: 'Write',
+    input: { file_path: '/workspace/repo/output.txt' },
+    toolUseId: 'approval-2',
+  });
+  await waitFor(() => events.filter(event => event.kind === 'approval.requested').length === 2);
+  await provider.respondToApproval(conversationId, 'approval-2', 'decline');
+  assert.deepEqual(await declinedPermission, {
+    behavior: 'deny',
+    message: 'Declined by user',
+    interrupt: false,
+  });
+
+  const interruptedPermission = permissions.request({
+    toolName: 'Bash',
+    input: { command: 'pnpm test' },
+    toolUseId: 'approval-3',
+  });
+  await waitFor(() => events.filter(event => event.kind === 'approval.requested').length === 3);
   await provider.interrupt(conversationId, turnId);
+  assert.deepEqual(await interruptedPermission, {
+    behavior: 'deny',
+    message: 'Turn interrupted',
+    interrupt: true,
+  });
   assert.equal(cli.controls.interrupted, true);
   release();
   await waitFor(() => events.some(event => event.kind === 'turn.completed'));
@@ -347,45 +434,13 @@ test('correlates one-request stdio approvals and interrupts an active query', as
   );
 });
 
-test('fails closed on stale, cancelled, duplicate, and unsupported control requests', async () => {
+test('fails closed on stale, cancelled, and duplicate MCP permission requests', async () => {
   const cli = new FakeClaudeCli();
+  let release!: () => void;
   cli.run = async function* () {
-    yield {
-      type: 'control_request',
-      request_id: 'request-1',
-      request: {
-        subtype: 'can_use_tool',
-        tool_name: 'Bash',
-        input: { command: 'pwd' },
-        tool_use_id: 'approval-1',
-      },
-    };
-    yield {
-      type: 'control_request',
-      request_id: 'request-2',
-      request: {
-        subtype: 'can_use_tool',
-        tool_name: 'Bash',
-        input: { command: 'pwd' },
-        tool_use_id: 'approval-1',
-      },
-    };
-    yield { type: 'control_cancel_request', request_id: 'request-1' };
-    yield {
-      type: 'control_request',
-      request_id: 'request-1',
-      request: {
-        subtype: 'can_use_tool',
-        tool_name: 'Bash',
-        input: { command: 'pwd' },
-        tool_use_id: 'approval-3',
-      },
-    };
-    yield {
-      type: 'control_request',
-      request_id: 'unsupported-1',
-      request: { subtype: 'request_user_dialog' },
-    };
+    await new Promise<void>(resolve => {
+      release = resolve;
+    });
     yield {
       type: 'result',
       subtype: 'success',
@@ -394,44 +449,50 @@ test('fails closed on stale, cancelled, duplicate, and unsupported control reque
       session_id: 'session-1',
     };
   };
-  const { events, provider } = createProvider(cli);
+  const { events, permissions, provider } = createProvider(cli);
   const detail = await provider.startConversation({ cwd: process.cwd() });
   await provider.sendMessage(detail.conversation.id, 'Check');
-  await waitFor(() => events.some(event => event.kind === 'turn.completed'));
-
-  assert.deepEqual(cli.controlResponses[0], {
-    requestId: 'request-2',
-    response: {
-      behavior: 'deny',
-      message: 'Duplicate permission request',
-      toolUseID: 'approval-1',
-    },
-  });
-  assert.deepEqual(cli.controlResponses[1], {
-    requestId: 'request-1',
-    response: {
-      behavior: 'deny',
-      message: 'Duplicate permission request',
-      toolUseID: 'approval-3',
-    },
-  });
-  assert.deepEqual(cli.controlErrors, [
+  const controller = new AbortController();
+  const pending = permissions.request(
     {
-      message: 'Unsupported control request subtype: request_user_dialog',
-      requestId: 'unsupported-1',
+      toolName: 'Bash',
+      input: { command: 'pwd' },
+      toolUseId: 'approval-1',
     },
-  ]);
+    controller.signal,
+  );
+  await waitFor(() => events.some(event => event.kind === 'approval.requested'));
+  assert.deepEqual(
+    await permissions.request({
+      toolName: 'Bash',
+      input: { command: 'pwd' },
+      toolUseId: 'approval-1',
+    }),
+    {
+      behavior: 'deny',
+      message: 'Duplicate permission request',
+    },
+  );
+  controller.abort();
+  assert.deepEqual(await pending, {
+    behavior: 'deny',
+    message: 'Permission request cancelled',
+    interrupt: true,
+  });
   await assert.rejects(
     provider.respondToApproval(detail.conversation.id, 'approval-1', 'accept'),
     /no longer pending/,
   );
+  release();
+  await waitFor(() => events.some(event => event.kind === 'turn.completed'));
 });
 
-test('terminates the scoped query when a control request cannot be correlated', async () => {
+test('terminates the scoped query when Claude emits an internal control request', async () => {
   const cli = new FakeClaudeCli();
   cli.run = async function* () {
     yield {
       type: 'control_request',
+      request_id: 'unexpected-control',
       request: {
         subtype: 'can_use_tool',
         tool_name: 'Bash',
@@ -452,7 +513,7 @@ test('terminates the scoped query when a control request cannot be correlated', 
       event =>
         event.kind === 'turn.completed' &&
         event.status === 'failed' &&
-        event.error?.includes('without an ID'),
+        event.error?.includes('unsupported internal control request'),
     ),
   );
 });

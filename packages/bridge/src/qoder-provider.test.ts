@@ -216,9 +216,16 @@ test('deduplicates concurrent Qoder preparation and retries after startup failur
 
 test('lists, starts, and loads Qoder sessions with isolated browser MCP definitions', async () => {
   const { browserSessionClosures, provider, runtimes } = harness();
-  const conversations = await provider.listConversations();
+  const conversations = await provider.listConversations('/workspace/project');
   assert.equal(conversations[0]?.id, 'qoder-existing');
   assert.equal(conversations[0]?.providerId, 'qoder');
+  const listRequest = runtimes[0]?.requests.find(
+    request => request.method === acp.methods.agent.session.list,
+  );
+  assert.deepEqual(listRequest?.params, {
+    cursor: null,
+    cwd: '/workspace/project',
+  });
 
   const started = await provider.startConversation();
   assert.equal(started.conversation.id, 'qoder-new');

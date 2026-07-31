@@ -27,6 +27,13 @@ import {
   type ClaudeSessionInfo,
   type ClaudeSessionMessage,
 } from './claude-cli.js';
+import {
+  createClaudePermissionServer,
+  type ClaudePermissionHandler,
+  type ClaudePermissionServer,
+  type ClaudePermissionToolRequest,
+  type ClaudePermissionToolResult,
+} from './claude-permission-server.js';
 import { isClaudeCodeSupported } from './compatibility.js';
 import { resolveSpawnCommand, runCommand, type CommandRunner } from './platform.js';
 import { readRuntimeConfig, type PanerelayRuntimeConfig } from './runtime-config.js';
@@ -52,18 +59,20 @@ interface ClaudeSession {
 
 interface ClaudeTurn {
   activities: Map<string, ConversationActivity>;
+  assistantMessageId: string;
   browserSession?: ClaudeBrowserSession;
   id: string;
   interrupted: boolean;
+  permissionServer?: ClaudePermissionServer;
   query: ClaudeCliQuery;
-  seenControlRequestIds: Set<string>;
   seenToolUseIds: Set<string>;
 }
 
 interface ClaudePermission {
   conversationId: string;
-  query: ClaudeCliQuery;
-  requestId: string;
+  input: Record<string, unknown>;
+  removeAbortListener: () => void;
+  resolve: (result: ClaudePermissionToolResult) => void;
   turnId: string;
 }
 
@@ -74,6 +83,7 @@ export interface ClaudeProviderOptions {
   runner?: CommandRunner;
   runtimeConfig?: () => Promise<PanerelayRuntimeConfig>;
   cli?: ClaudeCli;
+  createPermissionServer?: (handler: ClaudePermissionHandler) => Promise<ClaudePermissionServer>;
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -432,110 +442,111 @@ export class ClaudeProvider implements AgentProvider {
     ]
       .filter(Boolean)
       .join('\n\n');
-    const query = this.cli.query({
-      executable: config.claudePath,
-      cwd: session.cwd,
-      prompt: promptInput(trimmed, images),
-      mcpServers: claudeBrowserMcpServers(config, browserLabel),
-      systemPrompt: systemInstructions,
-      ...(session.persisted ? { resume: conversationId } : { sessionId: conversationId }),
+    const turnState: { current?: ClaudeTurn } = {};
+    const permissionServer = await (
+      this.options.createPermissionServer ?? createClaudePermissionServer
+    )(async (request, signal) => {
+      if (!turnState.current) return { behavior: 'deny', message: 'Claude turn is not ready' };
+      return this.requestPermission(session, turnState.current, request, signal);
     });
+    let query: ClaudeCliQuery;
+    try {
+      query = this.cli.query({
+        executable: config.claudePath,
+        cwd: session.cwd,
+        prompt: promptInput(trimmed, images),
+        mcpServers: {
+          ...claudeBrowserMcpServers(config, browserLabel),
+          panerelay_permission: permissionServer.mcpServer,
+        },
+        permissionPromptTool: permissionServer.toolName,
+        systemPrompt: systemInstructions,
+        ...(session.persisted ? { resume: conversationId } : { sessionId: conversationId }),
+      });
+    } catch (error) {
+      await permissionServer.close().catch(() => {});
+      throw error;
+    }
     const turn: ClaudeTurn = {
       activities: new Map(),
+      assistantMessageId: `message-${turnId}`,
       ...(browserSession ? { browserSession } : {}),
       id: turnId,
       interrupted: false,
+      permissionServer,
       query,
-      seenControlRequestIds: new Set(),
       seenToolUseIds: new Set(),
     };
+    turnState.current = turn;
     session.activeTurn = turn;
     this.emit({ kind: 'turn.started', conversationId, turnId });
     void this.consume(session, turn);
     return { turnId };
   }
 
-  private async handleControlRequest(
+  private requestPermission(
     session: ClaudeSession,
     turn: ClaudeTurn,
-    message: ClaudeCliMessage,
-  ): Promise<void> {
-    const requestId = message.request_id;
-    const request = asRecord(message.request);
-    if (typeof requestId !== 'string') {
-      throw new Error('Claude Code emitted a control request without an ID');
+    request: ClaudePermissionToolRequest,
+    signal: AbortSignal,
+  ): Promise<ClaudePermissionToolResult> {
+    if (turn.interrupted || signal.aborted) {
+      return Promise.resolve({ behavior: 'deny', message: 'Claude turn is no longer active' });
     }
-    if (request.subtype !== 'can_use_tool') {
-      await turn.query.respondToControlError(
-        requestId,
-        `Unsupported control request subtype: ${String(request.subtype ?? 'unknown')}`,
-      );
-      return;
+    const approvalId = request.toolUseId ?? randomUUID();
+    if (
+      this.pendingPermissions.has(approvalId) ||
+      (request.toolUseId !== undefined && turn.seenToolUseIds.has(request.toolUseId))
+    ) {
+      return Promise.resolve({ behavior: 'deny', message: 'Duplicate permission request' });
     }
-    const toolName = request.tool_name;
-    const toolUseID = request.tool_use_id;
-    if (typeof toolName !== 'string' || typeof toolUseID !== 'string') {
-      await turn.query.respondToControlError(requestId, 'Invalid tool permission request');
-      return;
-    }
-    if (turn.seenControlRequestIds.has(requestId) || turn.seenToolUseIds.has(toolUseID)) {
-      await turn.query.respondToControl(requestId, {
-        behavior: 'deny',
-        message: 'Duplicate permission request',
-        toolUseID,
+    if (request.toolUseId) turn.seenToolUseIds.add(request.toolUseId);
+
+    return new Promise(resolve => {
+      const abort = (): void => {
+        const pending = this.pendingPermissions.get(approvalId);
+        if (!pending || pending.resolve !== resolve) return;
+        this.resolvePermission(approvalId, pending, {
+          behavior: 'deny',
+          message: 'Permission request cancelled',
+          interrupt: true,
+        });
+      };
+      signal.addEventListener('abort', abort, { once: true });
+      this.pendingPermissions.set(approvalId, {
+        conversationId: session.id,
+        input: request.input,
+        removeAbortListener: () => signal.removeEventListener('abort', abort),
+        resolve,
+        turnId: turn.id,
       });
-      return;
-    }
-    turn.seenControlRequestIds.add(requestId);
-    turn.seenToolUseIds.add(toolUseID);
-    const input = asRecord(request.input);
-    this.pendingPermissions.set(toolUseID, {
-      conversationId: session.id,
-      query: turn.query,
-      requestId,
-      turnId: turn.id,
-    });
-    this.emit({
-      kind: 'approval.requested',
-      conversationId: session.id,
-      turnId: turn.id,
-      approval: approvalFromTool(session.id, turn.id, toolName, input, {
-        toolUseID,
-        ...(typeof request.blocked_path === 'string' ? { blockedPath: request.blocked_path } : {}),
-        ...(typeof request.decision_reason === 'string'
-          ? { decisionReason: request.decision_reason }
-          : {}),
-        ...(typeof request.description === 'string' ? { description: request.description } : {}),
-        ...(typeof request.display_name === 'string' ? { displayName: request.display_name } : {}),
-        ...(typeof request.title === 'string' ? { title: request.title } : {}),
-      }),
+      this.emit({
+        kind: 'approval.requested',
+        conversationId: session.id,
+        turnId: turn.id,
+        approval: approvalFromTool(session.id, turn.id, request.toolName, request.input, {
+          toolUseID: approvalId,
+        }),
+      });
+      if (signal.aborted) abort();
     });
   }
 
-  private handleControlCancelRequest(
-    session: ClaudeSession,
-    turn: ClaudeTurn,
-    message: ClaudeCliMessage,
+  private resolvePermission(
+    approvalId: string,
+    pending: ClaudePermission,
+    result: ClaudePermissionToolResult,
   ): void {
-    const requestId = message.request_id;
-    if (typeof requestId !== 'string') return;
-    for (const [approvalId, pending] of this.pendingPermissions) {
-      if (
-        pending.conversationId !== session.id ||
-        pending.turnId !== turn.id ||
-        pending.requestId !== requestId
-      ) {
-        continue;
-      }
-      this.pendingPermissions.delete(approvalId);
-      this.emit({
-        kind: 'approval.resolved',
-        conversationId: session.id,
-        turnId: turn.id,
-        approvalId,
-      });
-      return;
-    }
+    if (this.pendingPermissions.get(approvalId) !== pending) return;
+    this.pendingPermissions.delete(approvalId);
+    pending.removeAbortListener();
+    this.emit({
+      kind: 'approval.resolved',
+      conversationId: pending.conversationId,
+      turnId: pending.turnId,
+      approvalId,
+    });
+    pending.resolve(result);
   }
 
   async respondToApproval(
@@ -550,22 +561,15 @@ export class ClaudeProvider implements AgentProvider {
     if (decision === 'acceptForSession' || decision === 'declineForSession') {
       throw new Error('Claude Code provider only supports one-request approval decisions');
     }
-    this.emit({
-      kind: 'approval.resolved',
-      conversationId,
-      turnId: pending.turnId,
+    this.resolvePermission(
       approvalId,
-    });
-    this.pendingPermissions.delete(approvalId);
-    await pending.query.respondToControl(
-      pending.requestId,
+      pending,
       decision === 'accept'
-        ? { behavior: 'allow', toolUseID: approvalId }
+        ? { behavior: 'allow', updatedInput: pending.input }
         : {
             behavior: 'deny',
             message: decision === 'cancel' ? 'Cancelled by user' : 'Declined by user',
             interrupt: decision === 'cancel',
-            toolUseID: approvalId,
           },
     );
     return {};
@@ -585,28 +589,14 @@ export class ClaudeProvider implements AgentProvider {
     turnId: string,
     message: string,
   ): Promise<void> {
-    const responses: Promise<void>[] = [];
     for (const [approvalId, pending] of this.pendingPermissions) {
       if (pending.conversationId !== conversationId || pending.turnId !== turnId) continue;
-      this.pendingPermissions.delete(approvalId);
-      this.emit({
-        kind: 'approval.resolved',
-        conversationId,
-        turnId,
-        approvalId,
+      this.resolvePermission(approvalId, pending, {
+        behavior: 'deny',
+        message,
+        interrupt: true,
       });
-      responses.push(
-        pending.query
-          .respondToControl(pending.requestId, {
-            behavior: 'deny',
-            message,
-            interrupt: true,
-            toolUseID: approvalId,
-          })
-          .catch(() => {}),
-      );
     }
-    await Promise.all(responses);
   }
 
   private emitActivity(
@@ -638,7 +628,7 @@ export class ClaudeProvider implements AgentProvider {
         conversationId: session.id,
         turnId: turn.id,
         message: {
-          id: typeof record.uuid === 'string' ? record.uuid : randomUUID(),
+          id: turn.assistantMessageId,
           role: 'assistant',
           text,
           createdAt: timestamp(record.timestamp),
@@ -706,7 +696,7 @@ export class ClaudeProvider implements AgentProvider {
         kind: 'message.delta',
         conversationId: session.id,
         turnId: turn.id,
-        messageId: typeof record.uuid === 'string' ? record.uuid : `message-${turn.id}`,
+        messageId: turn.assistantMessageId,
         delta: bounded(delta.text, MAX_DETAIL_CHARS),
       });
     }
@@ -774,6 +764,13 @@ export class ClaudeProvider implements AgentProvider {
     )(browserSession);
   }
 
+  private async cleanupPermissionTurn(turn: ClaudeTurn): Promise<void> {
+    const permissionServer = turn.permissionServer;
+    if (!permissionServer) return;
+    delete turn.permissionServer;
+    await permissionServer.close();
+  }
+
   private async consume(session: ClaudeSession, turn: ClaudeTurn): Promise<void> {
     let terminalError: string | undefined;
     let receivedResult = false;
@@ -781,13 +778,16 @@ export class ClaudeProvider implements AgentProvider {
       for await (const message of turn.query) {
         session.persisted = true;
         const record = asRecord(message);
-        if (record.type === 'control_request') {
-          await this.handleControlRequest(session, turn, message);
+        if (
+          (record.parent_tool_use_id !== undefined && record.parent_tool_use_id !== null) ||
+          typeof record.parentToolUseId === 'string' ||
+          record.isSidechain === true ||
+          record.teamName
+        ) {
           continue;
         }
-        if (record.type === 'control_cancel_request') {
-          this.handleControlCancelRequest(session, turn, message);
-          continue;
+        if (record.type === 'control_request' || record.type === 'control_cancel_request') {
+          throw new Error('Claude Code emitted an unsupported internal control request');
         }
         if (record.type === 'stream_event') this.handleStreamEvent(session, turn, message);
         if (record.type === 'assistant') this.handleAssistant(session, turn, message);
@@ -815,6 +815,15 @@ export class ClaudeProvider implements AgentProvider {
     } finally {
       await this.denyPermissions(session.id, turn.id, 'Turn ended before approval was resolved');
       turn.query.close();
+      await this.cleanupPermissionTurn(turn).catch(error => {
+        this.emit({
+          kind: 'error',
+          conversationId: session.id,
+          message: `Permission server cleanup failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        });
+      });
       await this.cleanupBrowserTurn(turn).catch(error => {
         this.emit({
           kind: 'error',
@@ -848,7 +857,12 @@ export class ClaudeProvider implements AgentProvider {
       }
     }
     for (const turn of turns) turn.query.close();
-    await Promise.all(turns.map(turn => this.cleanupBrowserTurn(turn).catch(() => {})));
+    await Promise.all(
+      turns.flatMap(turn => [
+        this.cleanupPermissionTurn(turn).catch(() => {}),
+        this.cleanupBrowserTurn(turn).catch(() => {}),
+      ]),
+    );
     this.sessions.clear();
     this.pendingPermissions.clear();
     this.config = null;
