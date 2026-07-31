@@ -54,13 +54,15 @@ test('installs and removes an isolated Native Messaging host', async () => {
   const bundledHostPath = join(root, 'native-host.bundle.cjs');
   await mkdir(binDirectory, { recursive: true });
   await writeFile(bundledHostPath, '#!/usr/bin/env node\nprocess.stdout.write("ready");\n');
-  for (const executable of ['agent-browser', 'codex']) {
+  for (const executable of ['agent-browser', 'claude', 'codex']) {
     const path = join(binDirectory, executable);
     await writeFile(
       path,
       executable === 'agent-browser'
         ? '#!/bin/sh\necho "agent-browser 0.33.0"\n'
-        : '#!/bin/sh\nexit 0\n',
+        : executable === 'claude'
+          ? '#!/bin/sh\necho "2.1.0 (Claude Code)"\n'
+          : '#!/bin/sh\nexit 0\n',
     );
     await chmod(path, 0o755);
   }
@@ -79,6 +81,8 @@ test('installs and removes an isolated Native Messaging host', async () => {
     assert.equal(result.agentBrowserSupported, true);
     assert.equal(result.agentBrowserVersion, '0.33.0');
     assert.equal(result.codexPath, join(binDirectory, 'codex'));
+    assert.equal(result.claudePath, join(binDirectory, 'claude'));
+    assert.equal(result.claudeVersion, '2.1.0');
     assert.equal(result.launchPath, result.hostPath);
     assert.match(await readFile(result.hostPath, 'utf8'), /^#!\/test\/node\n/);
     assert.equal((await stat(result.hostPath)).mode & 0o777, 0o755);
@@ -88,6 +92,8 @@ test('installs and removes an isolated Native Messaging host', async () => {
       agentBrowserPath: string;
       agentBrowserVersion: string;
       codexPath: string;
+      claudePath: string;
+      claudeVersion: string;
       extensionId: string;
     };
     assert.deepEqual(runtime, {
@@ -96,6 +102,8 @@ test('installs and removes an isolated Native Messaging host', async () => {
       agentBrowserPath: result.agentBrowserPath,
       agentBrowserVersion: '0.33.0',
       codexPath: result.codexPath,
+      claudePath: result.claudePath,
+      claudeVersion: '2.1.0',
     });
     const privateConfig = JSON.parse(await readFile(result.agentBrowserConfigPath, 'utf8')) as {
       plugins: Array<{ command: string; name: string }>;

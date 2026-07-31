@@ -28,5 +28,10 @@ if (process.argv.includes('--uninstall')) {
   process.stdout.write(`Allowed extension: ${result.extensionId}\n`);
   process.stdout.write(`Installed host: ${result.hostPath}\n`);
   process.stdout.write(`Codex: ${result.codexPath || 'not found'}\n`);
+  process.stdout.write(
+    `Claude Code: ${result.claudePath || 'not found'}${
+      result.claudeVersion ? ` (${result.claudeVersion})` : ''
+    }\n`,
+  );
   process.stdout.write(`agent-browser: ${result.agentBrowserPath || 'not found'}\n`);
 }

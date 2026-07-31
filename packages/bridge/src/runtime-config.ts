@@ -6,6 +6,8 @@ import { probeAgentBrowserCompatibility } from './compatibility.js';
 export interface PanerelayRuntimeConfig {
   extensionId?: string;
   codexPath?: string;
+  claudePath?: string;
+  claudeVersion?: string;
   agentBrowserPath?: string;
   agentBrowserVersion?: string;
   agentBrowserConfigPath: string;
@@ -29,6 +31,7 @@ export async function readRuntimeConfig(): Promise<PanerelayRuntimeConfig> {
   }
 
   const configuredCodex = process.env.PANERELAY_CODEX_PATH || stored.codexPath;
+  const configuredClaude = process.env.PANERELAY_CLAUDE_PATH || stored.claudePath;
   const configuredAgentBrowser =
     process.env.PANERELAY_AGENT_BROWSER_PATH || stored.agentBrowserPath;
   const configuredQoder = process.env.PANERELAY_QODER_PATH || stored.qoderPath;
@@ -51,6 +54,8 @@ export async function readRuntimeConfig(): Promise<PanerelayRuntimeConfig> {
   return {
     ...(typeof stored.extensionId === 'string' ? { extensionId: stored.extensionId } : {}),
     ...((await executable(configuredCodex)) ? { codexPath: configuredCodex } : {}),
+    ...((await executable(configuredClaude)) ? { claudePath: configuredClaude } : {}),
+    ...(typeof stored.claudeVersion === 'string' ? { claudeVersion: stored.claudeVersion } : {}),
     ...supportedAgentBrowser,
     ...((await executable(configuredQoder)) ? { qoderPath: configuredQoder } : {}),
     ...(typeof stored.qoderVersion === 'string' ? { qoderVersion: stored.qoderVersion } : {}),

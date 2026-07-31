@@ -14,7 +14,7 @@ export interface AgentProvider {
   getDescriptor(): Promise<AgentProviderSummary>;
   prepare(): Promise<void>;
   interrupt(conversationId: string, turnId: string): Promise<Record<string, never>>;
-  listConversations(): Promise<ConversationSummary[]>;
+  listConversations(cwd?: string): Promise<ConversationSummary[]>;
   onEvent(listener: (event: ConversationEvent) => void): () => void;
   respondToApproval(
     conversationId: string,

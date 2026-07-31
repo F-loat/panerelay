@@ -3,7 +3,12 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PANERELAY_EXTENSION_ID, PANERELAY_NATIVE_HOST_NAME } from '@panerelay/protocol';
-import { resolveExecutablePath, runCommand, type CommandRunner } from './platform.js';
+import {
+  probeExecutableVersion,
+  resolveExecutablePath,
+  runCommand,
+  type CommandRunner,
+} from './platform.js';
 import { resolveQoderExecutable } from './qoder-executable.js';
 import { probeAgentBrowserCompatibility } from './compatibility.js';
 
@@ -45,6 +50,8 @@ export interface NativeHostInstallationResult extends NativeHostInstallationPath
   agentBrowserSupported: boolean;
   agentBrowserVersion?: string;
   codexPath?: string;
+  claudePath?: string;
+  claudeVersion?: string;
   extensionId: string;
   qoderPath?: string;
   qoderVersion?: string;
@@ -255,6 +262,23 @@ export async function installNativeHost(
     environment,
     platform,
   });
+  const claudePath = await resolveExecutablePath('claude', {
+    configuredPath: environment.PANERELAY_CLAUDE_PATH,
+    environment,
+    platform,
+  });
+  let claudeVersion: string | undefined;
+  if (claudePath) {
+    try {
+      claudeVersion = await probeExecutableVersion(claudePath, {
+        environment,
+        platform,
+        runner: options.probeRunner,
+      });
+    } catch {
+      // The executable remains usable; doctor surfaces the missing version metadata.
+    }
+  }
   const agentBrowserPath = await resolveExecutablePath('agent-browser', {
     configuredPath: environment.PANERELAY_AGENT_BROWSER_PATH,
     environment,
@@ -289,6 +313,8 @@ export async function installNativeHost(
       {
         extensionId,
         ...(codexPath ? { codexPath } : {}),
+        ...(claudePath ? { claudePath } : {}),
+        ...(claudeVersion ? { claudeVersion } : {}),
         ...(agentBrowserPath ? { agentBrowserPath } : {}),
         ...(agentBrowserVersion ? { agentBrowserVersion } : {}),
         ...(qoder.executable ? { qoderPath: qoder.executable } : {}),
@@ -347,6 +373,8 @@ export async function installNativeHost(
     ...paths,
     extensionId,
     ...(codexPath ? { codexPath } : {}),
+    ...(claudePath ? { claudePath } : {}),
+    ...(claudeVersion ? { claudeVersion } : {}),
     ...(agentBrowserPath ? { agentBrowserPath } : {}),
     agentBrowserSupported,
     ...(agentBrowserVersion ? { agentBrowserVersion } : {}),

@@ -7,7 +7,7 @@
 Panerelay 是连接 AI Agent 与用户现有 Chrome 会话的开源本地桥梁。它在确保浏览器访问明确、可见且可撤销的前提下，解决两个问题：
 
 1. **让 Agent 直接控制你的 Chrome。** 任何能通过 CLI 或 MCP 调用 [agent-browser](https://github.com/vercel-labs/agent-browser) 的 Agent，都可以使用当前浏览器 Profile 和登录态控制你授权的标签页，无需启动独立浏览器、重复登录或导出 Cookie。
-2. **把本地 Agent 带进 Chrome 侧边栏。** 完成一次 Panerelay 安装后，扩展会自动发现支持的本地 Agent，并提供浏览器原生的对话、会话历史、审批、活动展示和立即释放控制。
+2. **把本地 Agent 带进 Chrome 侧边栏。** 完成一次 Panerelay 安装后，扩展会自动发现 Codex、Claude Code 和 Qoder，并提供浏览器原生的对话、会话历史、审批、活动展示和立即释放控制。
 
 登录凭证始终留在 Chrome 中；Panerelay 只操作你明确授权的标签页。Agent 选择和操作后台标签页时，不会切走你当前正在浏览的 Chrome 标签页。
 
@@ -43,7 +43,7 @@ Panerelay 是连接 AI Agent 与用户现有 Chrome 会话的开源本地桥梁�
    agent-browser --provider panerelay tab list
    ```
 
-5. 如果希望直接在 Chrome 中工作，打开侧边栏并选择本机已安装的 Agent。Panerelay 会自动发现支持的本地 Agent；对应的 Agent CLI 仍需提前安装并登录。
+5. 如果希望直接在 Chrome 中工作，打开侧边栏并选择本机已安装的 Agent。Panerelay 会自动发现 Codex、Claude Code 和 Qoder；对应的 Agent CLI 仍需提前安装并登录。
 
 如需在后续命令中省略 `--provider panerelay`，可在扩展设置中将 Panerelay 设为用户级默认 Agent，或安装时加上 `--global-provider`；如果只想影响当前项目，请改用 `--project-provider`。默认 Agent 只改变路由，不会授予 Chrome 权限，也不会授权任何标签页。
 
@@ -54,7 +54,7 @@ Panerelay 是连接 AI Agent 与用户现有 Chrome 会话的开源本地桥梁�
 - macOS、Linux 和 Windows 用户级 Native Messaging 安装。
 - Local-first 路由，不依赖 Panerelay 云服务。
 
-每个版本可用的侧边栏 Agent 见对应发布说明；具体的 agent-browser 支持范围见 [兼容性记录](docs/compatibility)。
+Claude Code 的具体支持范围见 [Claude Code 兼容性记录](docs/compatibility/claude-code.md)，其他运行时范围见[兼容性记录](docs/compatibility)。
 
 ## 管理安装
 

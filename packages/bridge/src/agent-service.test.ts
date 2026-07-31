@@ -44,8 +44,8 @@ class FakeProvider implements AgentProvider {
     this.calls.push('prepare');
   }
 
-  async listConversations(): Promise<ConversationSummary[]> {
-    this.calls.push('list');
+  async listConversations(cwd?: string): Promise<ConversationSummary[]> {
+    this.calls.push(`list:${cwd ?? ''}`);
     return [this.summary()];
   }
 
@@ -146,7 +146,13 @@ test('routes conversations to their provider and rejects mismatches before adapt
     providers: [codex, qoder],
   });
 
-  await service.handle(request('list-qoder', { method: 'conversation.list', providerId: 'qoder' }));
+  await service.handle(
+    request('list-qoder', {
+      method: 'conversation.list',
+      providerId: 'qoder',
+      cwd: '/workspace/project',
+    }),
+  );
   await service.handle(
     request('send-qoder', {
       method: 'conversation.send',
@@ -171,7 +177,7 @@ test('routes conversations to their provider and rejects mismatches before adapt
     }),
   );
 
-  assert.deepEqual(qoderCalls, ['list', 'send:qoder-1:hello']);
+  assert.deepEqual(qoderCalls, ['list:/workspace/project', 'send:qoder-1:hello']);
   assert.deepEqual(qoder.calls, qoderCalls);
   assert.deepEqual(codex.calls, []);
   const failures = messages.filter(

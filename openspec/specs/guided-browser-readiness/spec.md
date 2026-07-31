@@ -68,6 +68,16 @@ The Extension SHALL distinguish a recognized missing Native Messaging Host from 
 - **WHEN** the side panel renders its readiness state
 - **THEN** it presents a connection recovery state without claiming that installation is definitely missing
 
+### Requirement: Claude Code setup guidance is targeted
+
+Setup, doctor, and the Extension SHALL identify Claude Code independently from Codex and Qoder and SHALL present the supported installation and login commands when it is unavailable.
+
+#### Scenario: Claude Code is not discovered
+
+- **GIVEN** setup cannot find a usable `claude` executable
+- **WHEN** the user runs setup or doctor or selects the Claude provider
+- **THEN** Panerelay reports Claude Code as optional, shows `npm install -g @anthropic-ai/claude-code`, and directs the user to run `claude` to authenticate
+
 ### Requirement: Known Provider setup failures produce targeted guidance
 
 Panerelay SHALL recognize bounded error signatures that indicate the Panerelay agent-browser Provider is missing or not ready and SHALL present installation or repair guidance while preserving the original diagnostic detail. Unrecognized failures SHALL remain ordinary errors.

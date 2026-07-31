@@ -20,6 +20,21 @@ test('accepts correlated integration requests from the Extension', () => {
   assert.equal(isExtensionToHostMessage(request), true);
 });
 
+test('accepts project-scoped conversation history requests', () => {
+  const request: AgentRequestMessage = {
+    type: 'agent.request',
+    protocol: PANERELAY_PROTOCOL_VERSION,
+    requestId: 'agent-list-1',
+    request: {
+      method: 'conversation.list',
+      providerId: 'claude',
+      cwd: '/workspace/project',
+    },
+  };
+
+  assert.equal(isExtensionToHostMessage(request), true);
+});
+
 test('accepts conversation start context without a raw tab identifier', () => {
   const request = {
     type: 'agent.request',

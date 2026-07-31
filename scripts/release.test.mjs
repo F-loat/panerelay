@@ -39,6 +39,7 @@ function releaseFixture() {
     extensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
     agentBrowserMinimumVersion: '0.33.0',
     agentBrowserVerifiedVersions: ['0.33.0'],
+    claudeCodeMinimumVersion: '2.1.206',
     packages: PACKAGE_DEFINITIONS.map(definition => definition.name),
   };
   const repository = { url: 'git+https://github.com/F-loat/panerelay.git' };
@@ -54,7 +55,11 @@ function releaseFixture() {
       : {
           dependencies: {
             [descriptor.packages[0]]: 'workspace:*',
-            ...(name === '@panerelay/bridge' ? { '@agentclientprotocol/sdk': '^1.3.0' } : {}),
+            ...(name === '@panerelay/bridge'
+              ? {
+                  '@agentclientprotocol/sdk': '^1.3.0',
+                }
+              : {}),
           },
         }),
   }));
@@ -64,6 +69,7 @@ function releaseFixture() {
     extensionManifest: { version: '0.1.0.2', version_name: version, key: extensionKey },
     extensionPackage: { version, private: true },
     implementationSources: {
+      bridgeCompatibility: "export const CLAUDE_CODE_MINIMUM_VERSION = '2.1.206'",
       browserRelay: 'message.extensionId !== this.options.expectedExtensionId',
       extensionBackground: 'extensionId: chrome.runtime.id',
       hostInstallation:
@@ -266,7 +272,7 @@ test('validates stable and beta release identities', () => {
   );
 });
 
-test('rejects stale prerelease metadata, identity drift, missing evidence, and unsupported ACP metadata', () => {
+test('rejects stale prerelease metadata, identity drift, missing evidence, and invalid SDK metadata', () => {
   const alpha = releaseFixture();
   alpha.descriptor.version = '0.1.0-alpha.1';
   assert.throws(() => validateReleaseMetadata(alpha), /without prerelease metadata/);
@@ -284,6 +290,20 @@ test('rejects stale prerelease metadata, identity drift, missing evidence, and u
     manifest => manifest.name === '@panerelay/bridge',
   ).dependencies['@agentclientprotocol/sdk'] = '^1.1.0';
   assert.throws(() => validateReleaseMetadata(unsupportedAcp), /must package/);
+
+  const bundledClaude = releaseFixture();
+  bundledClaude.packageManifests.find(
+    manifest => manifest.name === '@panerelay/bridge',
+  ).dependencies['@anthropic-ai/claude-agent-sdk'] = '^0.3.220';
+  assert.throws(() => validateReleaseMetadata(bundledClaude), /must not package/);
+
+  const optionalClaude = releaseFixture();
+  optionalClaude.packageManifests.find(
+    manifest => manifest.name === '@panerelay/bridge',
+  ).optionalDependencies = {
+    '@anthropic-ai/claude-agent-sdk': '^0.3.220',
+  };
+  assert.throws(() => validateReleaseMetadata(optionalClaude), /must not package/);
 });
 
 test('rejects workspace references and incomplete packed package contents', () => {
@@ -328,6 +348,69 @@ test('rejects workspace references and incomplete packed package contents', () =
         version: manifest.version,
       }),
     /missing package\/dist\/index.js/,
+  );
+});
+
+test('accepts an external-Claude bridge tarball and rejects a bundled Claude SDK dependency', () => {
+  const requiredEntries = [
+    'package/dist/claude-cli.js',
+    'package/dist/claude-provider.js',
+    'package/package.json',
+  ];
+  const manifest = {
+    name: '@panerelay/bridge',
+    version: '0.1.0',
+    publishConfig: { access: 'public' },
+    dependencies: { '@agentclientprotocol/sdk': '^1.3.0' },
+  };
+  assert.doesNotThrow(() =>
+    validatePackedPackage({
+      entries: requiredEntries,
+      manifest,
+      manifestText: JSON.stringify(manifest),
+      name: manifest.name,
+      requiredEntries,
+      version: manifest.version,
+    }),
+  );
+
+  const bundled = {
+    ...manifest,
+    dependencies: {
+      ...manifest.dependencies,
+      '@anthropic-ai/claude-agent-sdk': '^0.3.220',
+    },
+  };
+  assert.throws(
+    () =>
+      validatePackedPackage({
+        entries: requiredEntries,
+        manifest: bundled,
+        manifestText: JSON.stringify(bundled),
+        name: bundled.name,
+        requiredEntries,
+        version: bundled.version,
+      }),
+    /must not package/,
+  );
+
+  const optional = {
+    ...manifest,
+    optionalDependencies: {
+      '@anthropic-ai/claude-agent-sdk': '^0.3.220',
+    },
+  };
+  assert.throws(
+    () =>
+      validatePackedPackage({
+        entries: requiredEntries,
+        manifest: optional,
+        manifestText: JSON.stringify(optional),
+        name: optional.name,
+        requiredEntries,
+        version: optional.version,
+      }),
+    /must not package/,
   );
 });
 

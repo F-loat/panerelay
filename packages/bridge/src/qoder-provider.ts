@@ -467,14 +467,14 @@ export class QoderProvider implements AgentProvider {
     await this.ensureRuntime();
   }
 
-  async listConversations(): Promise<ConversationSummary[]> {
+  async listConversations(cwd?: string): Promise<ConversationSummary[]> {
     await this.ensureRuntime();
     if (!this.initializeResponse?.agentCapabilities?.sessionCapabilities?.list) {
       throw new Error('This Qoder CLI does not advertise ACP session listing');
     }
     const result = (await this.request(
       acp.methods.agent.session.list,
-      { cursor: null },
+      { cursor: null, ...(cwd ? { cwd } : {}) },
       'Qoder session list',
     )) as acp.ListSessionsResponse;
     return result.sessions.map(summaryFromSession);
