@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Window } from 'happy-dom';
+import { PAGE_COMMENT_RUNTIME_ASSETS } from './page-comments-runtime-assets.js';
 import { installPageCommentsRuntime } from './page-comments-runtime.js';
 
 describe('page comment runtime', () => {
@@ -31,8 +32,8 @@ describe('page comment runtime', () => {
     target.textContent = 'Continue';
     document.body.append(target);
 
-    expect(installPageCommentsRuntime()).toBe(true);
-    expect(installPageCommentsRuntime()).toBe(true);
+    expect(installPageCommentsRuntime(PAGE_COMMENT_RUNTIME_ASSETS)).toBe(true);
+    expect(installPageCommentsRuntime(PAGE_COMMENT_RUNTIME_ASSETS)).toBe(true);
     listener?.({ type: 'panerelay.page-comments.start' });
     target.dispatchEvent(new MouseEvent('pointermove', { bubbles: true }));
     target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
@@ -92,7 +93,7 @@ describe('page comment runtime', () => {
     target.placeholder = 'Account name';
     document.body.append(target);
 
-    installPageCommentsRuntime();
+    installPageCommentsRuntime(PAGE_COMMENT_RUNTIME_ASSETS);
     listener?.({ type: 'panerelay.page-comments.start' });
     target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
     const editor = document.querySelector<HTMLElement>('[data-panerelay-page-comment-ui="editor"]');
@@ -140,7 +141,7 @@ describe('page comment runtime', () => {
     target.textContent = 'Continue';
     document.body.append(target);
 
-    installPageCommentsRuntime();
+    installPageCommentsRuntime(PAGE_COMMENT_RUNTIME_ASSETS);
     listener?.({
       type: 'panerelay.page-comments.start',
       continuous: true,
@@ -254,7 +255,7 @@ describe('page comment runtime', () => {
       x < 100 ? first : second,
     );
 
-    installPageCommentsRuntime();
+    installPageCommentsRuntime(PAGE_COMMENT_RUNTIME_ASSETS);
     listener?.({ type: 'panerelay.page-comments.start', theme: 'light' });
     first.dispatchEvent(new MouseEvent('pointermove', { bubbles: true, clientX: 30, clientY: 30 }));
     const highlighter = document.querySelector<HTMLElement>(
@@ -311,7 +312,7 @@ describe('page comment runtime', () => {
     target.textContent = 'Inside a frame';
     document.body.append(target);
 
-    installPageCommentsRuntime();
+    installPageCommentsRuntime(PAGE_COMMENT_RUNTIME_ASSETS);
     listener?.({ type: 'panerelay.page-comments.start', continuous: true });
     target.dispatchEvent(new MouseEvent('pointermove', { bubbles: true }));
 
@@ -372,7 +373,11 @@ describe('page comment runtime', () => {
     target.textContent = 'Embedded action';
     frameWindow.document.body.append(target);
 
-    expect(frameWindow.eval(`(${installPageCommentsRuntime.toString()})()`)).toBe(true);
+    expect(
+      frameWindow.eval(
+        `(${installPageCommentsRuntime.toString()})(${JSON.stringify(PAGE_COMMENT_RUNTIME_ASSETS)})`,
+      ),
+    ).toBe(true);
     listener?.({
       type: 'panerelay.page-comments.start',
       topPage: {
@@ -453,7 +458,7 @@ describe('page comment runtime', () => {
     vi.spyOn(target, 'getBoundingClientRect').mockReturnValue(new DOMRect(50, 70, 80, 40));
     vi.spyOn(document, 'elementFromPoint').mockReturnValue(target);
 
-    installPageCommentsRuntime();
+    installPageCommentsRuntime(PAGE_COMMENT_RUNTIME_ASSETS);
     listener?.({
       type: 'panerelay.page-comments.start',
       locale: 'zh-CN',

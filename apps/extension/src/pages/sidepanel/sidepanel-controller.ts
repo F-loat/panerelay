@@ -1,24 +1,14 @@
 import {
-  CONVERSATION_IMAGE_MIME_TYPES,
-  CONVERSATION_MAX_IMAGE_BYTES,
-  CONVERSATION_MAX_IMAGES,
-  CONVERSATION_MAX_TOTAL_IMAGE_BYTES,
-  AgentProviderSummary,
   ConversationApproval,
   ConversationApprovalDecision,
   ConversationDetail,
-  ConversationEvent,
-  type ConversationImageInput,
-  ConversationMessage,
-  ConversationSummary,
+  type ConversationSummary,
 } from '@panerelay/protocol';
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef } from 'react';
 import { ALL_WEB_ORIGIN_PATTERNS, originAuthorizationForUrl } from '../../shared/authorization.js';
 import type { ConversationWorkspaceSnapshot } from '../../shared/conversation-workspaces.js';
-import type { AuthorizationMode, ExtensionStatus } from '../../shared/messages.js';
-import type { PageElementComment } from '../../shared/page-comments.js';
+import type { AuthorizationMode } from '../../shared/messages.js';
 import {
-  defaultLocale,
   formatCopy,
   LOCALE_KEY,
   type Locale,
@@ -34,306 +24,31 @@ import {
 } from './provider-selection.js';
 import type { SidepanelClient } from './sidepanel-client.js';
 import { appendPageCommentsContext, pageCommentsDisplayMessage } from './page-comment-context.js';
+import {
+  automaticApprovalDecision,
+  createInitialSidepanelState,
+  sidepanelRandomId as randomId,
+  sidepanelReducer,
+  type SidepanelAction,
+  type SidepanelState,
+  type TimelineItem,
+  type TurnFeedbackPhase,
+} from './sidepanel-state.js';
+import { preparePastedImages, selectPastedImageFiles } from './sidepanel-images.js';
 
-export type TimelineItem =
-  | { type: 'message'; message: ConversationMessage; streaming?: boolean }
-  | { type: 'reasoning'; id: string; text: string }
-  | { type: 'activity'; activity: import('@panerelay/protocol').ConversationActivity }
-  | { type: 'approval'; approval: ConversationApproval }
-  | { type: 'error'; id: string; message: string };
+export {
+  automaticApprovalDecision,
+  createInitialSidepanelState,
+  sidepanelReducer,
+} from './sidepanel-state.js';
+export type {
+  PastedImage,
+  SidepanelState,
+  TimelineItem,
+  TurnFeedbackPhase,
+} from './sidepanel-state.js';
 
-export type TurnFeedbackPhase = 'starting' | 'working';
 export const AUTO_APPROVE_KEY = 'panerelay.agentAutoApprove';
-const SUPPORTED_IMAGE_MIME_TYPES = new Set<string>(CONVERSATION_IMAGE_MIME_TYPES);
-
-export interface PastedImage extends ConversationImageInput {
-  id: string;
-  size: number;
-}
-
-function readImageData(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.addEventListener('load', () => {
-      const result = typeof reader.result === 'string' ? reader.result : '';
-      const comma = result.indexOf(',');
-      if (comma < 0) reject(new Error('Image data could not be read'));
-      else resolve(result.slice(comma + 1));
-    });
-    reader.addEventListener('error', () => reject(reader.error || new Error('Image read failed')));
-    reader.readAsDataURL(file);
-  });
-}
-
-export function automaticApprovalDecision(
-  approval: ConversationApproval,
-): ConversationApprovalDecision | null {
-  return approval.decisions.includes('accept') ? 'accept' : null;
-}
-
-export interface SidepanelState {
-  locale: Locale;
-  themeSetting: ThemeSetting;
-  extensionStatus: ExtensionStatus | null;
-  providers: AgentProviderSummary[];
-  conversations: ConversationSummary[];
-  historyOpen: boolean;
-  historyLoading: boolean;
-  historyError: string;
-  historyLoadedProviderId: string;
-  historyQuery: string;
-  currentProviderId: string;
-  providerPreparations: Record<
-    string,
-    { status: 'idle' | 'preparing' | 'ready' | 'error'; error?: string }
-  >;
-  workspace: ConversationWorkspaceSnapshot | null;
-  currentConversation: ConversationSummary | null;
-  pageComments: PageElementComment[];
-  commentMode: boolean;
-  pageCommentsPending: boolean;
-  pastedImages: PastedImage[];
-  imageError: string;
-  autoApprove: boolean;
-  timeline: TimelineItem[];
-  runningTurnId: string | null;
-  turnFeedback: TurnFeedbackPhase | null;
-  activeReasoning: { id: string; text: string } | null;
-  loadingConversation: boolean;
-  selectingProject: boolean;
-  submitting: boolean;
-  initializing: boolean;
-  authorizationPending: boolean;
-  nativeRetryPending: boolean;
-  defaultProviderPending: boolean;
-  browserDefaultPending: boolean;
-  controlledTabPendingId: number | null;
-  settingsOpen: boolean;
-  composerText: string;
-  error: string;
-}
-
-type SidepanelAction =
-  | { type: 'patch'; patch: Partial<SidepanelState> }
-  | {
-      type: 'conversation-event';
-      event: ConversationEvent;
-      interruptedMessage: string;
-      failedMessage: string;
-    };
-
-function randomId(): string {
-  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
-}
-
-export function createInitialSidepanelState(language?: string): SidepanelState {
-  return {
-    locale: defaultLocale(language),
-    themeSetting: 'system',
-    extensionStatus: null,
-    providers: supportedProviders([]),
-    conversations: [],
-    historyOpen: false,
-    historyLoading: false,
-    historyError: '',
-    historyLoadedProviderId: '',
-    historyQuery: '',
-    currentProviderId: 'codex',
-    providerPreparations: {},
-    workspace: null,
-    currentConversation: null,
-    pageComments: [],
-    commentMode: false,
-    pageCommentsPending: false,
-    pastedImages: [],
-    imageError: '',
-    autoApprove: false,
-    timeline: [],
-    runningTurnId: null,
-    turnFeedback: null,
-    activeReasoning: null,
-    loadingConversation: false,
-    selectingProject: false,
-    submitting: false,
-    initializing: true,
-    authorizationPending: false,
-    nativeRetryPending: false,
-    defaultProviderPending: false,
-    browserDefaultPending: false,
-    controlledTabPendingId: null,
-    settingsOpen: false,
-    composerText: '',
-    error: '',
-  };
-}
-
-function appendMessageDelta(
-  timeline: TimelineItem[],
-  event: Extract<ConversationEvent, { kind: 'message.delta' }>,
-): TimelineItem[] {
-  const existingIndex = timeline.findIndex(
-    item => item.type === 'message' && item.message.id === event.messageId,
-  );
-  if (existingIndex >= 0) {
-    return timeline.map((item, index) =>
-      index === existingIndex && item.type === 'message'
-        ? {
-            ...item,
-            streaming: true,
-            message: { ...item.message, text: item.message.text + event.delta },
-          }
-        : item,
-    );
-  }
-  return [
-    ...timeline,
-    {
-      type: 'message',
-      streaming: true,
-      message: {
-        id: event.messageId,
-        role: 'assistant',
-        text: event.delta,
-        ...(event.phase ? { phase: event.phase } : {}),
-        createdAt: new Date().toISOString(),
-      },
-    },
-  ];
-}
-
-function completeMessage(timeline: TimelineItem[], message: ConversationMessage): TimelineItem[] {
-  const existingIndex = timeline.findIndex(
-    item => item.type === 'message' && item.message.id === message.id,
-  );
-  if (existingIndex < 0) return [...timeline, { type: 'message', message }];
-  return timeline.map((item, index) =>
-    index === existingIndex && item.type === 'message'
-      ? { type: 'message', message, streaming: false }
-      : item,
-  );
-}
-
-export function sidepanelReducer(state: SidepanelState, action: SidepanelAction): SidepanelState {
-  if (action.type === 'patch') return { ...state, ...action.patch };
-
-  const { event } = action;
-  if (
-    'conversationId' in event &&
-    event.conversationId &&
-    event.conversationId !== state.currentConversation?.id
-  ) {
-    return state;
-  }
-
-  switch (event.kind) {
-    case 'turn.started':
-      return {
-        ...state,
-        runningTurnId: event.turnId,
-        turnFeedback: 'working',
-        activeReasoning: null,
-      };
-    case 'message.delta':
-      return {
-        ...state,
-        timeline: appendMessageDelta(state.timeline, event),
-        turnFeedback: null,
-        activeReasoning: null,
-      };
-    case 'message.completed':
-      return {
-        ...state,
-        timeline: completeMessage(state.timeline, event.message),
-        turnFeedback: null,
-        activeReasoning: null,
-      };
-    case 'reasoning.delta': {
-      const existingIndex = state.timeline.findIndex(
-        item => item.type === 'reasoning' && item.id === event.itemId,
-      );
-      const timeline =
-        existingIndex < 0
-          ? [...state.timeline, { type: 'reasoning' as const, id: event.itemId, text: event.delta }]
-          : state.timeline.map((item, index) =>
-              index === existingIndex && item.type === 'reasoning'
-                ? { ...item, text: item.text + event.delta }
-                : item,
-            );
-      const activeReasoning =
-        state.activeReasoning?.id === event.itemId
-          ? { id: event.itemId, text: state.activeReasoning.text + event.delta }
-          : { id: event.itemId, text: event.delta };
-      return { ...state, timeline, turnFeedback: 'working', activeReasoning };
-    }
-    case 'activity.updated': {
-      const existingIndex = state.timeline.findIndex(
-        item => item.type === 'activity' && item.activity.id === event.activity.id,
-      );
-      const timeline =
-        existingIndex < 0
-          ? [...state.timeline, { type: 'activity' as const, activity: event.activity }]
-          : state.timeline.map((item, index) =>
-              index === existingIndex && item.type === 'activity'
-                ? { ...item, activity: event.activity }
-                : item,
-            );
-      return { ...state, timeline, turnFeedback: null, activeReasoning: null };
-    }
-    case 'approval.requested':
-      return {
-        ...state,
-        currentConversation: state.currentConversation
-          ? { ...state.currentConversation, status: 'waiting' }
-          : null,
-        timeline: [...state.timeline, { type: 'approval', approval: event.approval }],
-        turnFeedback: null,
-        activeReasoning: null,
-      };
-    case 'approval.resolved':
-      return {
-        ...state,
-        timeline: state.timeline.filter(
-          item => item.type !== 'approval' || item.approval.id !== event.approvalId,
-        ),
-        turnFeedback: 'working',
-        activeReasoning: null,
-      };
-    case 'turn.completed': {
-      const timeline = [...state.timeline];
-      if (event.status === 'interrupted') {
-        timeline.push({ type: 'error', id: randomId(), message: action.interruptedMessage });
-      } else if (event.status === 'failed') {
-        timeline.push({
-          type: 'error',
-          id: randomId(),
-          message: event.error || action.failedMessage,
-        });
-      }
-      return {
-        ...state,
-        currentConversation: state.currentConversation
-          ? {
-              ...state.currentConversation,
-              status: event.status === 'failed' ? 'error' : 'idle',
-            }
-          : null,
-        runningTurnId: null,
-        timeline,
-        turnFeedback: null,
-        activeReasoning: null,
-      };
-    }
-    case 'usage.updated':
-      return state;
-    case 'error':
-      return {
-        ...state,
-        timeline: [...state.timeline, { type: 'error', id: randomId(), message: event.message }],
-        turnFeedback: null,
-        activeReasoning: null,
-      };
-  }
-}
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error || '');
@@ -1044,52 +759,21 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
         return;
       }
 
-      const current = stateRef.current.pastedImages;
-      let totalBytes = current.reduce((total, image) => total + image.size, 0);
-      const accepted: File[] = [];
-      let imageError = '';
-      for (const file of files) {
-        if (current.length + accepted.length >= CONVERSATION_MAX_IMAGES) {
-          imageError = formatCopy(stateRef.current.locale, 'tooManyImages', {
-            count: String(CONVERSATION_MAX_IMAGES),
-          });
-          break;
-        }
-        if (!SUPPORTED_IMAGE_MIME_TYPES.has(file.type)) {
-          imageError = translate(stateRef.current.locale, 'unsupportedImage');
-          continue;
-        }
-        if (file.size > CONVERSATION_MAX_IMAGE_BYTES) {
-          imageError = formatCopy(stateRef.current.locale, 'imageTooLarge', {
-            size: String(CONVERSATION_MAX_IMAGE_BYTES / 1024 / 1024),
-          });
-          continue;
-        }
-        if (totalBytes + file.size > CONVERSATION_MAX_TOTAL_IMAGE_BYTES) {
-          imageError = formatCopy(stateRef.current.locale, 'imagesTooLarge', {
-            size: String(CONVERSATION_MAX_TOTAL_IMAGE_BYTES / 1024 / 1024),
-          });
-          continue;
-        }
-        accepted.push(file);
-        totalBytes += file.size;
-      }
-      patch({ imageError });
-      if (accepted.length === 0) return;
+      const selection = selectPastedImageFiles(
+        stateRef.current.pastedImages,
+        files,
+        stateRef.current.locale,
+      );
+      patch({ imageError: selection.imageError });
+      if (selection.files.length === 0) return;
 
       const generation = pastedImageGenerationRef.current;
       try {
-        const images = await Promise.all(
-          accepted.map(async (file, index): Promise<PastedImage> => ({
-            id: `pasted-image-${Date.now()}-${index}-${randomId()}`,
-            data: await readImageData(file),
-            mimeType: file.type,
-            ...(file.name ? { name: file.name } : {}),
-            size: file.size,
-          })),
-        );
+        const images = await preparePastedImages(selection.files);
         if (generation !== pastedImageGenerationRef.current) return;
-        patch({ pastedImages: [...stateRef.current.pastedImages, ...images] });
+        patch({
+          pastedImages: [...stateRef.current.pastedImages, ...images],
+        });
       } catch {
         if (generation === pastedImageGenerationRef.current) {
           patch({ imageError: translate(stateRef.current.locale, 'imageReadFailed') });

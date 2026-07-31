@@ -21,7 +21,16 @@ import {
   createConversationContextInstructions,
   resolveConversationStartOptions,
 } from './agent-context.js';
-import { resolveSpawnCommand, runCommand, type CommandRunner } from './platform.js';
+import {
+  AGENT_BROWSER_MCP_NAME,
+  agentBrowserMcpArguments,
+  agentBrowserSessionEnvironment,
+  closeAgentBrowserSession,
+  createAgentBrowserSession,
+  type AgentBrowserSession,
+  type CloseAgentBrowserSessionOptions,
+} from './agent-browser-session.js';
+import { resolveSpawnCommand } from './platform.js';
 import {
   qoderInstallCommand,
   resolveQoderExecutable,
@@ -31,7 +40,6 @@ import { readRuntimeConfig, type PanerelayRuntimeConfig } from './runtime-config
 
 const QODER_PROVIDER_ID = 'qoder';
 const REQUEST_TIMEOUT_MS = 30_000;
-const BROWSER_CLEANUP_TIMEOUT_MS = 5_000;
 const MAX_TEXT_CHARS = 64 * 1024;
 const MAX_DELTA_CHARS = 8 * 1024;
 
@@ -64,11 +72,7 @@ export interface QoderProviderOptions {
   runtimeConfig?: () => Promise<PanerelayRuntimeConfig>;
 }
 
-export interface QoderBrowserSession {
-  configPath: string;
-  executable: string;
-  label: string;
-}
+export type QoderBrowserSession = AgentBrowserSession;
 
 interface QoderSession {
   activeTurn?: QoderTurn;
@@ -172,69 +176,30 @@ function failedToolDetail(update: acp.ToolCall | acp.ToolCallUpdate): string | u
   return detail ? bounded(detail, MAX_DELTA_CHARS) : undefined;
 }
 
-function qoderBrowserSession(
-  config: PanerelayRuntimeConfig,
-  sessionLabel: string,
-): QoderBrowserSession | undefined {
-  if (!config.agentBrowserPath || !config.agentBrowserConfigPath) return undefined;
-  return {
-    configPath: config.agentBrowserConfigPath,
-    executable: config.agentBrowserPath,
-    label: sessionLabel,
-  };
-}
-
 export function qoderBrowserMcpServers(
   config: PanerelayRuntimeConfig,
   sessionLabel: string,
   browserId = process.env[PANERELAY_BROWSER_ID_ENV],
 ): acp.McpServer[] {
-  const browserSession = qoderBrowserSession(config, sessionLabel);
+  const browserSession = createAgentBrowserSession(config, sessionLabel);
   if (!browserSession) return [];
   return [
     {
-      name: 'panerelay_browser',
+      name: AGENT_BROWSER_MCP_NAME,
       command: browserSession.executable,
-      args: ['mcp', '--tools', 'core,tabs'],
-      env: [
-        { name: 'AGENT_BROWSER_CONFIG', value: browserSession.configPath },
-        { name: 'AGENT_BROWSER_PROVIDER', value: 'panerelay' },
-        { name: 'AGENT_BROWSER_SESSION', value: browserSession.label },
-        ...(browserId ? [{ name: PANERELAY_BROWSER_ID_ENV, value: browserId }] : []),
-      ],
+      args: agentBrowserMcpArguments(),
+      env: Object.entries(agentBrowserSessionEnvironment(browserSession, browserId)).map(
+        ([name, value]) => ({ name, value }),
+      ),
     },
   ];
 }
 
 export async function closeQoderBrowserSession(
   session: QoderBrowserSession,
-  options: {
-    environment?: NodeJS.ProcessEnv;
-    platform?: NodeJS.Platform;
-    runner?: CommandRunner;
-    timeoutMs?: number;
-  } = {},
+  options: CloseAgentBrowserSessionOptions = {},
 ): Promise<void> {
-  const environment: NodeJS.ProcessEnv = {
-    ...(options.environment ?? process.env),
-    AGENT_BROWSER_CONFIG: session.configPath,
-    AGENT_BROWSER_PROVIDER: 'panerelay',
-    AGENT_BROWSER_SESSION: session.label,
-  };
-  const launch = resolveSpawnCommand(
-    session.executable,
-    ['--session', session.label, '--provider', 'panerelay', 'close'],
-    options.platform,
-    environment.ComSpec,
-  );
-  const result = await (options.runner ?? runCommand)(launch.command, launch.args, {
-    environment,
-    timeoutMs: options.timeoutMs ?? BROWSER_CLEANUP_TIMEOUT_MS,
-    windowsVerbatimArguments: launch.windowsVerbatimArguments,
-  });
-  if (result.code !== 0) {
-    throw new Error(`agent-browser cleanup exited with code ${result.code}`);
-  }
+  await closeAgentBrowserSession(session, options);
 }
 
 export class QoderProcessRuntime implements QoderRuntime {
@@ -489,7 +454,7 @@ export class QoderProvider implements AgentProvider {
     const resolvedOptions = resolveConversationStartOptions(options);
     const cwd = resolvedOptions.cwd ?? (this.options.cwd ?? homedir)();
     const sessionLabel = `panerelay-qoder-${randomUUID()}`;
-    const browserSession = qoderBrowserSession(config, sessionLabel);
+    const browserSession = createAgentBrowserSession(config, sessionLabel);
     let result: acp.NewSessionResponse;
     try {
       result = (await this.request(
@@ -538,7 +503,7 @@ export class QoderProvider implements AgentProvider {
     const config = this.getRuntimeConfig();
     const cwd = (this.options.cwd ?? homedir)();
     const sessionLabel = `panerelay-qoder-${randomUUID()}`;
-    const browserSession = qoderBrowserSession(config, sessionLabel);
+    const browserSession = createAgentBrowserSession(config, sessionLabel);
     const request = {
       sessionId: conversationId,
       cwd,

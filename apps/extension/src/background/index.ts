@@ -7,13 +7,11 @@ import {
   encodeNativeTransfer,
   isHostToExtensionMessage,
   isNativeTransferEnvelope,
-  type AgentProviderSummary,
   type AgentRequest,
   type AgentResponseMessage,
   type CdpCommandMessage,
   type CdpTargetInfo,
   type CdpTargetRequestMessage,
-  type ConversationSummary,
   type HostToExtensionMessage,
   type IntegrationRequest,
   type IntegrationBrowserDefaultResult,
@@ -55,8 +53,11 @@ import { createChromeConversationWorkspaceStore } from './conversation-workspace
 import type { ConversationWorkspaceSnapshot } from '../shared/conversation-workspaces.js';
 import { nativeHostDisconnectState } from './native-host-readiness.js';
 import { installPageCommentsRuntime } from '../content/page-comments-runtime.js';
+import { PAGE_COMMENT_RUNTIME_ASSETS } from '../content/page-comments-runtime-assets.js';
 import { PageCommentService } from './page-comments.js';
 import { detectBrowserRuntime } from '../shared/browser-runtime.js';
+import { PendingRequestTracker } from './pending-request-tracker.js';
+import { createSidePanelRequestRouter } from './sidepanel-request-router.js';
 
 const BROWSER_ID_KEY = 'panerelay.browserId';
 const ALL_TABS_AUTHORIZATION_KEY = 'panerelay.authorization.allTabs';
@@ -64,15 +65,6 @@ const RECONNECT_DELAY_MS = 2_000;
 const AGENT_REQUEST_TIMEOUT_MS = 60_000;
 const INTEGRATION_REQUEST_TIMEOUT_MS = 5_000;
 const browserRuntime = detectBrowserRuntime();
-
-interface PendingRequest<T> {
-  resolve: (result: T) => void;
-  reject: (error: Error) => void;
-  timer: ReturnType<typeof setTimeout>;
-}
-
-type PendingAgentRequest = PendingRequest<unknown>;
-type PendingIntegrationRequest = PendingRequest<IntegrationResult>;
 
 let nativePort: chrome.runtime.Port | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -93,8 +85,10 @@ const publishedTargets = new Map<string, CdpTargetInfo>();
 const sessionOwnedTabIds = new Set<number>();
 const targetExposure = new TargetExposureState();
 const targetPublicationQueue = new TargetPublicationQueue();
-const pendingAgentRequests = new Map<string, PendingAgentRequest>();
-const pendingIntegrationRequests = new Map<string, PendingIntegrationRequest>();
+const pendingAgentRequests = new PendingRequestTracker<unknown>(AGENT_REQUEST_TIMEOUT_MS);
+const pendingIntegrationRequests = new PendingRequestTracker<IntegrationResult>(
+  INTEGRATION_REQUEST_TIMEOUT_MS,
+);
 const nativeTransferReceiver = new NativeTransferReceiver();
 let nativeTransferCleanupTimer: ReturnType<typeof setTimeout> | null = null;
 let controlActivityState = createControlActivityState();
@@ -122,6 +116,7 @@ const pageCommentService = new PageCommentService({
       const results = await chrome.scripting.executeScript({
         target: { tabId, allFrames: true },
         func: installPageCommentsRuntime,
+        args: [PAGE_COMMENT_RUNTIME_ASSETS],
       });
       return results.length > 0 && results.every(result => result.result === true);
     } catch {
@@ -131,6 +126,21 @@ const pageCommentService = new PageCommentService({
   isAuthorized: isTabOriginAuthorized,
   resolveActiveTab: activeTab,
   sendToTab: (tabId, message) => chrome.tabs.sendMessage(tabId, message),
+});
+const handleSidePanelRequest = createSidePanelRequestRouter({
+  activateControlledTab,
+  closeControlledTab,
+  pageComments: pageCommentService,
+  refreshBrowserDefault,
+  requestAgent,
+  retryNativeHost,
+  selectWorkspaceDirectory: async () =>
+    (await requestIntegration({ method: 'workspace.pick-directory' })).path,
+  setAuthorization,
+  setBrowserDefault,
+  setDefaultProvider,
+  status,
+  workspace: conversationWorkspaceService,
 });
 
 async function updateActionBadge(): Promise<void> {
@@ -275,22 +285,6 @@ async function registerBrowser(): Promise<void> {
   });
 }
 
-function rejectPendingAgentRequests(reason: string): void {
-  for (const pending of pendingAgentRequests.values()) {
-    clearTimeout(pending.timer);
-    pending.reject(new Error(reason));
-  }
-  pendingAgentRequests.clear();
-}
-
-function rejectPendingIntegrationRequests(reason: string): void {
-  for (const pending of pendingIntegrationRequests.values()) {
-    clearTimeout(pending.timer);
-    pending.reject(new Error(reason));
-  }
-  pendingIntegrationRequests.clear();
-}
-
 function scheduleReconnect(): void {
   if (reconnectTimer) return;
   reconnectTimer = setTimeout(() => {
@@ -335,8 +329,8 @@ function connectNativeHost(): void {
         authorizedOriginPatterns = [];
       }
       authorizedTab = null;
-      rejectPendingAgentRequests(lastError);
-      rejectPendingIntegrationRequests(lastError);
+      pendingAgentRequests.rejectAll(lastError);
+      pendingIntegrationRequests.rejectAll(lastError);
       void releaseControl('Panerelay Bridge disconnected', false);
       void broadcastStatus();
       scheduleReconnect();
@@ -402,51 +396,35 @@ async function handleHostMessage(message: HostToExtensionMessage): Promise<void>
 }
 
 function handleAgentResponse(message: AgentResponseMessage): void {
-  const pending = pendingAgentRequests.get(message.requestId);
-  if (!pending) return;
-  pendingAgentRequests.delete(message.requestId);
-  clearTimeout(pending.timer);
   if (message.success) {
-    pending.resolve(message.result);
+    pendingAgentRequests.resolve(message.requestId, message.result);
   } else {
-    pending.reject(new Error(message.error || 'Agent request failed'));
+    pendingAgentRequests.reject(
+      message.requestId,
+      new Error(message.error || 'Agent request failed'),
+    );
   }
 }
 
 function requestAgent(request: AgentRequest): Promise<unknown> {
-  const requestId = crypto.randomUUID();
-  const result = new Promise<unknown>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      pendingAgentRequests.delete(requestId);
-      reject(new Error(`Timed out waiting for ${request.method}`));
-    }, AGENT_REQUEST_TIMEOUT_MS);
-    pendingAgentRequests.set(requestId, { resolve, reject, timer });
-  });
-  try {
+  return pendingAgentRequests.request(request.method, requestId => {
     sendNative({
       type: 'agent.request',
       protocol: PANERELAY_PROTOCOL_VERSION,
       requestId,
       request,
     });
-  } catch (error) {
-    const pending = pendingAgentRequests.get(requestId);
-    if (pending) clearTimeout(pending.timer);
-    pendingAgentRequests.delete(requestId);
-    return Promise.reject(error);
-  }
-  return result;
+  });
 }
 
 function handleIntegrationResponse(message: IntegrationResponseMessage): void {
-  const pending = pendingIntegrationRequests.get(message.requestId);
-  if (!pending) return;
-  pendingIntegrationRequests.delete(message.requestId);
-  clearTimeout(pending.timer);
   if (message.success && message.result) {
-    pending.resolve(message.result);
+    pendingIntegrationRequests.resolve(message.requestId, message.result);
   } else {
-    pending.reject(new Error(message.error || 'Integration request failed'));
+    pendingIntegrationRequests.reject(
+      message.requestId,
+      new Error(message.error || 'Integration request failed'),
+    );
   }
 }
 
@@ -460,28 +438,14 @@ function requestIntegration(
   request: Extract<IntegrationRequest, { method: 'workspace.pick-directory' }>,
 ): Promise<IntegrationWorkspaceDirectoryResult>;
 function requestIntegration(request: IntegrationRequest): Promise<IntegrationResult> {
-  const requestId = crypto.randomUUID();
-  const result = new Promise<IntegrationResult>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      pendingIntegrationRequests.delete(requestId);
-      reject(new Error(`Timed out waiting for ${request.method}`));
-    }, INTEGRATION_REQUEST_TIMEOUT_MS);
-    pendingIntegrationRequests.set(requestId, { resolve, reject, timer });
-  });
-  try {
+  return pendingIntegrationRequests.request(request.method, requestId => {
     sendNative({
       type: 'integration.request',
       protocol: PANERELAY_PROTOCOL_VERSION,
       requestId,
       request,
     });
-  } catch (error) {
-    const pending = pendingIntegrationRequests.get(requestId);
-    if (pending) clearTimeout(pending.timer);
-    pendingIntegrationRequests.delete(requestId);
-    return Promise.reject(error);
-  }
-  return result;
+  });
 }
 
 async function refreshDefaultProvider(): Promise<void> {
@@ -934,128 +898,6 @@ async function activateControlledTab(tabId: number): Promise<void> {
 async function closeControlledTab(tabId: number): Promise<void> {
   controlledTargetIdForTab(tabId);
   await chrome.tabs.remove(tabId);
-}
-
-async function handleSidePanelRequest(message: SidePanelRequest): Promise<SidePanelResponse> {
-  switch (message.type) {
-    case 'panerelay.status.get':
-      return { success: true, status: await status() };
-    case 'panerelay.authorization.set':
-      return { success: true, status: await setAuthorization(message.mode) };
-    case 'panerelay.native.retry':
-      return { success: true, status: await retryNativeHost() };
-    case 'panerelay.default-provider.set':
-      return { success: true, status: await setDefaultProvider(message.enabled) };
-    case 'panerelay.browser-default.set':
-      return { success: true, status: await setBrowserDefault(message.enabled) };
-    case 'panerelay.browser-default.refresh':
-      await refreshBrowserDefault();
-      return { success: true, status: await status() };
-    case 'panerelay.controlled-tab.activate':
-      await activateControlledTab(message.tabId);
-      return { success: true };
-    case 'panerelay.controlled-tab.close':
-      await closeControlledTab(message.tabId);
-      return { success: true };
-    case 'panerelay.agent.providers':
-      return {
-        success: true,
-        providers: (await requestAgent({ method: 'agent.providers' })) as AgentProviderSummary[],
-      };
-    case 'panerelay.agent.prepare':
-      await requestAgent({ method: 'agent.prepare', providerId: message.providerId });
-      return { success: true };
-    case 'panerelay.workspace.get':
-      return {
-        success: true,
-        workspace: await conversationWorkspaceService.get(message.providerId),
-      };
-    case 'panerelay.workspace.reset':
-      return {
-        success: true,
-        workspace: await conversationWorkspaceService.reset(
-          message.providerId,
-          message.expectedRevision,
-        ),
-      };
-    case 'panerelay.workspace.pick-directory': {
-      const selected = await requestIntegration({ method: 'workspace.pick-directory' });
-      if (!selected.path) return { success: true };
-      return {
-        success: true,
-        workspace: await conversationWorkspaceService.setDirectory(
-          message.expectedRevision,
-          selected.path,
-        ),
-      };
-    }
-    case 'panerelay.workspace.clear-directory':
-      return {
-        success: true,
-        workspace: await conversationWorkspaceService.setDirectory(message.expectedRevision),
-      };
-    case 'panerelay.page-comments.start':
-      await pageCommentService.start(message.continuous === true, message.locale, message.theme);
-      return { success: true };
-    case 'panerelay.page-comments.stop':
-      await pageCommentService.stop();
-      return { success: true };
-    case 'panerelay.page-comments.edit':
-      await pageCommentService.edit(message.commentId);
-      return { success: true };
-    case 'panerelay.page-comments.remove':
-      await pageCommentService.remove(message.commentId);
-      return { success: true };
-    case 'panerelay.page-comments.clear':
-      await pageCommentService.clear();
-      return { success: true };
-    case 'panerelay.conversation.list':
-      return {
-        success: true,
-        conversations: (await requestAgent({
-          method: 'conversation.list',
-          providerId: message.providerId,
-        })) as ConversationSummary[],
-      };
-    case 'panerelay.conversation.resume':
-      return {
-        success: true,
-        ...(await conversationWorkspaceService.resume(
-          message.providerId,
-          message.conversationId,
-          message.expectedRevision,
-        )),
-      };
-    case 'panerelay.conversation.send': {
-      return {
-        success: true,
-        ...(await conversationWorkspaceService.send(
-          message.providerId,
-          message.expectedRevision,
-          message.text,
-          message.conversationId,
-          message.images,
-        )),
-      };
-    }
-    case 'panerelay.conversation.interrupt':
-      await requestAgent({
-        method: 'conversation.interrupt',
-        providerId: message.providerId,
-        conversationId: message.conversationId,
-        turnId: message.turnId,
-      });
-      return { success: true };
-    case 'panerelay.conversation.respond':
-      await requestAgent({
-        method: 'conversation.respond',
-        providerId: message.providerId,
-        conversationId: message.conversationId,
-        approvalId: message.approvalId,
-        decision: message.decision,
-      });
-      return { success: true };
-  }
 }
 
 chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {

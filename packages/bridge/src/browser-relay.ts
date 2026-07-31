@@ -2,11 +2,8 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import {
   PANERELAY_PROTOCOL_VERSION,
-  classifyCdpMethod,
   classifyCdpTargetAccess,
-  type AutomationActivity,
   type AutomationActivityFailure,
-  type AutomationActivityStatus,
   type BrowserRegistration,
   type CdpAttachedMessage,
   type CdpDetachedMessage,
@@ -22,10 +19,12 @@ import {
   type RelaySessionCreateRequest,
   type RelaySessionCreated,
   type RelaySessionError,
-  type ControlSessionChangedMessage,
   type ControlSessionState,
 } from '@panerelay/protocol';
 import WebSocket, { WebSocketServer } from 'ws';
+import { targetCommandPolicyError } from './browser-relay-policy.js';
+import { ControlActivityJournal } from './control-activity-journal.js';
+import { KeyedCommandScheduler } from './keyed-command-scheduler.js';
 
 interface PendingExtensionResult<T> {
   resolve: (result: T) => void;
@@ -40,17 +39,6 @@ interface PendingCommand {
   releaseTarget: () => void;
   timer: NodeJS.Timeout;
   onResult?: (message: CdpResultMessage) => void;
-}
-
-interface TargetCommandWaiter {
-  client: WebSocket;
-  resolve: (release: () => void) => void;
-  reject: (error: Error) => void;
-}
-
-interface TargetCommandQueue {
-  owner: WebSocket;
-  waiters: TargetCommandWaiter[];
 }
 
 interface RelayParticipant {
@@ -101,15 +89,7 @@ const DEFAULT_HEARTBEAT_INTERVAL_MS = 10_000;
 const DEFAULT_HEARTBEAT_TIMEOUT_MS = 35_000;
 const EXTENSION_REQUEST_TIMEOUT_MS = 10_000;
 const MAX_SESSION_REQUEST_BYTES = 16 * 1024;
-const MAX_ACTIVITY_RECORDS = 100;
 const TARGET_LIFECYCLE_QUEUE = 'panerelay:target-lifecycle';
-const BROWSER_COOKIE_METHODS = new Set([
-  'Network.getAllCookies',
-  'Network.clearBrowserCookies',
-  'Storage.getCookies',
-  'Storage.clearCookies',
-]);
-
 class RelayHttpError extends Error {
   constructor(
     readonly status: number,
@@ -151,16 +131,16 @@ export class BrowserRelay {
     string,
     PendingExtensionResult<CdpResultMessage>
   >();
-  private readonly targetCommandQueues = new Map<string, TargetCommandQueue>();
-  private readonly clientActivities = new Map<WebSocket, Map<number, string>>();
-  private readonly activities: AutomationActivity[] = [];
-  private readonly activityEpoch = randomUUID();
+  private readonly targetCommands = new KeyedCommandScheduler<string, WebSocket>({
+    inactiveOwnerError: () =>
+      new Error('Automation participant disconnected while waiting for the target'),
+    isOwnerActive: client => this.clients.has(client),
+  });
+  private readonly activityJournal: ControlActivityJournal<WebSocket>;
   private browser: BrowserRegistration | null = null;
   private activeLease: ActiveControlLease | null = null;
   private heartbeatTimer: NodeJS.Timeout | null = null;
-  private controlSequence = 0;
   private lastHeartbeatStatusAt = 0;
-  private lastSessionMessage: ControlSessionChangedMessage | null = null;
 
   private constructor(
     private readonly server: WebSocketServer,
@@ -169,6 +149,9 @@ export class BrowserRelay {
     port: number,
   ) {
     this.port = port;
+    this.activityJournal = new ControlActivityJournal({
+      emit: message => this.options.sendToExtension(message),
+    });
     this.server.on('connection', (client, request) => this.handleConnection(client, request));
     this.httpServer.on('request', (request, response) => {
       void this.handleHttpRequest(request, response).catch(error => {
@@ -227,7 +210,7 @@ export class BrowserRelay {
           protocol: PANERELAY_PROTOCOL_VERSION,
           browserId: message.browserId,
         });
-        this.sendControlSnapshot();
+        this.activityJournal.emitSnapshot();
         return;
       case 'cdp.target.result':
         this.resolveTargetRequest(message);
@@ -710,7 +693,7 @@ export class BrowserRelay {
       }
       case 'Target.createTarget': {
         const url = typeof params.url === 'string' ? params.url : 'about:blank';
-        const result = await this.withTargetCommand(client, TARGET_LIFECYCLE_QUEUE, () =>
+        const result = await this.targetCommands.run(TARGET_LIFECYCLE_QUEUE, client, () =>
           this.requestTarget({ kind: 'create', url, active: false }),
         );
         if (!result.success || !result.target)
@@ -722,7 +705,7 @@ export class BrowserRelay {
       case 'Target.closeTarget': {
         const targetId = this.requiredTargetId(params);
         await this.ensureKnownTarget(targetId);
-        const result = await this.withTargetCommand(client, targetId, () =>
+        const result = await this.targetCommands.run(targetId, client, () =>
           this.requestTarget({ kind: 'close', targetId }),
         );
         if (!result.success) throw new Error(result.error || 'Tab close failed');
@@ -790,70 +773,6 @@ export class BrowserRelay {
     return result.targets;
   }
 
-  private acquireTargetCommand(client: WebSocket, targetId: string): Promise<() => void> {
-    const existing = this.targetCommandQueues.get(targetId);
-    if (!existing) {
-      this.targetCommandQueues.set(targetId, { owner: client, waiters: [] });
-      return Promise.resolve(this.targetCommandRelease(targetId, client));
-    }
-    return new Promise<() => void>((resolve, reject) => {
-      existing.waiters.push({ client, resolve, reject });
-    });
-  }
-
-  private targetCommandRelease(targetId: string, client: WebSocket): () => void {
-    let released = false;
-    return () => {
-      if (released) return;
-      released = true;
-      const queue = this.targetCommandQueues.get(targetId);
-      if (!queue || queue.owner !== client) return;
-      let next = queue.waiters.shift();
-      while (next && !this.clients.has(next.client)) {
-        next.reject(new Error('Automation participant disconnected while waiting for the target'));
-        next = queue.waiters.shift();
-      }
-      if (!next) {
-        this.targetCommandQueues.delete(targetId);
-        return;
-      }
-      queue.owner = next.client;
-      next.resolve(this.targetCommandRelease(targetId, next.client));
-    };
-  }
-
-  private async withTargetCommand<T>(
-    client: WebSocket,
-    targetId: string,
-    operation: () => Promise<T>,
-  ): Promise<T> {
-    const release = await this.acquireTargetCommand(client, targetId);
-    try {
-      if (!this.clients.has(client)) {
-        throw new Error('Automation participant disconnected while waiting for the target');
-      }
-      return await operation();
-    } finally {
-      release();
-    }
-  }
-
-  private cancelQueuedTargetCommands(client: WebSocket): void {
-    for (const queue of this.targetCommandQueues.values()) {
-      const retained: TargetCommandWaiter[] = [];
-      for (const waiter of queue.waiters) {
-        if (waiter.client === client) {
-          waiter.reject(
-            new Error('Automation participant disconnected while waiting for the target'),
-          );
-        } else {
-          retained.push(waiter);
-        }
-      }
-      queue.waiters = retained;
-    }
-  }
-
   private requestTarget(operation: CdpTargetOperation): Promise<CdpTargetResultMessage> {
     const requestId = randomUUID();
     const timeoutMs = this.options.extensionRequestTimeoutMs ?? EXTENSION_REQUEST_TIMEOUT_MS;
@@ -903,7 +822,7 @@ export class BrowserRelay {
       return;
     }
 
-    const policyError = this.targetCommandPolicyError(targetId, method, params);
+    const policyError = targetCommandPolicyError(this.targets.get(targetId), method, params);
     if (policyError) {
       this.sendCdpError(client, cdpId, -32000, policyError, sessionId, 'policy-denied');
       return;
@@ -949,7 +868,7 @@ export class BrowserRelay {
 
     let releaseTarget: () => void;
     try {
-      releaseTarget = await this.acquireTargetCommand(client, targetId);
+      releaseTarget = await this.targetCommands.acquire(targetId, client);
     } catch (error) {
       this.sendCdpError(
         client,
@@ -1047,95 +966,6 @@ export class BrowserRelay {
         'transport-error',
       );
     }
-  }
-
-  private targetCommandPolicyError(
-    targetId: string,
-    method: string,
-    params: Record<string, unknown>,
-  ): string | null {
-    if (method.startsWith('Browser.')) {
-      return `${method} requires browser-process ownership and is not supported by Panerelay`;
-    }
-    if (BROWSER_COOKIE_METHODS.has(method)) {
-      return `${method} can access the entire daily Chrome profile and is not supported by Panerelay`;
-    }
-
-    const target = this.targets.get(targetId);
-    const targetUrl = this.httpUrl(target?.url);
-    if (!targetUrl) return null;
-
-    if (method === 'Network.getCookies') {
-      const urls = Array.isArray(params.urls) ? params.urls : [];
-      if (urls.some(url => typeof url !== 'string' || !this.hasSameOrigin(targetUrl, url))) {
-        return 'Network.getCookies is limited to the selected Panerelay target origin';
-      }
-    }
-
-    if (method === 'Network.setCookie') {
-      return this.cookieMutationPolicyError(targetUrl, params);
-    }
-
-    if (method === 'Network.setCookies') {
-      if (!Array.isArray(params.cookies)) return 'Network.setCookies requires a cookie list';
-      for (const cookie of params.cookies) {
-        if (!cookie || typeof cookie !== 'object') {
-          return 'Network.setCookies received an invalid cookie';
-        }
-        const error = this.cookieMutationPolicyError(targetUrl, cookie as Record<string, unknown>);
-        if (error) return error;
-      }
-    }
-
-    if (method === 'Network.deleteCookies') {
-      return this.cookieMutationPolicyError(targetUrl, params);
-    }
-
-    if (
-      method === 'Storage.clearDataForOrigin' &&
-      (typeof params.origin !== 'string' || !this.hasSameOrigin(targetUrl, params.origin))
-    ) {
-      return 'Storage.clearDataForOrigin is limited to the selected Panerelay target origin';
-    }
-
-    return null;
-  }
-
-  private cookieMutationPolicyError(
-    targetUrl: URL,
-    cookie: Record<string, unknown>,
-  ): string | null {
-    const cookieUrl = typeof cookie.url === 'string' ? cookie.url : undefined;
-    const cookieDomain =
-      typeof cookie.domain === 'string'
-        ? cookie.domain.replace(/^\./, '').toLowerCase()
-        : undefined;
-
-    if (cookieUrl && !this.hasSameOrigin(targetUrl, cookieUrl)) {
-      return 'Cookie mutation is limited to the selected Panerelay target origin';
-    }
-    if (cookieDomain && cookieDomain !== targetUrl.hostname.toLowerCase()) {
-      return 'Cookie mutation is limited to the selected Panerelay target host';
-    }
-    if (!cookieUrl && !cookieDomain) {
-      return 'Cookie mutation requires the selected Panerelay target URL or host';
-    }
-    return null;
-  }
-
-  private httpUrl(value: string | undefined): URL | null {
-    if (!value) return null;
-    try {
-      const url = new URL(value);
-      return url.protocol === 'http:' || url.protocol === 'https:' ? url : null;
-    } catch {
-      return null;
-    }
-  }
-
-  private hasSameOrigin(targetUrl: URL, candidate: string): boolean {
-    const candidateUrl = this.httpUrl(candidate);
-    return candidateUrl?.origin === targetUrl.origin;
   }
 
   private ensureTargetAttached(targetId: string): Promise<void> {
@@ -1238,7 +1068,7 @@ export class BrowserRelay {
     clearTimeout(pending.timer);
     pending.releaseTarget();
     pending.onResult?.(message);
-    this.finishClientActivity(
+    this.activityJournal.finish(
       pending.client,
       pending.cdpId,
       message.error ? 'failed' : 'completed',
@@ -1416,7 +1246,7 @@ export class BrowserRelay {
   private cleanupClient(client: WebSocket, failure: AutomationActivityFailure): void {
     const state = this.clients.get(client);
     if (!state) return;
-    this.failClientActivities(client, failure);
+    this.activityJournal.failClient(client, failure);
     for (const sessionId of [...state.sessions]) this.removePageSession(sessionId);
     this.clients.delete(client);
     for (const [requestId, pending] of this.pendingCommands) {
@@ -1425,7 +1255,7 @@ export class BrowserRelay {
       pending.releaseTarget();
       this.pendingCommands.delete(requestId);
     }
-    this.cancelQueuedTargetCommands(client);
+    this.targetCommands.cancel(client);
   }
 
   private releaseParticipant(
@@ -1469,7 +1299,7 @@ export class BrowserRelay {
     const lease = this.activeLease;
     if (!lease) return;
     const hadTargets = this.attachedTargets.size > 0 || this.targets.size > 0;
-    this.failOutstandingActivities('session-ended');
+    this.activityJournal.failOutstanding('session-ended');
     for (const participant of lease.participants.values()) {
       this.clearParticipantExpiry(participant);
     }
@@ -1491,11 +1321,7 @@ export class BrowserRelay {
       pending.reject(new Error(reason));
     }
     this.pendingSetupCommands.clear();
-    for (const queue of this.targetCommandQueues.values()) {
-      for (const waiter of queue.waiters) waiter.reject(new Error(reason));
-    }
-    this.targetCommandQueues.clear();
-    this.clientActivities.clear();
+    this.targetCommands.clear(new Error(reason));
     this.pageSessions.clear();
     this.childSessions.clear();
     this.targets.clear();
@@ -1543,7 +1369,7 @@ export class BrowserRelay {
   }
 
   private sendResult(client: WebSocket, id: number, result: unknown, sessionId?: string): void {
-    this.finishClientActivity(client, id, 'completed');
+    this.activityJournal.finish(client, id, 'completed');
     if (client.readyState === WebSocket.OPEN) {
       client.send(JSON.stringify({ id, result, ...(sessionId ? { sessionId } : {}) }));
     }
@@ -1557,7 +1383,7 @@ export class BrowserRelay {
     sessionId?: string,
     failure: AutomationActivityFailure = 'policy-denied',
   ): void {
-    this.finishClientActivity(
+    this.activityJournal.finish(
       client,
       id,
       failure === 'policy-denied' ? 'denied' : 'failed',
@@ -1598,89 +1424,11 @@ export class BrowserRelay {
     const state = this.clients.get(client);
     const participant = state ? lease?.participants.get(state.participantId) : undefined;
     if (!lease || !participant) return;
-    this.finishClientActivity(client, cdpId, 'failed', 'transport-error');
-
-    const now = new Date().toISOString();
-    const sequence = this.nextControlSequence();
-    const activity: AutomationActivity = {
-      id: randomUUID(),
+    this.activityJournal.begin(client, cdpId, {
       sessionId: lease.id,
-      actor: { ...participant.actor },
+      actor: participant.actor,
+      method,
       ...(targetId ? { targetId } : {}),
-      ...classifyCdpMethod(method),
-      status: 'started',
-      sequence,
-      startedAt: now,
-      updatedAt: now,
-    };
-    const activities = this.clientActivities.get(client) ?? new Map<number, string>();
-    activities.set(cdpId, activity.id);
-    this.clientActivities.set(client, activities);
-    this.storeAndEmitActivity(activity);
-  }
-
-  private finishClientActivity(
-    client: WebSocket,
-    cdpId: number,
-    status: Exclude<AutomationActivityStatus, 'started'>,
-    failure?: AutomationActivityFailure,
-  ): void {
-    const clientEntries = this.clientActivities.get(client);
-    const activityId = clientEntries?.get(cdpId);
-    if (!activityId) return;
-    clientEntries?.delete(cdpId);
-    if (clientEntries?.size === 0) this.clientActivities.delete(client);
-    this.finishActivity(activityId, status, failure);
-  }
-
-  private finishActivity(
-    activityId: string,
-    status: Exclude<AutomationActivityStatus, 'started'>,
-    failure?: AutomationActivityFailure,
-  ): void {
-    const index = this.activities.findIndex(activity => activity.id === activityId);
-    if (index < 0) return;
-    const current = this.activities[index];
-    if (!current || current.status !== 'started') return;
-    const activity: AutomationActivity = {
-      ...current,
-      status,
-      ...(failure ? { failure } : {}),
-      sequence: this.nextControlSequence(),
-      updatedAt: new Date().toISOString(),
-    };
-    this.activities[index] = activity;
-    this.emitActivity(activity);
-  }
-
-  private failClientActivities(client: WebSocket, failure: AutomationActivityFailure): void {
-    const activities = this.clientActivities.get(client);
-    if (!activities) return;
-    for (const activityId of activities.values()) {
-      this.finishActivity(activityId, 'failed', failure);
-    }
-    this.clientActivities.delete(client);
-  }
-
-  private failOutstandingActivities(failure: AutomationActivityFailure): void {
-    for (const client of [...this.clientActivities.keys()]) {
-      this.failClientActivities(client, failure);
-    }
-  }
-
-  private storeAndEmitActivity(activity: AutomationActivity): void {
-    this.activities.push(activity);
-    if (this.activities.length > MAX_ACTIVITY_RECORDS) this.activities.shift();
-    this.emitActivity(activity);
-  }
-
-  private emitActivity(activity: AutomationActivity): void {
-    this.options.sendToExtension({
-      type: 'control.activity.updated',
-      protocol: PANERELAY_PROTOCOL_VERSION,
-      epoch: this.activityEpoch,
-      sequence: activity.sequence,
-      activity,
     });
   }
 
@@ -1691,70 +1439,22 @@ export class BrowserRelay {
   ): void {
     const lease = this.activeLease;
     if (!lease) return;
-    const terminal = state === 'released' || state === 'expired' || state === 'failed';
     const participants = [...lease.participants.values()];
     const lastHeartbeatAt = participants.reduce(
       (latest, participant) => Math.max(latest, participant.lastHeartbeatAt ?? 0),
       0,
     );
-    const resolvedState =
-      state ??
-      (this.attachedTargets.size > 0 || this.pendingCommands.size > 0
-        ? 'active'
-        : participants.some(participant => participant.connectedAt !== undefined)
-          ? 'connected'
-          : 'allocated');
-    const heartbeatTimeoutMs = this.options.heartbeatTimeoutMs ?? DEFAULT_HEARTBEAT_TIMEOUT_MS;
-    const message: ControlSessionChangedMessage = {
-      type: 'control.session.changed',
-      protocol: PANERELAY_PROTOCOL_VERSION,
-      epoch: this.activityEpoch,
-      sequence: this.nextControlSequence(),
-      session: {
-        id: lease.id,
-        actor: { ...lease.actor },
-        state: resolvedState,
-        participantCount: participants.length,
-        observedTargetCount,
-        controlledTargetCount,
-        heartbeatFreshness: terminal
-          ? resolvedState === 'expired'
-            ? 'stale'
-            : 'unknown'
-          : lastHeartbeatAt > 0
-            ? 'fresh'
-            : 'unknown',
-        ...(!terminal && lastHeartbeatAt > 0
-          ? {
-              lastHeartbeatAt: new Date(lastHeartbeatAt).toISOString(),
-              leaseExpiresAt: new Date(lastHeartbeatAt + heartbeatTimeoutMs).toISOString(),
-            }
-          : {}),
-        updatedAt: new Date().toISOString(),
-      },
-    };
-    this.lastSessionMessage = message;
-    this.options.sendToExtension(message);
-  }
-
-  private sendControlSnapshot(): void {
-    if (this.lastSessionMessage) this.options.sendToExtension(this.lastSessionMessage);
-    const firstRetainedSequence =
-      this.activities.length > 0
-        ? Math.min(...this.activities.map(activity => activity.sequence))
-        : undefined;
-    this.options.sendToExtension({
-      type: 'control.activity.snapshot',
-      protocol: PANERELAY_PROTOCOL_VERSION,
-      epoch: this.activityEpoch,
-      sequence: this.controlSequence,
-      ...(firstRetainedSequence !== undefined ? { firstRetainedSequence } : {}),
-      activities: [...this.activities],
+    this.activityJournal.emitSession({
+      id: lease.id,
+      actor: lease.actor,
+      participantCount: participants.length,
+      observedTargetCount,
+      controlledTargetCount,
+      lastHeartbeatAt,
+      heartbeatTimeoutMs: this.options.heartbeatTimeoutMs ?? DEFAULT_HEARTBEAT_TIMEOUT_MS,
+      active: this.attachedTargets.size > 0 || this.pendingCommands.size > 0,
+      connected: participants.some(participant => participant.connectedAt !== undefined),
+      ...(state ? { state } : {}),
     });
-  }
-
-  private nextControlSequence(): number {
-    this.controlSequence += 1;
-    return this.controlSequence;
   }
 }

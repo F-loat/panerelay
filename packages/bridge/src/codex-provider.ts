@@ -21,6 +21,13 @@ import {
   createConversationContextInstructions,
   resolveConversationStartOptions,
 } from './agent-context.js';
+import {
+  AGENT_BROWSER_MCP_NAME,
+  AGENT_BROWSER_SIDEPANEL_INSTRUCTIONS,
+  agentBrowserMcpArguments,
+  agentBrowserSessionEnvironment,
+  createAgentBrowserSession,
+} from './agent-browser-session.js';
 import { CodexAppServer, type CodexRpcMessage } from './codex-app-server.js';
 import { readRuntimeConfig, type PanerelayRuntimeConfig } from './runtime-config.js';
 
@@ -364,27 +371,23 @@ export class CodexProvider implements AgentProvider {
     const client = await this.ensureClient();
     const config = this.config;
     const resolvedOptions = resolveConversationStartOptions(options);
-    const browserSession = `panerelay-codex-${randomUUID()}`;
+    const browserSessionLabel = `panerelay-codex-${randomUUID()}`;
+    const browserSession = config
+      ? createAgentBrowserSession(config, browserSessionLabel)
+      : undefined;
     const browserId = (this.options.environment ?? process.env)[PANERELAY_BROWSER_ID_ENV];
-    const browserMcpConfig =
-      config?.agentBrowserPath && config.agentBrowserConfigPath
-        ? {
-            'mcp_servers.panerelay_browser.command': config.agentBrowserPath,
-            'mcp_servers.panerelay_browser.args': ['mcp', '--tools', 'core,tabs'],
-            'mcp_servers.panerelay_browser.env': {
-              AGENT_BROWSER_CONFIG: config.agentBrowserConfigPath,
-              AGENT_BROWSER_PROVIDER: 'panerelay',
-              AGENT_BROWSER_SESSION: browserSession,
-              ...(browserId
-                ? {
-                    [PANERELAY_BROWSER_ID_ENV]: browserId,
-                  }
-                : {}),
-            },
-            'mcp_servers.panerelay_browser.required': false,
-            'mcp_servers.panerelay_browser.default_tools_approval_mode': 'auto',
-          }
-        : {};
+    const browserMcpConfig = browserSession
+      ? {
+          [`mcp_servers.${AGENT_BROWSER_MCP_NAME}.command`]: browserSession.executable,
+          [`mcp_servers.${AGENT_BROWSER_MCP_NAME}.args`]: agentBrowserMcpArguments(),
+          [`mcp_servers.${AGENT_BROWSER_MCP_NAME}.env`]: agentBrowserSessionEnvironment(
+            browserSession,
+            browserId,
+          ),
+          [`mcp_servers.${AGENT_BROWSER_MCP_NAME}.required`]: false,
+          [`mcp_servers.${AGENT_BROWSER_MCP_NAME}.default_tools_approval_mode`]: 'auto',
+        }
+      : {};
     const contextInstructions = createConversationContextInstructions(resolvedOptions);
     const result = asRecord(
       await client.request('thread/start', {
@@ -392,10 +395,7 @@ export class CodexProvider implements AgentProvider {
         approvalPolicy: 'on-request',
         sandbox: 'read-only',
         serviceName: 'panerelay',
-        developerInstructions: [
-          'You are running inside the Panerelay browser side panel. Use the panerelay_browser MCP tools for browser interaction when relevant. Browser authorization is controlled by the user in the side panel; never attempt to widen or bypass it. Keep chat responses concise and surface meaningful browser actions.',
-          contextInstructions,
-        ]
+        developerInstructions: [AGENT_BROWSER_SIDEPANEL_INSTRUCTIONS, contextInstructions]
           .filter(Boolean)
           .join('\n\n'),
         config: browserMcpConfig,

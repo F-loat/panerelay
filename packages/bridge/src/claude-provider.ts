@@ -36,19 +36,23 @@ import {
   type ClaudePermissionToolResult,
 } from './claude-permission-server.js';
 import { isClaudeCodeSupported } from './compatibility.js';
-import { resolveSpawnCommand, runCommand, type CommandRunner } from './platform.js';
+import {
+  AGENT_BROWSER_MCP_NAME,
+  AGENT_BROWSER_SIDEPANEL_INSTRUCTIONS,
+  agentBrowserMcpArguments,
+  agentBrowserSessionEnvironment,
+  closeAgentBrowserSession,
+  createAgentBrowserSession,
+  type AgentBrowserSession,
+} from './agent-browser-session.js';
+import type { CommandRunner } from './platform.js';
 import { readRuntimeConfig, type PanerelayRuntimeConfig } from './runtime-config.js';
 
 const CLAUDE_PROVIDER_ID = 'claude';
 const MAX_TEXT_CHARS = 64 * 1024;
 const MAX_DETAIL_CHARS = 8 * 1024;
-const BROWSER_CLEANUP_TIMEOUT_MS = 5_000;
 
-interface ClaudeBrowserSession {
-  configPath: string;
-  executable: string;
-  label: string;
-}
+type ClaudeBrowserSession = AgentBrowserSession;
 
 interface ClaudeSession {
   activeTurn?: ClaudeTurn;
@@ -229,50 +233,16 @@ export function claudeBrowserMcpServers(
   sessionLabel: string,
   browserId = process.env[PANERELAY_BROWSER_ID_ENV],
 ): Record<string, ClaudeMcpServer> {
-  if (!config.agentBrowserPath || !config.agentBrowserConfigPath) return {};
+  const browserSession = createAgentBrowserSession(config, sessionLabel);
+  if (!browserSession) return {};
   return {
-    panerelay_browser: {
+    [AGENT_BROWSER_MCP_NAME]: {
       type: 'stdio',
-      command: config.agentBrowserPath,
-      args: ['mcp', '--tools', 'core,tabs'],
-      env: {
-        AGENT_BROWSER_CONFIG: config.agentBrowserConfigPath,
-        AGENT_BROWSER_PROVIDER: 'panerelay',
-        AGENT_BROWSER_SESSION: sessionLabel,
-        ...(browserId ? { [PANERELAY_BROWSER_ID_ENV]: browserId } : {}),
-      },
+      command: browserSession.executable,
+      args: agentBrowserMcpArguments(),
+      env: agentBrowserSessionEnvironment(browserSession, browserId),
     },
   };
-}
-
-async function closeClaudeBrowserSession(
-  session: ClaudeBrowserSession,
-  options: {
-    environment?: NodeJS.ProcessEnv;
-    platform?: NodeJS.Platform;
-    runner?: CommandRunner;
-  },
-): Promise<void> {
-  const environment: NodeJS.ProcessEnv = {
-    ...(options.environment ?? process.env),
-    AGENT_BROWSER_CONFIG: session.configPath,
-    AGENT_BROWSER_PROVIDER: 'panerelay',
-    AGENT_BROWSER_SESSION: session.label,
-  };
-  const launch = resolveSpawnCommand(
-    session.executable,
-    ['--session', session.label, '--provider', 'panerelay', 'close'],
-    options.platform,
-    environment.ComSpec,
-  );
-  const result = await (options.runner ?? runCommand)(launch.command, launch.args, {
-    environment,
-    timeoutMs: BROWSER_CLEANUP_TIMEOUT_MS,
-    windowsVerbatimArguments: launch.windowsVerbatimArguments,
-  });
-  if (result.code !== 0) {
-    throw new Error(`agent-browser cleanup exited with code ${result.code}`);
-  }
 }
 
 function promptInput(text: string, images: ConversationImageInput[]): ClaudeCliUserMessage {
@@ -431,16 +401,9 @@ export class ClaudeProvider implements AgentProvider {
 
     const turnId = randomUUID();
     const browserLabel = `panerelay-claude-${randomUUID()}`;
-    const browserSession =
-      config.agentBrowserPath && config.agentBrowserConfigPath
-        ? {
-            configPath: config.agentBrowserConfigPath,
-            executable: config.agentBrowserPath,
-            label: browserLabel,
-          }
-        : undefined;
+    const browserSession = createAgentBrowserSession(config, browserLabel);
     const systemInstructions = [
-      'You are running inside the Panerelay browser side panel. Use the panerelay_browser MCP tools for browser interaction when relevant. Browser authorization is controlled by the user in the side panel; never attempt to widen or bypass it. Keep chat responses concise and surface meaningful browser actions.',
+      AGENT_BROWSER_SIDEPANEL_INSTRUCTIONS,
       session.persisted ? '' : session.initialContext,
     ]
       .filter(Boolean)
@@ -763,7 +726,7 @@ export class ClaudeProvider implements AgentProvider {
     await (
       this.options.closeBrowserSession ??
       (session =>
-        closeClaudeBrowserSession(session, {
+        closeAgentBrowserSession(session, {
           environment: this.options.environment,
           platform: this.options.platform,
           runner: this.options.runner,
