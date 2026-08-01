@@ -52,12 +52,22 @@ test('installs the additive Browser Use Skill with the exact private CLI path', 
   try {
     await mkdir(join(officialSkillPath, '..'), { recursive: true });
     await writeFile(officialSkillPath, 'official-browser-use-skill\n');
+    await assert.rejects(
+      installBrowserUseSkill(cliLauncherPath, {
+        browserUseExecutable,
+        homeDirectory,
+        mcpLauncherPath,
+        platform: 'linux',
+        setupVersion: '0.2.0-01',
+      }),
+      /setup version is invalid/i,
+    );
     const target = await installBrowserUseSkill(cliLauncherPath, {
       browserUseExecutable,
       homeDirectory,
       mcpLauncherPath,
       platform: 'linux',
-      setupVersion: '0.2.0',
+      setupVersion: '0.2.0+build.1',
     });
     const content = await readFile(join(target, 'SKILL.md'), 'utf8');
     assert.equal(target, globalBrowserUseSkillPath(homeDirectory));
@@ -71,7 +81,12 @@ test('installs the additive Browser Use Skill with the exact private CLI path', 
     assert.equal(content.includes(`'${mcpLauncherPath}'`), true);
     assert.match(content, /--cli-mcp/);
     assert.match(content, /legacy `browser-use --mcp`/);
-    assert.match(content, /npx --yes @panerelay\/setup@0\.2\.0 doctor --browser-use/);
+    assert.match(content, /npx --yes @panerelay\/setup@0\.2\.0\+build\.1 doctor --browser-use/);
+    assert.match(content, /dispatch status is unknown after transport loss/);
+    assert.match(content, /do not replay side-effecting work/);
+    assert.match(content, /Retry only read-only, idempotent, or explicitly resumable invocations/);
+    assert.match(content, /report the outcome as unknown/);
+    assert.doesNotMatch(content, /For transport loss, retry once through the same run surface/);
     assert.doesNotMatch(content, /Browser Harness|browser-harness/);
     assert.doesNotMatch(content, /\{\{PANERELAY_BROWSER_USE_CLI\}\}/);
     assert.doesNotMatch(content, /\{\{PANERELAY_BROWSER_USE_MCP\}\}/);

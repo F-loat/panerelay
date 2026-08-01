@@ -9,8 +9,10 @@ const PANERELAY_BROWSER_USE_CLI_PLACEHOLDER = '{{PANERELAY_BROWSER_USE_CLI}}';
 const PANERELAY_BROWSER_USE_MCP_PLACEHOLDER = '{{PANERELAY_BROWSER_USE_MCP}}';
 const PANERELAY_SETUP_VERSION_PLACEHOLDER = '{{PANERELAY_SETUP_VERSION}}';
 const BROWSER_USE_EXECUTABLE_PLACEHOLDER = '{{BROWSER_USE_EXECUTABLE}}';
-const PACKAGE_VERSION_PATTERN =
-  /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
+const SEMVER_PRERELEASE_IDENTIFIER = String.raw`(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)`;
+const PACKAGE_VERSION_PATTERN = new RegExp(
+  String.raw`^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-${SEMVER_PRERELEASE_IDENTIFIER}(?:\.${SEMVER_PRERELEASE_IDENTIFIER})*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$`,
+);
 
 export interface SkillPathOptions {
   homeDirectory?: string;
