@@ -18,6 +18,7 @@ export interface SidePanelRequestRouterOptions {
   activateControlledTab: (tabId: number) => Promise<void>;
   closeControlledTab: (tabId: number) => Promise<void>;
   pageComments: PageCommentRequests;
+  releaseControl: () => Promise<ExtensionStatus>;
   refreshBrowserDefault: () => Promise<void>;
   refreshBrowserUseDefault: () => Promise<void>;
   requestAgent: (request: AgentRequest) => Promise<unknown>;
@@ -40,6 +41,8 @@ export function createSidePanelRequestRouter(options: SidePanelRequestRouterOpti
         return { success: true, status: await options.status() };
       case 'panerelay.authorization.set':
         return { success: true, status: await options.setAuthorization(message.mode) };
+      case 'panerelay.control.release':
+        return { success: true, status: await options.releaseControl() };
       case 'panerelay.native.retry':
         return { success: true, status: await options.retryNativeHost() };
       case 'panerelay.default-provider.set':

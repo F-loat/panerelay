@@ -65,6 +65,7 @@ export interface SidepanelController {
   refreshHistory(): Promise<void>;
   retryProviderPreparation(): Promise<void>;
   setAuthorization(mode: AuthorizationMode): Promise<void>;
+  releaseControl(): Promise<void>;
   retryNativeHost(): Promise<void>;
   setDefaultProvider(enabled: boolean): Promise<void>;
   setBrowserUseDefault(enabled: boolean): Promise<void>;
@@ -551,6 +552,19 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
     },
     [client, patch],
   );
+
+  const releaseControl = useCallback(async () => {
+    if (stateRef.current.authorizationPending) return;
+    patch({ authorizationPending: true });
+    try {
+      const response = await client.request({ type: 'panerelay.control.release' });
+      patch({ extensionStatus: response.status ?? stateRef.current.extensionStatus, error: '' });
+    } catch (error) {
+      patch({ error: errorText(error) });
+    } finally {
+      patch({ authorizationPending: false });
+    }
+  }, [client, patch]);
 
   const retryNativeHost = useCallback(async () => {
     if (stateRef.current.nativeRetryPending) return;
@@ -1181,6 +1195,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
     refreshHistory,
     retryProviderPreparation,
     setAuthorization,
+    releaseControl,
     retryNativeHost,
     setDefaultProvider,
     setBrowserUseDefault,

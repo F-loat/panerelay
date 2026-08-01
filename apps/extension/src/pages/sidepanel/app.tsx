@@ -468,7 +468,11 @@ function AuthorizationPanel({ compact = false, controller }: AuthorizationPanelP
             alignment="end"
             disabled={disabled}
             minWidth={132}
-            onChange={value => void controller.setAuthorization(value as AuthorizationMode)}
+            onChange={value =>
+              void (value === 'none'
+                ? controller.releaseControl()
+                : controller.setAuthorization(value as AuthorizationMode))
+            }
             options={options}
             renderTrigger={props => (
               <button
@@ -509,7 +513,7 @@ function AuthorizationPanel({ compact = false, controller }: AuthorizationPanelP
           <button
             className="text-button danger"
             disabled={disabled}
-            onClick={() => void controller.setAuthorization('none')}
+            onClick={() => void controller.releaseControl()}
             type="button"
           >
             {t('release')}
@@ -523,7 +527,7 @@ function AuthorizationPanel({ compact = false, controller }: AuthorizationPanelP
               data-active={scope === mode}
               disabled={disabled}
               key={scope}
-              onClick={() => void controller.setAuthorization(scope)}
+              onClick={() => void controller.setAuthorization(scope === mode ? 'none' : scope)}
               type="button"
             >
               {t(scope === 'single-tab' ? 'thisTab' : 'allTabs')}

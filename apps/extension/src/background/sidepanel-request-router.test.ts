@@ -49,6 +49,10 @@ function router(overrides: Partial<SidePanelRequestRouterOptions> = {}) {
       start: async (continuous: boolean) => calls.push(`comments:start:${continuous}`),
       stop: async () => calls.push('comments:stop'),
     },
+    releaseControl: async () => {
+      calls.push('control:release');
+      return extensionStatus;
+    },
     refreshBrowserDefault: async () => {
       calls.push('browser:refresh');
     },
@@ -92,12 +96,17 @@ test('routes status, browser settings, and controlled-tab requests', async () =>
   await handle({ type: 'panerelay.browser-default.refresh' });
   await handle({ type: 'panerelay.browser-use-default.refresh' });
   await handle({ type: 'panerelay.browser-use-default.set', enabled: true });
+  assert.deepEqual(await handle({ type: 'panerelay.control.release' }), {
+    success: true,
+    status: extensionStatus,
+  });
   await handle({ type: 'panerelay.controlled-tab.activate', tabId: 7 });
   await handle({ type: 'panerelay.controlled-tab.close', tabId: 8 });
   assert.deepEqual(calls, [
     'browser:refresh',
     'browser-use:refresh',
     'browser-use:true',
+    'control:release',
     'activate:7',
     'close:8',
   ]);

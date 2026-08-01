@@ -88,6 +88,7 @@ class FakeSidepanelClient implements SidepanelClient {
   readonly storedWrites: Record<string, unknown>[] = [];
   readonly listeners = new Set<(message: SidepanelRuntimeMessage) => void>();
   stored: Record<string, unknown> = { 'panerelay.locale': 'en' };
+  status = baseStatus;
   workspace: ConversationWorkspaceSnapshot = {
     kind: 'draft',
     providerId: 'codex',
@@ -118,7 +119,7 @@ class FakeSidepanelClient implements SidepanelClient {
     this.requests.push(message);
     switch (message.type) {
       case 'panerelay.status.get':
-        return { success: true as const, status: baseStatus };
+        return { success: true as const, status: this.status };
       case 'panerelay.agent.providers':
         return { success: true as const, providers };
       case 'panerelay.agent.prepare':
@@ -169,15 +170,15 @@ class FakeSidepanelClient implements SidepanelClient {
         };
       }
       case 'panerelay.authorization.set':
-        return {
-          success: true as const,
-          status: {
-            ...baseStatus,
-            authorizationMode: message.mode,
-            authorizedOriginPatterns: message.mode === 'none' ? [] : ['https://example.com/*'],
-            authorizedTab: message.mode === 'single-tab' ? baseStatus.activeTab : null,
-          },
+        this.status = {
+          ...this.status,
+          authorizationMode: message.mode,
+          authorizedOriginPatterns: message.mode === 'none' ? [] : ['https://example.com/*'],
+          authorizedTab: message.mode === 'single-tab' ? baseStatus.activeTab : null,
         };
+        return { success: true as const, status: this.status };
+      case 'panerelay.control.release':
+        return { success: true as const, status: this.status };
       case 'panerelay.native.retry':
         return { success: true as const, status: baseStatus };
       case 'panerelay.default-provider.set':
@@ -324,6 +325,10 @@ describe('Side Panel controller', () => {
 
     await act(() => hook.result.current.setAuthorization('single-tab'));
     expect(client.originRequests).toEqual([['https://example.com/*']]);
+    expect(hook.result.current.state.extensionStatus?.authorizationMode).toBe('single-tab');
+
+    await act(() => hook.result.current.releaseControl());
+    expect(client.requests).toContainEqual({ type: 'panerelay.control.release' });
     expect(hook.result.current.state.extensionStatus?.authorizationMode).toBe('single-tab');
 
     act(() => {

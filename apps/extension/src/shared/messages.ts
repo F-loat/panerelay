@@ -61,6 +61,7 @@ export type SidePanelRequest =
       type: 'panerelay.authorization.set';
       mode: AuthorizationMode;
     }
+  | { type: 'panerelay.control.release' }
   | { type: 'panerelay.native.retry' }
   | { type: 'panerelay.default-provider.set'; enabled: boolean }
   | { type: 'panerelay.browser-use-default.set'; enabled: boolean }

@@ -191,6 +191,14 @@ class AppClient implements SidepanelClient {
           authorizedTab: message.mode === 'single-tab' ? this.status.activeTab : null,
         };
         return { success: true as const, status: this.status };
+      case 'panerelay.control.release':
+        this.status = {
+          ...this.status,
+          controlledTab: null,
+          controlledTabs: [],
+          controlSession: null,
+        };
+        return { success: true as const, status: this.status };
       case 'panerelay.native.retry':
         return { success: true as const, status: this.status };
       case 'panerelay.default-provider.set':
@@ -347,6 +355,39 @@ describe('React Side Panel', () => {
     await user.click(screen.getByRole('option', { name: '中文' }));
     expect(await screen.findByText('设置')).toBeVisible();
     expect(client.stored['panerelay.locale']).toBe('zh-CN');
+  });
+
+  it('toggles selected authorization scopes off and releases control without clearing scope', async () => {
+    const { client, user } = await renderReady();
+
+    await user.click(screen.getByRole('button', { name: /Browser access:/ }));
+    const currentTab = screen.getByRole('button', { name: 'This tab' });
+    const allTabs = screen.getByRole('button', { name: 'All tabs' });
+
+    await user.click(currentTab);
+    await waitFor(() => expect(client.status.authorizationMode).toBe('single-tab'));
+    await user.click(currentTab);
+    await waitFor(() => expect(client.status.authorizationMode).toBe('none'));
+
+    await user.click(allTabs);
+    await waitFor(() => expect(client.status.authorizationMode).toBe('all-tabs'));
+    await user.click(allTabs);
+    await waitFor(() => expect(client.status.authorizationMode).toBe('none'));
+
+    await user.click(allTabs);
+    await waitFor(() => expect(client.status.authorizationMode).toBe('all-tabs'));
+    const authorizationRequestCount = client.requests.filter(
+      request => request.type === 'panerelay.authorization.set',
+    ).length;
+    await user.click(screen.getByRole('button', { name: 'Release' }));
+
+    await waitFor(() =>
+      expect(client.requests).toContainEqual({ type: 'panerelay.control.release' }),
+    );
+    expect(client.status.authorizationMode).toBe('all-tabs');
+    expect(
+      client.requests.filter(request => request.type === 'panerelay.authorization.set'),
+    ).toHaveLength(authorizationRequestCount);
   });
 
   it('sets independent automation and browser defaults from compact settings controls', async () => {

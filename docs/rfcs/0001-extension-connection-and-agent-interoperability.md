@@ -7,6 +7,7 @@
 - Created: 2026-07-29
 - Updated: 2026-08-01
 - Amendment: `openspec/changes/archive/2026-08-01-add-browser-use-default-setting`
+- Amendment: `openspec/changes/archive/2026-08-01-improve-browser-authorization-controls`
 
 RFC-0004 supersedes this RFC's attachment-as-control and page-indicator semantics by separating visible read observation from active browser control.
 
@@ -282,7 +283,7 @@ The side panel exposes two explicit authorization scopes:
 - **single tab** requests Chrome access to the current origin, records the tab selected by the user, and permits the next relay session to attach only to that tab;
 - **all tabs** requests Chrome access to HTTP and HTTPS origins through a user-facing permission prompt and makes every supported web tab eligible, while the active tab selects the target when a direct-page relay session attaches.
 
-These scopes authorize eligibility, not control by themselves. Direct-page mode still controls one tab per participant. Changing or clearing the scope revokes the current control lease and detaches the debugger. Single-tab authorization is memory-only. The all-tabs selection persists in Extension-local storage until the user releases it or removes the corresponding Chrome site permission. Control leases and debugger attachments never persist or revive after a Bridge or Extension disconnect.
+These scopes authorize eligibility, not control by themselves. Direct-page mode still controls one tab per participant. Changing the scope, or clicking its selected control again to clear it, revokes the current control lease and detaches the debugger without removing Chrome's already granted site permission. The separate release action revokes the complete control lease and detaches every observed or controlled target without changing the selected scope or Chrome site permission; invoking it with no active lease acquires nothing. Single-tab authorization is memory-only. The all-tabs selection persists in Extension-local storage until the user clears it or removes the corresponding Chrome site permission. Control leases and debugger attachments never persist or revive after a Bridge or Extension disconnect.
 
 Navigation is re-evaluated against the authorized origin before further commands run. A single-tab navigation to another origin clears that authorization and detaches the debugger. All-tabs access continues only while Chrome still reports the explicitly requested web-origin permissions.
 
@@ -517,7 +518,7 @@ RFC-0001 can move from `Draft` to `Accepted` when:
 | An unmodified supported agent-browser client connects through Panerelay. | Pass | Spike 0001 passed with agent-browser 0.33.0 in test and daily Chrome profiles. |
 | Snapshot, click, fill, navigation, wait, and screenshot work on an authorized existing tab. | Pass | A current daily-Chrome run completed the checked-in action fixture through agent-browser 0.33.0, including filled state and post-navigation screenshots. |
 | Denied browser targets and missing leases fail closed. | Pass | Exact-origin matching, Chrome permission removal, unsupported targets, invalid credentials, and lease conflicts are covered; a real all-tabs grant also survived Extension reload. |
-| Disconnect and user revocation reliably detach the debugger and invalidate credentials. | Pass | Relay tests cover provider cleanup, credential expiry, and immediate extension revocation. |
+| Disconnect, scope clearing, and user control release reliably detach the debugger and invalidate credentials. | Pass | Relay and Extension tests cover provider cleanup, credential expiry, scope-change revocation, and a scope-preserving immediate release action. |
 | Large messages support bounded chunks, integrity checks, cancellation, timeout, and cleanup. | Pass | Protocol tests cover UTF-8 reassembly, sub-1 MiB frames, corruption rejection, explicit cancellation, timeout, and released receiver state. |
 | The browser visibly identifies controlled state and offers immediate release. | Pass | The Extension shows a substantively controlled-tab count in its action badge, marks each document touched by an Agent page command with the agent-browser favicon and a green status dot, and keeps release in the side panel. Virtual target discovery and page-session bootstrap remain unmarked. |
 | Codex uses the provider-neutral conversation contract for lifecycle, streaming, approvals, and interruption. | Pass | Bridge contract tests cover provider discovery, normalized events, and approval requests. |

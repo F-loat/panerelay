@@ -133,6 +133,7 @@ const handleSidePanelRequest = createSidePanelRequestRouter({
   activateControlledTab,
   closeControlledTab,
   pageComments: pageCommentService,
+  releaseControl: releaseBrowserControl,
   refreshBrowserDefault,
   refreshBrowserUseDefault,
   requestAgent,
@@ -832,7 +833,7 @@ async function releaseControl(reason: string, notifyHost: boolean): Promise<void
 }
 
 async function setAuthorization(mode: AuthorizationMode): Promise<ExtensionStatus> {
-  if (attachedTabs.size > 0 || targetDiscoveryActive) {
+  if (mode !== authorizationMode) {
     await releaseControl('User changed browser authorization', true);
   }
 
@@ -865,6 +866,11 @@ async function setAuthorization(mode: AuthorizationMode): Promise<ExtensionStatu
   authorizationRequest = null;
   lastError = undefined;
   await broadcastStatus();
+  return status();
+}
+
+async function releaseBrowserControl(): Promise<ExtensionStatus> {
+  await releaseControl('User released browser control', true);
   return status();
 }
 
