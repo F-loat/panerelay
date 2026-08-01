@@ -1,5 +1,5 @@
 import { PANERELAY_PROTOCOL_VERSION } from './constants.js';
-import type { RelaySessionActor } from './index.js';
+import { isAutomationEngineId, type AutomationEngineId, type RelaySessionActor } from './index.js';
 
 export const CDP_BOOTSTRAP_MAX_REQUEST_BYTES = 16 * 1024;
 export const CDP_BOOTSTRAP_DEFAULT_TICKET_TTL_MS = 30_000;
@@ -29,6 +29,7 @@ export interface CdpBootstrapRequest {
   protocol: typeof PANERELAY_PROTOCOL_VERSION;
   browser: CdpBootstrapBrowserBinding;
   actor: RelaySessionActor;
+  engine: AutomationEngineId;
   laneKey: string;
   connectionPolicy: CdpBootstrapConnectionPolicy;
 }
@@ -98,7 +99,14 @@ function isAutomationActor(value: unknown): value is RelaySessionActor {
 export function isCdpBootstrapRequest(value: unknown): value is CdpBootstrapRequest {
   if (
     !isRecord(value) ||
-    !hasExactKeys(value, ['protocol', 'browser', 'actor', 'laneKey', 'connectionPolicy']) ||
+    !hasExactKeys(value, [
+      'protocol',
+      'browser',
+      'actor',
+      'engine',
+      'laneKey',
+      'connectionPolicy',
+    ]) ||
     value.protocol !== PANERELAY_PROTOCOL_VERSION ||
     !isRecord(value.browser) ||
     !hasExactKeys(value.browser, ['browserId', 'generation'])
@@ -109,6 +117,7 @@ export function isCdpBootstrapRequest(value: unknown): value is CdpBootstrapRequ
     isBoundedString(value.browser.browserId, 128) &&
     isCdpBootstrapGeneration(value.browser.generation) &&
     isAutomationActor(value.actor) &&
+    isAutomationEngineId(value.engine) &&
     isCdpBootstrapLaneKey(value.laneKey) &&
     value.connectionPolicy === 'single'
   );

@@ -109,6 +109,35 @@ async function createRelaySession(
   return (await response.json()) as RelaySessionCreated;
 }
 
+async function createBrowserUseClient(
+  relay: BrowserRelay,
+  actorName = 'Browser Use',
+): Promise<WebSocket> {
+  const response = await fetch(`http://127.0.0.1:${relay.port}/cdp/bootstrap`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${relay.token}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      browser: { browserId: 'browser-1', generation: relay.generation },
+      actor: { kind: 'automation', name: actorName },
+      engine: 'browser-use',
+      laneKey: 'browser-use:test',
+      connectionPolicy: 'single',
+    }),
+  });
+  assert.equal(response.status, 201);
+  const ticket = (await response.json()) as CdpBootstrapCreated;
+  const version = await fetch(`${ticket.cdpUrl}/json/version`);
+  assert.equal(version.status, 200);
+  const metadata = (await version.json()) as { webSocketDebuggerUrl: string };
+  const client = new WebSocket(metadata.webSocketDebuggerUrl);
+  await waitForOpen(client);
+  return client;
+}
+
 function target(
   targetId: string,
   url = `https://${targetId}.test/`,
@@ -257,6 +286,7 @@ test('issues authenticated bounded CDP bootstrap tickets without allocating a pa
     protocol: PANERELAY_PROTOCOL_VERSION,
     browser: { browserId: 'browser-1', generation: relay.generation },
     actor: { kind: 'automation', name: 'Browser Use' },
+    engine: 'browser-use',
     laneKey: 'browser-use:default',
     connectionPolicy: 'single',
   });
@@ -355,6 +385,7 @@ test('resolves ticket-specific DevTools version metadata lazily and idempotently
         protocol: PANERELAY_PROTOCOL_VERSION,
         browser: { browserId: 'browser-1', generation: relay.generation },
         actor: { kind: 'automation', name: 'Browser Use' },
+        engine: 'browser-use',
         laneKey,
         connectionPolicy: 'single',
       }),
@@ -436,6 +467,7 @@ test('consumes a bootstrap WebSocket credential once while keeping the connectio
         protocol: PANERELAY_PROTOCOL_VERSION,
         browser: { browserId: 'browser-1', generation: relay.generation },
         actor: { kind: 'automation', name: 'Browser Use' },
+        engine: 'browser-use',
         laneKey: 'browser-use:default',
         connectionPolicy: 'single',
       }),
@@ -485,6 +517,7 @@ test('invalidates bootstrap tickets and lanes on transport loss and Extension re
         protocol: PANERELAY_PROTOCOL_VERSION,
         browser: { browserId: 'browser-1', generation: relay.generation },
         actor: { kind: 'automation', name: 'Browser Use' },
+        engine: 'browser-use',
         laneKey,
         connectionPolicy: 'single',
       }),
@@ -612,6 +645,7 @@ test('bounds bootstrap HTTP methods, bodies, time, participants, and diagnostics
         protocol: PANERELAY_PROTOCOL_VERSION,
         browser: { browserId: 'browser-1', generation: relay.generation },
         actor: { kind: 'automation', name: 'Browser Use' },
+        engine: 'browser-use',
         laneKey: 'browser-use:limited',
         connectionPolicy: 'single',
       }),
@@ -651,6 +685,7 @@ test('allows exactly one usable client in a simultaneous bootstrap handshake rac
         protocol: PANERELAY_PROTOCOL_VERSION,
         browser: { browserId: 'browser-1', generation: relay.generation },
         actor: { kind: 'automation', name: 'Browser Use' },
+        engine: 'browser-use',
         laneKey: 'browser-use:race',
         connectionPolicy: 'single',
       }),
@@ -785,8 +820,12 @@ test('implements the browser-level target handshake with lazy debugger attachmen
     );
     const attachMessage = extensionMessages.find(message => message.type === 'cdp.attach');
     assert.equal(attachMessage?.targetId, 'target-1');
-    const commandMessage = extensionMessages.find(message => message.type === 'cdp.command');
+    const commandMessage = extensionMessages.find(
+      (message): message is CdpCommandMessage =>
+        message.type === 'cdp.command' && message.method === 'Runtime.evaluate',
+    );
     assert.equal(commandMessage?.targetId, 'target-1');
+    assert.equal(commandMessage?.engine, 'agent-browser');
 
     const event = waitForMessage(client);
     await relay.handleExtensionMessage({
@@ -801,6 +840,77 @@ test('implements the browser-level target handshake with lazy debugger attachmen
       params: { timestamp: 12.5 },
       sessionId: pageSessionId,
     });
+  } finally {
+    await closeClient(client);
+    await relay.close();
+  }
+});
+
+test('routes Browser Use commands with engine identity separate from its actor label', async () => {
+  const extensionMessages: HostToExtensionMessage[] = [];
+  const fixtureTarget = target('browser-use-target', 'https://example.test/', true);
+  const relay = await BrowserRelay.listen({
+    sendToExtension: message => {
+      extensionMessages.push(message);
+      if (message.type === 'cdp.target.request' && message.operation.kind === 'list') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.target.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            targets: [fixtureTarget],
+          });
+        });
+      } else if (message.type === 'cdp.attach') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.attached',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            target: { ...fixtureTarget, attached: true },
+          });
+        });
+      } else if (message.type === 'cdp.command') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            result: {},
+          });
+        });
+      }
+    },
+    onBrowserRegistered: () => undefined,
+    onBrowserDisconnected: () => undefined,
+  });
+  await register(relay);
+  const client = await createBrowserUseClient(relay, 'Research Agent');
+  try {
+    await command(client, { id: 1, method: 'Target.getTargets' });
+    const attached = await command(client, {
+      id: 2,
+      method: 'Target.attachToTarget',
+      params: { targetId: fixtureTarget.targetId, flatten: true },
+    });
+    const pageSessionId = (attached.result as { sessionId: string }).sessionId;
+    await command(client, {
+      id: 3,
+      method: 'Runtime.evaluate',
+      params: { expression: 'document.title' },
+      sessionId: pageSessionId,
+    });
+    const commandMessage = extensionMessages.find(
+      (message): message is CdpCommandMessage =>
+        message.type === 'cdp.command' && message.method === 'Runtime.evaluate',
+    );
+    assert.equal(commandMessage?.engine, 'browser-use');
+    const sessionMessage = extensionMessages.find(
+      message => message.type === 'control.session.changed',
+    );
+    assert.equal(sessionMessage?.session.actor.name, 'Research Agent');
   } finally {
     await closeClient(client);
     await relay.close();

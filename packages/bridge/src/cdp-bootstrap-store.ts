@@ -7,6 +7,7 @@ import {
   type CdpBootstrapConnectionPolicy,
   type CdpBootstrapErrorCode,
   type CdpBootstrapRequest,
+  type AutomationEngineId,
   type RelaySessionActor,
 } from '@panerelay/protocol';
 
@@ -28,6 +29,7 @@ export interface CdpBootstrapTicketIssued {
 export interface CdpBootstrapTicketContext {
   ticketId: string;
   actor: RelaySessionActor;
+  engine: AutomationEngineId;
   browser: CdpBootstrapBrowserBinding;
   laneKey: string;
   connectionPolicy: CdpBootstrapConnectionPolicy;
@@ -43,6 +45,7 @@ export interface CdpBootstrapActivation<TParticipant> {
 interface Ticket<TParticipant> {
   id: string;
   actor: RelaySessionActor;
+  engine: AutomationEngineId;
   browser: CdpBootstrapBrowserBinding;
   laneKey: string;
   connectionPolicy: CdpBootstrapConnectionPolicy;
@@ -88,6 +91,7 @@ export class CdpBootstrapTicketStore<TParticipant extends object> {
     const ticket: Ticket<TParticipant> = {
       id,
       actor: { ...request.actor },
+      engine: request.engine,
       browser: { ...request.browser },
       laneKey: request.laneKey,
       connectionPolicy: request.connectionPolicy,
@@ -118,6 +122,7 @@ export class CdpBootstrapTicketStore<TParticipant extends object> {
     const created = create({
       ticketId,
       actor: { ...ticket.actor },
+      engine: ticket.engine,
       browser: { ...ticket.browser },
       laneKey: ticket.laneKey,
       connectionPolicy: ticket.connectionPolicy,

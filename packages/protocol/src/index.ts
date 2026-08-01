@@ -100,12 +100,19 @@ export interface CdpAttachedMessage {
   error?: string;
 }
 
+export type AutomationEngineId = 'agent-browser' | 'browser-use';
+
+export function isAutomationEngineId(value: unknown): value is AutomationEngineId {
+  return value === 'agent-browser' || value === 'browser-use';
+}
+
 export interface CdpCommandMessage {
   type: 'cdp.command';
   protocol: typeof PANERELAY_PROTOCOL_VERSION;
   requestId: string;
   targetId: string;
   method: string;
+  engine?: AutomationEngineId;
   params?: Record<string, unknown>;
   sessionId?: string;
 }

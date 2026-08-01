@@ -7,6 +7,7 @@ const request: CdpBootstrapRequest = {
   protocol: PANERELAY_PROTOCOL_VERSION,
   browser: { browserId: 'browser-1', generation: 'generation-1' },
   actor: { kind: 'automation', name: 'Browser Use' },
+  engine: 'browser-use',
   laneKey: 'browser-use:default',
   connectionPolicy: 'single',
 };

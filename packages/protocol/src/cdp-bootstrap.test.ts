@@ -12,6 +12,7 @@ const request = {
   protocol: PANERELAY_PROTOCOL_VERSION,
   browser: { browserId: 'opaque-browser', generation: 'native-host-generation-1' },
   actor: { kind: 'automation', name: 'Browser Use', sessionLabel: 'persistent-lane' },
+  engine: 'browser-use',
   laneKey: 'browser-use:default',
   connectionPolicy: 'single',
 } as const;
@@ -21,6 +22,8 @@ test('validates bounded single-connection CDP bootstrap requests', () => {
   assert.equal(isCdpBootstrapRequest({ ...request, connectionPolicy: 'multiple' }), false);
   assert.equal(isCdpBootstrapRequest({ ...request, laneKey: '../lane' }), false);
   assert.equal(isCdpBootstrapRequest({ ...request, extra: true }), false);
+  assert.equal(isCdpBootstrapRequest({ ...request, engine: 'Browser Use' }), false);
+  assert.equal(isCdpBootstrapRequest({ ...request, engine: 'agent-browser' }), true);
   assert.equal(
     isCdpBootstrapRequest({ ...request, actor: { ...request.actor, name: 'x'.repeat(65) } }),
     false,

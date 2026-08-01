@@ -757,7 +757,7 @@ async function runCdpCommand(message: CdpCommandMessage): Promise<void> {
         await updateActionBadge();
         await broadcastStatus();
       }
-      await applyControlledFavicon(current.id);
+      if (message.engine) await applyControlledFavicon(current.id, message.engine);
     }
     const result = await chrome.debugger.sendCommand(
       debuggee,

@@ -44,14 +44,17 @@ const state: BridgeState = {
   updatedAt: '2026-08-01T01:02:03.000Z',
 };
 
-function resolveRequest(mode: 'direct' | 'extension' = 'extension'): CliAdapterRequest {
+function resolveRequest(
+  mode: 'direct' | 'extension' = 'extension',
+  actorName = 'Browser Use',
+): CliAdapterRequest {
   return {
     protocol: PANERELAY_CLI_ADAPTER_PROTOCOL_VERSION,
     requestId: `resolve-${mode}`,
     operation: 'connection.resolve',
     input: {
       mode,
-      actor: { name: 'Browser Use', sessionLabel: 'skill-run' },
+      actor: { name: actorName, sessionLabel: 'skill-run' },
       ...(mode === 'extension'
         ? { browser: { browserId: state.browserId, generation: state.generation } }
         : {}),
@@ -184,38 +187,42 @@ test('resolves an env shebang target and preserves its interpreter arguments', a
   }
 });
 
-test('rereads only the selected live generation and requests an authenticated ticket', async () => {
+test('attributes bootstrap to Browser Use independently from a customized actor label', async () => {
   let readBrowserId: string | undefined;
   let fetchUrl: string | undefined;
   let fetchAuthorization: string | undefined;
   let fetchPayload: unknown;
-  const response = await handleBrowserUseAdapterRequest(resolveRequest(), {
-    homeDirectory: '/protected-user',
-    readLiveBrowserRegistration: async browserId => {
-      readBrowserId = browserId;
-      return state;
+  const response = await handleBrowserUseAdapterRequest(
+    resolveRequest('extension', 'Research Agent'),
+    {
+      homeDirectory: '/protected-user',
+      readLiveBrowserRegistration: async browserId => {
+        readBrowserId = browserId;
+        return state;
+      },
+      fetch: async (input, init) => {
+        fetchUrl = String(input);
+        fetchAuthorization = (init?.headers as Record<string, string>).authorization;
+        fetchPayload = JSON.parse(String(init?.body));
+        return new Response(
+          JSON.stringify({
+            protocol: 'panerelay.relay.v1',
+            cdpUrl: `http://127.0.0.1:${state.port}/cdp/bootstrap/${'a'.repeat(43)}`,
+            expiresAt: '2099-08-01T01:02:03.000Z',
+          }),
+          { status: 201, headers: { 'content-type': 'application/json' } },
+        );
+      },
     },
-    fetch: async (input, init) => {
-      fetchUrl = String(input);
-      fetchAuthorization = (init?.headers as Record<string, string>).authorization;
-      fetchPayload = JSON.parse(String(init?.body));
-      return new Response(
-        JSON.stringify({
-          protocol: 'panerelay.relay.v1',
-          cdpUrl: `http://127.0.0.1:${state.port}/cdp/bootstrap/${'a'.repeat(43)}`,
-          expiresAt: '2099-08-01T01:02:03.000Z',
-        }),
-        { status: 201, headers: { 'content-type': 'application/json' } },
-      );
-    },
-  });
+  );
   assert.equal(readBrowserId, 'opaque-browser');
   assert.equal(fetchUrl, `http://127.0.0.1:${state.port}/cdp/bootstrap`);
   assert.equal(fetchAuthorization, `Bearer ${state.token}`);
   assert.deepEqual(fetchPayload, {
     protocol: 'panerelay.relay.v1',
     browser: { browserId: state.browserId, generation: state.generation },
-    actor: { kind: 'automation', name: 'Browser Use', sessionLabel: 'skill-run' },
+    actor: { kind: 'automation', name: 'Research Agent', sessionLabel: 'skill-run' },
+    engine: 'browser-use',
     laneKey: 'browser-use:panerelay',
     connectionPolicy: 'single',
   });

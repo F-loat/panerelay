@@ -5,6 +5,7 @@ import {
   isCdpBootstrapRequest,
   classifyCdpTargetAccess,
   type AutomationActivityFailure,
+  type AutomationEngineId,
   type BrowserRegistration,
   type CdpAttachedMessage,
   type CdpDetachedMessage,
@@ -50,6 +51,7 @@ interface RelayParticipant {
   id: string;
   token: string;
   actor: RelaySessionActor;
+  engine: AutomationEngineId;
   connectExpiresAt: number;
   connectedAt?: number;
   lastHeartbeatAt?: number;
@@ -467,6 +469,7 @@ export class BrowserRelay {
       const activation = this.bootstrapTickets.activate(ticketId, browser, context => {
         const participant = this.allocateParticipant(
           context.actor,
+          context.engine,
           context.connectExpiresAt,
           'single',
         );
@@ -627,7 +630,12 @@ export class BrowserRelay {
 
     const connectExpiresAt =
       Date.now() + (this.options.sessionConnectTimeoutMs ?? DEFAULT_SESSION_CONNECT_TIMEOUT_MS);
-    const participant = this.allocateParticipant(payload.actor, connectExpiresAt, 'multiple');
+    const participant = this.allocateParticipant(
+      payload.actor,
+      'agent-browser',
+      connectExpiresAt,
+      'multiple',
+    );
 
     const result: RelaySessionCreated = {
       protocol: PANERELAY_PROTOCOL_VERSION,
@@ -640,6 +648,7 @@ export class BrowserRelay {
 
   private allocateParticipant(
     actor: RelaySessionActor,
+    engine: AutomationEngineId,
     connectExpiresAt: number,
     connectionPolicy: RelayParticipant['connectionPolicy'],
   ): RelayParticipant {
@@ -654,6 +663,7 @@ export class BrowserRelay {
       id: randomUUID(),
       token: randomBytes(32).toString('base64url'),
       actor,
+      engine,
       connectExpiresAt,
       clients: new Set(),
       childTargetIds: new Map(),
@@ -1138,6 +1148,18 @@ export class BrowserRelay {
       );
       return;
     }
+    const participant = this.participantForClient(client);
+    if (!participant) {
+      this.sendCdpError(
+        client,
+        cdpId,
+        -32000,
+        'Automation participant disconnected',
+        sessionId,
+        'transport-error',
+      );
+      return;
+    }
 
     const policyError = targetCommandPolicyError(this.targets.get(targetId), method, params);
     if (policyError) {
@@ -1294,6 +1316,7 @@ export class BrowserRelay {
         requestId,
         targetId,
         method,
+        engine: participant.engine,
         ...(Object.keys(params).length > 0 ? { params } : {}),
         ...(childSession ? { sessionId: childSession.chromeSessionId } : {}),
       });

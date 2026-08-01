@@ -26,7 +26,7 @@ test('keeps target-scoped automation failures out of the global error banner', a
   assert.doesNotMatch(attachHandler, /lastError\s*=/);
 });
 
-test('marks the current document on Agent commands without persisting across navigation', async () => {
+test('marks the current document with the routed engine without persisting across navigation', async () => {
   const source = await readFile(join(process.cwd(), 'src/background/index.ts'), 'utf8');
   const attachHandler = source.slice(
     source.indexOf('async function attachTarget'),
@@ -45,10 +45,11 @@ test('marks the current document on Agent commands without persisting across nav
     commandHandler.indexOf('cdpCommandTouchesDocument(message.method)') <
       commandHandler.indexOf('controlledTabs.set(message.targetId, current)') &&
       commandHandler.indexOf('controlledTabs.set(message.targetId, current)') <
-        commandHandler.indexOf('await applyControlledFavicon(current.id)') &&
-      commandHandler.indexOf('await applyControlledFavicon(current.id)') <
+        commandHandler.indexOf('await applyControlledFavicon(current.id, message.engine)') &&
+      commandHandler.indexOf('await applyControlledFavicon(current.id, message.engine)') <
         commandHandler.indexOf('await chrome.debugger.sendCommand'),
   );
+  assert.match(commandHandler, /if \(message\.engine\)/);
   assert.match(attachHandler, /attachedTabs\.set\(targetId, summary\)/);
   assert.doesNotMatch(attachHandler, /controlledTabs\.set/);
   assert.doesNotMatch(attachHandler, /applyControlledFavicon/);

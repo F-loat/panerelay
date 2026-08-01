@@ -4,7 +4,9 @@ import { join } from 'node:path';
 import test from 'node:test';
 import {
   AGENT_BROWSER_CONTROLLED_FAVICON_DATA_URL,
+  BROWSER_USE_CONTROLLED_FAVICON_DATA_URL,
   applyControlledFavicon,
+  controlledFaviconDataUrl,
   overrideControlledFavicon,
   releaseControlledFavicon,
   restoreControlledFavicon,
@@ -15,8 +17,24 @@ test('uses the agent-browser mark with a green control dot', () => {
   assert.match(svg, /data-control-engine="agent-browser"/);
   assert.match(svg, /<rect width="128" height="128" rx="28" fill="#000000"\/>/);
   assert.match(svg, /M64 31L96 88H32L64 31Z/);
-  assert.match(svg, /fill="#20E68F"/);
-  assert.match(svg, /cx="104" cy="104"/);
+  assert.match(svg, /cx="104" cy="104" r="21" fill="#16A34A" stroke="#FFFFFF" stroke-width="6"/);
+});
+
+test('uses the Browser Use mark with the same green control dot', () => {
+  const svg = decodeURIComponent(BROWSER_USE_CONTROLLED_FAVICON_DATA_URL.split(',')[1]);
+  assert.match(svg, /data-control-engine="browser-use"/);
+  assert.match(
+    svg,
+    /<svg x="12" y="12" width="104" height="104" viewBox="0 0 100 100" overflow="hidden"/,
+  );
+  assert.match(svg, /M97\.8916 39\.0448/);
+  assert.doesNotMatch(svg, /transform=/);
+  assert.match(svg, /cx="104" cy="104" r="21" fill="#16A34A" stroke="#FFFFFF" stroke-width="6"/);
+  assert.equal(
+    controlledFaviconDataUrl('agent-browser'),
+    AGENT_BROWSER_CONTROLLED_FAVICON_DATA_URL,
+  );
+  assert.equal(controlledFaviconDataUrl('browser-use'), BROWSER_USE_CONTROLLED_FAVICON_DATA_URL);
 });
 
 test('uses the Mearl corner-radius ratio for the Panerelay icon', async () => {
@@ -38,7 +56,7 @@ test('injects and restores the favicon in the requested tab', async () => {
   } as typeof chrome;
 
   try {
-    assert.equal(await applyControlledFavicon(17), true);
+    assert.equal(await applyControlledFavicon(17, 'browser-use'), true);
     assert.equal(await releaseControlledFavicon(17), true);
   } finally {
     globalThis.chrome = previousChrome;
@@ -46,7 +64,7 @@ test('injects and restores the favicon in the requested tab', async () => {
 
   assert.deepEqual(calls[0].target, { tabId: 17 });
   assert.equal(calls[0].func, overrideControlledFavicon);
-  assert.deepEqual(calls[0].args, [AGENT_BROWSER_CONTROLLED_FAVICON_DATA_URL]);
+  assert.deepEqual(calls[0].args, [BROWSER_USE_CONTROLLED_FAVICON_DATA_URL]);
   assert.equal(calls[0].injectImmediately, true);
   assert.deepEqual(calls[1].target, { tabId: 17 });
   assert.equal(calls[1].func, restoreControlledFavicon);
@@ -63,7 +81,7 @@ test('keeps indicator failures separate from browser control', async () => {
   } as typeof chrome;
 
   try {
-    assert.equal(await applyControlledFavicon(23), false);
+    assert.equal(await applyControlledFavicon(23, 'agent-browser'), false);
     assert.equal(await releaseControlledFavicon(23), false);
   } finally {
     globalThis.chrome = previousChrome;

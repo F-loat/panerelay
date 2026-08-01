@@ -397,6 +397,7 @@ async function requestBootstrap(
               ? { sessionLabel: request.input.actor.sessionLabel }
               : {}),
           },
+          engine: BROWSER_USE_ADAPTER_ID,
           laneKey: 'browser-use:panerelay',
           connectionPolicy: 'single',
         }),
