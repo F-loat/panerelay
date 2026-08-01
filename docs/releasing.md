@@ -101,7 +101,7 @@ The workflow grants `id-token: write` only to the protected npm publication job.
 From GitHub Actions, open **Release**, choose **Run workflow**, and select the source branch and `beta`. Approve the `release` environment if it has an approval rule.
 
 - The workflow derives `<repository-version>-beta.<run-number>` without committing or pushing the temporary version.
-- npm receives the six exact verified tarballs under the `beta` distribution tag.
+- npm receives the seven exact verified tarballs under the `beta` distribution tag.
 - The workflow run exposes `panerelay-extension-<version>`, containing the Extension zip, `inventory.json`, and `SHA256SUMS`.
 - No Git tag or GitHub Release is created.
 
@@ -121,7 +121,7 @@ Before dispatching `stable`:
 - [ ] Merge the Prepare Release pull request into the default branch and confirm CI is green.
 - [ ] Confirm the repository version is the unused stable version to publish.
 - [ ] Confirm the matching remote tag and GitHub Release do not exist.
-- [ ] Confirm all six npm packages have the trusted publisher configuration above.
+- [ ] Confirm all seven npm packages have the trusted publisher configuration above.
 
 Run **Release** from the default branch with channel `stable`, then approve the `release` environment if it has an approval rule. The workflow:
 
