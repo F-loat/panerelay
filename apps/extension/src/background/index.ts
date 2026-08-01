@@ -15,6 +15,7 @@ import {
   type HostToExtensionMessage,
   type IntegrationRequest,
   type IntegrationBrowserDefaultResult,
+  type IntegrationBrowserUseDefaultResult,
   type IntegrationDefaultProviderResult,
   type IntegrationResponseMessage,
   type IntegrationResult,
@@ -70,6 +71,7 @@ let nativePort: chrome.runtime.Port | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let nativeHostState: NativeHostState = 'connecting';
 let defaultProvider: DefaultProviderState | null = null;
+let browserUseDefault: IntegrationBrowserUseDefaultResult | null = null;
 let browserDefault: IntegrationBrowserDefaultResult | null = null;
 let authorizationRequest: 'all-tabs' | null = null;
 let authorizationMode: AuthorizationMode = 'none';
@@ -132,12 +134,14 @@ const handleSidePanelRequest = createSidePanelRequestRouter({
   closeControlledTab,
   pageComments: pageCommentService,
   refreshBrowserDefault,
+  refreshBrowserUseDefault,
   requestAgent,
   retryNativeHost,
   selectWorkspaceDirectory: async () =>
     (await requestIntegration({ method: 'workspace.pick-directory' })).path,
   setAuthorization,
   setBrowserDefault,
+  setBrowserUseDefault,
   setDefaultProvider,
   status,
   workspace: conversationWorkspaceService,
@@ -172,6 +176,7 @@ async function status(): Promise<ExtensionStatus> {
     bridgeConnected: nativeHostState === 'connected',
     nativeHostState,
     defaultProvider,
+    browserUseDefault,
     browserDefault,
     authorizationRequest,
     activeTab: currentActiveTab,
@@ -318,6 +323,7 @@ function connectNativeHost(): void {
       lastError = error?.message || 'Panerelay Bridge disconnected';
       nativeHostState = nativeHostDisconnectState(lastError);
       defaultProvider = null;
+      browserUseDefault = null;
       browserDefault = null;
       nativeTransferReceiver.cancelAll();
       if (nativeTransferCleanupTimer) {
@@ -341,6 +347,7 @@ function connectNativeHost(): void {
     lastError = error instanceof Error ? error.message : String(error);
     nativeHostState = nativeHostDisconnectState(lastError);
     defaultProvider = null;
+    browserUseDefault = null;
     browserDefault = null;
     void broadcastStatus();
     scheduleReconnect();
@@ -354,6 +361,7 @@ async function handleHostMessage(message: HostToExtensionMessage): Promise<void>
       lastError = undefined;
       await broadcastStatus();
       void refreshDefaultProvider();
+      void refreshBrowserUseDefault();
       void refreshBrowserDefault();
       return;
     case 'cdp.target.request':
@@ -435,6 +443,9 @@ function requestIntegration(
   request: Extract<IntegrationRequest, { method: `browser-default.${string}` }>,
 ): Promise<IntegrationBrowserDefaultResult>;
 function requestIntegration(
+  request: Extract<IntegrationRequest, { method: `browser-use-default.${string}` }>,
+): Promise<IntegrationBrowserUseDefaultResult>;
+function requestIntegration(
   request: Extract<IntegrationRequest, { method: 'workspace.pick-directory' }>,
 ): Promise<IntegrationWorkspaceDirectoryResult>;
 function requestIntegration(request: IntegrationRequest): Promise<IntegrationResult> {
@@ -462,6 +473,15 @@ async function refreshBrowserDefault(): Promise<void> {
     browserDefault = await requestIntegration({ method: 'browser-default.get' });
   } catch {
     browserDefault = null;
+  }
+  await broadcastStatus();
+}
+
+async function refreshBrowserUseDefault(): Promise<void> {
+  try {
+    browserUseDefault = await requestIntegration({ method: 'browser-use-default.get' });
+  } catch {
+    browserUseDefault = null;
   }
   await broadcastStatus();
 }
@@ -873,6 +893,14 @@ async function setDefaultProvider(enabled: boolean): Promise<ExtensionStatus> {
 async function setBrowserDefault(enabled: boolean): Promise<ExtensionStatus> {
   browserDefault = await requestIntegration({
     method: enabled ? 'browser-default.set-current' : 'browser-default.clear-current',
+  });
+  await broadcastStatus();
+  return status();
+}
+
+async function setBrowserUseDefault(enabled: boolean): Promise<ExtensionStatus> {
+  browserUseDefault = await requestIntegration({
+    method: enabled ? 'browser-use-default.set' : 'browser-use-default.clear',
   });
   await broadcastStatus();
   return status();

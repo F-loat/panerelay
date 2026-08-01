@@ -62,6 +62,7 @@ export interface SidepanelState {
   authorizationPending: boolean;
   nativeRetryPending: boolean;
   defaultProviderPending: boolean;
+  browserUseDefaultPending: boolean;
   browserDefaultPending: boolean;
   controlledTabPendingId: number | null;
   settingsOpen: boolean;
@@ -121,6 +122,7 @@ export function createInitialSidepanelState(language?: string): SidepanelState {
     authorizationPending: false,
     nativeRetryPending: false,
     defaultProviderPending: false,
+    browserUseDefaultPending: false,
     browserDefaultPending: false,
     controlledTabPendingId: null,
     settingsOpen: false,

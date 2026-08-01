@@ -58,14 +58,14 @@ Microsoft Edge runtime capabilities are currently classified as `Forwarded` pend
 
 ### Optional Browser Use connection
 
-If Browser Use `0.13.7` and Browser Harness `0.1.8` are already installed, opt into the Panerelay connection adapter and additive Skill:
+If Browser Use `0.13.7` or newer is already installed, opt into the Panerelay connection adapter and additive Skill:
 
 ```bash
 npx --yes @panerelay/setup --browser-use
 npx --yes @panerelay/setup doctor --browser-use
 ```
 
-Setup does not install or modify Browser Use and does not change `PATH`. The installed Skill continues to use normal Browser Use helpers through a protected private CLI, while Panerelay supplies the authenticated virtual CDP connection to explicitly authorized tabs. Direct and Extension modes have a saved Panerelay-owned preference plus one-run overrides. The Browser Harness daemon is intentionally persistent and shared across sequential Agent commands; it is not per-Agent task isolation. See the [Browser Use compatibility record](docs/compatibility/browser-use-0.13.7.md) for CLI, CLI MCP, lifecycle, security, and unsupported browser-ownership boundaries.
+Setup does not install or modify Browser Use and does not change `PATH`. The installed Skill continues to use normal Browser Use helpers through a protected private CLI, while Panerelay supplies the authenticated virtual CDP connection to explicitly authorized tabs. Direct and Extension modes have a saved Panerelay-owned preference plus one-run overrides. The private Browser Use daemon is intentionally persistent and shared across sequential Agent commands; it is not per-Agent task isolation. See the [Browser Use compatibility record](docs/compatibility/browser-use-0.13.7.md) for CLI, CLI MCP, lifecycle, security, and unsupported browser-ownership boundaries.
 
 To omit `--provider panerelay` in later commands, set Panerelay as the user-level default from Extension settings or run setup with `--global-provider`. Use `--project-provider` instead when the default should apply only to the current project. Provider selection changes routing only—it never grants browser permission or authorizes a tab.
 

@@ -27,7 +27,7 @@ test('doctor verifies the optional global default Provider', async () => {
   }
 });
 
-test('doctor reports pinned Browser Use and Browser Harness compatibility only when selected', async () => {
+test('doctor reports one minimum-version Browser Use compatibility check only when selected', async () => {
   const homeDirectory = await mkdtemp(join(tmpdir(), 'panerelay-browser-use-doctor-'));
   try {
     let probes = 0;
@@ -50,8 +50,8 @@ test('doctor reports pinned Browser Use and Browser Harness compatibility only w
       browserUseProbe: async () => {
         probes += 1;
         return {
-          browserHarness: '0.1.8',
-          browserUse: '0.13.7',
+          browserHarness: '0.1.9',
+          browserUse: '0.13.8',
           browserUseExecutable: '/venv/bin/browser-use',
         };
       },
@@ -59,10 +59,13 @@ test('doctor reports pinned Browser Use and Browser Harness compatibility only w
       platform: 'linux',
     });
     assert.equal(ready.checks.find(check => check.id === 'browser-use')?.status, 'pass');
-    assert.equal(ready.checks.find(check => check.id === 'browser-harness')?.status, 'pass');
+    assert.equal(
+      ready.checks.some(check => check.id === 'browser-harness'),
+      false,
+    );
     assert.match(
       ready.checks.find(check => check.id === 'browser-use')?.detail ?? '',
-      /\/venv\/bin\/browser-use \(0\.13\.7\)/,
+      /\/venv\/bin\/browser-use \(0\.13\.8\)/,
     );
 
     const incompatible = await doctorPanerelay({
@@ -76,7 +79,25 @@ test('doctor reports pinned Browser Use and Browser Harness compatibility only w
       platform: 'linux',
     });
     assert.equal(incompatible.checks.find(check => check.id === 'browser-use')?.status, 'fail');
-    assert.equal(incompatible.checks.find(check => check.id === 'browser-harness')?.status, 'fail');
+    assert.equal(
+      incompatible.checks.some(check => check.id === 'browser-harness'),
+      false,
+    );
+
+    const incomplete = await doctorPanerelay({
+      browserUse: true,
+      browserUseProbe: async () => ({
+        browserHarness: '0.1.7',
+        browserUse: '0.13.8',
+        browserUseExecutable: '/venv/bin/browser-use',
+      }),
+      homeDirectory,
+      platform: 'linux',
+    });
+    const browserUseCheck = incomplete.checks.find(check => check.id === 'browser-use');
+    assert.equal(browserUseCheck?.status, 'fail');
+    assert.match(browserUseCheck?.hint ?? '', /Repair or upgrade Browser Use/);
+    assert.doesNotMatch(JSON.stringify(browserUseCheck), /Browser Harness|browser-harness/);
   } finally {
     await rm(homeDirectory, { force: true, recursive: true });
   }

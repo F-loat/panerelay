@@ -9,8 +9,8 @@ const englishMessages = {
   browserUseIntegration: 'Browser Use integration: {path}',
   browserUseMcp: 'Optional Browser Use CLI MCP command: {path}',
   browserUseMissing:
-    'Warning: Browser Use 0.13.7 with Browser Harness 0.1.8 was not found. Install the compatible versions, then run setup again with --browser-use.',
-  browserUseReady: 'Browser Use: {browserUse}; Browser Harness: {browserHarness}',
+    'Warning: a complete Browser Use 0.13.7 or newer installation was not found. Install, repair, or upgrade Browser Use, then run setup again with --browser-use.',
+  browserUseReady: 'Browser Use: {browserUse}',
   browserUseDetachedDaemon:
     'Browser Use private runtime state was removed. A detached daemon and its current browser participant may remain until the user releases it or the Extension/Native Host disconnects; Panerelay did not kill processes by name.',
   browserUseSkill: 'Browser Use Agent Skill: {path}',
@@ -88,8 +88,8 @@ const chineseMessages: Record<MessageKey, string> = {
   browserUseIntegration: 'Browser Use 集成：{path}',
   browserUseMcp: '可选 Browser Use CLI MCP 命令：{path}',
   browserUseMissing:
-    '警告：未找到 Browser Use 0.13.7 与 Browser Harness 0.1.8。请安装兼容版本后，使用 --browser-use 重新运行 setup。',
-  browserUseReady: 'Browser Use：{browserUse}；Browser Harness：{browserHarness}',
+    '警告：未找到完整的 Browser Use 0.13.7 或更高版本。请安装、修复或升级 Browser Use 后，使用 --browser-use 重新运行 setup。',
+  browserUseReady: 'Browser Use：{browserUse}',
   browserUseDetachedDaemon:
     '已移除 Browser Use 私有运行状态。分离的 daemon 及其当前浏览器 participant 可能持续到用户主动释放，或 Extension/Native Host 断开；Panerelay 未按进程名终止进程。',
   browserUseSkill: 'Browser Use Agent Skill：{path}',

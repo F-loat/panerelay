@@ -20,9 +20,9 @@ import {
   readLiveLegacyBrowserRegistration,
 } from '@panerelay/browser-registry';
 import {
+  BROWSER_USE_MINIMUM_VERSION,
+  browserUseInstallationStatus,
   probeBrowserUseVersions,
-  SUPPORTED_BROWSER_HARNESS_VERSION,
-  SUPPORTED_BROWSER_USE_VERSION,
 } from '@panerelay/browser-use';
 import {
   projectAgentBrowserConfigPath,
@@ -166,8 +166,8 @@ export async function doctorPanerelay(options: DoctorOptions = {}): Promise<Doct
       options.environment,
       platform,
     );
-    const browserUseReady = versions.browserUse === SUPPORTED_BROWSER_USE_VERSION;
-    const browserHarnessReady = versions.browserHarness === SUPPORTED_BROWSER_HARNESS_VERSION;
+    const installationStatus = browserUseInstallationStatus(versions);
+    const browserUseReady = installationStatus === 'ready';
     checks.push({
       id: 'browser-use',
       label: 'Browser Use CLI',
@@ -178,20 +178,10 @@ export async function doctorPanerelay(options: DoctorOptions = {}): Promise<Doct
       ...(browserUseReady
         ? {}
         : {
-            hint: versions.browserUse
-              ? `Install Browser Use ${SUPPORTED_BROWSER_USE_VERSION}, then run: ${SETUP_COMMAND} doctor --browser-use`
-              : `Install Browser Use ${SUPPORTED_BROWSER_USE_VERSION}, then run: ${SETUP_COMMAND} --browser-use`,
-          }),
-    });
-    checks.push({
-      id: 'browser-harness',
-      label: 'Browser Harness',
-      status: browserHarnessReady ? 'pass' : 'fail',
-      detail: versions.browserHarness ?? 'Not found',
-      ...(browserHarnessReady
-        ? {}
-        : {
-            hint: `Install Browser Harness ${SUPPORTED_BROWSER_HARNESS_VERSION} in the Browser Use environment, then run: ${SETUP_COMMAND} doctor --browser-use`,
+            hint:
+              installationStatus === 'not-found'
+                ? `Install Browser Use ${BROWSER_USE_MINIMUM_VERSION} or newer, then run: ${SETUP_COMMAND} --browser-use`
+                : `Repair or upgrade Browser Use to ${BROWSER_USE_MINIMUM_VERSION} or newer, then run: ${SETUP_COMMAND} doctor --browser-use`,
           }),
     });
   }

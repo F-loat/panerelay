@@ -85,3 +85,37 @@ test('rejects every pending request during disconnect cleanup', async () => {
   await assert.rejects(second, /Bridge disconnected/);
   assert.equal(tracker.pendingCount, 0);
 });
+
+test('invokes default host timers with their required global receiver', async () => {
+  const originalSetTimeout = globalThis.setTimeout;
+  const originalClearTimeout = globalThis.clearTimeout;
+  const timer = { id: 1 } as unknown as ReturnType<typeof setTimeout>;
+  let cancelled = false;
+
+  globalThis.setTimeout = function (this: unknown) {
+    assert.equal(this, globalThis);
+    return timer;
+  } as typeof setTimeout;
+  globalThis.clearTimeout = function (this: unknown, received) {
+    assert.equal(this, globalThis);
+    assert.equal(received, timer);
+    cancelled = true;
+  } as typeof clearTimeout;
+
+  try {
+    const tracker = new PendingRequestTracker<string>(1_000, {
+      createRequestId: () => 'browser-request',
+    });
+    let requestId = '';
+    const result = tracker.request('agent.providers', id => {
+      requestId = id;
+    });
+
+    assert.equal(tracker.resolve(requestId, 'ready'), true);
+    assert.equal(await result, 'ready');
+    assert.equal(cancelled, true);
+  } finally {
+    globalThis.setTimeout = originalSetTimeout;
+    globalThis.clearTimeout = originalClearTimeout;
+  }
+});

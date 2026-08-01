@@ -15,6 +15,7 @@ const readyStatus: ExtensionStatus = {
   bridgeConnected: true,
   nativeHostState: 'connected',
   defaultProvider: { provider: null, isPanerelay: false },
+  browserUseDefault: { available: true, mode: 'direct', isPanerelay: false },
   browserDefault: {
     currentBrowser: {
       browserId: 'edge-browser-id',
@@ -22,6 +23,7 @@ const readyStatus: ExtensionStatus = {
       browserFamily: 'edge',
     },
     defaultBrowserId: 'chrome-browser-id',
+    hasMultipleBrowsers: true,
     isCurrentBrowser: false,
   },
   authorizationRequest: null,
@@ -200,6 +202,16 @@ class AppClient implements SidepanelClient {
           },
         };
         return { success: true as const, status: this.status };
+      case 'panerelay.browser-use-default.set':
+        this.status = {
+          ...this.status,
+          browserUseDefault: {
+            available: true,
+            mode: message.enabled ? 'extension' : 'direct',
+            isPanerelay: message.enabled,
+          },
+        };
+        return { success: true as const, status: this.status };
       case 'panerelay.browser-default.set':
         this.status = {
           ...this.status,
@@ -211,6 +223,8 @@ class AppClient implements SidepanelClient {
         };
         return { success: true as const, status: this.status };
       case 'panerelay.browser-default.refresh':
+        return { success: true as const, status: this.status };
+      case 'panerelay.browser-use-default.refresh':
         return { success: true as const, status: this.status };
       case 'panerelay.controlled-tab.activate':
       case 'panerelay.controlled-tab.close':
@@ -285,6 +299,27 @@ describe('React Side Panel', () => {
     expect(document.documentElement.lang).toBe('zh-CN');
   });
 
+  it('keeps browser authorization available when the selected provider is not installed', async () => {
+    const { client, user } = await renderReady();
+
+    await user.click(screen.getByRole('button', { name: /Agent provider: Codex/ }));
+    await user.click(screen.getByRole('option', { name: 'Qoder · Not installed' }));
+
+    expect(await screen.findByRole('heading', { name: 'Set up Qoder' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Summarize this page' })).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox')).toBeDisabled();
+    expect(screen.getByText('No tab authorized')).toBeVisible();
+    expect(
+      client.requests.filter(request => request.type === 'panerelay.authorization.set'),
+    ).toHaveLength(0);
+
+    await user.click(screen.getByRole('button', { name: 'Browser authorization' }));
+    await user.click(screen.getByRole('option', { name: 'All tabs' }));
+
+    await waitFor(() => expect(client.status.authorizationMode).toBe('all-tabs'));
+    expect(screen.getByText('All web tabs authorized')).toBeVisible();
+  });
+
   it('uses the Chrome UI language when the user has not chosen one', async () => {
     vi.stubGlobal('chrome', { i18n: { getUILanguage: () => 'zh-CN' } });
     const client = new AppClient();
@@ -314,14 +349,17 @@ describe('React Side Panel', () => {
     expect(client.stored['panerelay.locale']).toBe('zh-CN');
   });
 
-  it('sets and clears the user-level Provider and browser defaults from settings', async () => {
+  it('sets independent automation and browser defaults from compact settings controls', async () => {
     const { client, user } = await renderReady();
 
     await user.click(screen.getByRole('button', { name: /Browser access:/ }));
-    expect(screen.getByText('Default Provider')).toBeVisible();
+    const automationDefaults = screen.getByText('Set as default').closest('.settings-field');
+    expect(automationDefaults).not.toBeNull();
     expect(screen.getByText('agent-browser')).toBeVisible();
-    expect(screen.getByText('Default Browser')).toBeVisible();
-    expect(screen.getByText('Edge')).toBeVisible();
+    expect(screen.getByText('Browser Use')).toBeVisible();
+    expect(automationDefaults?.querySelectorAll('.settings-provider-indicator')).toHaveLength(0);
+    expect(screen.getByText('Control by default')).toBeVisible();
+    expect(document.querySelectorAll('.settings-provider-indicator')).toHaveLength(0);
     expect(screen.queryByText('Native Host unavailable')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Set agent-browser as default Provider' }));
 
@@ -335,30 +373,101 @@ describe('React Side Panel', () => {
       screen.getByRole('button', { name: 'Clear agent-browser default Provider' }),
     ).toHaveAttribute('aria-pressed', 'true');
 
+    await user.click(
+      screen.getByRole('button', { name: 'Use Panerelay for Browser Use by default' }),
+    );
+    expect(client.requests).toContainEqual({
+      type: 'panerelay.browser-use-default.set',
+      enabled: true,
+    });
+    expect(
+      screen.getByRole('button', {
+        name: 'Stop using Panerelay for Browser Use by default',
+      }),
+    ).toHaveAttribute('aria-pressed', 'true');
+    expect(
+      screen.getByRole('button', { name: 'Clear agent-browser default Provider' }),
+    ).toHaveAttribute('aria-pressed', 'true');
+
     await user.click(screen.getByRole('button', { name: 'Clear agent-browser default Provider' }));
     expect(client.requests).toContainEqual({
       type: 'panerelay.default-provider.set',
       enabled: false,
     });
+    expect(
+      screen.getByRole('button', {
+        name: 'Stop using Panerelay for Browser Use by default',
+      }),
+    ).toHaveAttribute('aria-pressed', 'true');
 
-    await user.click(screen.getByRole('button', { name: 'Use this browser by default' }));
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Stop using Panerelay for Browser Use by default',
+      }),
+    );
+    expect(client.requests).toContainEqual({
+      type: 'panerelay.browser-use-default.set',
+      enabled: false,
+    });
+
+    await user.click(screen.getByRole('switch', { name: 'Control this browser by default' }));
     expect(client.requests).toContainEqual({
       type: 'panerelay.browser-default.set',
       enabled: true,
     });
-    expect(screen.getByRole('button', { name: 'Clear this browser as default' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
+    expect(
+      screen.getByRole('switch', { name: 'Stop controlling this browser by default' }),
+    ).toHaveAttribute('aria-checked', 'true');
+    await user.click(
+      screen.getByRole('switch', { name: 'Stop controlling this browser by default' }),
     );
-    await user.click(screen.getByRole('button', { name: 'Clear this browser as default' }));
     expect(client.requests).toContainEqual({
       type: 'panerelay.browser-default.set',
       enabled: false,
     });
-    expect(screen.getByRole('button', { name: 'Use this browser by default' })).toHaveAttribute(
-      'aria-pressed',
+    expect(screen.getByRole('switch', { name: 'Control this browser by default' })).toHaveAttribute(
+      'aria-checked',
       'false',
     );
+  });
+
+  it('hides default control after the browser registry returns to one connection', async () => {
+    const { client, user } = await renderReady();
+
+    await user.click(screen.getByRole('button', { name: /Browser access:/ }));
+    expect(screen.getByText('Control by default')).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+
+    client.status = {
+      ...client.status,
+      browserDefault: {
+        ...client.status.browserDefault!,
+        hasMultipleBrowsers: false,
+      },
+    };
+    await user.click(screen.getByRole('button', { name: /Browser access:/ }));
+
+    await waitFor(() => expect(screen.queryByText('Control by default')).not.toBeInTheDocument());
+    expect(
+      screen.queryByRole('switch', { name: /this browser by default/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('disables the Browser Use default when its adapter is unavailable', async () => {
+    const client = new AppClient();
+    client.status = {
+      ...readyStatus,
+      browserUseDefault: { available: false, mode: null, isPanerelay: false },
+    };
+    const { user } = await renderReady(client);
+
+    await user.click(screen.getByRole('button', { name: /Browser access:/ }));
+    expect(
+      screen.getByRole('button', { name: 'Use Panerelay for Browser Use by default' }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole('button', { name: 'Set agent-browser as default Provider' }),
+    ).toBeEnabled();
   });
 
   it('guides a missing Native Host with setup and retry', async () => {

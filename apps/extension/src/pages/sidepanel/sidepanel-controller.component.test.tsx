@@ -20,6 +20,7 @@ const baseStatus: ExtensionStatus = {
   bridgeConnected: true,
   nativeHostState: 'connected',
   defaultProvider: { provider: null, isPanerelay: false },
+  browserUseDefault: { available: true, mode: 'direct', isPanerelay: false },
   browserDefault: {
     currentBrowser: {
       browserId: 'edge-browser-id',
@@ -27,6 +28,7 @@ const baseStatus: ExtensionStatus = {
       browserFamily: 'edge',
     },
     defaultBrowserId: null,
+    hasMultipleBrowsers: true,
     isCurrentBrowser: false,
   },
   authorizationRequest: null,
@@ -189,6 +191,18 @@ class FakeSidepanelClient implements SidepanelClient {
             },
           },
         };
+      case 'panerelay.browser-use-default.set':
+        return {
+          success: true as const,
+          status: {
+            ...baseStatus,
+            browserUseDefault: {
+              available: true,
+              mode: message.enabled ? 'extension' : 'direct',
+              isPanerelay: message.enabled,
+            },
+          },
+        };
       case 'panerelay.browser-default.set':
         return {
           success: true as const,
@@ -202,6 +216,8 @@ class FakeSidepanelClient implements SidepanelClient {
           },
         };
       case 'panerelay.browser-default.refresh':
+        return { success: true as const, status: baseStatus };
+      case 'panerelay.browser-use-default.refresh':
         return { success: true as const, status: baseStatus };
       case 'panerelay.controlled-tab.activate':
       case 'panerelay.controlled-tab.close':
@@ -420,6 +436,7 @@ describe('Side Panel controller', () => {
     client.requests.length = 0;
 
     await act(() => hook.result.current.setDefaultProvider(true));
+    await act(() => hook.result.current.setBrowserUseDefault(true));
     await act(() => hook.result.current.setBrowserDefault(true));
     await act(() => hook.result.current.activateControlledTab(9));
     await act(() => hook.result.current.closeControlledTab(9));
@@ -427,12 +444,14 @@ describe('Side Panel controller', () => {
 
     expect(client.requests).toEqual([
       { type: 'panerelay.default-provider.set', enabled: true },
+      { type: 'panerelay.browser-use-default.set', enabled: true },
       { type: 'panerelay.browser-default.set', enabled: true },
       { type: 'panerelay.controlled-tab.activate', tabId: 9 },
       { type: 'panerelay.controlled-tab.close', tabId: 9 },
       { type: 'panerelay.native.retry' },
     ]);
     expect(hook.result.current.state.defaultProviderPending).toBe(false);
+    expect(hook.result.current.state.browserUseDefaultPending).toBe(false);
     expect(hook.result.current.state.browserDefaultPending).toBe(false);
     expect(hook.result.current.state.controlledTabPendingId).toBeNull();
     expect(hook.result.current.state.nativeRetryPending).toBe(false);

@@ -111,8 +111,9 @@ test('reports an incompatible selected Browser Use integration without installin
       systemLocale: 'en',
     });
     assert.equal(code, 1);
-    assert.match(output.join('\n'), /未找到 Browser Use 0\.13\.7/);
+    assert.match(output.join('\n'), /Browser Use 0\.13\.7 或更高版本/);
     assert.match(output.join('\n'), /使用 --browser-use 重新运行 setup/);
+    assert.doesNotMatch(output.join('\n'), /Browser Harness|browser-harness/);
   } finally {
     console.log = originalLog;
   }

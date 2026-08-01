@@ -148,7 +148,6 @@ function printHelp(locale: SupportedLocale): void {
 
 const doctorLabels: Record<string, { en: string; 'zh-CN': string }> = {
   'agent-browser': { en: 'agent-browser', 'zh-CN': 'agent-browser' },
-  'browser-harness': { en: 'Browser Harness', 'zh-CN': 'Browser Harness' },
   'browser-use': { en: 'Browser Use', 'zh-CN': 'Browser Use' },
   claude: { en: 'Claude Code (optional)', 'zh-CN': 'Claude Code（可选）' },
   codex: { en: 'Codex', 'zh-CN': 'Codex' },
@@ -185,7 +184,7 @@ const doctorLabels: Record<string, { en: string; 'zh-CN': string }> = {
 
 const doctorGroups = [
   {
-    ids: ['node', 'browser-use', 'browser-harness', 'agent-browser', 'codex', 'claude', 'qoder'],
+    ids: ['node', 'browser-use', 'agent-browser', 'codex', 'claude', 'qoder'],
     title: 'doctorGroupEnvironment',
   },
   {
@@ -242,11 +241,8 @@ function doctorHint(id: string, hint: string, locale: SupportedLocale): string {
   }
   if (id === 'browser-use') {
     return hint.includes('doctor --browser-use')
-      ? '请安装 Browser Use 0.13.7，然后重新运行：npx --yes @panerelay/setup doctor --browser-use'
-      : '请安装 Browser Use 0.13.7，然后重新运行：npx --yes @panerelay/setup --browser-use';
-  }
-  if (id === 'browser-harness') {
-    return '请在 Browser Use 环境中安装 Browser Harness 0.1.8，然后重新运行：npx --yes @panerelay/setup doctor --browser-use';
+      ? '请修复或升级到 Browser Use 0.13.7 或更高版本，然后重新运行：npx --yes @panerelay/setup doctor --browser-use'
+      : '请安装 Browser Use 0.13.7 或更高版本，然后重新运行：npx --yes @panerelay/setup --browser-use';
   }
   if (id === 'qoder') {
     return '请安装 Qoder CLI 或设置 PANERELAY_QODER_PATH，然后运行：npx --yes @panerelay/setup';
@@ -479,7 +475,6 @@ export async function main(
       if (result.browserUseReady) {
         console.log(
           translate(locale, 'browserUseReady', {
-            browserHarness: result.browserUseVersions?.browserHarness ?? 'unknown',
             browserUse: result.browserUseVersions?.browserUse ?? 'unknown',
           }),
         );

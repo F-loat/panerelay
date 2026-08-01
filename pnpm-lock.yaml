@@ -117,6 +117,9 @@ importers:
       '@panerelay/browser-registry':
         specifier: workspace:*
         version: link:../browser-registry
+      '@panerelay/cli':
+        specifier: workspace:*
+        version: link:../cli
       '@panerelay/protocol':
         specifier: workspace:*
         version: link:../protocol
@@ -127,9 +130,6 @@ importers:
       '@panerelay/browser-use':
         specifier: workspace:*
         version: link:../browser-use
-      '@panerelay/cli':
-        specifier: workspace:*
-        version: link:../cli
 
   packages/browser-registry:
     dependencies:

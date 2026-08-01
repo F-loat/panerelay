@@ -19,10 +19,12 @@ export interface SidePanelRequestRouterOptions {
   closeControlledTab: (tabId: number) => Promise<void>;
   pageComments: PageCommentRequests;
   refreshBrowserDefault: () => Promise<void>;
+  refreshBrowserUseDefault: () => Promise<void>;
   requestAgent: (request: AgentRequest) => Promise<unknown>;
   selectWorkspaceDirectory: () => Promise<string | null>;
   setAuthorization: (mode: AuthorizationMode) => Promise<ExtensionStatus>;
   setBrowserDefault: (enabled: boolean) => Promise<ExtensionStatus>;
+  setBrowserUseDefault: (enabled: boolean) => Promise<ExtensionStatus>;
   setDefaultProvider: (enabled: boolean) => Promise<ExtensionStatus>;
   status: () => Promise<ExtensionStatus>;
   retryNativeHost: () => Promise<ExtensionStatus>;
@@ -42,6 +44,11 @@ export function createSidePanelRequestRouter(options: SidePanelRequestRouterOpti
         return { success: true, status: await options.retryNativeHost() };
       case 'panerelay.default-provider.set':
         return { success: true, status: await options.setDefaultProvider(message.enabled) };
+      case 'panerelay.browser-use-default.set':
+        return { success: true, status: await options.setBrowserUseDefault(message.enabled) };
+      case 'panerelay.browser-use-default.refresh':
+        await options.refreshBrowserUseDefault();
+        return { success: true, status: await options.status() };
       case 'panerelay.browser-default.set':
         return { success: true, status: await options.setBrowserDefault(message.enabled) };
       case 'panerelay.browser-default.refresh':

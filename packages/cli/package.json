@@ -23,6 +23,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./adapter-config": {
+      "types": "./dist/adapter-config.d.ts",
+      "import": "./dist/adapter-config.js"
     }
   },
   "bin": {

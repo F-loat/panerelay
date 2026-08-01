@@ -3,11 +3,19 @@ import {
   type BridgeState,
   type HostToExtensionMessage,
   type IntegrationBrowserDefaultResult,
+  type IntegrationBrowserUseDefaultResult,
   type IntegrationDefaultProviderResult,
   type IntegrationRequestMessage,
 } from '@panerelay/protocol';
 import {
+  readCliAdapterMode,
+  readCliAdapterRegistration,
+  setCliAdapterMode,
+  type CliAdapterRegistration,
+} from '@panerelay/cli/adapter-config';
+import {
   clearBrowserDefault,
+  listBrowserRegistrations,
   readBrowserDefault,
   setBrowserDefault,
 } from '@panerelay/browser-registry';
@@ -23,11 +31,28 @@ export interface IntegrationServiceOptions {
   clearBrowserDefault?: typeof clearBrowserDefault;
   clearDefaultProvider?: typeof clearPanerelayUserDefaultProvider;
   currentBrowser?: () => BridgeState | null;
+  listBrowsers?: typeof listBrowserRegistrations;
+  readBrowserUseAdapter?: () => Promise<CliAdapterRegistration | null>;
+  readBrowserUseMode?: () => Promise<'direct' | 'extension' | null>;
   readBrowserDefault?: typeof readBrowserDefault;
   readDefaultProvider?: typeof readUserDefaultProvider;
   setBrowserDefault?: typeof setBrowserDefault;
+  setBrowserUseMode?: (mode: 'direct' | 'extension') => Promise<void>;
   setDefaultProvider?: typeof setPanerelayUserDefaultProvider;
   pickDirectory?: typeof pickWorkspaceDirectory;
+}
+
+function browserUseResult(
+  registration: CliAdapterRegistration | null,
+  mode: 'direct' | 'extension' | null,
+): IntegrationBrowserUseDefaultResult {
+  const available = Boolean(registration?.modes.includes('extension'));
+  const effectiveMode = available ? (mode ?? 'direct') : null;
+  return {
+    available,
+    mode: effectiveMode,
+    isPanerelay: effectiveMode === 'extension',
+  };
 }
 
 function result(state: UserDefaultProviderState): IntegrationDefaultProviderResult {
@@ -40,6 +65,7 @@ function result(state: UserDefaultProviderState): IntegrationDefaultProviderResu
 function browserResult(
   current: BridgeState | null,
   defaultBrowserId: string | null,
+  hasMultipleBrowsers: boolean,
 ): IntegrationBrowserDefaultResult {
   return {
     currentBrowser: current
@@ -50,6 +76,7 @@ function browserResult(
         }
       : null,
     defaultBrowserId,
+    hasMultipleBrowsers,
     isCurrentBrowser: Boolean(current && defaultBrowserId === current.browserId),
   };
 }
@@ -58,10 +85,14 @@ export class IntegrationService {
   readonly #clearBrowserDefault: typeof clearBrowserDefault;
   readonly #clearDefaultProvider: typeof clearPanerelayUserDefaultProvider;
   readonly #currentBrowser: () => BridgeState | null;
+  readonly #listBrowsers: typeof listBrowserRegistrations;
+  readonly #readBrowserUseAdapter: () => Promise<CliAdapterRegistration | null>;
+  readonly #readBrowserUseMode: () => Promise<'direct' | 'extension' | null>;
   readonly #readBrowserDefault: typeof readBrowserDefault;
   readonly #readDefaultProvider: typeof readUserDefaultProvider;
   readonly #send: (message: HostToExtensionMessage) => void;
   readonly #setBrowserDefault: typeof setBrowserDefault;
+  readonly #setBrowserUseMode: (mode: 'direct' | 'extension') => Promise<void>;
   readonly #setDefaultProvider: typeof setPanerelayUserDefaultProvider;
   readonly #pickDirectory: typeof pickWorkspaceDirectory;
 
@@ -73,9 +104,16 @@ export class IntegrationService {
     this.#clearBrowserDefault = options.clearBrowserDefault ?? clearBrowserDefault;
     this.#clearDefaultProvider = options.clearDefaultProvider ?? clearPanerelayUserDefaultProvider;
     this.#currentBrowser = options.currentBrowser ?? (() => null);
+    this.#listBrowsers = options.listBrowsers ?? listBrowserRegistrations;
+    this.#readBrowserUseAdapter =
+      options.readBrowserUseAdapter ?? (() => readCliAdapterRegistration('browser-use'));
+    this.#readBrowserUseMode =
+      options.readBrowserUseMode ?? (() => readCliAdapterMode('browser-use'));
     this.#readBrowserDefault = options.readBrowserDefault ?? readBrowserDefault;
     this.#readDefaultProvider = options.readDefaultProvider ?? readUserDefaultProvider;
     this.#setBrowserDefault = options.setBrowserDefault ?? setBrowserDefault;
+    this.#setBrowserUseMode =
+      options.setBrowserUseMode ?? (mode => setCliAdapterMode('browser-use', mode));
     this.#setDefaultProvider = options.setDefaultProvider ?? setPanerelayUserDefaultProvider;
     this.#pickDirectory = options.pickDirectory ?? pickWorkspaceDirectory;
   }
@@ -116,41 +154,80 @@ export class IntegrationService {
           });
           break;
         }
-        case 'browser-default.get': {
-          const current = this.#currentBrowser();
-          const saved = await this.#readBrowserDefault();
+        case 'browser-use-default.get': {
+          const registration = await this.#readBrowserUseAdapter();
+          const mode = registration ? await this.#readBrowserUseMode() : null;
           this.#send({
             type: 'integration.response',
             protocol: PANERELAY_PROTOCOL_VERSION,
             requestId: message.requestId,
             success: true,
-            result: browserResult(current, saved?.browserId ?? null),
+            result: browserUseResult(registration, mode),
+          });
+          break;
+        }
+        case 'browser-use-default.set':
+        case 'browser-use-default.clear': {
+          const registration = await this.#readBrowserUseAdapter();
+          if (!registration?.modes.includes('extension')) {
+            throw new Error('The Panerelay Browser Use integration is not available');
+          }
+          const mode =
+            message.request.method === 'browser-use-default.set' ? 'extension' : 'direct';
+          await this.#setBrowserUseMode(mode);
+          this.#send({
+            type: 'integration.response',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            result: browserUseResult(registration, mode),
+          });
+          break;
+        }
+        case 'browser-default.get': {
+          const current = this.#currentBrowser();
+          const [saved, browsers] = await Promise.all([
+            this.#readBrowserDefault(),
+            this.#listBrowsers(),
+          ]);
+          this.#send({
+            type: 'integration.response',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            result: browserResult(current, saved?.browserId ?? null, browsers.length > 1),
           });
           break;
         }
         case 'browser-default.set-current': {
           const current = this.#currentBrowser();
           if (!current) throw new Error('The current browser is not registered with Panerelay');
-          const saved = await this.#setBrowserDefault(current.browserId);
+          const [saved, browsers] = await Promise.all([
+            this.#setBrowserDefault(current.browserId),
+            this.#listBrowsers(),
+          ]);
           this.#send({
             type: 'integration.response',
             protocol: PANERELAY_PROTOCOL_VERSION,
             requestId: message.requestId,
             success: true,
-            result: browserResult(current, saved.browserId),
+            result: browserResult(current, saved.browserId, browsers.length > 1),
           });
           break;
         }
         case 'browser-default.clear-current': {
           const current = this.#currentBrowser();
           if (!current) throw new Error('The current browser is not registered with Panerelay');
-          const saved = await this.#clearBrowserDefault(current.browserId);
+          const [saved, browsers] = await Promise.all([
+            this.#clearBrowserDefault(current.browserId),
+            this.#listBrowsers(),
+          ]);
           this.#send({
             type: 'integration.response',
             protocol: PANERELAY_PROTOCOL_VERSION,
             requestId: message.requestId,
             success: true,
-            result: browserResult(current, saved?.browserId ?? null),
+            result: browserResult(current, saved?.browserId ?? null, browsers.length > 1),
           });
           break;
         }
