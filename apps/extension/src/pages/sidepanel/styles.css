@@ -317,7 +317,8 @@ summary:focus-visible {
   z-index: 24;
   top: 36px;
   right: -34px;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   width: min(320px, calc(100vw - 16px));
   max-height: min(440px, calc(100vh - 72px));
   gap: 8px;

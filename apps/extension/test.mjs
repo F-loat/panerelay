@@ -21,6 +21,7 @@ const entryPoints = [
   'src/background/target-publication.test.ts',
   'src/pages/sidepanel/provider-selection.test.ts',
   'src/pages/sidepanel/setup-guidance.test.ts',
+  'src/pages/sidepanel/sidepanel-layout.test.ts',
   'src/shared/authorization.test.ts',
   'src/shared/browser-runtime.test.ts',
   'src/shared/identity.test.ts',
