@@ -5,7 +5,8 @@
 - Status: Accepted
 - Authors: F-loat
 - Created: 2026-07-31
-- Updated: 2026-07-31
+- Updated: 2026-08-01
+- Amendment: `openspec/changes/add-browser-use-default-setting`
 
 This RFC supersedes RFC-0001's unspecified recent-focus fallback for browser selection. Focus remains presentation state and never selects an automation authority.
 
@@ -82,7 +83,9 @@ Changing the saved default affects only later unscoped launches. If the selected
 
 Each Native Host process belongs to one browser registration. Agent runtimes launched from its side panel receive that exact registration ID, and generated agent-browser MCP server configuration repeats the selector explicitly. This scoped selector outranks the saved default.
 
-The Native Host exposes integration operations to inspect the current browser/default relationship, make the registered current browser the default, or conditionally clear a default owned by the current browser. The Extension cannot nominate an arbitrary registration ID through this operation.
+The Native Host exposes integration operations to inspect the current browser/default relationship, make the registered current browser the default, or conditionally clear a default owned by the current browser. The bounded result also reports only whether more than one live registration exists, derived through the protected browser registry without returning another browser's identity, metadata, credentials, or exact count. The Extension cannot nominate an arbitrary registration ID through this operation.
+
+The side panel renders a “Control by default” / “默认受控” switch only while that multiple-browser boolean is true. The side panel already identifies its current browser context, so the row does not repeat a browser-family name. Hiding the row for zero or one live registration does not change or clear the saved default. The switch remains a future-routing preference and never grants site permission, tab authorization, participant state, or a control lease. Registration count is refreshed when the Native Host registers and when settings open; an already-open panel may retain its prior visibility until the next refresh after another browser disconnects.
 
 ### CLI scope
 

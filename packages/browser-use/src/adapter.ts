@@ -24,8 +24,8 @@ import {
 } from '@panerelay/protocol';
 
 export const BROWSER_USE_ADAPTER_ID = 'browser-use' as const;
-export const SUPPORTED_BROWSER_USE_VERSION = '0.13.7' as const;
-export const SUPPORTED_BROWSER_HARNESS_VERSION = '0.1.8' as const;
+export const BROWSER_USE_MINIMUM_VERSION = '0.13.7' as const;
+const BROWSER_HARNESS_MINIMUM_VERSION = '0.1.8' as const;
 export const BROWSER_USE_CHILD_ENVIRONMENT_KEYS = [
   'ANONYMIZED_TELEMETRY',
   'BH_RECORD',
@@ -49,6 +49,46 @@ export interface BrowserUseVersions {
   browserUseExecutable?: string;
   browserUse?: string;
   browserHarness?: string;
+}
+
+export type BrowserUseInstallationStatus =
+  'ready' | 'not-found' | 'unsupported-version' | 'incomplete';
+
+function stableVersionParts(version: string | undefined): readonly number[] | null {
+  if (!version) return null;
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:\+[0-9A-Za-z.-]+)?$/.exec(version);
+  if (!match) return null;
+  const parts = match.slice(1).map(value => Number.parseInt(value!, 10));
+  return parts.every(Number.isSafeInteger) ? parts : null;
+}
+
+export function isStableVersionAtLeast(version: string | undefined, minimum: string): boolean {
+  const current = stableVersionParts(version);
+  const required = stableVersionParts(minimum);
+  if (!current || !required) return false;
+  for (let index = 0; index < required.length; index += 1) {
+    if (current[index]! > required[index]!) return true;
+    if (current[index]! < required[index]!) return false;
+  }
+  return true;
+}
+
+export function browserUseInstallationStatus(
+  versions: BrowserUseVersions,
+): BrowserUseInstallationStatus {
+  if (!versions.browserUseExecutable) return 'not-found';
+  if (!versions.browserUse) return 'incomplete';
+  if (!isStableVersionAtLeast(versions.browserUse, BROWSER_USE_MINIMUM_VERSION)) {
+    return 'unsupported-version';
+  }
+  if (!isStableVersionAtLeast(versions.browserHarness, BROWSER_HARNESS_MINIMUM_VERSION)) {
+    return 'incomplete';
+  }
+  return 'ready';
+}
+
+export function isBrowserUseInstallationSupported(versions: BrowserUseVersions): boolean {
+  return browserUseInstallationStatus(versions) === 'ready';
 }
 
 export interface BrowserUseAdapterDependencies {
@@ -226,10 +266,10 @@ async function doctor(
     dependencies.probeVersions ??
     (() => probeBrowserUseVersions(environment, dependencies.platform ?? process.platform))
   )();
-  const browserUseReady = versions.browserUse === SUPPORTED_BROWSER_USE_VERSION;
-  const browserHarnessReady = versions.browserHarness === SUPPORTED_BROWSER_HARNESS_VERSION;
+  const installationStatus = browserUseInstallationStatus(versions);
+  const browserUseReady = installationStatus === 'ready';
   return {
-    status: browserUseReady && browserHarnessReady ? 'ready' : 'unavailable',
+    status: browserUseReady ? 'ready' : 'unavailable',
     checks: [
       {
         id: 'node-runtime',
@@ -242,21 +282,12 @@ async function doctor(
         ...(versions.browserUse ? { version: versions.browserUse } : {}),
         ...(!browserUseReady
           ? {
-              message: versions.browserUse
-                ? `Browser Use ${SUPPORTED_BROWSER_USE_VERSION} is required`
-                : 'Browser Use was not found',
-            }
-          : {}),
-      },
-      {
-        id: 'browser-harness',
-        status: browserHarnessReady ? 'pass' : 'fail',
-        ...(versions.browserHarness ? { version: versions.browserHarness } : {}),
-        ...(!browserHarnessReady
-          ? {
-              message: versions.browserHarness
-                ? `Browser Harness ${SUPPORTED_BROWSER_HARNESS_VERSION} is required`
-                : 'Browser Harness was not found in the Browser Use environment',
+              message:
+                installationStatus === 'not-found'
+                  ? 'Browser Use was not found'
+                  : installationStatus === 'unsupported-version'
+                    ? `Browser Use ${BROWSER_USE_MINIMUM_VERSION} or newer is required`
+                    : `Browser Use installation is incomplete; reinstall or upgrade Browser Use ${BROWSER_USE_MINIMUM_VERSION} or newer`,
             }
           : {}),
       },

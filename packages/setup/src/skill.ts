@@ -71,7 +71,7 @@ export async function installBrowserUseSkill(
         PANERELAY_BROWSER_USE_MCP_PLACEHOLDER,
         options.mcpLauncherPath
           ? skillCommandPath(options.mcpLauncherPath, options.platform ?? process.platform)
-          : 'Unavailable until setup detects the pinned Browser Use and Browser Harness versions',
+          : 'Unavailable until setup detects a complete Browser Use 0.13.7 or newer installation',
       )
       .replaceAll(
         BROWSER_USE_EXECUTABLE_PLACEHOLDER,

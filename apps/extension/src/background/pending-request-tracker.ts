@@ -25,9 +25,11 @@ export class PendingRequestTracker<TResult> {
     private readonly timeoutMs: number,
     options: PendingRequestTrackerOptions = {},
   ) {
-    this.cancelTimer = options.cancelTimer ?? clearTimeout;
+    this.cancelTimer = options.cancelTimer ?? (timer => globalThis.clearTimeout(timer));
     this.createRequestId = options.createRequestId ?? (() => crypto.randomUUID());
-    this.scheduleTimer = options.scheduleTimer ?? setTimeout;
+    this.scheduleTimer =
+      options.scheduleTimer ??
+      ((callback, timeoutMs) => globalThis.setTimeout(callback, timeoutMs));
     this.timeoutMessage = options.timeoutMessage ?? (label => `Timed out waiting for ${label}`);
   }
 

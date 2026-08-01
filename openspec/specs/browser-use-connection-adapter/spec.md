@@ -8,7 +8,7 @@ Define how an optional Panerelay adapter connects supported Browser Use CLI and 
 
 ### Requirement: Setup installs the Browser Use integration only when requested
 
-Panerelay setup SHALL install and register the Browser Use adapter, its Panerelay Skill, private runtime configuration, and diagnostics only when the user selects the Browser Use integration. Setup SHALL preserve Browser Use's own configuration, official Skill, executable installation, default daemon, and shell `PATH`, and uninstall SHALL remove only Panerelay-owned Browser Use artifacts.
+Panerelay setup SHALL install and register the Browser Use adapter, its Panerelay Skill, private runtime configuration, and diagnostics only when the user selects the Browser Use integration. Setup SHALL preserve Browser Use's own configuration, official Skill, executable installation, default daemon, and shell `PATH`, and uninstall SHALL remove only Panerelay-owned Browser Use artifacts. User-facing setup, doctor, Skill, and package documentation SHALL present Browser Use as the single product prerequisite and SHALL NOT require the user to install or manage its internal Browser Harness runtime separately.
 
 #### Scenario: User selects Browser Use during setup
 
@@ -18,12 +18,20 @@ Panerelay setup SHALL install and register the Browser Use adapter, its Panerela
 - **AND** it registers the adapter by an exact protected path
 - **AND** it does not overwrite Browser Use configuration, its official Skill, or another Panerelay integration
 
-#### Scenario: Browser Use is absent or incompatible
+#### Scenario: Browser Use is absent or below the minimum
 
 - **GIVEN** the user selects the Browser Use integration
-- **WHEN** setup cannot find the pinned compatible Browser Use and Browser Harness versions
-- **THEN** setup and doctor report the missing or incompatible dependency with bounded remediation guidance
+- **WHEN** setup cannot find Browser Use 0.13.7 or newer
+- **THEN** setup and doctor report one missing or incompatible Browser Use dependency with bounded remediation guidance
 - **AND** they do not silently install, upgrade, or downgrade Browser Use
+- **AND** the Native Host and unrelated integrations remain usable
+
+#### Scenario: Browser Use internal runtime is incomplete
+
+- **GIVEN** Browser Use 0.13.7 or newer is installed
+- **WHEN** its internal Browser Harness runtime is missing or older than 0.1.8
+- **THEN** setup and doctor fail the single Browser Use installation check
+- **AND** user-facing remediation asks the user to repair or upgrade Browser Use without exposing Browser Harness as a separately managed product
 - **AND** the Native Host and unrelated integrations remain usable
 
 #### Scenario: User uninstalls the Browser Use integration
@@ -36,7 +44,7 @@ Panerelay setup SHALL install and register the Browser Use adapter, its Panerela
 
 ### Requirement: Panerelay supports reversible default and one-run connection selection
 
-The integration SHALL store a Direct or Panerelay Extension connection preference in Panerelay-owned configuration. An explicit one-run selection SHALL override that preference only for the invoked Browser Use operation and SHALL NOT mutate the saved preference, Browser Use configuration, or an already running daemon in the other lane.
+The integration SHALL store a Direct or Panerelay Extension connection preference in Panerelay-owned configuration. The setup-managed Extension SHALL be able to read that preference and explicitly change it between Direct and Panerelay Extension through the authenticated Native Host only when the Browser Use adapter is registered. An explicit one-run selection SHALL override the saved preference only for the invoked Browser Use operation and SHALL NOT mutate the saved preference, Browser Use configuration, or an already running daemon in the other lane. Changing the saved preference SHALL NOT start a daemon, allocate a participant, authorize a tab, or acquire a control lease.
 
 #### Scenario: Saved mode is Panerelay Extension
 
@@ -53,12 +61,34 @@ The integration SHALL store a Direct or Panerelay Extension connection preferenc
 - **AND** the CLI bypasses Panerelay browser selection and reads no Bridge connection credentials
 - **AND** no Panerelay CDP ticket, participant, or Extension authorization is created
 
+#### Scenario: Extension selects Panerelay as the Browser Use default
+
+- **GIVEN** the protected Browser Use adapter registration exists
+- **AND** the saved preference is Direct or absent
+- **WHEN** the user explicitly enables Browser Use in the Extension's default settings row
+- **THEN** the Bridge stores Extension mode through the same Panerelay-owned preference used by the CLI
+- **AND** the operation returns only bounded availability, mode, and selection state to the Extension
+
+#### Scenario: Extension clears the Browser Use Panerelay default
+
+- **GIVEN** the saved Browser Use preference is Extension mode
+- **WHEN** the user explicitly disables Browser Use in the Extension's default settings row
+- **THEN** the Bridge stores Direct mode without removing the adapter or changing Browser Use configuration
+- **AND** a later unoverridden Skill invocation uses Direct behavior
+
 #### Scenario: One run overrides the saved mode
 
 - **GIVEN** either connection mode is saved as the default
 - **WHEN** the caller explicitly selects the other mode for one invocation
 - **THEN** only that invocation uses the selected lane
 - **AND** the saved preference and any healthy daemon in the other lane remain unchanged
+
+#### Scenario: Extension attempts to change an unavailable integration
+
+- **GIVEN** no valid Browser Use adapter registration exists
+- **WHEN** the Extension requests a Browser Use default mutation
+- **THEN** the Bridge returns an explicit unavailable error
+- **AND** it does not create preference, participant, target, authorization, or lease state
 
 ### Requirement: Extension mode uses an isolated persistent Browser Harness lane
 
@@ -166,14 +196,28 @@ The adapter and Panerelay CLI SHALL provide connection material only. Browser Us
 
 ### Requirement: Compatibility claims are pinned and scoped
 
-The first release SHALL validate Browser Use 0.13.7 and Browser Harness 0.1.8 for the CLI, installed Skill, and Browser Harness-backed CLI MCP surface. It SHALL record each tested capability as Verified, Forwarded, Partial, or Unsupported and SHALL keep Python SDK transparency outside the release claim. Existing agent-browser 0.33.0 compatibility groups SHALL remain regression gates.
+The integration SHALL accept Browser Use stable releases at or above 0.13.7 when their internal Browser Harness runtime is at or above 0.1.8. Panerelay SHALL retain Browser Use 0.13.7 with Browser Harness 0.1.8 as the exact verified baseline for the CLI, installed Skill, and Browser Use CLI MCP surface; passing the minimum gate SHALL NOT automatically classify a newer pair as Verified. Compatibility records SHALL classify tested capabilities as Verified, Forwarded, Partial, or Unsupported, and SHALL keep Python SDK transparency outside the release claim. Existing agent-browser 0.33.0 compatibility groups SHALL remain regression gates.
 
-#### Scenario: Release candidate is evaluated
+#### Scenario: Exact verified baseline is evaluated
 
-- **GIVEN** the adapter implementation and bounded spike are complete
+- **GIVEN** the adapter implementation and bounded spike use Browser Use 0.13.7 with Browser Harness 0.1.8
 - **WHEN** Panerelay evaluates a release candidate
 - **THEN** compatibility evidence covers bootstrap, core operations, tab creation and closure, popup and iframe behavior, revocation, Native Host reload, stale-daemon recovery, simultaneous invocation handling, and persistent reuse
 - **AND** the record identifies the exact Browser Use, Browser Harness, Chromium, and Panerelay versions
+
+#### Scenario: Newer stable installation passes the minimum gate
+
+- **GIVEN** Browser Use is newer than 0.13.7 and its internal Browser Harness runtime is at least 0.1.8
+- **WHEN** setup or doctor evaluates the installation
+- **THEN** the Browser Use compatibility check passes
+- **AND** Panerelay does not represent that untested version pair as Verified
+
+#### Scenario: Installed version is below a minimum
+
+- **GIVEN** Browser Use is older than 0.13.7 or its internal Browser Harness runtime is older than 0.1.8
+- **WHEN** setup or doctor evaluates the installation
+- **THEN** the single Browser Use compatibility check fails closed
+- **AND** user-facing guidance identifies Browser Use 0.13.7 or newer as the supported prerequisite
 
 #### Scenario: Python SDK runs without an explicit Panerelay session
 

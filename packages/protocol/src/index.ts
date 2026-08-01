@@ -1,4 +1,5 @@
 import { PANERELAY_PROTOCOL_VERSION } from './constants.js';
+import type { CliAdapterMode } from './cli-adapter.js';
 import {
   isAutomationActivitySnapshotMessage,
   isAutomationActivityUpdatedMessage,
@@ -369,6 +370,9 @@ export type IntegrationRequest =
   | { method: 'default-provider.get' }
   | { method: 'default-provider.set' }
   | { method: 'default-provider.clear' }
+  | { method: 'browser-use-default.get' }
+  | { method: 'browser-use-default.set' }
+  | { method: 'browser-use-default.clear' }
   | { method: 'browser-default.get' }
   | { method: 'browser-default.set-current' }
   | { method: 'browser-default.clear-current' }
@@ -383,6 +387,12 @@ export interface IntegrationWorkspaceDirectoryResult {
   path: string | null;
 }
 
+export interface IntegrationBrowserUseDefaultResult {
+  available: boolean;
+  mode: CliAdapterMode | null;
+  isPanerelay: boolean;
+}
+
 export interface IntegrationBrowserDefaultResult {
   currentBrowser: {
     browserId: string;
@@ -390,11 +400,13 @@ export interface IntegrationBrowserDefaultResult {
     browserFamily?: BrowserFamily;
   } | null;
   defaultBrowserId: string | null;
+  hasMultipleBrowsers: boolean;
   isCurrentBrowser: boolean;
 }
 
 export type IntegrationResult =
   | IntegrationDefaultProviderResult
+  | IntegrationBrowserUseDefaultResult
   | IntegrationWorkspaceDirectoryResult
   | IntegrationBrowserDefaultResult;
 

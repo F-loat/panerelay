@@ -70,6 +70,7 @@ test('installs the additive Browser Use Skill with the exact private CLI path', 
     assert.equal(content.includes(`'${mcpLauncherPath}'`), true);
     assert.match(content, /--cli-mcp/);
     assert.match(content, /legacy `browser-use --mcp`/);
+    assert.doesNotMatch(content, /Browser Harness|browser-harness/);
     assert.doesNotMatch(content, /\{\{PANERELAY_BROWSER_USE_CLI\}\}/);
     assert.doesNotMatch(content, /\{\{PANERELAY_BROWSER_USE_MCP\}\}/);
     assert.doesNotMatch(content, /\{\{BROWSER_USE_EXECUTABLE\}\}/);

@@ -5,7 +5,8 @@
 - Status: Accepted
 - Authors: F-loat
 - Created: 2026-07-29
-- Updated: 2026-07-30
+- Updated: 2026-08-01
+- Amendment: `openspec/changes/add-browser-use-default-setting`
 
 RFC-0004 supersedes this RFC's attachment-as-control and page-indicator semantics by separating visible read observation from active browser control.
 
@@ -164,6 +165,8 @@ The side panel is a client of the same Bridge session model used by external age
 
 Agent-provider-specific wire events will be normalized before reaching the side panel.
 
+Agent-provider readiness gates provider preparation, conversation history, suggestions, composition, and other Agent operations. It does not gate the explicit browser-authorization surface: while the Native Host and Bridge are connected, the compact main-panel authorization card remains available even when the selected Agent is unavailable and the panel is showing setup guidance. Selecting or changing an Agent never grants, revokes, or changes browser authorization.
+
 Automatic Agent approval applies only to a normalized approval request for the currently displayed conversation. It may choose the one-request `accept` decision when the provider offers it; it never chooses a session-wide decision, grants Chrome site access, acquires a browser control lease, or answers an approval for an inactive conversation.
 
 ## Extension-backed CDP
@@ -254,7 +257,9 @@ transport.cancel
 
 `agent.request` carries a provider-neutral operation (`agent.providers`, `agent.prepare`, `conversation.list`, `conversation.start`, `conversation.resume`, `conversation.send`, `conversation.interrupt`, or `conversation.respond`). `agent.response` correlates the bounded result or error. Streaming and unsolicited updates use `conversation.event`.
 
-`integration.request` carries a local Panerelay integration operation. The initial operations read, set, or conditionally clear the user-level agent-browser default Provider, and open a platform-native project-directory chooser. `integration.response` returns the resulting current value, one canonical absolute directory, a cancelled-selection result, or a correlated error. Clearing the default removes the value only when it currently selects Panerelay; it does not uninstall the Provider, remove the Native Host, or edit project-level configuration.
+`integration.request` carries a local Panerelay integration operation. These operations read or update the user-level agent-browser default Provider, the Browser Use Direct/Extension connection preference, and the current-browser default, or open a platform-native project-directory chooser. `integration.response` returns a bounded resulting value, one canonical absolute directory, a cancelled-selection result, or a correlated error. The Extension only requests these changes over its authenticated Native Messaging connection; the Bridge validates the request and owns all access to protected Panerelay configuration.
+
+The side panel presents agent-browser and Browser Use as independent choices under one “Set as default” setting. Clearing agent-browser removes the value only when it currently selects Panerelay. Clearing Browser Use selects Direct mode. When more than one live browser registration exists, a separate “Control by default” switch indicates whether the current browser is the saved unscoped routing default; the row is hidden for zero or one live registration without changing the saved value. None of these operations uninstalls an integration, edits project-level configuration, grants site or tab authorization, creates a relay participant, starts an automation daemon, or acquires a control lease.
 
 The normalized conversation event union currently covers turn lifecycle, assistant message deltas and completion, reasoning-summary deltas, tool activity, approval requests and resolution, interruption, failure, and provider errors. Provider-native event objects do not cross the Bridge boundary.
 

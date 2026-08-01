@@ -655,27 +655,40 @@ function ExternalControl({ controller }: { controller: SidepanelController }) {
   );
 }
 
-function DefaultProviderSetting({ controller }: { controller: SidepanelController }) {
+function AutomationDefaultsSetting({ controller }: { controller: SidepanelController }) {
   const { state } = controller;
   const { t } = useCopy(state);
-  const current = state.extensionStatus?.defaultProvider ?? null;
+  const agentBrowser = state.extensionStatus?.defaultProvider ?? null;
+  const browserUse = state.extensionStatus?.browserUseDefault ?? null;
   const connected = state.extensionStatus?.bridgeConnected ?? false;
-  const enabled = current?.isPanerelay ?? false;
+  const agentBrowserEnabled = agentBrowser?.isPanerelay ?? false;
+  const browserUseEnabled = browserUse?.isPanerelay ?? false;
 
   return (
-    <div className="settings-field">
-      <span>{t('defaultProvider')}</span>
-      <button
-        aria-label={t(enabled ? 'clearProviderDefault' : 'setProviderDefault')}
-        aria-pressed={enabled}
-        className="settings-provider-toggle"
-        disabled={!connected || !current || state.defaultProviderPending}
-        onClick={() => void controller.setDefaultProvider(!enabled)}
-        type="button"
-      >
-        <span>agent-browser</span>
-        <span aria-hidden="true" className="settings-provider-indicator" />
-      </button>
+    <div className="settings-field settings-default-field">
+      <span>{t('setAsDefault')}</span>
+      <div className="settings-default-actions">
+        <button
+          aria-label={t(agentBrowserEnabled ? 'clearProviderDefault' : 'setProviderDefault')}
+          aria-pressed={agentBrowserEnabled}
+          className="settings-provider-toggle settings-default-toggle"
+          disabled={!connected || !agentBrowser || state.defaultProviderPending}
+          onClick={() => void controller.setDefaultProvider(!agentBrowserEnabled)}
+          type="button"
+        >
+          agent-browser
+        </button>
+        <button
+          aria-label={t(browserUseEnabled ? 'clearBrowserUseDefault' : 'setBrowserUseDefault')}
+          aria-pressed={browserUseEnabled}
+          className="settings-provider-toggle settings-default-toggle"
+          disabled={!connected || !browserUse?.available || state.browserUseDefaultPending}
+          onClick={() => void controller.setBrowserUseDefault(!browserUseEnabled)}
+          type="button"
+        >
+          Browser Use
+        </button>
+      </div>
     </div>
   );
 }
@@ -687,28 +700,22 @@ function BrowserDefaultSetting({ controller }: { controller: SidepanelController
   const connected = state.extensionStatus?.bridgeConnected ?? false;
   const enabled = current?.isCurrentBrowser ?? false;
   const browser = current?.currentBrowser;
-  const label =
-    browser?.browserFamily === 'edge'
-      ? 'Edge'
-      : browser?.browserFamily === 'chrome'
-        ? 'Chrome'
-        : browser?.browserFamily === 'chromium'
-          ? 'Chromium'
-          : browser?.browserName || 'Browser';
+
+  if (!connected || !browser || !current.hasMultipleBrowsers) return null;
 
   return (
     <div className="settings-field">
-      <span>{t('defaultBrowser')}</span>
+      <span>{t('controlByDefault')}</span>
       <button
+        aria-checked={enabled}
         aria-label={t(enabled ? 'clearBrowserDefault' : 'setBrowserDefault')}
-        aria-pressed={enabled}
-        className="settings-provider-toggle"
-        disabled={!connected || !browser || state.browserDefaultPending}
+        className="settings-switch"
+        disabled={state.browserDefaultPending}
         onClick={() => void controller.setBrowserDefault(!enabled)}
+        role="switch"
         type="button"
       >
-        <span>{label}</span>
-        <span aria-hidden="true" className="settings-provider-indicator" />
+        <span aria-hidden="true" className="settings-switch-thumb" />
       </button>
     </div>
   );
@@ -794,7 +801,7 @@ function SettingsPopover({
           />
         </span>
       </div>
-      <DefaultProviderSetting controller={controller} />
+      <AutomationDefaultsSetting controller={controller} />
       <BrowserDefaultSetting controller={controller} />
       <AuthorizationPanel controller={controller} />
       <ExternalControl controller={controller} />
@@ -1300,26 +1307,27 @@ function Welcome({ controller }: { controller: SidepanelController }) {
           )}
         </div>
       )}
-      {providerReady && (
+      {bridgeConnected && (
         <div className="suggestions">
-          {suggestions.map(suggestion => {
-            const Icon = suggestion.icon;
-            return (
-              <button
-                aria-label={suggestion.title}
-                key={suggestion.key}
-                onClick={() => controller.useSuggestion(suggestion.key)}
-                type="button"
-              >
-                <Icon aria-hidden="true" className="suggestion-icon" />
-                <span>
-                  <strong>{suggestion.title}</strong>
-                  <small>{suggestion.body}</small>
-                </span>
-                <ChevronRight aria-hidden="true" className="suggestion-arrow" />
-              </button>
-            );
-          })}
+          {providerReady &&
+            suggestions.map(suggestion => {
+              const Icon = suggestion.icon;
+              return (
+                <button
+                  aria-label={suggestion.title}
+                  key={suggestion.key}
+                  onClick={() => controller.useSuggestion(suggestion.key)}
+                  type="button"
+                >
+                  <Icon aria-hidden="true" className="suggestion-icon" />
+                  <span>
+                    <strong>{suggestion.title}</strong>
+                    <small>{suggestion.body}</small>
+                  </span>
+                  <ChevronRight aria-hidden="true" className="suggestion-arrow" />
+                </button>
+              );
+            })}
           <AuthorizationPanel compact controller={controller} />
         </div>
       )}

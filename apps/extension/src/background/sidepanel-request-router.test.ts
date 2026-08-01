@@ -11,6 +11,7 @@ const extensionStatus = {
   bridgeConnected: true,
   nativeHostState: 'connected',
   defaultProvider: null,
+  browserUseDefault: null,
   browserDefault: null,
   authorizationRequest: null,
   activeTab: null,
@@ -51,6 +52,9 @@ function router(overrides: Partial<SidePanelRequestRouterOptions> = {}) {
     refreshBrowserDefault: async () => {
       calls.push('browser:refresh');
     },
+    refreshBrowserUseDefault: async () => {
+      calls.push('browser-use:refresh');
+    },
     requestAgent: async (request: AgentRequest) => {
       requests.push(request);
       if (request.method === 'agent.providers') return [{ id: 'codex', name: 'Codex' }];
@@ -61,6 +65,10 @@ function router(overrides: Partial<SidePanelRequestRouterOptions> = {}) {
     selectWorkspaceDirectory: async () => '/workspace',
     setAuthorization: async () => extensionStatus,
     setBrowserDefault: async () => extensionStatus,
+    setBrowserUseDefault: async enabled => {
+      calls.push(`browser-use:${enabled}`);
+      return extensionStatus;
+    },
     setDefaultProvider: async () => extensionStatus,
     status: async () => extensionStatus,
     workspace: {
@@ -82,9 +90,17 @@ test('routes status, browser settings, and controlled-tab requests', async () =>
     status: extensionStatus,
   });
   await handle({ type: 'panerelay.browser-default.refresh' });
+  await handle({ type: 'panerelay.browser-use-default.refresh' });
+  await handle({ type: 'panerelay.browser-use-default.set', enabled: true });
   await handle({ type: 'panerelay.controlled-tab.activate', tabId: 7 });
   await handle({ type: 'panerelay.controlled-tab.close', tabId: 8 });
-  assert.deepEqual(calls, ['browser:refresh', 'activate:7', 'close:8']);
+  assert.deepEqual(calls, [
+    'browser:refresh',
+    'browser-use:refresh',
+    'browser-use:true',
+    'activate:7',
+    'close:8',
+  ]);
 });
 
 test('routes provider, workspace, and conversation requests without changing payloads', async () => {

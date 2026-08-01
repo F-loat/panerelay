@@ -9,6 +9,8 @@
 
 This record covers the setup-managed Panerelay CLI connection adapter, the additive Panerelay Browser Use Skill, and the Browser Harness-backed Browser Use CLI MCP launcher. It does not claim transparent interception of arbitrary Browser Use Python SDK construction or the official Browser Use Skill.
 
+This is exact evidence for Browser Use 0.13.7 and its Browser Harness 0.1.8 runtime, not a claim about every later release. Panerelay's user-facing compatibility floor is Browser Use 0.13.7; setup and doctor also verify the completeness of its internal runtime, but present one Browser Use check. A newer stable installation that passes the minimum gate is eligible to run and is not automatically classified as Verified by this record.
+
 ## Status meanings
 
 - **Verified**: deterministic coverage and a representative daily-Chrome run passed through the authenticated product bootstrap.

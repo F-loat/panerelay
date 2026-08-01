@@ -67,6 +67,7 @@ export interface SidepanelController {
   setAuthorization(mode: AuthorizationMode): Promise<void>;
   retryNativeHost(): Promise<void>;
   setDefaultProvider(enabled: boolean): Promise<void>;
+  setBrowserUseDefault(enabled: boolean): Promise<void>;
   setBrowserDefault(enabled: boolean): Promise<void>;
   activateControlledTab(tabId: number): Promise<void>;
   closeControlledTab(tabId: number): Promise<void>;
@@ -602,6 +603,25 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
     [client, patch],
   );
 
+  const setBrowserUseDefault = useCallback(
+    async (enabled: boolean) => {
+      if (stateRef.current.browserUseDefaultPending) return;
+      patch({ browserUseDefaultPending: true, error: '' });
+      try {
+        const response = await client.request({
+          type: 'panerelay.browser-use-default.set',
+          enabled,
+        });
+        patch({ extensionStatus: response.status ?? stateRef.current.extensionStatus });
+      } catch (error) {
+        patch({ error: errorText(error) });
+      } finally {
+        patch({ browserUseDefaultPending: false });
+      }
+    },
+    [client, patch],
+  );
+
   const activateControlledTab = useCallback(
     async (tabId: number) => {
       try {
@@ -1017,7 +1037,8 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
       patch({ settingsOpen });
       if (!settingsOpen || !stateRef.current.extensionStatus?.bridgeConnected) return;
       void client
-        .request({ type: 'panerelay.browser-default.refresh' })
+        .request({ type: 'panerelay.browser-use-default.refresh' })
+        .then(() => client.request({ type: 'panerelay.browser-default.refresh' }))
         .then(response => {
           patch({ extensionStatus: response.status ?? stateRef.current.extensionStatus });
         })
@@ -1162,6 +1183,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
     setAuthorization,
     retryNativeHost,
     setDefaultProvider,
+    setBrowserUseDefault,
     setBrowserDefault,
     activateControlledTab,
     closeControlledTab,

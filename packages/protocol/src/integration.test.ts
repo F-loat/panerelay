@@ -39,13 +39,49 @@ test('accepts browser-default requests and bounded current-browser results', () 
         browserFamily: 'edge',
       },
       defaultBrowserId: 'edge-browser-id',
+      hasMultipleBrowsers: true,
       isCurrentBrowser: true,
     },
   };
 
   assert.equal(isExtensionToHostMessage(request), true);
   assert.equal(isHostToExtensionMessage(response), true);
+  assert.deepEqual(Object.keys(response.result!).sort(), [
+    'currentBrowser',
+    'defaultBrowserId',
+    'hasMultipleBrowsers',
+    'isCurrentBrowser',
+  ]);
   assert.equal(JSON.stringify(response).includes('token'), false);
+});
+
+test('accepts Browser Use default requests and bounded mode results', () => {
+  for (const method of [
+    'browser-use-default.get',
+    'browser-use-default.set',
+    'browser-use-default.clear',
+  ] as const) {
+    const request: IntegrationRequestMessage = {
+      type: 'integration.request',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      requestId: method,
+      request: { method },
+    };
+    assert.equal(isExtensionToHostMessage(request), true);
+  }
+  const response: IntegrationResponseMessage = {
+    type: 'integration.response',
+    protocol: PANERELAY_PROTOCOL_VERSION,
+    requestId: 'browser-use-default.get',
+    success: true,
+    result: {
+      available: true,
+      mode: 'extension',
+      isPanerelay: true,
+    },
+  };
+  assert.equal(isHostToExtensionMessage(response), true);
+  assert.deepEqual(Object.keys(response.result!).sort(), ['available', 'isPanerelay', 'mode']);
 });
 
 test('accepts Edge capability registration and rejects malformed capability values', () => {

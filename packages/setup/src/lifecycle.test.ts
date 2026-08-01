@@ -97,8 +97,8 @@ test('setup can opt into global and project default providers', async () => {
         return '/home/.agents/skills/panerelay-browser-use';
       },
       probeBrowserUse: async () => ({
-        browserHarness: '0.1.8',
-        browserUse: '0.13.7',
+        browserHarness: '0.1.9',
+        browserUse: '0.13.8',
         browserUseExecutable: '/bin/browser-use',
       }),
       installSkill: async scope => {

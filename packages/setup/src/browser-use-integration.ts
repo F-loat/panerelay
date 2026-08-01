@@ -5,8 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   browserUseAdapterManifest,
-  SUPPORTED_BROWSER_HARNESS_VERSION,
-  SUPPORTED_BROWSER_USE_VERSION,
+  isBrowserUseInstallationSupported,
   type BrowserUseVersions,
 } from '@panerelay/browser-use';
 import {
@@ -366,10 +365,9 @@ export async function installBrowserUseIntegrationArtifacts(
         platform,
       ),
     ]);
-    const browserUseCompatible =
-      options.browserUseVersions?.browserUse === SUPPORTED_BROWSER_USE_VERSION &&
-      options.browserUseVersions.browserHarness === SUPPORTED_BROWSER_HARNESS_VERSION &&
-      Boolean(options.browserUseVersions.browserUseExecutable);
+    const browserUseCompatible = options.browserUseVersions
+      ? isBrowserUseInstallationSupported(options.browserUseVersions)
+      : false;
     if (browserUseCompatible) {
       await writeProtectedFile(
         paths.mcpLauncherPath,

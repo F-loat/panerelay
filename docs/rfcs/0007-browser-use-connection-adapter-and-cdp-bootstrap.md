@@ -7,6 +7,7 @@
 - Created: 2026-07-31
 - Updated: 2026-08-01
 - OpenSpec: `openspec/changes/archive/2026-08-01-add-browser-use-connection-adapter`
+- Amendments: `openspec/changes/relax-browser-use-version-gate`, `openspec/changes/add-browser-use-default-setting`
 
 ## Summary
 
@@ -79,7 +80,7 @@ The Browser Use adapter receives the selected opaque browser ID, rereads only th
 
 Setup installs a private version-pinned CLI launcher and adapter artifact for the Skill without installing either globally or changing shell PATH. A globally installed CLI remains optional and can read the same protected adapter registry.
 
-The implemented user-facing surfaces are `panerelay connection use <adapter> <mode>`, `panerelay connection resolve <adapter>`, and `panerelay run <adapter> -- <exact child command>`. Setup records and injects the exact compatible Browser Use executable into its additive Skill; Agents do not discover the adapter or Browser Use executable from PATH.
+The implemented user-facing surfaces are `panerelay connection use <adapter> <mode>`, `panerelay connection resolve <adapter>`, and `panerelay run <adapter> -- <exact child command>`. Setup records and injects the detected compatible Browser Use executable into its additive Skill; Agents do not discover the adapter or Browser Use executable from PATH.
 
 ## CDP HTTP bootstrap
 
@@ -115,6 +116,8 @@ Panerelay stores a per-adapter Direct or Extension preference in protected Paner
 
 An explicit mode applies only to one CLI invocation and never mutates the saved preference. Changing the saved preference does not restart either lane. Browser selection follows RFC-0006 and never falls through from an unavailable explicit/default registration to another browser or Direct mode.
 
+The Extension settings surface may change the saved Browser Use preference through versioned `browser-use-default.get`, `browser-use-default.set`, and `browser-use-default.clear` integration requests over the existing authenticated Native Messaging channel. The Bridge exposes this control only when the protected Browser Use adapter registration exists and declares Extension mode, and it delegates the read or write to the CLI adapter-configuration API. Results are bounded to availability, effective mode, and whether Panerelay is selected. Set chooses Extension mode and clear chooses Direct mode; neither operation starts Browser Harness, mints a bootstrap ticket, creates a participant, changes browser selection, or changes the independent agent-browser default.
+
 ## Security invariants
 
 1. Site permission, tab authorization, browser selection, bootstrap ticket possession, participant allocation, and control lease remain distinct.
@@ -130,7 +133,9 @@ An explicit mode applies only to one CLI invocation and never mutates the saved 
 
 ## Compatibility
 
-The first pinned integration target is Browser Use 0.13.7 with Browser Harness 0.1.8. Claims cover the Panerelay Browser Use Skill, Browser Use CLI, and Browser Harness-backed CLI MCP. Python SDK transparency is not claimed.
+The user-facing minimum is Browser Use 0.13.7. Setup and doctor accept stable Browser Use releases at or above that floor only when the Browser Use environment is complete; they report one Browser Use status and tell users to install, repair, or upgrade Browser Use rather than manage its internal packages. Panerelay continues to probe the Browser Harness distribution internally with a 0.1.8 floor because the supported CLI, daemon, Skill-helper, and CLI MCP paths require it.
+
+The exact verified integration baseline remains Browser Use 0.13.7 with Browser Harness 0.1.8. A newer pair that passes the minimum gate is eligible to run but is not automatically `Verified`. Claims cover the Panerelay Browser Use Skill, Browser Use CLI, and Browser Use CLI MCP. Python SDK transparency is not claimed.
 
 Compatibility must be recorded as `Verified`, `Forwarded`, `Partial`, or `Unsupported` for bootstrap, initialization, core page operations, tab and popup lifecycle, child sessions, revocation, persistent reuse, concurrency behavior, Native Host reload, stale-daemon recovery, and browser-ownership limitations. agent-browser 0.33.0 remains the unchanged regression baseline for the shared Bridge.
 

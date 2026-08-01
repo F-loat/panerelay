@@ -16,8 +16,8 @@ npx --yes @panerelay/setup uninstall --yes
 
 ### Optional Browser Use integration
 
-Browser Use `0.13.7` with Browser Harness `0.1.8` can use the existing Chrome
-session through an opt-in Extension-backed lane:
+Browser Use `0.13.7` or newer can use the existing Chrome session through an
+opt-in Extension-backed lane:
 
 ```bash
 npx --yes @panerelay/setup --browser-use
@@ -29,7 +29,9 @@ the installed versions, installs a private Panerelay CLI and adapter under
 `~/.panerelay`, records the exact compatible executable, and installs an
 additive `panerelay-browser-use` Skill without replacing the official Browser
 Use Skill or changing `PATH`. Setup initially saves Extension mode. The setup
-output also prints an optional CLI MCP launcher.
+output also prints an optional CLI MCP launcher. If the Browser Use environment
+is incomplete, setup asks the user to repair or upgrade Browser Use as one
+installation.
 
 The private CLI supports a durable Panerelay-owned mode and a one-run override:
 
@@ -42,17 +44,17 @@ The private CLI supports a durable Panerelay-owned mode and a one-run override:
 
 These paths are POSIX examples; use the exact launchers printed by setup on the
 current platform. One-run overrides do not change the saved mode or another
-Agent's default. A healthy Extension-mode Browser Harness daemon persists and
-is reused after the command exits. Sequential Agents share its current-page
-state; simultaneous canonical runs are serialized or fail busy. User release,
+Agent's default. A healthy Extension-mode Browser Use daemon persists and is
+reused after the command exits. Sequential Agents share its current-page state;
+simultaneous canonical runs are serialized or fail busy. User release,
 authorization loss, Extension/Native Host disconnect, or WebSocket loss removes
-browser authority even if the detached Browser Harness process remains alive.
+browser authority even if the detached Browser Use process remains alive.
 
-The adapter disables Browser Harness/Browser Use telemetry and automatic
-recording for this lane and confines its daemon log and temporary artifacts to
-protected Panerelay-owned storage. Full Panerelay uninstall removes the owned
-adapter, mode, Skill, launchers, configuration, runtime, and temporary files;
-it does not kill processes by a broad command-line pattern.
+The adapter disables Browser Use telemetry and automatic recording for this
+lane and confines its daemon log and temporary artifacts to protected
+Panerelay-owned storage. Full Panerelay uninstall removes the owned adapter,
+mode, Skill, launchers, configuration, runtime, and temporary files; it does
+not kill processes by a broad command-line pattern.
 
 Omitting an action runs `setup`. It installs the Native Messaging host, registers the `panerelay` plugin in the user-level agent-browser config, and installs the `panerelay-browser` Agent Skill. It does not change the default agent-browser Provider unless requested. Browser Use integration remains opt-in through `--browser-use`.
 

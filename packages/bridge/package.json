@@ -59,11 +59,11 @@
     "@agentclientprotocol/sdk": "^1.3.0",
     "@panerelay/agent-browser": "workspace:*",
     "@panerelay/browser-registry": "workspace:*",
+    "@panerelay/cli": "workspace:*",
     "@panerelay/protocol": "workspace:*",
     "ws": "^8.21.1"
   },
   "devDependencies": {
-    "@panerelay/browser-use": "workspace:*",
-    "@panerelay/cli": "workspace:*"
+    "@panerelay/browser-use": "workspace:*"
   }
 }

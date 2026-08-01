@@ -554,19 +554,69 @@ summary:focus-visible {
   opacity: 0.45;
 }
 
-.settings-provider-indicator {
-  width: 8px;
-  height: 8px;
-  flex: none;
-  border: 1px solid var(--border-strong);
-  border-radius: 50%;
-  background: var(--surface);
+.settings-default-field {
+  grid-template-columns: auto minmax(0, 1fr);
 }
 
-.settings-provider-toggle[aria-pressed='true'] .settings-provider-indicator {
+.settings-default-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.settings-default-toggle {
+  width: auto;
+  min-width: 0;
+  justify-content: center;
+  padding-inline: 8px;
+  white-space: nowrap;
+}
+
+.settings-switch {
+  position: relative;
+  width: 32px;
+  height: 18px;
+  justify-self: end;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface-raised);
+  padding: 2px;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.settings-switch:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
+}
+
+.settings-switch[aria-checked='true'] {
   border-color: var(--accent);
   background: var(--accent);
-  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.settings-switch:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.settings-switch-thumb {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--text-secondary);
+  box-shadow: 0 1px 2px var(--shadow);
+  transition:
+    transform 120ms ease,
+    background 120ms ease;
+}
+
+.settings-switch[aria-checked='true'] .settings-switch-thumb {
+  transform: translateX(14px);
+  background: var(--surface);
 }
 
 .settings-select {

@@ -23,9 +23,8 @@ import {
   type BrowserUseIntegrationUninstallResult,
 } from './browser-use-integration.js';
 import {
+  isBrowserUseInstallationSupported,
   probeBrowserUseVersions,
-  SUPPORTED_BROWSER_HARNESS_VERSION,
-  SUPPORTED_BROWSER_USE_VERSION,
   type BrowserUseVersions,
 } from '@panerelay/browser-use';
 
@@ -113,10 +112,9 @@ export async function setupPanerelay(
         options.platform,
       )
     : undefined;
-  const browserUseReady =
-    browserUseVersions?.browserUse === SUPPORTED_BROWSER_USE_VERSION &&
-    browserUseVersions.browserHarness === SUPPORTED_BROWSER_HARNESS_VERSION &&
-    Boolean(browserUseVersions.browserUseExecutable);
+  const browserUseReady = browserUseVersions
+    ? isBrowserUseInstallationSupported(browserUseVersions)
+    : false;
   const browserUseIntegration = options.browserUse
     ? await installBrowserUse({
         browserUseVersions,

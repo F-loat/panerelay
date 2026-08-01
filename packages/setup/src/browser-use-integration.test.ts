@@ -88,8 +88,8 @@ test('installs protected pinned bundles and preserves unrelated adapter registra
 
     const installation = await installBrowserUseIntegrationArtifacts({
       browserUseVersions: {
-        browserHarness: '0.1.8',
-        browserUse: '0.13.7',
+        browserHarness: '0.1.9',
+        browserUse: '0.13.8',
         browserUseExecutable,
       },
       homeDirectory,
@@ -106,8 +106,8 @@ test('installs protected pinned bundles and preserves unrelated adapter registra
       installation.config,
     );
     assert.equal(installation.config.browserUseExecutable, browserUseExecutable);
-    assert.equal(installation.config.browserUseVersion, '0.13.7');
-    assert.equal(installation.config.browserHarnessVersion, '0.1.8');
+    assert.equal(installation.config.browserUseVersion, '0.13.8');
+    assert.equal(installation.config.browserHarnessVersion, '0.1.9');
     assert.equal(installation.config.mcpLauncherPath, installation.paths.mcpLauncherPath);
 
     const cliBeforeRollback = await readFile(installation.paths.cliArtifactPath);
