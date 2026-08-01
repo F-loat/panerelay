@@ -22,7 +22,7 @@
     "dev:website": "pnpm --filter @panerelay/website dev",
     "package": "pnpm --filter @panerelay/extension package",
     "preview:website": "pnpm --filter @panerelay/website preview",
-    "typecheck": "pnpm --filter @panerelay/protocol build && pnpm --filter @panerelay/browser-registry build && pnpm --filter @panerelay/cli build && pnpm --filter @panerelay/agent-browser build && pnpm --filter @panerelay/bridge build && pnpm -r --if-present typecheck",
+    "typecheck": "pnpm --filter @panerelay/protocol build && pnpm --filter @panerelay/browser-registry build && pnpm --filter @panerelay/cli build && pnpm --filter @panerelay/agent-browser build && pnpm --filter @panerelay/browser-use build && pnpm --filter @panerelay/bridge build && pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test && node --test scripts/*.test.mjs",
     "lint": "eslint \"{apps,packages}/**/src/**/*.{ts,tsx}\"",
     "lint:fix": "pnpm run lint --fix",
