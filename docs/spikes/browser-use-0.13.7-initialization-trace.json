@@ -1,0 +1,77 @@
+{
+  "schema": "panerelay.browser-use-initialization-trace.v1",
+  "versions": {
+    "browserUse": "0.13.7",
+    "browserHarness": "0.1.8",
+    "chrome": "150.0.7871.187"
+  },
+  "steps": [
+    {
+      "direction": "client-to-bootstrap",
+      "method": "GET",
+      "path": "/json/version"
+    },
+    {
+      "direction": "client-to-relay",
+      "method": "Target.getTargets",
+      "scope": "browser",
+      "params": {}
+    },
+    {
+      "direction": "relay-to-client",
+      "method": "Target.getTargets",
+      "resultShape": {
+        "targetInfos": [
+          {
+            "targetId": "<opaque-target>",
+            "type": "page",
+            "title": "<redacted>",
+            "url": "<redacted>",
+            "attached": false
+          }
+        ]
+      }
+    },
+    {
+      "direction": "client-to-relay",
+      "method": "Target.attachToTarget",
+      "scope": "browser",
+      "params": {
+        "targetId": "<opaque-target>",
+        "flatten": true
+      }
+    },
+    {
+      "direction": "relay-to-client",
+      "method": "Target.attachToTarget",
+      "resultShape": {
+        "sessionId": "<opaque-page-session>"
+      }
+    },
+    {
+      "direction": "client-to-relay",
+      "concurrentMethods": ["Page.enable", "DOM.enable", "Runtime.enable", "Network.enable"],
+      "scope": "<opaque-page-session>",
+      "params": {}
+    },
+    {
+      "direction": "relay-to-client",
+      "successfulMethods": ["Page.enable", "DOM.enable", "Runtime.enable", "Network.enable"],
+      "scope": "<opaque-page-session>",
+      "resultShape": {}
+    },
+    {
+      "direction": "relay-event",
+      "observedMethods": ["Runtime.executionContextCreated", "Page.frameResized"],
+      "scope": "<opaque-page-session>",
+      "content": "<redacted>"
+    }
+  ],
+  "notObservedDuringInitialization": [
+    "Browser.getVersion",
+    "Target.setAutoAttach",
+    "Browser.setDownloadBehavior",
+    "Target.createBrowserContext",
+    "Storage.getCookies"
+  ]
+}

@@ -1086,6 +1086,7 @@ chrome.tabs.onActivated.addListener(({ tabId }) => {
 });
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   void (async () => {
+    const authorizationModeAtUpdate = authorizationMode;
     if (changeInfo.status === 'loading' || changeInfo.url) {
       await pageCommentService.resetIfDocumentEnded(tabId);
     }
@@ -1102,7 +1103,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     const targetId = targetIdsByTabId.get(tabId);
     if (targetId && attachedTabs.has(targetId)) {
       if (!summary || !(await isTabEligible(summary))) {
-        if (authorizationMode === 'single-tab') {
+        if (authorizationModeAtUpdate === 'single-tab') {
           authorizedTab = null;
           authorizedOriginPatterns = [];
           authorizationMode = 'none';

@@ -27,6 +27,61 @@ test('doctor verifies the optional global default Provider', async () => {
   }
 });
 
+test('doctor reports pinned Browser Use and Browser Harness compatibility only when selected', async () => {
+  const homeDirectory = await mkdtemp(join(tmpdir(), 'panerelay-browser-use-doctor-'));
+  try {
+    let probes = 0;
+    const plain = await doctorPanerelay({
+      browserUseProbe: async () => {
+        probes += 1;
+        return {};
+      },
+      homeDirectory,
+      platform: 'linux',
+    });
+    assert.equal(
+      plain.checks.some(check => check.id === 'browser-use'),
+      false,
+    );
+    assert.equal(probes, 0);
+
+    const ready = await doctorPanerelay({
+      browserUse: true,
+      browserUseProbe: async () => {
+        probes += 1;
+        return {
+          browserHarness: '0.1.8',
+          browserUse: '0.13.7',
+          browserUseExecutable: '/venv/bin/browser-use',
+        };
+      },
+      homeDirectory,
+      platform: 'linux',
+    });
+    assert.equal(ready.checks.find(check => check.id === 'browser-use')?.status, 'pass');
+    assert.equal(ready.checks.find(check => check.id === 'browser-harness')?.status, 'pass');
+    assert.match(
+      ready.checks.find(check => check.id === 'browser-use')?.detail ?? '',
+      /\/venv\/bin\/browser-use \(0\.13\.7\)/,
+    );
+
+    const incompatible = await doctorPanerelay({
+      browserUse: true,
+      browserUseProbe: async () => ({
+        browserHarness: '0.1.7',
+        browserUse: '0.13.6',
+        browserUseExecutable: '/venv/bin/browser-use',
+      }),
+      homeDirectory,
+      platform: 'linux',
+    });
+    assert.equal(incompatible.checks.find(check => check.id === 'browser-use')?.status, 'fail');
+    assert.equal(incompatible.checks.find(check => check.id === 'browser-harness')?.status, 'fail');
+  } finally {
+    await rm(homeDirectory, { force: true, recursive: true });
+  }
+});
+
 test('doctor recognizes multiple independent browser registrations', async () => {
   const homeDirectory = await mkdtemp(join(tmpdir(), 'panerelay-multi-browser-doctor-'));
   const extensionId = 'panplnkjlkoceaonlmpdekjphgmbggmi';
@@ -44,6 +99,7 @@ test('doctor recognizes multiple independent browser registrations', async () =>
           pid: process.pid,
           port: browserFamily === 'chrome' ? 41_001 : 41_002,
           token: `token-${browserId}`,
+          generation: `generation-${browserId}`,
           browserId,
           browserName,
           browserFamily,

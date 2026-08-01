@@ -61,5 +61,9 @@
     "@panerelay/browser-registry": "workspace:*",
     "@panerelay/protocol": "workspace:*",
     "ws": "^8.21.1"
+  },
+  "devDependencies": {
+    "@panerelay/browser-use": "workspace:*",
+    "@panerelay/cli": "workspace:*"
   }
 }

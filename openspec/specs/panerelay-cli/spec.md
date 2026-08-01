@@ -8,7 +8,7 @@ Define an engine-neutral Panerelay command-line interface for recurring local br
 
 ### Requirement: Panerelay provides a standalone administration CLI
 
-Panerelay SHALL publish an optional `@panerelay/cli` package whose executable name is `panerelay`. The CLI SHALL manage Panerelay browser registrations and routing preferences without depending on an automation engine or providing browser automation commands.
+Panerelay SHALL publish an optional `@panerelay/cli` package whose executable name is `panerelay`. The CLI SHALL manage Panerelay browser registrations and routing preferences and SHALL dispatch setup-managed connection adapters without embedding an automation engine or implementing browser automation commands.
 
 #### Scenario: User installs the CLI globally
 
@@ -23,9 +23,16 @@ Panerelay SHALL publish an optional `@panerelay/cli` package whose executable na
 - **WHEN** they run `npx --yes @panerelay/cli <command>`
 - **THEN** the command has the same browser-registry behavior as the global `panerelay` executable
 
+#### Scenario: CLI dispatches an installed connection adapter
+
+- **GIVEN** setup registered a compatible connection adapter by exact path
+- **WHEN** the user or installed Skill asks the CLI to resolve or run that adapter
+- **THEN** the CLI performs browser and mode selection and invokes the adapter through the bounded adapter protocol
+- **AND** the adapter's automation engine remains responsible for every browser command
+
 ### Requirement: Setup remains a one-time integration surface
 
-`@panerelay/setup` SHALL expose setup, update, doctor, and uninstall behavior without owning recurring browser-administration commands. Setup SHALL NOT silently install `@panerelay/cli` globally or modify the user's shell `PATH`.
+`@panerelay/setup` SHALL expose setup, update, doctor, and uninstall behavior without owning recurring browser-administration commands. Setup SHALL NOT silently install `@panerelay/cli` globally or modify the user's shell `PATH`; when the user explicitly selects an adapter integration, setup MAY install a private CLI launcher and adapter artifact for the installed Skill.
 
 #### Scenario: User performs normal setup
 
@@ -40,6 +47,73 @@ Panerelay SHALL publish an optional `@panerelay/cli` package whose executable na
 - **WHEN** the user supplies `browsers` or `browser use` to `@panerelay/setup`
 - **THEN** setup rejects the command as unsupported
 - **AND** its help keeps browser administration outside the setup command catalog
+
+#### Scenario: User explicitly selects an adapter integration
+
+- **GIVEN** a Skill requires recurring Panerelay CLI adapter calls
+- **WHEN** the user selects that integration during setup
+- **THEN** setup installs a private version-pinned CLI launcher and adapter artifact under Panerelay-owned storage
+- **AND** the generated Skill uses that exact launcher
+- **AND** neither package claims the user's global `panerelay` command
+
+### Requirement: CLI adapters are explicitly registered and protocol bounded
+
+The Panerelay CLI SHALL load connection adapters only from a protected setup-managed registry containing an adapter identifier, absolute executable path, expected protocol version, declared capabilities, and a `childEnvironmentKeys` allow-list. It SHALL NOT discover adapters from ambient package names or `PATH`, load adapter code into the CLI process, or invoke an adapter whose manifest is missing, incompatible, or inconsistent with its registration.
+
+#### Scenario: Registered adapter is compatible
+
+- **GIVEN** a protected adapter registration names an existing executable by absolute path
+- **WHEN** the CLI verifies its manifest over the bounded stdio protocol
+- **THEN** the CLI permits only operations declared by that manifest
+- **AND** it accepts only adapter-returned child environment keys declared by the matching registration and manifest
+- **AND** it invokes the adapter out of process with bounded input, output, and timeout limits
+
+#### Scenario: Adapter registration is missing or unsafe
+
+- **GIVEN** an adapter is unregistered, resolves through `PATH`, uses a relative path, has an incompatible protocol, or declares inconsistent capabilities
+- **WHEN** a caller requests that adapter
+- **THEN** the CLI fails explicitly before reading Bridge credentials or creating connection state
+
+### Requirement: CLI connection commands preserve defaults and credentials
+
+The CLI SHALL provide engine-neutral connection resolution and execution surfaces. It SHALL apply an explicit one-run mode over the Panerelay-owned saved default and avoid printing Bridge bearer credentials. In Extension mode only, it SHALL select one live ready browser through the existing routing rules and pass only the opaque selected browser identity to the adapter request. Direct mode SHALL bypass Panerelay browser selection and Bridge connection state. A run surface SHALL inject only the adapter-returned bounded environment into the child process and SHALL preserve the child's standard streams, signals, and exit status.
+
+#### Scenario: Caller resolves a CDP URL
+
+- **GIVEN** a compatible adapter is available and Extension mode has selected one live browser
+- **WHEN** the caller explicitly requests the connection URL output
+- **THEN** the CLI returns only the adapter's short-lived scoped URL and documented metadata format
+- **AND** it does not print the live registration bearer token or unrelated adapter configuration
+
+#### Scenario: Caller resolves a Direct connection
+
+- **GIVEN** a compatible adapter resolves in Direct mode
+- **WHEN** no live Panerelay browser registration is available
+- **THEN** the CLI returns the adapter's Direct connection result without selecting a browser
+- **AND** it reads no Bridge connection credentials and creates no Panerelay connection state
+
+#### Scenario: CLI runs an engine command
+
+- **GIVEN** an adapter resolves a bounded environment for an engine
+- **WHEN** the caller uses the CLI run surface with an explicit child command
+- **THEN** the CLI starts that exact command without interpreting its automation arguments
+- **AND** it applies the adapter environment only to that child
+- **AND** it forwards standard streams, termination signals, and the final exit status
+- **AND** when the adapter returns a concurrency key, the CLI waits at most 750 milliseconds for that user-scoped lane before failing deterministically with `busy`
+
+#### Scenario: One-run mode overrides the saved preference
+
+- **GIVEN** a Direct or Extension adapter mode is saved
+- **WHEN** a caller supplies the other mode for one connection command
+- **THEN** the CLI uses the explicit mode for that command only
+- **AND** it leaves the saved preference, browser default, and other running adapter connections unchanged
+
+#### Scenario: Selected browser becomes unavailable
+
+- **GIVEN** browser selection resolves an opaque registration ID
+- **WHEN** the browser or owning Native Host exits before the adapter obtains connection material
+- **THEN** the CLI or adapter fails with an unavailable-generation error
+- **AND** it does not silently select another browser or fall back to Direct automation
 
 ### Requirement: Browser administration is localized and bounded
 

@@ -9,6 +9,7 @@ const chromeWebStoreUrl =
 
 test('parses setup aliases and Provider scope flags', () => {
   assert.deepEqual(parseSetupArgs([]), {
+    browserUse: false,
     globalProvider: false,
     help: false,
     json: false,
@@ -18,6 +19,7 @@ test('parses setup aliases and Provider scope flags', () => {
     yes: false,
   });
   assert.deepEqual(parseSetupArgs(['install', '--project-provider', '--global-provider']), {
+    browserUse: false,
     globalProvider: true,
     help: false,
     json: false,
@@ -27,6 +29,7 @@ test('parses setup aliases and Provider scope flags', () => {
     yes: false,
   });
   assert.deepEqual(parseSetupArgs(['doctor', '--global-provider', '--json']), {
+    browserUse: false,
     globalProvider: true,
     help: false,
     json: true,
@@ -40,6 +43,79 @@ test('parses setup aliases and Provider scope flags', () => {
     () => parseSetupArgs(['uninstall', '--global-provider']),
     /--global-provider is not needed/,
   );
+  assert.equal(parseSetupArgs(['setup', '--browser-use']).browserUse, true);
+  assert.equal(parseSetupArgs(['doctor', '--browser-use']).browserUse, true);
+  assert.throws(
+    () => parseSetupArgs(['uninstall', '--browser-use']),
+    /--browser-use is not needed/,
+  );
+});
+
+test('passes explicit Browser Use selection without changing the default setup call', async () => {
+  const selections: boolean[] = [];
+  const setup = async (options?: { browserUse?: boolean }) => {
+    selections.push(options?.browserUse === true);
+    return {
+      agentBrowserConfigPath: '/tmp/agent-browser.json',
+      ...(options?.browserUse ? { browserUseReady: true } : {}),
+      globalProvider: false,
+      globalSkillPath: '/tmp/panerelay-browser',
+      host: {
+        agentBrowserConfigPath: '/tmp/agent-browser.json',
+        agentBrowserSupported: true,
+        extensionId: PANERELAY_EXTENSION_ID,
+        hostPath: '/tmp/host.mjs',
+        launchPath: '/tmp/host',
+        legacyHostPath: '/tmp/legacy-host',
+        manifestPaths: ['/tmp/manifest.json'],
+        runtimeConfigPath: '/tmp/runtime.json',
+      },
+    };
+  };
+  const originalLog = console.log;
+  console.log = () => undefined;
+  try {
+    assert.equal(await main([], { environment: {}, setup, systemLocale: 'en' }), 0);
+    assert.equal(await main(['--browser-use'], { environment: {}, setup, systemLocale: 'en' }), 0);
+  } finally {
+    console.log = originalLog;
+  }
+  assert.deepEqual(selections, [false, true]);
+});
+
+test('reports an incompatible selected Browser Use integration without installing it silently', async () => {
+  const output: string[] = [];
+  const originalLog = console.log;
+  console.log = (...values: unknown[]) => output.push(values.join(' '));
+  try {
+    const code = await main(['--browser-use', '--lang', 'zh-CN'], {
+      environment: {},
+      setup: async () => ({
+        agentBrowserConfigPath: '/tmp/agent-browser.json',
+        browserUseReady: false,
+        browserUseVersions: { browserHarness: '0.1.7', browserUse: '0.13.6' },
+        globalProvider: false,
+        globalSkillPath: '/tmp/panerelay-browser',
+        host: {
+          agentBrowserConfigPath: '/tmp/agent-browser.json',
+          agentBrowserPath: '/tmp/agent-browser',
+          agentBrowserSupported: true,
+          extensionId: PANERELAY_EXTENSION_ID,
+          hostPath: '/tmp/host.mjs',
+          launchPath: '/tmp/host',
+          legacyHostPath: '/tmp/legacy-host',
+          manifestPaths: ['/tmp/manifest.json'],
+          runtimeConfigPath: '/tmp/runtime.json',
+        },
+      }),
+      systemLocale: 'en',
+    });
+    assert.equal(code, 1);
+    assert.match(output.join('\n'), /未找到 Browser Use 0\.13\.7/);
+    assert.match(output.join('\n'), /使用 --browser-use 重新运行 setup/);
+  } finally {
+    console.log = originalLog;
+  }
 });
 
 test('runs setup when the action is omitted', async () => {

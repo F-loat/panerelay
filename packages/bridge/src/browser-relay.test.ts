@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { request as httpRequest } from 'node:http';
 import {
   PANERELAY_PROTOCOL_VERSION,
   type AutomationActivitySnapshotMessage,
@@ -9,6 +10,7 @@ import {
   type ControlSessionChangedMessage,
   type HostToExtensionMessage,
   type RelaySessionCreated,
+  type CdpBootstrapCreated,
 } from '@panerelay/protocol';
 import WebSocket from 'ws';
 import { BrowserRelay } from './browser-relay.js';
@@ -233,6 +235,448 @@ test('rejects relay allocation when the registered browser lacks CDP support', a
       false,
     );
   } finally {
+    await relay.close();
+  }
+});
+
+test('issues authenticated bounded CDP bootstrap tickets without allocating a participant', async () => {
+  const controlMessages: HostToExtensionMessage[] = [];
+  const relay = await BrowserRelay.listen({
+    bootstrapMaxOutstandingTickets: 1,
+    bootstrapTicketTtlMs: 1_000,
+    onBrowserDisconnected: () => {},
+    onBrowserRegistered: () => {},
+    sendToExtension: message => controlMessages.push(message),
+  });
+  const endpoint = `http://127.0.0.1:${relay.port}/cdp/bootstrap`;
+  const headers = {
+    authorization: `Bearer ${relay.token}`,
+    'content-type': 'application/json',
+  };
+  const payload = () => ({
+    protocol: PANERELAY_PROTOCOL_VERSION,
+    browser: { browserId: 'browser-1', generation: relay.generation },
+    actor: { kind: 'automation', name: 'Browser Use' },
+    laneKey: 'browser-use:default',
+    connectionPolicy: 'single',
+  });
+  try {
+    const unavailable = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload()),
+    });
+    assert.equal(unavailable.status, 503);
+
+    await register(relay);
+    const unauthorized = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload()),
+    });
+    assert.equal(unauthorized.status, 401);
+    assert.equal(
+      ((await unauthorized.json()) as { error: { code: string } }).error.code,
+      'unauthorized',
+    );
+
+    const malformed = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ ...payload(), connectionPolicy: 'multiple' }),
+    });
+    assert.equal(malformed.status, 400);
+
+    const changed = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        ...payload(),
+        browser: { browserId: 'browser-1', generation: 'stale-generation' },
+      }),
+    });
+    assert.equal(changed.status, 409);
+    assert.equal(
+      ((await changed.json()) as { error: { code: string } }).error.code,
+      'generation-changed',
+    );
+
+    const issued = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload()),
+    });
+    assert.equal(issued.status, 201);
+    assert.equal(issued.headers.get('cache-control'), 'no-store');
+    assert.equal(issued.headers.get('access-control-allow-origin'), null);
+    const ticket = (await issued.json()) as CdpBootstrapCreated;
+    assert.match(
+      ticket.cdpUrl,
+      new RegExp(`^http://127\\.0\\.0\\.1:${relay.port}/cdp/bootstrap/[A-Za-z0-9_-]{43}$`),
+    );
+    assert.equal(Number.isFinite(Date.parse(ticket.expiresAt)), true);
+    assert.equal(
+      controlMessages.some(message => message.type === 'control.session.changed'),
+      false,
+    );
+
+    const overLimit = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ ...payload(), laneKey: 'browser-use:second' }),
+    });
+    assert.equal(overLimit.status, 429);
+    assert.equal(
+      ((await overLimit.json()) as { error: { code: string } }).error.code,
+      'ticket-limit',
+    );
+  } finally {
+    await relay.close();
+  }
+});
+
+test('resolves ticket-specific DevTools version metadata lazily and idempotently', async () => {
+  const controlMessages: HostToExtensionMessage[] = [];
+  const relay = await BrowserRelay.listen({
+    bootstrapConnectionWindowMs: 1_000,
+    bootstrapTicketTtlMs: 300,
+    onBrowserDisconnected: () => {},
+    onBrowserRegistered: () => {},
+    sendToExtension: message => controlMessages.push(message),
+  });
+  const issue = async (laneKey: string): Promise<CdpBootstrapCreated> => {
+    const response = await fetch(`http://127.0.0.1:${relay.port}/cdp/bootstrap`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${relay.token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        protocol: PANERELAY_PROTOCOL_VERSION,
+        browser: { browserId: 'browser-1', generation: relay.generation },
+        actor: { kind: 'automation', name: 'Browser Use' },
+        laneKey,
+        connectionPolicy: 'single',
+      }),
+    });
+    assert.equal(response.status, 201);
+    return (await response.json()) as CdpBootstrapCreated;
+  };
+  try {
+    await register(relay);
+    const first = await issue('browser-use:default');
+    const beforeVersion = controlMessages.filter(
+      message => message.type === 'control.session.changed',
+    ).length;
+    const version = await fetch(`${first.cdpUrl}/json/version`);
+    assert.equal(version.status, 200);
+    assert.equal(version.headers.get('cache-control'), 'no-store');
+    assert.equal(version.headers.get('access-control-allow-origin'), null);
+    const metadata = (await version.json()) as Record<string, unknown>;
+    assert.equal(metadata['Protocol-Version'], '1.3');
+    assert.equal(metadata.Browser, 'Panerelay/0.0.0');
+    assert.match(String(metadata.webSocketDebuggerUrl), /^ws:\/\/127\.0\.0\.1:/);
+    const afterFirstVersion = controlMessages.filter(
+      message => message.type === 'control.session.changed',
+    ).length;
+    assert.equal(afterFirstVersion, beforeVersion + 1);
+
+    const repeated = await fetch(`${first.cdpUrl}/json/version`);
+    assert.equal(repeated.status, 200);
+    assert.deepEqual(await repeated.json(), metadata);
+    assert.equal(
+      controlMessages.filter(message => message.type === 'control.session.changed').length,
+      afterFirstVersion,
+    );
+
+    const competing = await issue('browser-use:default');
+    const busy = await fetch(`${competing.cdpUrl}/json/version`);
+    assert.equal(busy.status, 409);
+    assert.equal(((await busy.json()) as { error: { code: string } }).error.code, 'lane-busy');
+
+    const expired = await issue('browser-use:expired');
+    await delay(350);
+    const expiredResponse = await fetch(`${expired.cdpUrl}/json/version`);
+    assert.equal(expiredResponse.status, 410);
+    assert.equal(
+      ((await expiredResponse.json()) as { error: { code: string } }).error.code,
+      'ticket-expired',
+    );
+
+    const invalid = await fetch(
+      `http://127.0.0.1:${relay.port}/cdp/bootstrap/${'x'.repeat(43)}/json/version`,
+    );
+    assert.equal(invalid.status, 404);
+    assert.equal(
+      ((await invalid.json()) as { error: { code: string } }).error.code,
+      'ticket-invalid',
+    );
+  } finally {
+    await relay.close();
+  }
+});
+
+test('consumes a bootstrap WebSocket credential once while keeping the connection usable', async () => {
+  const relay = await BrowserRelay.listen({
+    onBrowserDisconnected: () => {},
+    onBrowserRegistered: () => {},
+    sendToExtension: () => {},
+  });
+  let firstClient: WebSocket | null = null;
+  let secondClient: WebSocket | null = null;
+  try {
+    await register(relay);
+    const issued = await fetch(`http://127.0.0.1:${relay.port}/cdp/bootstrap`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${relay.token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        protocol: PANERELAY_PROTOCOL_VERSION,
+        browser: { browserId: 'browser-1', generation: relay.generation },
+        actor: { kind: 'automation', name: 'Browser Use' },
+        laneKey: 'browser-use:default',
+        connectionPolicy: 'single',
+      }),
+    });
+    const ticket = (await issued.json()) as CdpBootstrapCreated;
+    const version = await fetch(`${ticket.cdpUrl}/json/version`);
+    const metadata = (await version.json()) as { webSocketDebuggerUrl: string };
+
+    firstClient = new WebSocket(metadata.webSocketDebuggerUrl);
+    await waitForOpen(firstClient);
+    assert.equal((await command(firstClient, { id: 1, method: 'Browser.getVersion' })).id, 1);
+
+    const consumedVersion = await fetch(`${ticket.cdpUrl}/json/version`);
+    assert.equal(consumedVersion.status, 410);
+    assert.equal(
+      ((await consumedVersion.json()) as { error: { code: string } }).error.code,
+      'ticket-consumed',
+    );
+
+    secondClient = new WebSocket(metadata.webSocketDebuggerUrl);
+    assert.deepEqual(await waitForClose(secondClient), {
+      code: 1008,
+      reason: 'Invalid Panerelay session token',
+    });
+    assert.equal((await command(firstClient, { id: 2, method: 'Browser.getVersion' })).id, 2);
+  } finally {
+    if (firstClient) await closeClient(firstClient);
+    if (secondClient) await closeClient(secondClient);
+    await relay.close();
+  }
+});
+
+test('invalidates bootstrap tickets and lanes on transport loss and Extension revocation', async () => {
+  const relay = await BrowserRelay.listen({
+    onBrowserDisconnected: () => {},
+    onBrowserRegistered: () => {},
+    sendToExtension: () => {},
+  });
+  const issue = async (laneKey: string): Promise<CdpBootstrapCreated> => {
+    const response = await fetch(`http://127.0.0.1:${relay.port}/cdp/bootstrap`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${relay.token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        protocol: PANERELAY_PROTOCOL_VERSION,
+        browser: { browserId: 'browser-1', generation: relay.generation },
+        actor: { kind: 'automation', name: 'Browser Use' },
+        laneKey,
+        connectionPolicy: 'single',
+      }),
+    });
+    assert.equal(response.status, 201);
+    return (await response.json()) as CdpBootstrapCreated;
+  };
+  const connect = async (ticket: CdpBootstrapCreated): Promise<WebSocket> => {
+    const version = await fetch(`${ticket.cdpUrl}/json/version`);
+    assert.equal(version.status, 200);
+    const client = new WebSocket(
+      String(((await version.json()) as { webSocketDebuggerUrl: string }).webSocketDebuggerUrl),
+    );
+    await waitForOpen(client);
+    return client;
+  };
+  let client: WebSocket | null = null;
+  try {
+    await register(relay);
+    const first = await issue('browser-use:default');
+    client = await connect(first);
+    await closeClient(client);
+    client = null;
+
+    const replacement = await issue('browser-use:default');
+    client = await connect(replacement);
+    const revoked = waitForClose(client);
+    await relay.handleExtensionMessage({
+      type: 'cdp.detached',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      scope: 'lease',
+      reason: 'User revoked control',
+    });
+    assert.deepEqual(await revoked, { code: 1011, reason: 'User revoked control' });
+    client = null;
+    const oldVersion = await fetch(`${replacement.cdpUrl}/json/version`);
+    assert.equal(oldVersion.status, 404);
+    assert.equal(
+      ((await oldVersion.json()) as { error: { code: string } }).error.code,
+      'ticket-invalid',
+    );
+
+    const unused = await issue('browser-use:unused');
+    await relay.handleExtensionMessage({
+      type: 'cdp.detached',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      scope: 'lease',
+      reason: 'Site authorization was revoked',
+    });
+    const unusedVersion = await fetch(`${unused.cdpUrl}/json/version`);
+    assert.equal(unusedVersion.status, 404);
+  } finally {
+    if (client) await closeClient(client);
+    await relay.close();
+  }
+});
+
+test('bounds bootstrap HTTP methods, bodies, time, participants, and diagnostics', async () => {
+  const relay = await BrowserRelay.listen({
+    httpRequestTimeoutMs: 20,
+    onBrowserDisconnected: () => {},
+    onBrowserRegistered: () => {},
+    sendToExtension: () => {},
+  });
+  const endpoint = `http://127.0.0.1:${relay.port}/cdp/bootstrap`;
+  const headers = {
+    authorization: `Bearer ${relay.token}`,
+    'content-type': 'application/json',
+  };
+  const bodyMarker = 'page-content-must-not-print';
+  try {
+    await register(relay);
+    const preflight = await fetch(endpoint, {
+      method: 'OPTIONS',
+      headers: { ...headers, origin: 'https://attacker.test' },
+    });
+    assert.equal(preflight.status, 404);
+    assert.equal(preflight.headers.get('access-control-allow-origin'), null);
+
+    const unknown = await fetch(`${endpoint}/unknown/json/list`, { headers });
+    assert.equal(unknown.status, 404);
+
+    const oversized = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ value: `${bodyMarker}${'x'.repeat(17 * 1024)}` }),
+    });
+    assert.equal(oversized.status, 413);
+    const oversizedText = await oversized.text();
+    assert.doesNotMatch(oversizedText, new RegExp(bodyMarker));
+    assert.doesNotMatch(oversizedText, new RegExp(relay.token));
+
+    const timedOut = await new Promise<{ status: number; body: string }>((resolve, reject) => {
+      const request = httpRequest(
+        endpoint,
+        {
+          method: 'POST',
+          headers: { ...headers, 'content-length': '100' },
+        },
+        response => {
+          let body = '';
+          response.setEncoding('utf8');
+          response.on('data', chunk => {
+            body += chunk;
+          });
+          response.on('end', () => {
+            request.destroy();
+            resolve({ status: response.statusCode ?? 0, body });
+          });
+        },
+      );
+      request.once('error', reject);
+      request.write('{');
+    });
+    assert.equal(timedOut.status, 408);
+    assert.doesNotMatch(timedOut.body, new RegExp(relay.token));
+
+    for (let index = 0; index < 8; index += 1) {
+      await createRelaySession(relay, `participant-${index}`);
+    }
+    const ticketResponse = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        protocol: PANERELAY_PROTOCOL_VERSION,
+        browser: { browserId: 'browser-1', generation: relay.generation },
+        actor: { kind: 'automation', name: 'Browser Use' },
+        laneKey: 'browser-use:limited',
+        connectionPolicy: 'single',
+      }),
+    });
+    assert.equal(ticketResponse.status, 201);
+    const limitedTicket = (await ticketResponse.json()) as CdpBootstrapCreated;
+    const participantLimit = await fetch(`${limitedTicket.cdpUrl}/json/version`);
+    assert.equal(participantLimit.status, 429);
+    const participantLimitText = await participantLimit.text();
+    assert.equal(
+      (JSON.parse(participantLimitText) as { error: { code: string } }).error.code,
+      'participant-limit',
+    );
+    assert.doesNotMatch(participantLimitText, /[A-Za-z0-9_-]{43}/);
+    assert.doesNotMatch(participantLimitText, new RegExp(relay.token));
+  } finally {
+    await relay.close();
+  }
+});
+
+test('allows exactly one usable client in a simultaneous bootstrap handshake race', async () => {
+  const relay = await BrowserRelay.listen({
+    onBrowserDisconnected: () => {},
+    onBrowserRegistered: () => {},
+    sendToExtension: () => {},
+  });
+  const clients: WebSocket[] = [];
+  try {
+    await register(relay);
+    const issued = await fetch(`http://127.0.0.1:${relay.port}/cdp/bootstrap`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${relay.token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        protocol: PANERELAY_PROTOCOL_VERSION,
+        browser: { browserId: 'browser-1', generation: relay.generation },
+        actor: { kind: 'automation', name: 'Browser Use' },
+        laneKey: 'browser-use:race',
+        connectionPolicy: 'single',
+      }),
+    });
+    const ticket = (await issued.json()) as CdpBootstrapCreated;
+    const version = await fetch(`${ticket.cdpUrl}/json/version`);
+    const cdpUrl = String(
+      ((await version.json()) as { webSocketDebuggerUrl: string }).webSocketDebuggerUrl,
+    );
+    clients.push(new WebSocket(cdpUrl), new WebSocket(cdpUrl));
+    await Promise.all(
+      clients.map(
+        client =>
+          new Promise<void>(resolve => {
+            client.once('open', resolve);
+            client.once('close', () => resolve());
+            client.once('error', () => resolve());
+          }),
+      ),
+    );
+    await delay(20);
+    const usable = clients.filter(client => client.readyState === WebSocket.OPEN);
+    assert.equal(usable.length, 1);
+    assert.equal((await command(usable[0]!, { id: 1, method: 'Browser.getVersion' })).id, 1);
+  } finally {
+    await Promise.all(clients.map(closeClient));
     await relay.close();
   }
 });
@@ -826,28 +1270,78 @@ test('routes flattened child-target sessions through the owning tab', async () =
         waitingForDebugger: true,
       },
     });
-    assert.deepEqual(await attachedEvent, {
-      method: 'Target.attachedToTarget',
-      params: {
-        sessionId: 'chrome-child-session',
+    const virtualAttached = await attachedEvent;
+    assert.equal(virtualAttached.method, 'Target.attachedToTarget');
+    assert.equal(virtualAttached.sessionId, pageSessionId);
+    const virtualAttachedParams = virtualAttached.params as {
+      sessionId: string;
+      targetInfo: Record<string, unknown>;
+      waitingForDebugger: boolean;
+    };
+    assert.notEqual(virtualAttachedParams.sessionId, 'chrome-child-session');
+    assert.notEqual(virtualAttachedParams.targetInfo.targetId, 'frame-1');
+    assert.deepEqual(
+      {
+        ...virtualAttachedParams,
+        sessionId: '<opaque-session>',
+        targetInfo: { ...virtualAttachedParams.targetInfo, targetId: '<opaque-target>' },
+      },
+      {
+        sessionId: '<opaque-session>',
         targetInfo: {
-          targetId: 'frame-1',
+          targetId: '<opaque-target>',
           type: 'iframe',
           title: '',
           url: 'https://frame.test/',
+          attached: true,
         },
-        waitingForDebugger: true,
+        waitingForDebugger: false,
       },
-      sessionId: pageSessionId,
+    );
+
+    const nestedAttachedEvent = waitForMessage(client);
+    await relay.handleExtensionMessage({
+      type: 'cdp.event',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      targetId: 'target-1',
+      sessionId: 'chrome-child-session',
+      method: 'Target.attachedToTarget',
+      params: {
+        sessionId: 'chrome-nested-session',
+        targetInfo: {
+          targetId: 'frame-nested',
+          type: 'iframe',
+          title: '',
+          url: 'https://nested-frame.test/',
+        },
+        waitingForDebugger: false,
+      },
     });
+    const nestedAttached = await nestedAttachedEvent;
+    const nestedParams = nestedAttached.params as {
+      sessionId: string;
+      targetInfo: Record<string, unknown>;
+    };
+    assert.equal(nestedAttached.sessionId, virtualAttachedParams.sessionId);
+    assert.notEqual(nestedParams.sessionId, 'chrome-nested-session');
+    assert.notEqual(nestedParams.targetInfo.targetId, 'frame-nested');
+    assert.ok(
+      extensionMessages.some(
+        message =>
+          message.type === 'cdp.command' &&
+          message.method === 'Target.setAutoAttach' &&
+          message.sessionId === 'chrome-child-session',
+      ),
+      'the Bridge recursively enables non-pausing auto-attach on the child debuggee',
+    );
 
     assert.deepEqual(
       await command(client, {
         id: 5,
         method: 'Runtime.runIfWaitingForDebugger',
-        sessionId: 'chrome-child-session',
+        sessionId: virtualAttachedParams.sessionId,
       }),
-      { id: 5, result: {}, sessionId: 'chrome-child-session' },
+      { id: 5, result: {}, sessionId: virtualAttachedParams.sessionId },
     );
     const childCommand = extensionMessages.filter(message => message.type === 'cdp.command').at(-1);
     assert.equal(childCommand?.targetId, 'target-1');
@@ -864,6 +1358,335 @@ test('routes flattened child-target sessions through the owning tab', async () =
     });
   } finally {
     await closeClient(client);
+    await relay.close();
+  }
+});
+
+test('projects iframe targets and child sessions with participant-local identifiers', async () => {
+  const fixtureTarget = target('target-iframe-owner', 'https://owner.test/', true);
+  const extensionMessages: HostToExtensionMessage[] = [];
+  const relay = await BrowserRelay.listen({
+    sendToExtension: message => {
+      extensionMessages.push(message);
+      if (message.type === 'cdp.target.request' && message.operation.kind === 'list') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.target.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            targets: [fixtureTarget],
+          });
+        });
+      } else if (message.type === 'cdp.attach') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.attached',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            target: { ...fixtureTarget, attached: true },
+          });
+        });
+      } else if (message.type === 'cdp.command') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            result: {},
+          });
+        });
+      }
+    },
+    onBrowserRegistered: () => undefined,
+    onBrowserDisconnected: () => undefined,
+  });
+  await register(relay);
+
+  const firstParticipant = await createRelaySession(relay, 'first-iframe-participant');
+  const secondParticipant = await createRelaySession(relay, 'second-iframe-participant');
+  const firstClient = new WebSocket(firstParticipant.cdpUrl);
+  const secondClient = new WebSocket(secondParticipant.cdpUrl);
+  try {
+    await Promise.all([waitForOpen(firstClient), waitForOpen(secondClient)]);
+    const [firstInitialTargets, secondInitialTargets] = await Promise.all([
+      command(firstClient, { id: 1, method: 'Target.getTargets' }),
+      command(secondClient, { id: 1, method: 'Target.getTargets' }),
+    ]);
+    assert.equal((firstInitialTargets.result as { targetInfos: unknown[] }).targetInfos.length, 1);
+    assert.equal((secondInitialTargets.result as { targetInfos: unknown[] }).targetInfos.length, 1);
+    const [firstTopAttach, secondTopAttach] = await Promise.all([
+      command(firstClient, {
+        id: 2,
+        method: 'Target.attachToTarget',
+        params: { targetId: fixtureTarget.targetId, flatten: true },
+      }),
+      command(secondClient, {
+        id: 2,
+        method: 'Target.attachToTarget',
+        params: { targetId: fixtureTarget.targetId, flatten: true },
+      }),
+    ]);
+    const firstTopSession = (firstTopAttach.result as { sessionId: string }).sessionId;
+    await command(firstClient, {
+      id: 3,
+      method: 'Runtime.evaluate',
+      sessionId: firstTopSession,
+      params: { expression: 'document.title' },
+    });
+
+    await relay.handleExtensionMessage({
+      type: 'cdp.event',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      targetId: fixtureTarget.targetId,
+      method: 'Target.attachedToTarget',
+      params: {
+        sessionId: 'chrome-oopif-session',
+        targetInfo: {
+          targetId: 'chrome-oopif-target',
+          type: 'iframe',
+          title: '',
+          url: 'https://cross-origin.test/frame',
+        },
+        waitingForDebugger: false,
+      },
+    });
+
+    const [firstTargets, secondTargets] = await Promise.all([
+      command(firstClient, { id: 4, method: 'Target.getTargets' }),
+      command(secondClient, { id: 3, method: 'Target.getTargets' }),
+    ]);
+    const firstIframe = (
+      firstTargets.result as { targetInfos: Array<Record<string, unknown>> }
+    ).targetInfos.find(candidate => candidate.type === 'iframe');
+    const secondIframe = (
+      secondTargets.result as { targetInfos: Array<Record<string, unknown>> }
+    ).targetInfos.find(candidate => candidate.type === 'iframe');
+    assert.ok(firstIframe);
+    assert.ok(secondIframe);
+    assert.notEqual(firstIframe.targetId, 'chrome-oopif-target');
+    assert.notEqual(secondIframe.targetId, 'chrome-oopif-target');
+    assert.notEqual(firstIframe.targetId, secondIframe.targetId);
+
+    const crossParticipantAttach = await command(firstClient, {
+      id: 5,
+      method: 'Target.attachToTarget',
+      params: { targetId: secondIframe.targetId, flatten: true },
+    });
+    assert.match(
+      String((crossParticipantAttach.error as { message?: unknown }).message),
+      /no longer available/,
+    );
+
+    const [firstChildAttach, secondChildAttach] = await Promise.all([
+      command(firstClient, {
+        id: 6,
+        method: 'Target.attachToTarget',
+        params: { targetId: firstIframe.targetId, flatten: true },
+      }),
+      command(secondClient, {
+        id: 4,
+        method: 'Target.attachToTarget',
+        params: { targetId: secondIframe.targetId, flatten: true },
+      }),
+    ]);
+    const firstChildSession = (firstChildAttach.result as { sessionId: string }).sessionId;
+    const secondChildSession = (secondChildAttach.result as { sessionId: string }).sessionId;
+    assert.notEqual(firstChildSession, secondChildSession);
+
+    await command(firstClient, {
+      id: 7,
+      method: 'Runtime.evaluate',
+      sessionId: firstChildSession,
+      params: { expression: 'document.body.dataset.value' },
+    });
+    const childCommand = extensionMessages
+      .filter(
+        (message): message is CdpCommandMessage =>
+          message.type === 'cdp.command' && message.method === 'Runtime.evaluate',
+      )
+      .at(-1);
+    assert.equal(childCommand?.sessionId, 'chrome-oopif-session');
+
+    const firstChildEvent = waitForMessage(firstClient);
+    const secondChildEvent = waitForMessage(secondClient);
+    await relay.handleExtensionMessage({
+      type: 'cdp.event',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      targetId: fixtureTarget.targetId,
+      sessionId: 'chrome-oopif-session',
+      method: 'Runtime.consoleAPICalled',
+      params: { type: 'log' },
+    });
+    assert.deepEqual(await firstChildEvent, {
+      method: 'Runtime.consoleAPICalled',
+      params: { type: 'log' },
+      sessionId: firstChildSession,
+    });
+    assert.deepEqual(await secondChildEvent, {
+      method: 'Runtime.consoleAPICalled',
+      params: { type: 'log' },
+      sessionId: secondChildSession,
+    });
+
+    const firstDetached = waitForMessage(firstClient);
+    const secondDetached = waitForMessage(secondClient);
+    await relay.handleExtensionMessage({
+      type: 'cdp.event',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      targetId: fixtureTarget.targetId,
+      method: 'Target.detachedFromTarget',
+      params: { sessionId: 'chrome-oopif-session' },
+    });
+    assert.deepEqual(await firstDetached, {
+      method: 'Inspector.detached',
+      params: { reason: 'Chrome detached the child target' },
+      sessionId: firstChildSession,
+    });
+    assert.deepEqual(await secondDetached, {
+      method: 'Inspector.detached',
+      params: { reason: 'Chrome detached the child target' },
+      sessionId: secondChildSession,
+    });
+    assert.equal(
+      (
+        (await command(firstClient, { id: 8, method: 'Target.getTargets' })).result as {
+          targetInfos: Array<Record<string, unknown>>;
+        }
+      ).targetInfos.some(candidate => candidate.type === 'iframe'),
+      false,
+    );
+    assert.equal((secondTopAttach.result as { sessionId: string }).sessionId.length > 0, true);
+  } finally {
+    await Promise.all([closeClient(firstClient), closeClient(secondClient)]);
+    await relay.close();
+  }
+});
+
+test('scopes focus emulation to Input participants and restores an observed target', async () => {
+  const fixtureTarget = target('target-focus', 'https://focus.test/', true);
+  const extensionMessages: HostToExtensionMessage[] = [];
+  const relay = await BrowserRelay.listen({
+    sendToExtension: message => {
+      extensionMessages.push(message);
+      if (message.type === 'cdp.target.request' && message.operation.kind === 'list') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.target.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            targets: [fixtureTarget],
+          });
+        });
+      } else if (message.type === 'cdp.attach') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.attached',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            target: { ...fixtureTarget, attached: true },
+          });
+        });
+      } else if (message.type === 'cdp.command') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            result: {},
+          });
+        });
+      }
+    },
+    onBrowserRegistered: () => undefined,
+    onBrowserDisconnected: () => undefined,
+  });
+  await register(relay);
+
+  const inputParticipant = await createRelaySession(relay, 'input-participant');
+  const observerParticipant = await createRelaySession(relay, 'observer-participant');
+  const inputClient = new WebSocket(inputParticipant.cdpUrl);
+  const observerClient = new WebSocket(observerParticipant.cdpUrl);
+  try {
+    await Promise.all([waitForOpen(inputClient), waitForOpen(observerClient)]);
+    await Promise.all([
+      command(inputClient, { id: 1, method: 'Target.getTargets' }),
+      command(observerClient, { id: 1, method: 'Target.getTargets' }),
+    ]);
+    const [inputAttach, observerAttach] = await Promise.all([
+      command(inputClient, {
+        id: 2,
+        method: 'Target.attachToTarget',
+        params: { targetId: fixtureTarget.targetId, flatten: true },
+      }),
+      command(observerClient, {
+        id: 2,
+        method: 'Target.attachToTarget',
+        params: { targetId: fixtureTarget.targetId, flatten: true },
+      }),
+    ]);
+    const inputSessionId = (inputAttach.result as { sessionId: string }).sessionId;
+    const observerSessionId = (observerAttach.result as { sessionId: string }).sessionId;
+
+    assert.deepEqual(
+      await command(inputClient, {
+        id: 3,
+        method: 'Input.dispatchKeyEvent',
+        sessionId: inputSessionId,
+        params: { type: 'keyDown', key: 'A' },
+      }),
+      { id: 3, result: {}, sessionId: inputSessionId },
+    );
+    assert.deepEqual(
+      extensionMessages
+        .filter((message): message is CdpCommandMessage => message.type === 'cdp.command')
+        .map(message => [message.method, message.params]),
+      [
+        [
+          'Target.setAutoAttach',
+          { autoAttach: true, waitForDebuggerOnStart: false, flatten: true },
+        ],
+        ['Emulation.setFocusEmulationEnabled', { enabled: true }],
+        ['Input.dispatchKeyEvent', { type: 'keyDown', key: 'A' }],
+      ],
+    );
+
+    const release = await fetch(
+      `http://127.0.0.1:${relay.port}/sessions/${inputParticipant.sessionId}`,
+      {
+        method: 'DELETE',
+        headers: { authorization: `Bearer ${relay.token}` },
+      },
+    );
+    assert.equal(release.status, 204);
+    await waitForCondition(() =>
+      extensionMessages.some(
+        message =>
+          message.type === 'cdp.command' &&
+          message.method === 'Emulation.setFocusEmulationEnabled' &&
+          message.params?.enabled === false,
+      ),
+    );
+    assert.equal(
+      extensionMessages.some(message => message.type === 'cdp.detach'),
+      false,
+      'the remaining observer keeps the physical debugger attachment',
+    );
+
+    assert.deepEqual(
+      await command(observerClient, {
+        id: 3,
+        method: 'Runtime.evaluate',
+        sessionId: observerSessionId,
+        params: { expression: 'document.title' },
+      }),
+      { id: 3, result: {}, sessionId: observerSessionId },
+    );
+  } finally {
+    await Promise.all([closeClient(inputClient), closeClient(observerClient)]);
     await relay.close();
   }
 });
@@ -1123,6 +1946,7 @@ test('keeps browser-process and cookie commands inside the authorized target bou
     assert.deepEqual(
       forwardedCommands.map(message => message.method),
       [
+        'Target.setAutoAttach',
         'Network.setCookies',
         'Emulation.setTimezoneOverride',
         'Emulation.setLocaleOverride',
@@ -1243,6 +2067,17 @@ test('reuses target attachments and serializes commands across relay participant
           });
         });
       } else if (message.type === 'cdp.command') {
+        if (message.method === 'Target.setAutoAttach') {
+          queueMicrotask(() => {
+            void relay.handleExtensionMessage({
+              type: 'cdp.result',
+              protocol: PANERELAY_PROTOCOL_VERSION,
+              requestId: message.requestId,
+              result: {},
+            });
+          });
+          return;
+        }
         forwardedCommands.push(message);
         if (forwardedCommands.length === 1) resolveFirstForwarded?.();
         if (forwardedCommands.length === 2) resolveSecondForwarded?.();
@@ -1373,6 +2208,17 @@ test('cancels queued target work when its participant disconnects without blocki
           });
         });
       } else if (message.type === 'cdp.command') {
+        if (message.method === 'Target.setAutoAttach') {
+          queueMicrotask(() => {
+            void relay.handleExtensionMessage({
+              type: 'cdp.result',
+              protocol: PANERELAY_PROTOCOL_VERSION,
+              requestId: message.requestId,
+              result: {},
+            });
+          });
+          return;
+        }
         forwardedCommands.push(message);
       }
     },

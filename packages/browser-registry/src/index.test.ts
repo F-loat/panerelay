@@ -31,6 +31,7 @@ function state(
     pid,
     port: 41_000 + pid,
     token: `token-${browserId}`,
+    generation: `generation-${pid}`,
     browserId,
     browserName: `${family ?? 'unknown'} ${browserId}`,
     browserFamily: family,

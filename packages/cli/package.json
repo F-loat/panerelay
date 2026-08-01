@@ -41,6 +41,7 @@
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
-    "@panerelay/browser-registry": "workspace:*"
+    "@panerelay/browser-registry": "workspace:*",
+    "@panerelay/protocol": "workspace:*"
   }
 }

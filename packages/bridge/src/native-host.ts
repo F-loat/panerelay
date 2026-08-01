@@ -73,6 +73,7 @@ async function main(): Promise<void> {
         pid: process.pid,
         port: relay.port,
         token: relay.token,
+        generation: relay.generation,
         browserId: browser.browserId,
         browserName: browser.browserName,
         extensionVersion: browser.extensionVersion,

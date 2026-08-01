@@ -63,6 +63,18 @@ export const PACKAGE_DEFINITIONS = [
     ],
   },
   {
+    directory: 'packages/browser-use',
+    name: '@panerelay/browser-use',
+    requiredEntries: [
+      'package/LICENSE',
+      'package/README.md',
+      'package/dist/adapter.d.ts',
+      'package/dist/adapter.js',
+      'package/dist/index.js',
+      'package/package.json',
+    ],
+  },
+  {
     directory: 'packages/bridge',
     name: '@panerelay/bridge',
     requiredEntries: [
@@ -90,9 +102,14 @@ export const PACKAGE_DEFINITIONS = [
       'package/dist/cli.js',
       'package/dist/index.d.ts',
       'package/dist/index.js',
+      'package/dist/private/browser-use/panerelay-browser-use-adapter.mjs',
+      'package/dist/private/browser-use/panerelay-browser-use-mcp-runner.mjs',
+      'package/dist/private/browser-use/panerelay-cli.mjs',
       'package/package.json',
       'package/skills/panerelay-browser/SKILL.md',
       'package/skills/panerelay-browser/agents/openai.yaml',
+      'package/skills/panerelay-browser-use/SKILL.md',
+      'package/skills/panerelay-browser-use/agents/openai.yaml',
     ],
   },
 ];

@@ -10,9 +10,27 @@ import {
   removeProjectProvider,
   unregisterPanerelayProvider,
 } from './config.js';
-import { installPanerelaySkill, uninstallPanerelaySkill } from './skill.js';
+import {
+  installBrowserUseSkill,
+  installPanerelaySkill,
+  uninstallBrowserUseSkill,
+  uninstallPanerelaySkill,
+} from './skill.js';
+import {
+  installBrowserUseIntegrationArtifacts,
+  uninstallBrowserUseIntegrationArtifacts,
+  type BrowserUseIntegrationInstallation,
+  type BrowserUseIntegrationUninstallResult,
+} from './browser-use-integration.js';
+import {
+  probeBrowserUseVersions,
+  SUPPORTED_BROWSER_HARNESS_VERSION,
+  SUPPORTED_BROWSER_USE_VERSION,
+  type BrowserUseVersions,
+} from '@panerelay/browser-use';
 
 export interface PanerelaySetupOptions {
+  browserUse?: boolean;
   environment?: NodeJS.ProcessEnv;
   extensionId?: string;
   globalProvider?: boolean;
@@ -27,12 +45,19 @@ export interface PanerelaySetupResult {
   globalProvider: boolean;
   globalSkillPath: string;
   host: NativeHostInstallationResult;
+  browserUseRequested?: boolean;
+  browserUseIntegration?: BrowserUseIntegrationInstallation;
+  browserUseReady?: boolean;
+  browserUseSkillPath?: string;
+  browserUseVersions?: BrowserUseVersions;
   projectConfigPath?: string;
   projectSkillPath?: string;
 }
 
 export interface PanerelayUninstallResult {
   agentBrowserConfigPath: string;
+  browserUseIntegration: BrowserUseIntegrationUninstallResult;
+  browserUseSkillPath: string;
   globalSkillPath: string;
   projectConfigPath?: string;
   projectSkillPath?: string;
@@ -42,10 +67,15 @@ export interface LifecycleDependencies {
   configureGlobal?: typeof configureGlobalProvider;
   configureProject?: typeof configureProjectProvider;
   installHost?: typeof installNativeHost;
+  installBrowserUse?: typeof installBrowserUseIntegrationArtifacts;
+  installBrowserUseSkill?: typeof installBrowserUseSkill;
+  probeBrowserUse?: typeof probeBrowserUseVersions;
   installSkill?: typeof installPanerelaySkill;
   registerProvider?: typeof registerPanerelayProvider;
   removeProject?: typeof removeProjectProvider;
   uninstallHost?: typeof uninstallNativeHost;
+  uninstallBrowserUse?: typeof uninstallBrowserUseIntegrationArtifacts;
+  uninstallBrowserUseSkill?: typeof uninstallBrowserUseSkill;
   uninstallSkill?: typeof uninstallPanerelaySkill;
   unregisterProvider?: typeof unregisterPanerelayProvider;
 }
@@ -58,6 +88,9 @@ export async function setupPanerelay(
   const registerProvider = dependencies.registerProvider ?? registerPanerelayProvider;
   const configureGlobal = dependencies.configureGlobal ?? configureGlobalProvider;
   const installSkill = dependencies.installSkill ?? installPanerelaySkill;
+  const installBrowserUse = dependencies.installBrowserUse ?? installBrowserUseIntegrationArtifacts;
+  const installSelectedBrowserUseSkill =
+    dependencies.installBrowserUseSkill ?? installBrowserUseSkill;
   const configureProject = dependencies.configureProject ?? configureProjectProvider;
   const host = await installHost({
     environment: options.environment,
@@ -74,11 +107,46 @@ export async function setupPanerelay(
   const globalSkillPath = await installSkill('global', {
     homeDirectory: options.homeDirectory,
   });
+  const browserUseVersions = options.browserUse
+    ? await (dependencies.probeBrowserUse ?? probeBrowserUseVersions)(
+        options.environment,
+        options.platform,
+      )
+    : undefined;
+  const browserUseReady =
+    browserUseVersions?.browserUse === SUPPORTED_BROWSER_USE_VERSION &&
+    browserUseVersions.browserHarness === SUPPORTED_BROWSER_HARNESS_VERSION &&
+    Boolean(browserUseVersions.browserUseExecutable);
+  const browserUseIntegration = options.browserUse
+    ? await installBrowserUse({
+        browserUseVersions,
+        homeDirectory: options.homeDirectory,
+        platform: options.platform,
+      })
+    : undefined;
+  const browserUseSkillPath =
+    browserUseIntegration && browserUseReady
+      ? await installSelectedBrowserUseSkill(browserUseIntegration.paths.cliLauncherPath, {
+          browserUseExecutable: browserUseVersions!.browserUseExecutable!,
+          homeDirectory: options.homeDirectory,
+          mcpLauncherPath: browserUseIntegration.config.mcpLauncherPath,
+          platform: options.platform,
+        })
+      : undefined;
 
   if (!options.project) {
     return {
       host,
       agentBrowserConfigPath,
+      browserUseRequested: options.browserUse === true,
+      ...(browserUseIntegration ? { browserUseIntegration } : {}),
+      ...(browserUseSkillPath ? { browserUseSkillPath } : {}),
+      ...(browserUseVersions
+        ? {
+            browserUseVersions,
+            browserUseReady,
+          }
+        : {}),
       globalProvider: options.globalProvider === true,
       globalSkillPath,
     };
@@ -92,6 +160,15 @@ export async function setupPanerelay(
   return {
     host,
     agentBrowserConfigPath,
+    browserUseRequested: options.browserUse === true,
+    ...(browserUseIntegration ? { browserUseIntegration } : {}),
+    ...(browserUseSkillPath ? { browserUseSkillPath } : {}),
+    ...(browserUseVersions
+      ? {
+          browserUseVersions,
+          browserUseReady,
+        }
+      : {}),
     globalProvider: options.globalProvider === true,
     globalSkillPath,
     projectConfigPath,
@@ -106,6 +183,10 @@ export async function uninstallPanerelay(
   const uninstallHost = dependencies.uninstallHost ?? uninstallNativeHost;
   const unregisterProvider = dependencies.unregisterProvider ?? unregisterPanerelayProvider;
   const uninstallSkill = dependencies.uninstallSkill ?? uninstallPanerelaySkill;
+  const uninstallSelectedBrowserUse =
+    dependencies.uninstallBrowserUse ?? uninstallBrowserUseIntegrationArtifacts;
+  const uninstallSelectedBrowserUseSkill =
+    dependencies.uninstallBrowserUseSkill ?? uninstallBrowserUseSkill;
   const removeProject = dependencies.removeProject ?? removeProjectProvider;
   await uninstallHost({
     homeDirectory: options.homeDirectory,
@@ -117,8 +198,20 @@ export async function uninstallPanerelay(
   const globalSkillPath = await uninstallSkill('global', {
     homeDirectory: options.homeDirectory,
   });
+  const browserUseIntegration = await uninstallSelectedBrowserUse({
+    homeDirectory: options.homeDirectory,
+    platform: options.platform,
+  });
+  const browserUseSkillPath = await uninstallSelectedBrowserUseSkill(options.homeDirectory);
 
-  if (!options.project) return { agentBrowserConfigPath, globalSkillPath };
+  if (!options.project) {
+    return {
+      agentBrowserConfigPath,
+      browserUseIntegration,
+      browserUseSkillPath,
+      globalSkillPath,
+    };
+  }
   const projectConfigPath = await removeProject({
     projectDirectory: options.projectDirectory,
   });
@@ -127,6 +220,8 @@ export async function uninstallPanerelay(
   });
   return {
     agentBrowserConfigPath,
+    browserUseIntegration,
+    browserUseSkillPath,
     globalSkillPath,
     projectConfigPath,
     projectSkillPath,

@@ -4,7 +4,7 @@
 - agent-browser: 0.33.0
 - Support policy: minimum supported version and initial version-specific verified baseline
 - Connection: browser-level Provider over Native Messaging
-- Last verified: 2026-07-31
+- Last verified: 2026-08-01
 
 agent-browser versions newer than 0.33.0 satisfy Panerelay's minimum-version check, but they do not inherit this file's `Verified` classifications. Record a separate version-specific compatibility report before describing a newer version as verified.
 
@@ -43,7 +43,7 @@ agent-browser versions newer than 0.33.0 satisfy Panerelay's minimum-version che
 | Background target selection | Verified | `tab <id>`, `Target.activateTarget`, and `Page.bringToFront` update or acknowledge Agent-local selection without activating a Chrome tab or focusing its window. `tab new` creates an inactive tab. |
 | Controlled-lineage target discovery | Verified | After initial seeding, independently opened tabs stay private; Agent-created tabs and Chrome-reported descendants of controlled tabs expand the exposed inventory. Later target lists remain bounded to that inventory. |
 | JavaScript popups | Verified | Eligible page targets opened from a controlled source are discovered and can be selected. |
-| cross-origin iframe and worker sessions | Partial | Flattened child sessions are routed; auto-attach does not pause child startup. |
+| cross-origin iframe and worker sessions | Partial | Flattened child sessions use participant-local opaque identifiers; iframe auto-attach is recursive and does not pause child startup. Browser Harness OOPIF coverage is verified, while the broader agent-browser worker matrix remains partial. |
 | cookies: get, set, single-cookie expiry | Verified | Explicit URLs and domains are limited to the selected authorized target origin. |
 | cookies: clear or whole-profile access | Unsupported | Panerelay rejects methods that read or clear the daily Chrome profile globally. |
 | local/session storage | Verified | Implemented by Runtime evaluation in the selected tab. |
@@ -134,14 +134,14 @@ Daily-Chrome verification of provider warm-up, lazy history, draft-first send, a
 ## Stable distribution boundaries
 
 - The Extension, protocol, browser registry, administration CLI, Provider, Bridge, and setup package are one lockstep compatibility unit; different Panerelay versions do not negotiate with each other.
-- Candidate validation packs all six npm packages, installs them outside the workspace, and runs browser administration, setup, doctor, update, and uninstall in disposable user state.
+- Candidate validation packs all seven npm packages, installs them outside the workspace, and runs browser administration, setup, doctor, update, and uninstall in disposable user state.
 - Native Messaging setup supports macOS, Linux, and current-user Windows Chrome registration.
 - Installing the candidate does not grant Chrome site permission, authorize a tab, or acquire a control lease.
 - Packaging does not change participant isolation, target serialization, or Chrome authorization boundaries recorded above.
 
 ## Release automation evidence
 
-The `0.1.0` stable workflow passed candidate preparation, exact npm publication, and GitHub Release creation. The matching tag and Release target the prepared commit, and every package in that release exposes the same version through npm tag `latest`. The current development candidate expands the lockstep publishable set to six packages; its publication evidence begins with the next release.
+The `0.1.0` stable workflow passed candidate preparation, exact npm publication, and GitHub Release creation. The matching tag and Release target the prepared commit, and every package in that release exposes the same version through npm tag `latest`. The current development candidate expands the lockstep publishable set to seven packages; its publication evidence begins with the next release.
 
 The workflow-built beta Extension archive was loaded in daily Chrome and passed displayed beta identity, authorization, revocation, and cleanup acceptance. Prepare Release generated a reviewed version pull request without package, tag, Release, or Store side effects before merge.
 

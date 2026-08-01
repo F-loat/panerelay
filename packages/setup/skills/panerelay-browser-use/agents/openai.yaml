@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Panerelay Browser Use'
+  short_description: 'Use Browser Use through authorized Chrome tabs'
+  default_prompt: 'Use $panerelay-browser-use to complete this task in an authorized current-browser tab.'

@@ -6,6 +6,8 @@ import {
 } from './control-activity.js';
 
 export * from './constants.js';
+export * from './cli-adapter.js';
+export * from './cdp-bootstrap.js';
 export * from './control-activity.js';
 export * from './native-transfer.js';
 
@@ -447,6 +449,7 @@ export interface BridgeState {
   pid: number;
   port: number;
   token: string;
+  generation: string;
   browserId: string;
   browserName: string;
   extensionVersion: string;

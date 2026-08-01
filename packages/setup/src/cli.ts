@@ -17,6 +17,7 @@ const PANERELAY_CHROME_WEB_STORE_URL =
 export type SetupOperation = 'setup' | 'doctor' | 'uninstall';
 
 export interface ParsedSetupArgs {
+  browserUse: boolean;
   extensionId?: string;
   globalProvider: boolean;
   help: boolean;
@@ -67,6 +68,7 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
   const localized = extractLanguageArguments(argv);
   if (localized.argv.includes('--help') || localized.argv.includes('-h')) {
     return {
+      browserUse: false,
       globalProvider: false,
       help: true,
       json: false,
@@ -91,6 +93,7 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
 
   let project = false;
   let globalProvider = false;
+  let browserUse = false;
   let json = false;
   let yes = false;
   let extensionId: string | undefined;
@@ -98,6 +101,7 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
     const argument = localized.argv[index]!;
     if (argument === '--project-provider') project = true;
     else if (argument === '--global-provider') globalProvider = true;
+    else if (argument === '--browser-use') browserUse = true;
     else if (argument === '--json') json = true;
     else if (argument === '--extension-id' || argument.startsWith('--extension-id=')) {
       if (extensionId !== undefined) throw new Error('EXTENSION_ID_REPEATED');
@@ -119,10 +123,14 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
   if (globalProvider && operation === 'uninstall') {
     throw new Error('--global-provider is not needed with uninstall');
   }
+  if (browserUse && operation === 'uninstall') {
+    throw new Error('--browser-use is not needed with uninstall');
+  }
   if (extensionId && operation === 'uninstall') {
     throw new Error('--extension-id is not available with uninstall');
   }
   return {
+    browserUse,
     ...(extensionId ? { extensionId } : {}),
     globalProvider,
     help: false,
@@ -140,6 +148,8 @@ function printHelp(locale: SupportedLocale): void {
 
 const doctorLabels: Record<string, { en: string; 'zh-CN': string }> = {
   'agent-browser': { en: 'agent-browser', 'zh-CN': 'agent-browser' },
+  'browser-harness': { en: 'Browser Harness', 'zh-CN': 'Browser Harness' },
+  'browser-use': { en: 'Browser Use', 'zh-CN': 'Browser Use' },
   claude: { en: 'Claude Code (optional)', 'zh-CN': 'Claude Code（可选）' },
   codex: { en: 'Codex', 'zh-CN': 'Codex' },
   extension: { en: 'Extension', 'zh-CN': '扩展' },
@@ -175,7 +185,7 @@ const doctorLabels: Record<string, { en: string; 'zh-CN': string }> = {
 
 const doctorGroups = [
   {
-    ids: ['node', 'agent-browser', 'codex', 'claude', 'qoder'],
+    ids: ['node', 'browser-use', 'browser-harness', 'agent-browser', 'codex', 'claude', 'qoder'],
     title: 'doctorGroupEnvironment',
   },
   {
@@ -229,6 +239,14 @@ function doctorHint(id: string, hint: string, locale: SupportedLocale): string {
     return hint.startsWith('Upgrade ')
       ? '请将 agent-browser 升级到 0.33.0 或更高版本'
       : '请安装可正常运行的 agent-browser 0.33.0 或更高版本，然后运行：npx --yes @panerelay/setup';
+  }
+  if (id === 'browser-use') {
+    return hint.includes('doctor --browser-use')
+      ? '请安装 Browser Use 0.13.7，然后重新运行：npx --yes @panerelay/setup doctor --browser-use'
+      : '请安装 Browser Use 0.13.7，然后重新运行：npx --yes @panerelay/setup --browser-use';
+  }
+  if (id === 'browser-harness') {
+    return '请在 Browser Use 环境中安装 Browser Harness 0.1.8，然后重新运行：npx --yes @panerelay/setup doctor --browser-use';
   }
   if (id === 'qoder') {
     return '请安装 Qoder CLI 或设置 PANERELAY_QODER_PATH，然后运行：npx --yes @panerelay/setup';
@@ -343,6 +361,9 @@ function localizeArgumentError(error: unknown, locale: SupportedLocale): string 
   if (message === '--global-provider is not needed with uninstall') {
     return translate(locale, 'errorGlobalProviderUninstall');
   }
+  if (message === '--browser-use is not needed with uninstall') {
+    return translate(locale, 'errorBrowserUseUninstall');
+  }
   if (message === '--extension-id is not available with uninstall') {
     return translate(locale, 'errorExtensionIdUninstall');
   }
@@ -375,6 +396,7 @@ export async function main(
   try {
     if (parsed.operation === 'doctor') {
       const report = await (dependencies.doctor ?? doctorPanerelay)({
+        browserUse: parsed.browserUse,
         environment: dependencies.environment,
         extensionId: parsed.extensionId,
         globalProvider: parsed.globalProvider,
@@ -395,12 +417,18 @@ export async function main(
         );
         return 2;
       }
-      await (dependencies.uninstall ?? uninstallPanerelay)({ project: parsed.project });
+      const result = await (dependencies.uninstall ?? uninstallPanerelay)({
+        project: parsed.project,
+      });
       console.log(translate(locale, 'uninstallComplete'));
+      if (result.browserUseIntegration.detachedDaemonMayRemain) {
+        console.log(translate(locale, 'browserUseDetachedDaemon'));
+      }
       return 0;
     }
 
     const result = await (dependencies.setup ?? setupPanerelay)({
+      browserUse: parsed.browserUse,
       environment: dependencies.environment,
       extensionId: parsed.extensionId,
       globalProvider: parsed.globalProvider,
@@ -428,8 +456,41 @@ export async function main(
     if (result.globalProvider) {
       console.log(translate(locale, 'globalProvider', { path: result.agentBrowserConfigPath }));
     }
+    if (parsed.browserUse) {
+      console.log(
+        translate(locale, 'browserUseIntegration', {
+          path: result.browserUseIntegration?.paths.cliLauncherPath ?? 'unavailable',
+        }),
+      );
+      if (result.browserUseSkillPath) {
+        console.log(
+          translate(locale, 'browserUseSkill', {
+            path: result.browserUseSkillPath,
+          }),
+        );
+      }
+      if (result.browserUseIntegration?.config.mcpLauncherPath) {
+        console.log(
+          translate(locale, 'browserUseMcp', {
+            path: result.browserUseIntegration.config.mcpLauncherPath,
+          }),
+        );
+      }
+      if (result.browserUseReady) {
+        console.log(
+          translate(locale, 'browserUseReady', {
+            browserHarness: result.browserUseVersions?.browserHarness ?? 'unknown',
+            browserUse: result.browserUseVersions?.browserUse ?? 'unknown',
+          }),
+        );
+      } else {
+        console.log(translate(locale, 'browserUseMissing'));
+      }
+    }
     console.log(translate(locale, 'agentCommand'));
-    return result.host.agentBrowserSupported ? 0 : 1;
+    return result.host.agentBrowserSupported && (!parsed.browserUse || result.browserUseReady)
+      ? 0
+      : 1;
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     return 1;

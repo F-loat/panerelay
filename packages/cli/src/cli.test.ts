@@ -11,12 +11,14 @@ import {
   PANERELAY_BROWSER_REGISTRY_PATH_ENV,
 } from '@panerelay/browser-registry';
 import { main, parseCliArgs } from './cli.js';
+import type { RunCliConnectionInput } from './command-runner.js';
 
 const state = {
   protocol: 'panerelay.relay.v1' as const,
   pid: 123,
   port: 41_234,
   token: 'secret-token-must-not-print',
+  generation: 'generation-123',
   browserId: 'edge-browser-id',
   browserName: 'Microsoft Edge',
   browserFamily: 'edge' as const,
@@ -36,13 +38,140 @@ test('parses browser administration commands and localized options', () => {
     },
     { operation: 'browser-use', selector: 'edge' },
   );
+  assert.deepEqual(
+    parseCliArgs([
+      '--lang',
+      'en',
+      'run',
+      'browser-use',
+      '--mode=extension',
+      '--',
+      'browser-use',
+      '--help',
+      '--lang',
+      'zh-CN',
+    ]),
+    {
+      adapterId: 'browser-use',
+      childCommand: ['browser-use', '--help', '--lang', 'zh-CN'],
+      connectionMode: 'extension',
+      help: false,
+      language: 'en',
+      operation: 'run',
+    },
+  );
   assert.equal(parseCliArgs(['browser', 'clear']).operation, 'browser-clear');
+  assert.deepEqual(parseCliArgs(['connection', 'use', 'browser-use', 'extension']), {
+    adapterId: 'browser-use',
+    connectionMode: 'extension',
+    help: false,
+    language: undefined,
+    operation: 'connection-use',
+  });
+  assert.deepEqual(
+    parseCliArgs([
+      'connection',
+      'resolve',
+      'browser-use',
+      '--mode=extension',
+      '--browser',
+      'chrome',
+      '--actor',
+      'Browser Use',
+      '--session-label=skill=run',
+    ]),
+    {
+      adapterId: 'browser-use',
+      actorName: 'Browser Use',
+      browserSelector: 'chrome',
+      connectionMode: 'extension',
+      help: false,
+      language: undefined,
+      operation: 'connection-resolve',
+      sessionLabel: 'skill=run',
+    },
+  );
   assert.equal(parseCliArgs(['--lang', 'zh-CN', 'browsers']).language, 'zh-CN');
   assert.equal(parseCliArgs(['browsers', '--lang=en']).language, 'en');
   assert.throws(() => parseCliArgs(['browser', 'use']), /BROWSER_SELECTOR_MISSING/);
   assert.throws(() => parseCliArgs(['browser', 'focus']), /Unknown command: browser focus/);
   assert.throws(() => parseCliArgs(['setup']), /Unknown command: setup/);
   assert.throws(() => parseCliArgs(['browsers', '--json']), /Unknown option: --json/);
+});
+
+test('passes the exact child command through the run surface', async () => {
+  let input: RunCliConnectionInput | undefined;
+  assert.equal(
+    await main(
+      ['run', 'browser-use', '--mode', 'direct', '--', 'browser-use', '--json', '--help'],
+      {
+        environment: {},
+        runCliConnectionCommand: async value => {
+          input = value;
+          return 23;
+        },
+      },
+    ),
+    23,
+  );
+  assert.deepEqual(input?.childCommand, ['browser-use', '--json', '--help']);
+  assert.equal(input?.mode, 'direct');
+});
+
+test('saves and resolves engine-neutral connection modes', async () => {
+  const output: string[] = [];
+  const originalLog = console.log;
+  let saved: { adapterId: string; mode: string } | undefined;
+  console.log = (...values: unknown[]) => output.push(values.join(' '));
+  try {
+    assert.equal(
+      await main(['connection', 'use', 'browser-use', 'extension', '--lang', 'en'], {
+        environment: {},
+        saveCliConnectionMode: async (adapterId, mode) => {
+          saved = { adapterId, mode };
+        },
+      }),
+      0,
+    );
+    assert.deepEqual(saved, { adapterId: 'browser-use', mode: 'extension' });
+    assert.match(output.pop() ?? '', /Default browser-use connection mode: extension/);
+
+    assert.equal(
+      await main(
+        [
+          'connection',
+          'resolve',
+          'browser-use',
+          '--mode',
+          'extension',
+          '--actor',
+          'Browser Use',
+          '--lang',
+          'en',
+        ],
+        {
+          environment: {},
+          resolveCliConnection: async input => ({
+            adapterId: input.adapterId,
+            mode: 'extension',
+            connection: {
+              kind: 'cdp-http',
+              url: 'http://127.0.0.1:41234/cdp/bootstrap/ticket',
+            },
+            environment: { BU_CDP_URL: 'secret-ticket-url', BU_NAME: 'panerelay' },
+            expiresAt: '2026-08-01T02:02:03.000Z',
+            concurrencyKey: 'browser-use-lane',
+          }),
+        },
+      ),
+      0,
+    );
+    const resolved = JSON.parse(output.pop() ?? '{}') as Record<string, unknown>;
+    assert.deepEqual(resolved.environmentKeys, ['BU_CDP_URL', 'BU_NAME']);
+    assert.equal(JSON.stringify(resolved).includes('secret-ticket-url'), false);
+  } finally {
+    console.log = originalLog;
+  }
 });
 
 test('lists bounded browser metadata and manages the saved default', async () => {
