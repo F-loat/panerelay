@@ -7,7 +7,7 @@
 - Created: 2026-07-31
 - Updated: 2026-08-01
 - OpenSpec: `openspec/changes/archive/2026-08-01-add-browser-use-connection-adapter`
-- Amendments: `openspec/changes/relax-browser-use-version-gate`, `openspec/changes/add-browser-use-default-setting`
+- Amendments: `openspec/changes/archive/2026-08-01-relax-browser-use-version-gate`, `openspec/changes/archive/2026-08-01-add-browser-use-default-setting`
 
 ## Summary
 

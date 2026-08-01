@@ -6,7 +6,7 @@
 - Authors: F-loat
 - Created: 2026-07-29
 - Updated: 2026-08-01
-- Amendment: `openspec/changes/add-browser-use-default-setting`
+- Amendment: `openspec/changes/archive/2026-08-01-add-browser-use-default-setting`
 
 RFC-0004 supersedes this RFC's attachment-as-control and page-indicator semantics by separating visible read observation from active browser control.
 

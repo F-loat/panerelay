@@ -44,7 +44,7 @@ Panerelay setup SHALL install and register the Browser Use adapter, its Panerela
 
 ### Requirement: Panerelay supports reversible default and one-run connection selection
 
-The integration SHALL store a Direct or Panerelay Extension connection preference in Panerelay-owned configuration. The setup-managed Extension SHALL be able to read that preference and explicitly change it between Direct and Panerelay Extension through the authenticated Native Host only when the Browser Use adapter is registered. An explicit one-run selection SHALL override the saved preference only for the invoked Browser Use operation and SHALL NOT mutate the saved preference, Browser Use configuration, or an already running daemon in the other lane. Changing the saved preference SHALL NOT start a daemon, allocate a participant, authorize a tab, or acquire a control lease.
+The integration SHALL store a Direct or Panerelay Extension connection preference in Panerelay-owned configuration. The setup-managed Extension SHALL be able to read that preference and explicitly change it between Direct and Panerelay Extension through the authenticated Native Host only when a valid protected `browser-use` adapter registration declares the `extension` mode. An explicit one-run selection SHALL override the saved preference only for the invoked Browser Use operation and SHALL NOT mutate the saved preference, Browser Use configuration, or an already running daemon in the other lane. Changing the saved preference SHALL NOT start a daemon, allocate a participant, authorize a tab, or acquire a control lease.
 
 #### Scenario: Saved mode is Panerelay Extension
 
@@ -63,7 +63,7 @@ The integration SHALL store a Direct or Panerelay Extension connection preferenc
 
 #### Scenario: Extension selects Panerelay as the Browser Use default
 
-- **GIVEN** the protected Browser Use adapter registration exists
+- **GIVEN** a valid protected `browser-use` adapter registration declares the `extension` mode
 - **AND** the saved preference is Direct or absent
 - **WHEN** the user explicitly enables Browser Use in the Extension's default settings row
 - **THEN** the Bridge stores Extension mode through the same Panerelay-owned preference used by the CLI
@@ -85,10 +85,24 @@ The integration SHALL store a Direct or Panerelay Extension connection preferenc
 
 #### Scenario: Extension attempts to change an unavailable integration
 
-- **GIVEN** no valid Browser Use adapter registration exists
+- **GIVEN** the `browser-use` adapter registration is missing or does not declare the `extension` mode
 - **WHEN** the Extension requests a Browser Use default mutation
 - **THEN** the Bridge returns an explicit unavailable error
 - **AND** it does not create preference, participant, target, authorization, or lease state
+
+#### Scenario: Extension reads an unavailable integration
+
+- **GIVEN** the `browser-use` adapter registration is missing or does not declare the `extension` mode
+- **WHEN** the Extension requests the current Browser Use default
+- **THEN** the Bridge returns `{ available: false, mode: null, isPanerelay: false }`
+- **AND** it does not create preference, participant, target, authorization, or lease state
+
+#### Scenario: Protected adapter registry is invalid
+
+- **GIVEN** the protected adapter registry fails validation
+- **WHEN** the Extension requests Browser Use default state or mutation
+- **THEN** the Bridge returns a correlated integration error
+- **AND** it does not write preference state
 
 ### Requirement: Extension mode uses an isolated persistent Browser Harness lane
 

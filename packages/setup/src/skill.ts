@@ -7,7 +7,10 @@ export const PANERELAY_SKILL_NAME = 'panerelay-browser';
 export const PANERELAY_BROWSER_USE_SKILL_NAME = 'panerelay-browser-use';
 const PANERELAY_BROWSER_USE_CLI_PLACEHOLDER = '{{PANERELAY_BROWSER_USE_CLI}}';
 const PANERELAY_BROWSER_USE_MCP_PLACEHOLDER = '{{PANERELAY_BROWSER_USE_MCP}}';
+const PANERELAY_SETUP_VERSION_PLACEHOLDER = '{{PANERELAY_SETUP_VERSION}}';
 const BROWSER_USE_EXECUTABLE_PLACEHOLDER = '{{BROWSER_USE_EXECUTABLE}}';
+const PACKAGE_VERSION_PATTERN =
+  /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/;
 
 export interface SkillPathOptions {
   homeDirectory?: string;
@@ -46,8 +49,12 @@ export async function installBrowserUseSkill(
     browserUseExecutable: string;
     mcpLauncherPath?: string;
     platform?: NodeJS.Platform;
+    setupVersion: string;
   },
 ): Promise<string> {
+  if (!PACKAGE_VERSION_PATTERN.test(options.setupVersion)) {
+    throw new Error('Panerelay setup version is invalid');
+  }
   const target = globalBrowserUseSkillPath(options.homeDirectory);
   await rm(target, { recursive: true, force: true });
   await cp(options.sourceDirectory ?? bundledBrowserUseSkillPath(), target, { recursive: true });
@@ -56,6 +63,7 @@ export async function installBrowserUseSkill(
   if (
     !template.includes(PANERELAY_BROWSER_USE_CLI_PLACEHOLDER) ||
     !template.includes(PANERELAY_BROWSER_USE_MCP_PLACEHOLDER) ||
+    !template.includes(PANERELAY_SETUP_VERSION_PLACEHOLDER) ||
     !template.includes(BROWSER_USE_EXECUTABLE_PLACEHOLDER)
   ) {
     throw new Error('Panerelay Browser Use Skill template is invalid');
@@ -73,6 +81,7 @@ export async function installBrowserUseSkill(
           ? skillCommandPath(options.mcpLauncherPath, options.platform ?? process.platform)
           : 'Unavailable until setup detects a complete Browser Use 0.13.7 or newer installation',
       )
+      .replaceAll(PANERELAY_SETUP_VERSION_PLACEHOLDER, options.setupVersion)
       .replaceAll(
         BROWSER_USE_EXECUTABLE_PLACEHOLDER,
         skillCommandPath(options.browserUseExecutable, options.platform ?? process.platform),

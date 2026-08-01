@@ -57,6 +57,7 @@ test('installs the additive Browser Use Skill with the exact private CLI path', 
       homeDirectory,
       mcpLauncherPath,
       platform: 'linux',
+      setupVersion: '0.2.0',
     });
     const content = await readFile(join(target, 'SKILL.md'), 'utf8');
     assert.equal(target, globalBrowserUseSkillPath(homeDirectory));
@@ -70,9 +71,11 @@ test('installs the additive Browser Use Skill with the exact private CLI path', 
     assert.equal(content.includes(`'${mcpLauncherPath}'`), true);
     assert.match(content, /--cli-mcp/);
     assert.match(content, /legacy `browser-use --mcp`/);
+    assert.match(content, /npx --yes @panerelay\/setup@0\.2\.0 doctor --browser-use/);
     assert.doesNotMatch(content, /Browser Harness|browser-harness/);
     assert.doesNotMatch(content, /\{\{PANERELAY_BROWSER_USE_CLI\}\}/);
     assert.doesNotMatch(content, /\{\{PANERELAY_BROWSER_USE_MCP\}\}/);
+    assert.doesNotMatch(content, /\{\{PANERELAY_SETUP_VERSION\}\}/);
     assert.doesNotMatch(content, /\{\{BROWSER_USE_EXECUTABLE\}\}/);
     assert.equal(await readFile(officialSkillPath, 'utf8'), 'official-browser-use-skill\n');
 

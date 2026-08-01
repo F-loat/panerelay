@@ -2,7 +2,7 @@
 
 See [proposal.md](./proposal.md) for motivation. The current side-panel setting reaches the Bridge through the versioned `integration.request` boundary and conditionally edits agent-browser's user configuration. Browser Use already stores its Direct/Extension default in the protected engine-neutral Panerelay CLI adapter-preference file, but that state is only exposed through CLI commands. RFC-0001 owns the Extension-to-Bridge settings boundary and RFC-0007 owns Browser Use connection-mode semantics.
 
-The separate browser-registration default remains browser-local routing state. It is only useful as a side-panel setting when more than one live browser connection exists. Browser authorization, active control, and default selection remain distinct. Existing agent-browser 0.33.0 and Browser Use 0.13.7 / internal runtime 0.1.8 evidence is unaffected because this change does not run either engine or change its connection path.
+The separate browser-registration default remains browser-local routing state. It is only useful as a side-panel setting when more than one live browser connection exists. Browser authorization, active control, and default selection remain distinct. The Browser Use 0.13.7 and Browser Harness 0.1.8 baseline evidence remains valid. The adapter and CDP implementation are unchanged, while saved Direct/Extension default routing is new behavior that selects the persisted lane for later launches.
 
 ## Goals / Non-Goals
 
@@ -32,7 +32,7 @@ Alternative: overload `default-provider.*` with an engine identifier. Browser Us
 
 ### Reuse the Panerelay CLI registration and preference APIs inside the Bridge
 
-The Bridge will take a runtime dependency on a side-effect-free `@panerelay/cli/adapter-config` public subpath, verify that the protected `browser-use` adapter registration exists, and read or write its existing mode preference. The CLI root remains executable-oriented and is not bundled into the Native Host. Enabling stores `extension`; clearing stores `direct`. The Bridge does not inspect Browser Use internals or duplicate the preference-file implementation.
+The Bridge will take a runtime dependency on a side-effect-free `@panerelay/cli/adapter-config` public subpath, verify that a valid protected `browser-use` adapter registration exists and declares the `extension` mode, and read or write its existing mode preference. The CLI root remains executable-oriented and is not bundled into the Native Host. A get for a missing or mode-incompatible registration returns `{ available: false, mode: null, isPanerelay: false }`; set and clear fail as unavailable without writing preference state. An invalid protected registry produces a correlated integration error. Enabling stores `extension`; clearing stores `direct`. The Bridge does not inspect Browser Use internals or duplicate the preference-file implementation.
 
 Alternative: read and rewrite the JSON file directly in Bridge. That would duplicate permission validation, schemas, atomic writes, and adapter-ID rules across package boundaries. Removing the mode entry on clear would currently fall back to Direct, but storing Direct preserves an explicit reversible user choice and matches the existing CLI surface.
 

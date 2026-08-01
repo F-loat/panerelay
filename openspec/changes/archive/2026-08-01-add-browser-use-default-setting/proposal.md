@@ -8,12 +8,12 @@ Extension settings currently describe one agent-browser-specific control as “D
 - Show compact `agent-browser` and `Browser Use` toggle buttons in that row, without trailing circular indicators; selected button styling communicates the current state.
 - Keep the agent-browser button mapped to the existing user-level `provider: panerelay` setting.
 - Make the Browser Use button set its registered adapter preference to Extension mode, and return it to Direct mode when the Panerelay default is cleared.
-- Disable the Browser Use action when its setup-managed adapter is not registered, without installing Browser Use or changing its configuration.
+- Disable the Browser Use action unless a valid setup-managed `browser-use` adapter registration declares the `extension` mode, without installing Browser Use or changing its configuration. A missing or mode-incompatible registration is unavailable, while an invalid protected registry returns a correlated error.
 - Extend the versioned Extension/Native Host integration protocol and Bridge service with bounded Browser Use default-state operations.
 - Rename the separate current-browser routing setting to “Control by default” / “默认受控”, replace the browser-family button and decorative indicator with a standard switch, and hide the row unless more than one live browser connection exists.
 - Keep the main-panel browser-authorization card available when the selected Agent is not installed, while continuing to disable Agent conversation actions and show targeted setup guidance.
 
-Non-goals include changing one-run overrides, making arbitrary Browser Use SDK construction transparent, starting a Browser Use daemon, granting browser permissions, authorizing tabs, acquiring control leases, changing browser ownership, or changing CDP behavior. The pinned agent-browser 0.33.0 regression baseline and the exact Browser Use 0.13.7 / internal runtime 0.1.8 compatibility evidence remain unchanged.
+Non-goals include changing one-run overrides, making arbitrary Browser Use SDK construction transparent, starting a Browser Use daemon, granting browser permissions, authorizing tabs, acquiring control leases, changing browser ownership, or changing CDP behavior. The Browser Use 0.13.7 and Browser Harness 0.1.8 baseline evidence remains valid. The adapter and CDP implementation are unchanged, while saved Direct/Extension default routing is new behavior that selects the persisted lane for later launches.
 
 ## Capabilities
 

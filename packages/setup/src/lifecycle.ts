@@ -129,6 +129,7 @@ export async function setupPanerelay(
           homeDirectory: options.homeDirectory,
           mcpLauncherPath: browserUseIntegration.config.mcpLauncherPath,
           platform: options.platform,
+          setupVersion: browserUseIntegration.config.version,
         })
       : undefined;
 

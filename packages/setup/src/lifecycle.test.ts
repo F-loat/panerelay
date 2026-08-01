@@ -91,9 +91,10 @@ test('setup can opt into global and project default providers', async () => {
           },
         };
       },
-      installBrowserUseSkill: async cliLauncherPath => {
+      installBrowserUseSkill: async (cliLauncherPath, options) => {
         calls.push('install-browser-use-skill');
         assert.equal(cliLauncherPath, '/home/.panerelay/cli');
+        assert.equal(options.setupVersion, '0.2.0');
         return '/home/.agents/skills/panerelay-browser-use';
       },
       probeBrowserUse: async () => ({
