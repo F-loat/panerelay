@@ -11,7 +11,7 @@
     "build": "vite build",
     "dev": "vite --host 127.0.0.1",
     "package": "node package.mjs",
-    "test": "node test.mjs && vitest run",
+    "test": "pnpm run build && node test.mjs && vitest run",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

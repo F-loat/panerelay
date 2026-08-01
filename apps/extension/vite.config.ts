@@ -19,6 +19,7 @@ export default defineConfig({
   },
   build: {
     emptyOutDir: true,
+    modulePreload: false,
     outDir: 'dist',
     sourcemap: true,
     target: 'chrome116',
