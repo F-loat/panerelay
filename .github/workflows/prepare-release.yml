@@ -147,6 +147,7 @@ jobs:
             @panerelay/browser-registry \
             @panerelay/cli \
             @panerelay/agent-browser \
+            @panerelay/browser-use \
             @panerelay/bridge \
             @panerelay/setup; do
             set +e

@@ -20,11 +20,17 @@ import {
   readLiveLegacyBrowserRegistration,
 } from '@panerelay/browser-registry';
 import {
+  probeBrowserUseVersions,
+  SUPPORTED_BROWSER_HARNESS_VERSION,
+  SUPPORTED_BROWSER_USE_VERSION,
+} from '@panerelay/browser-use';
+import {
   projectAgentBrowserConfigPath,
   readJsonObject,
   userAgentBrowserConfigPath,
 } from './config.js';
 import { globalSkillPath, projectSkillPath } from './skill.js';
+import { resolveBrowserUseIntegrationPaths } from './browser-use-integration.js';
 
 const SETUP_COMMAND = 'npx --yes @panerelay/setup';
 
@@ -44,6 +50,8 @@ export interface DoctorReport {
 }
 
 export interface DoctorOptions {
+  browserUse?: boolean;
+  browserUseProbe?: typeof probeBrowserUseVersions;
   environment?: NodeJS.ProcessEnv;
   commandRunner?: CommandRunner;
   extensionId?: string;
@@ -147,6 +155,46 @@ export async function doctorPanerelay(options: DoctorOptions = {}): Promise<Doct
     detail: process.version,
     ...(nodeMajor >= 20 ? {} : { hint: 'Install Node.js 20 or newer' }),
   });
+  const browserUsePaths = resolveBrowserUseIntegrationPaths({
+    homeDirectory: home,
+    platform,
+  });
+  const diagnoseBrowserUse =
+    options.browserUse === true || (await exists(browserUsePaths.integrationConfigPath));
+  if (diagnoseBrowserUse) {
+    const versions = await (options.browserUseProbe ?? probeBrowserUseVersions)(
+      options.environment,
+      platform,
+    );
+    const browserUseReady = versions.browserUse === SUPPORTED_BROWSER_USE_VERSION;
+    const browserHarnessReady = versions.browserHarness === SUPPORTED_BROWSER_HARNESS_VERSION;
+    checks.push({
+      id: 'browser-use',
+      label: 'Browser Use CLI',
+      status: browserUseReady ? 'pass' : 'fail',
+      detail: versions.browserUseExecutable
+        ? `${versions.browserUseExecutable}${versions.browserUse ? ` (${versions.browserUse})` : ''}`
+        : 'Not found',
+      ...(browserUseReady
+        ? {}
+        : {
+            hint: versions.browserUse
+              ? `Install Browser Use ${SUPPORTED_BROWSER_USE_VERSION}, then run: ${SETUP_COMMAND} doctor --browser-use`
+              : `Install Browser Use ${SUPPORTED_BROWSER_USE_VERSION}, then run: ${SETUP_COMMAND} --browser-use`,
+          }),
+    });
+    checks.push({
+      id: 'browser-harness',
+      label: 'Browser Harness',
+      status: browserHarnessReady ? 'pass' : 'fail',
+      detail: versions.browserHarness ?? 'Not found',
+      ...(browserHarnessReady
+        ? {}
+        : {
+            hint: `Install Browser Harness ${SUPPORTED_BROWSER_HARNESS_VERSION} in the Browser Use environment, then run: ${SETUP_COMMAND} doctor --browser-use`,
+          }),
+    });
+  }
   let runtimeConfig: Record<string, unknown> = {};
   try {
     runtimeConfig = await readJsonObject(paths.runtimeConfigPath);

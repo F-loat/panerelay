@@ -24,3 +24,20 @@ responsibility of integrations such as agent-browser or browser-use.
 
 Use [`@panerelay/setup`](https://www.npmjs.com/package/@panerelay/setup) for
 one-time installation, diagnostics, updates, and uninstall.
+
+Setup-managed connection adapters can also expose engine-neutral mode and run
+operations. For the optional Browser Use integration, use the exact private CLI
+path printed by `@panerelay/setup --browser-use`:
+
+```bash
+panerelay connection use browser-use extension
+panerelay connection use browser-use direct
+panerelay run browser-use --mode extension -- /absolute/path/to/browser-use
+panerelay run browser-use --mode direct -- /absolute/path/to/browser-use
+```
+
+The CLI invokes only the exact child command after `--`, applies only the
+adapter's declared environment keys, and does not interpret Browser Use
+automation. One-run mode selection does not persist. Extension-mode Browser Use
+uses a user-scoped concurrency lane; sequential processes share the upstream
+daemon state, while overlapping runs wait briefly or fail explicitly as busy.

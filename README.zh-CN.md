@@ -58,6 +58,17 @@ Microsoft Edge 运行时能力目前归类为 `Forwarded`，仍需完成有代�
 
 如需在后续命令中省略 `--provider panerelay`，可在扩展设置中将 Panerelay 设为用户级默认 Agent，或安装时加上 `--global-provider`；如果只想影响当前项目，请改用 `--project-provider`。默认 Agent 只改变路由，不会授予浏览器权限，也不会授权任何标签页。
 
+### 可选的 Browser Use 连接
+
+如果已安装 Browser Use `0.13.7` 和 Browser Harness `0.1.8`，可以显式启用 Panerelay adapter 和附加 Skill：
+
+```bash
+npx --yes @panerelay/setup --browser-use
+npx --yes @panerelay/setup doctor --browser-use
+```
+
+Setup 不安装或修改 Browser Use，也不改变 `PATH`。安装后的 Skill 继续使用 Browser Use 原生 helper；Panerelay 只为用户明确授权的标签页提供经过认证的虚拟 CDP 连接。Direct 与 Extension 模式支持 Panerelay 自有的持久默认值和单次覆盖。Browser Harness daemon 会有意保持运行，并被顺序 Agent 命令共享，因此不提供 per-Agent 任务隔离。CLI、CLI MCP、生命周期、安全与不支持边界详见 [Browser Use 兼容性记录](docs/compatibility/browser-use-0.13.7.md)。
+
 ## Panerelay 提供什么
 
 - 已授权标签页中的 agent-browser 工作流，包括页面交互、截图、导航、标签页与弹窗、诊断、网络检查和请求 Mock。

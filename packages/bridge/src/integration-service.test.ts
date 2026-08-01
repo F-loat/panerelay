@@ -13,6 +13,7 @@ const currentBrowser: BridgeState = {
   pid: process.pid,
   port: 41_234,
   token: 'not-returned',
+  generation: 'generation-edge',
   browserId: 'edge-browser-id',
   browserName: 'Microsoft Edge',
   browserFamily: 'edge',

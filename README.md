@@ -56,6 +56,17 @@ Microsoft Edge runtime capabilities are currently classified as `Forwarded` pend
 
 6. To work from the browser, open the side panel and select an installed local Agent. Panerelay automatically discovers Codex, Claude Code, and Qoder; each Agent CLI must already be installed and signed in. Side-panel Agents stay scoped to the browser containing that side panel, independently of the saved default.
 
+### Optional Browser Use connection
+
+If Browser Use `0.13.7` and Browser Harness `0.1.8` are already installed, opt into the Panerelay connection adapter and additive Skill:
+
+```bash
+npx --yes @panerelay/setup --browser-use
+npx --yes @panerelay/setup doctor --browser-use
+```
+
+Setup does not install or modify Browser Use and does not change `PATH`. The installed Skill continues to use normal Browser Use helpers through a protected private CLI, while Panerelay supplies the authenticated virtual CDP connection to explicitly authorized tabs. Direct and Extension modes have a saved Panerelay-owned preference plus one-run overrides. The Browser Harness daemon is intentionally persistent and shared across sequential Agent commands; it is not per-Agent task isolation. See the [Browser Use compatibility record](docs/compatibility/browser-use-0.13.7.md) for CLI, CLI MCP, lifecycle, security, and unsupported browser-ownership boundaries.
+
 To omit `--provider panerelay` in later commands, set Panerelay as the user-level default from Extension settings or run setup with `--global-provider`. Use `--project-provider` instead when the default should apply only to the current project. Provider selection changes routing only—it never grants browser permission or authorizes a tab.
 
 ## What Panerelay provides
@@ -115,7 +126,7 @@ The ID must contain 32 lowercase letters from `a` through `p`.
 - Reusing login state means operating inside an authorized existing tab. Panerelay does not export or log cookies, credentials, prompts, screenshots, page content, or request bodies by default.
 - Panerelay cannot own browser-process features such as isolated profiles, launch-time proxy changes, or closing the user's Chrome or Edge process.
 - `webNavigation` is used only to recognize browser-reported related tabs so they can share conversation context. It does not read browsing history or grant site access.
-- The Extension, protocol, Bridge, Provider, setup package, browser registry, and optional administration CLI form one lockstep compatibility unit.
+- The Extension, protocol, Bridge, Providers/adapters, setup package, browser registry, optional administration CLI, and optional Browser Use adapter form one lockstep compatibility unit.
 
 ## Development and release checks
 

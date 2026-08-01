@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Panerelay Browser Use compatibility fixture</title>
+  </head>
+  <body>
+    <main>
+      <h1>Browser Use compatibility fixture</h1>
+      <p id="status" aria-live="polite">Ready</p>
+
+      <form id="fixture-form">
+        <label for="fixture-value">Fixture value</label>
+        <input id="fixture-value" name="fixture-value" autocomplete="off" />
+        <button id="submit" type="submit">Submit fixture</button>
+      </form>
+
+      <nav>
+        <a id="navigate" href="./complete.html">Navigate in this origin</a>
+        <a id="authorization-boundary" href="__CROSS_ORIGIN__/boundary.html">
+          Cross authorization boundary
+        </a>
+      </nav>
+
+      <section>
+        <h2>Target and network lifecycle</h2>
+        <button id="popup" type="button">Open popup</button>
+        <button id="delayed-request" type="button">Run delayed request</button>
+        <a id="download" href="./api/download" download="browser-use-spike.txt">
+          Download fixture
+        </a>
+        <label for="upload">Upload fixture</label>
+        <input id="upload" type="file" />
+      </section>
+
+      <section>
+        <h2>Frames</h2>
+        <iframe id="same-origin-frame" src="./same-frame.html" title="Same-origin fixture"></iframe>
+        <iframe
+          id="cross-origin-frame"
+          src="__CROSS_ORIGIN__/cross-frame.html"
+          title="Cross-origin fixture"
+        ></iframe>
+      </section>
+    </main>
+
+    <script>
+      const status = document.querySelector('#status');
+
+      document.querySelector('#fixture-form').addEventListener('submit', event => {
+        event.preventDefault();
+        status.textContent = `Submitted: ${document.querySelector('#fixture-value').value}`;
+      });
+
+      document.querySelector('#popup').addEventListener('click', () => {
+        window.open('./popup.html', 'panerelay-browser-use-popup', 'width=420,height=320');
+      });
+
+      document.querySelector('#delayed-request').addEventListener('click', async () => {
+        status.textContent = 'Waiting';
+        const response = await fetch('./api/delay?ms=300');
+        const result = await response.json();
+        status.textContent = `Delayed: ${result.delayed}`;
+      });
+
+      document.querySelector('#upload').addEventListener('change', event => {
+        const [file] = event.currentTarget.files;
+        status.textContent = file ? `Uploaded: ${file.name}:${file.size}` : 'No upload';
+      });
+    </script>
+  </body>
+</html>

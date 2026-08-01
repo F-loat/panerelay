@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import {
   PANERELAY_PROTOCOL_VERSION,
+  isCdpBootstrapRequest,
   classifyCdpTargetAccess,
   type AutomationActivityFailure,
   type BrowserRegistration,
@@ -19,12 +20,16 @@ import {
   type RelaySessionCreateRequest,
   type RelaySessionCreated,
   type RelaySessionError,
+  type CdpBootstrapCreated,
+  type CdpBootstrapError,
+  type CdpBootstrapVersionMetadata,
   type ControlSessionState,
 } from '@panerelay/protocol';
 import WebSocket, { WebSocketServer } from 'ws';
 import { targetCommandPolicyError } from './browser-relay-policy.js';
 import { ControlActivityJournal } from './control-activity-journal.js';
 import { KeyedCommandScheduler } from './keyed-command-scheduler.js';
+import { CdpBootstrapStoreError, CdpBootstrapTicketStore } from './cdp-bootstrap-store.js';
 
 interface PendingExtensionResult<T> {
   resolve: (result: T) => void;
@@ -50,6 +55,10 @@ interface RelayParticipant {
   lastHeartbeatAt?: number;
   expiryTimer?: NodeJS.Timeout;
   clients: Set<WebSocket>;
+  childTargetIds: Map<string, string>;
+  connectionPolicy: 'multiple' | 'single';
+  bootstrapTicketId?: string;
+  credentialConsumed?: boolean;
 }
 
 interface ActiveControlLease {
@@ -65,7 +74,7 @@ interface PageSession {
   client: WebSocket;
   autoAttach?: {
     params: Record<string, unknown>;
-    applied: boolean;
+    enabled: boolean;
   };
 }
 
@@ -77,7 +86,24 @@ interface ClientState {
 }
 
 interface ChildSession {
+  id: string;
   targetId: string;
+  childTargetId: string;
+  chromeSessionId: string;
+  client: WebSocket;
+  parentSessionId?: string;
+  rootPageSessionId?: string;
+  autoAttachEnabled?: boolean;
+}
+
+interface PhysicalChildTarget {
+  ownerTargetId: string;
+  chromeSessionId: string;
+  chromeTargetId: string;
+  parentChromeSessionId?: string;
+  type: string;
+  title: string;
+  url: string;
 }
 
 const MAX_LEASE_PARTICIPANTS = 8;
@@ -88,8 +114,14 @@ const DEFAULT_SESSION_CONNECT_TIMEOUT_MS = 30_000;
 const DEFAULT_HEARTBEAT_INTERVAL_MS = 10_000;
 const DEFAULT_HEARTBEAT_TIMEOUT_MS = 35_000;
 const EXTENSION_REQUEST_TIMEOUT_MS = 10_000;
+const DEFAULT_HTTP_REQUEST_TIMEOUT_MS = 5_000;
 const MAX_SESSION_REQUEST_BYTES = 16 * 1024;
 const TARGET_LIFECYCLE_QUEUE = 'panerelay:target-lifecycle';
+const CHILD_AUTO_ATTACH_PARAMS = {
+  autoAttach: true,
+  waitForDebuggerOnStart: false,
+  flatten: true,
+} as const;
 class RelayHttpError extends Error {
   constructor(
     readonly status: number,
@@ -108,18 +140,29 @@ export interface BrowserRelayOptions {
   sessionConnectTimeoutMs?: number;
   heartbeatIntervalMs?: number;
   heartbeatTimeoutMs?: number;
+  bootstrapTicketTtlMs?: number;
+  bootstrapConnectionWindowMs?: number;
+  bootstrapMaxOutstandingTickets?: number;
+  httpRequestTimeoutMs?: number;
 }
 
 export class BrowserRelay {
   readonly port: number;
   readonly token = randomBytes(32).toString('base64url');
+  readonly generation = randomUUID();
 
   private readonly clients = new Map<WebSocket, ClientState>();
   private readonly targets = new Map<string, CdpTargetInfo>();
   private readonly pageSessions = new Map<string, PageSession>();
   private readonly childSessions = new Map<string, ChildSession>();
+  private readonly childTargets = new Map<string, PhysicalChildTarget>();
   private readonly attachedTargets = new Set<string>();
+  private readonly autoAttachTargets = new Set<string>();
+  private readonly autoAttachChildSessions = new Set<string>();
+  private readonly childAutoAttachPromises = new Map<string, Promise<void>>();
   private readonly controlledTargets = new Set<string>();
+  private readonly focusEmulationTargets = new Set<string>();
+  private readonly focusEmulationParticipants = new Map<string, Set<string>>();
   private readonly attachPromises = new Map<string, Promise<void>>();
   private readonly pendingAttaches = new Map<string, PendingExtensionResult<CdpAttachedMessage>>();
   private readonly pendingTargetRequests = new Map<
@@ -137,6 +180,7 @@ export class BrowserRelay {
     isOwnerActive: client => this.clients.has(client),
   });
   private readonly activityJournal: ControlActivityJournal<WebSocket>;
+  private readonly bootstrapTickets: CdpBootstrapTicketStore<RelayParticipant>;
   private browser: BrowserRegistration | null = null;
   private activeLease: ActiveControlLease | null = null;
   private heartbeatTimer: NodeJS.Timeout | null = null;
@@ -149,6 +193,20 @@ export class BrowserRelay {
     port: number,
   ) {
     this.port = port;
+    this.bootstrapTickets = new CdpBootstrapTicketStore<RelayParticipant>({
+      ...(options.bootstrapTicketTtlMs === undefined
+        ? {}
+        : { ticketTtlMs: options.bootstrapTicketTtlMs }),
+      ...(options.bootstrapConnectionWindowMs === undefined
+        ? {}
+        : { connectionWindowMs: options.bootstrapConnectionWindowMs }),
+      ...(options.bootstrapMaxOutstandingTickets === undefined
+        ? {}
+        : { maxOutstandingTickets: options.bootstrapMaxOutstandingTickets }),
+      onParticipantInvalidated: (participant, reason) => {
+        this.releaseParticipant(participant.id, reason, 1008, 'expired');
+      },
+    });
     this.activityJournal = new ControlActivityJournal({
       emit: message => this.options.sendToExtension(message),
     });
@@ -234,7 +292,8 @@ export class BrowserRelay {
   }
 
   async close(reason = 'Bridge shutting down'): Promise<void> {
-    this.revokeActiveLease(reason, 1012, true, 'failed');
+    this.revokeActiveLease(reason, 1012, true, 'failed', true);
+    this.bootstrapTickets.clear(reason);
     this.rejectExtensionRequests(new Error(reason));
     await new Promise<void>(resolve => this.server.close(() => resolve()));
     await new Promise<void>(resolve => this.httpServer.close(() => resolve()));
@@ -259,6 +318,23 @@ export class BrowserRelay {
     if (participant.clients.size >= MAX_PARTICIPANT_CONNECTIONS) {
       client.close(1013, 'The Panerelay participant has too many transport connections');
       return;
+    }
+    if (participant.connectionPolicy === 'single') {
+      if (participant.credentialConsumed || !participant.bootstrapTicketId || !this.browser) {
+        client.close(1008, 'Panerelay CDP connection credential was already consumed');
+        return;
+      }
+      try {
+        this.bootstrapTickets.consume(participant.bootstrapTicketId, {
+          browserId: this.browser.browserId,
+          generation: this.generation,
+        });
+      } catch {
+        client.close(1008, 'Panerelay CDP connection credential is no longer valid');
+        return;
+      }
+      participant.credentialConsumed = true;
+      participant.token = '';
     }
 
     const now = Date.now();
@@ -318,15 +394,30 @@ export class BrowserRelay {
     request: IncomingMessage,
     response: ServerResponse,
   ): Promise<void> {
+    const url = new URL(request.url || '/', 'http://127.0.0.1');
+    const versionMatch = /^\/cdp\/bootstrap\/([A-Za-z0-9_-]{43})\/json\/version$/.exec(
+      url.pathname,
+    );
+    if (request.method === 'GET' && versionMatch?.[1] && url.search === '') {
+      this.handleBootstrapVersion(versionMatch[1], response);
+      return;
+    }
     if (!this.isAuthorizedBootstrapRequest(request)) {
-      this.sendJson(response, 401, {
-        protocol: PANERELAY_PROTOCOL_VERSION,
-        error: 'Invalid Panerelay Bridge token',
-      });
+      if (url.pathname.startsWith('/cdp/bootstrap')) {
+        this.sendBootstrapError(response, 401, 'unauthorized', 'Invalid Panerelay Bridge token');
+      } else {
+        this.sendJson(response, 401, {
+          protocol: PANERELAY_PROTOCOL_VERSION,
+          error: 'Invalid Panerelay Bridge token',
+        });
+      }
       return;
     }
 
-    const url = new URL(request.url || '/', 'http://127.0.0.1');
+    if (request.method === 'POST' && url.pathname === '/cdp/bootstrap' && url.search === '') {
+      await this.handleCreateBootstrap(request, response);
+      return;
+    }
     if (request.method === 'POST' && url.pathname === '/sessions') {
       await this.handleCreateSession(request, response);
       return;
@@ -349,6 +440,144 @@ export class BrowserRelay {
       protocol: PANERELAY_PROTOCOL_VERSION,
       error: 'Unknown Panerelay Bridge endpoint',
     });
+  }
+
+  private handleBootstrapVersion(ticketId: string, response: ServerResponse): void {
+    if (!this.browser) {
+      this.sendBootstrapError(
+        response,
+        503,
+        'browser-unavailable',
+        'Panerelay extension is not registered',
+      );
+      return;
+    }
+    if (this.browser.capabilities?.cdpRelay === false) {
+      this.sendBootstrapError(
+        response,
+        409,
+        'unsupported',
+        'The registered browser cannot provide a Panerelay CDP relay',
+      );
+      return;
+    }
+    const browser = { browserId: this.browser.browserId, generation: this.generation };
+    try {
+      const activation = this.bootstrapTickets.activate(ticketId, browser, context => {
+        const participant = this.allocateParticipant(
+          context.actor,
+          context.connectExpiresAt,
+          'single',
+        );
+        participant.bootstrapTicketId = context.ticketId;
+        return {
+          participant,
+          cdpUrl: this.participantCdpUrl(participant),
+        };
+      });
+      const result: CdpBootstrapVersionMetadata = {
+        Browser: `Panerelay/${this.browser.extensionVersion}`,
+        'Protocol-Version': CDP_PROTOCOL_VERSION,
+        'User-Agent': this.browser.browserName,
+        'V8-Version': '0.0',
+        'WebKit-Version': '537.36 (@panerelay)',
+        webSocketDebuggerUrl: activation.cdpUrl,
+      };
+      this.sendJson(response, 200, result);
+    } catch (error) {
+      if (error instanceof RelayHttpError && error.status === 429) {
+        this.sendBootstrapError(response, 429, 'ticket-limit', error.message);
+        return;
+      }
+      if (error instanceof CdpBootstrapStoreError) {
+        const statuses: Partial<Record<CdpBootstrapError['error']['code'], number>> = {
+          'ticket-invalid': 404,
+          'ticket-expired': 410,
+          'ticket-consumed': 410,
+          'generation-changed': 409,
+          'lane-busy': 409,
+        };
+        this.sendBootstrapError(response, statuses[error.code] ?? 400, error.code, error.message);
+        return;
+      }
+      throw error;
+    }
+  }
+
+  private async handleCreateBootstrap(
+    request: IncomingMessage,
+    response: ServerResponse,
+  ): Promise<void> {
+    if (!this.browser) {
+      this.sendBootstrapError(
+        response,
+        503,
+        'browser-unavailable',
+        'Panerelay extension is not registered',
+      );
+      return;
+    }
+    if (this.browser.capabilities?.cdpRelay === false) {
+      this.sendBootstrapError(
+        response,
+        409,
+        'unsupported',
+        'The registered browser cannot provide a Panerelay CDP relay',
+      );
+      return;
+    }
+    if (!request.headers['content-type']?.toLowerCase().startsWith('application/json')) {
+      this.sendBootstrapError(response, 415, 'invalid-request', 'CDP bootstrap requires JSON');
+      return;
+    }
+    let payload: unknown;
+    try {
+      payload = await this.readJsonBody(request);
+    } catch (error) {
+      if (error instanceof RelayHttpError && (error.status === 413 || error.status === 408)) {
+        this.sendBootstrapError(
+          response,
+          error.status,
+          'invalid-request',
+          error.status === 413
+            ? 'CDP bootstrap request is too large'
+            : 'CDP bootstrap request timed out',
+        );
+        return;
+      }
+      throw error;
+    }
+    if (!isCdpBootstrapRequest(payload)) {
+      this.sendBootstrapError(response, 400, 'invalid-request', 'Invalid CDP bootstrap request');
+      return;
+    }
+    if (
+      payload.browser.browserId !== this.browser.browserId ||
+      payload.browser.generation !== this.generation
+    ) {
+      this.sendBootstrapError(
+        response,
+        409,
+        'generation-changed',
+        'The selected browser connection changed; resolve it again',
+      );
+      return;
+    }
+    try {
+      const ticket = this.bootstrapTickets.issue(payload);
+      const result: CdpBootstrapCreated = {
+        protocol: PANERELAY_PROTOCOL_VERSION,
+        cdpUrl: `http://127.0.0.1:${this.port}/cdp/bootstrap/${encodeURIComponent(ticket.ticketId)}`,
+        expiresAt: new Date(ticket.expiresAt).toISOString(),
+      };
+      this.sendJson(response, 201, result);
+    } catch (error) {
+      if (error instanceof CdpBootstrapStoreError && error.code === 'ticket-limit') {
+        this.sendBootstrapError(response, 429, error.code, error.message);
+        return;
+      }
+      throw error;
+    }
   }
 
   private isAuthorizedBootstrapRequest(request: IncomingMessage): boolean {
@@ -392,12 +621,33 @@ export class BrowserRelay {
 
     const connectExpiresAt =
       Date.now() + (this.options.sessionConnectTimeoutMs ?? DEFAULT_SESSION_CONNECT_TIMEOUT_MS);
+    const participant = this.allocateParticipant(payload.actor, connectExpiresAt, 'multiple');
+
+    const result: RelaySessionCreated = {
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      sessionId: participant.id,
+      cdpUrl: this.participantCdpUrl(participant),
+      connectExpiresAt: new Date(connectExpiresAt).toISOString(),
+    };
+    this.sendJson(response, 201, result);
+  }
+
+  private allocateParticipant(
+    actor: RelaySessionActor,
+    connectExpiresAt: number,
+    connectionPolicy: RelayParticipant['connectionPolicy'],
+  ): RelayParticipant {
+    if ((this.activeLease?.participants.size ?? 0) >= MAX_LEASE_PARTICIPANTS) {
+      throw new RelayHttpError(429, 'The authorized browser has too many automation participants');
+    }
     const participant: RelayParticipant = {
       id: randomUUID(),
       token: randomBytes(32).toString('base64url'),
-      actor: payload.actor,
+      actor,
       connectExpiresAt,
       clients: new Set(),
+      childTargetIds: new Map(),
+      connectionPolicy,
     };
     if (!this.activeLease) {
       this.activeLease = {
@@ -415,36 +665,48 @@ export class BrowserRelay {
     this.emitCurrentSessionState(
       this.clients.size > 0 || this.attachedTargets.size > 0 ? undefined : 'allocated',
     );
+    return participant;
+  }
 
-    const result: RelaySessionCreated = {
-      protocol: PANERELAY_PROTOCOL_VERSION,
-      sessionId: participant.id,
-      cdpUrl: `ws://127.0.0.1:${this.port}/cdp?session=${encodeURIComponent(participant.id)}&token=${encodeURIComponent(participant.token)}`,
-      connectExpiresAt: new Date(connectExpiresAt).toISOString(),
-    };
-    this.sendJson(response, 201, result);
+  private participantCdpUrl(participant: RelayParticipant): string {
+    return `ws://127.0.0.1:${this.port}/cdp?session=${encodeURIComponent(participant.id)}&token=${encodeURIComponent(participant.token)}`;
   }
 
   private readJsonBody(request: IncomingMessage): Promise<unknown> {
     return new Promise((resolve, reject) => {
       const chunks: Buffer[] = [];
       let size = 0;
+      let settled = false;
+      const finish = (action: () => void): void => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        action();
+      };
+      const timer = setTimeout(() => {
+        request.resume();
+        finish(() => reject(new RelayHttpError(408, 'Relay request timed out')));
+      }, this.options.httpRequestTimeoutMs ?? DEFAULT_HTTP_REQUEST_TIMEOUT_MS);
+      timer.unref();
       request.on('data', (chunk: Buffer) => {
+        if (settled) return;
         size += chunk.length;
         if (size <= MAX_SESSION_REQUEST_BYTES) chunks.push(chunk);
       });
       request.on('end', () => {
+        if (settled) return;
         if (size > MAX_SESSION_REQUEST_BYTES) {
-          reject(new RelayHttpError(413, 'Relay session request is too large'));
+          finish(() => reject(new RelayHttpError(413, 'Relay session request is too large')));
           return;
         }
         try {
-          resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+          const value = JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown;
+          finish(() => resolve(value));
         } catch {
-          resolve(null);
+          finish(() => resolve(null));
         }
       });
-      request.on('error', reject);
+      request.on('error', error => finish(() => reject(error)));
     });
   }
 
@@ -466,7 +728,12 @@ export class BrowserRelay {
   private sendJson(
     response: ServerResponse,
     status: number,
-    body: RelaySessionCreated | RelaySessionError,
+    body:
+      | RelaySessionCreated
+      | RelaySessionError
+      | CdpBootstrapCreated
+      | CdpBootstrapError
+      | CdpBootstrapVersionMetadata,
   ): void {
     if (response.headersSent || response.destroyed) return;
     response.writeHead(status, {
@@ -474,6 +741,18 @@ export class BrowserRelay {
       'cache-control': 'no-store',
     });
     response.end(JSON.stringify(body));
+  }
+
+  private sendBootstrapError(
+    response: ServerResponse,
+    status: number,
+    code: CdpBootstrapError['error']['code'],
+    message: string,
+  ): void {
+    this.sendJson(response, status, {
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      error: { code, message },
+    });
   }
 
   private scheduleParticipantExpiry(participant: RelayParticipant): void {
@@ -664,7 +943,10 @@ export class BrowserRelay {
       case 'Target.getTargets': {
         const targets = await this.refreshTargets();
         this.sendResult(client, id, {
-          targetInfos: targets.map(target => this.toCdpTargetInfo(target)),
+          targetInfos: [
+            ...targets.map(target => this.toCdpTargetInfo(target)),
+            ...this.virtualChildTargetInfos(client),
+          ],
         });
         return;
       }
@@ -673,6 +955,20 @@ export class BrowserRelay {
         const flatten = params.flatten;
         if (flatten !== true) {
           this.sendCdpError(client, id, -32602, 'Panerelay requires flattened CDP sessions');
+          return;
+        }
+        const childTarget = this.physicalChildTargetForClient(client, targetId);
+        if (childTarget) {
+          const sessionId = randomUUID();
+          this.childSessions.set(sessionId, {
+            id: sessionId,
+            targetId: childTarget.ownerTargetId,
+            childTargetId: targetId,
+            chromeSessionId: childTarget.chromeSessionId,
+            client,
+          });
+          state.sessions.add(sessionId);
+          this.sendResult(client, id, { sessionId });
           return;
         }
         await this.ensureKnownTarget(targetId);
@@ -684,7 +980,7 @@ export class BrowserRelay {
       }
       case 'Target.detachFromTarget': {
         const sessionId = typeof params.sessionId === 'string' ? params.sessionId : undefined;
-        if (!sessionId || !this.removePageSession(sessionId)) {
+        if (!sessionId || !this.removeClientSession(sessionId, client)) {
           this.sendCdpError(client, id, -32602, 'Unknown Panerelay target session');
           return;
         }
@@ -720,6 +1016,13 @@ export class BrowserRelay {
       }
       case 'Target.getTargetInfo': {
         const targetId = this.requiredTargetId(params);
+        const childTarget = this.physicalChildTargetForClient(client, targetId);
+        if (childTarget) {
+          this.sendResult(client, id, {
+            targetInfo: this.toVirtualChildTargetInfo(client, childTarget),
+          });
+          return;
+        }
         const target = await this.ensureKnownTarget(targetId);
         this.sendResult(client, id, { targetInfo: this.toCdpTargetInfo(target) });
         return;
@@ -810,7 +1113,11 @@ export class BrowserRelay {
     const pageSession = this.pageSessions.get(sessionId);
     const childSession = this.childSessions.get(sessionId);
     const targetId = pageSession?.targetId ?? childSession?.targetId;
-    if (!targetId || (pageSession && pageSession.client !== client)) {
+    if (
+      !targetId ||
+      (pageSession && pageSession.client !== client) ||
+      (childSession && childSession.client !== client)
+    ) {
       this.sendCdpError(
         client,
         cdpId,
@@ -833,23 +1140,56 @@ export class BrowserRelay {
       return;
     }
 
-    const forwardedParams =
-      pageSession &&
-      method === 'Target.setAutoAttach' &&
-      params.autoAttach === true &&
-      params.waitForDebuggerOnStart === true
-        ? { ...params, waitForDebuggerOnStart: false }
-        : params;
-
     if (pageSession && method === 'Target.setAutoAttach') {
-      pageSession.autoAttach = {
-        params: forwardedParams,
-        applied: this.attachedTargets.has(targetId),
-      };
-      if (!this.attachedTargets.has(targetId)) {
-        this.sendResult(client, cdpId, {}, sessionId);
+      if (params.autoAttach === true && params.flatten !== true) {
+        this.sendCdpError(
+          client,
+          cdpId,
+          -32602,
+          'Panerelay requires flattened CDP sessions',
+          sessionId,
+        );
         return;
       }
+      const enabled = params.autoAttach === true;
+      pageSession.autoAttach = {
+        params: {
+          ...params,
+          ...(enabled ? { waitForDebuggerOnStart: false } : {}),
+        },
+        enabled,
+      };
+      if (!enabled) this.removeAutoAttachedChildSessions(pageSession.id);
+      this.sendResult(client, cdpId, {}, sessionId);
+      if (enabled && this.attachedTargets.has(targetId)) {
+        queueMicrotask(() => this.emitExistingChildAttachments(pageSession));
+      }
+      return;
+    }
+    if (childSession && method === 'Target.setAutoAttach') {
+      if (params.autoAttach === true && params.flatten !== true) {
+        this.sendCdpError(
+          client,
+          cdpId,
+          -32602,
+          'Panerelay requires flattened CDP sessions',
+          sessionId,
+        );
+        return;
+      }
+      childSession.autoAttachEnabled = params.autoAttach === true;
+      this.sendResult(client, cdpId, {}, sessionId);
+      return;
+    }
+    if (childSession && method.startsWith('Target.')) {
+      this.sendCdpError(
+        client,
+        cdpId,
+        -32601,
+        `${method} is not supported on a Panerelay child session`,
+        sessionId,
+      );
+      return;
     }
 
     try {
@@ -886,9 +1226,10 @@ export class BrowserRelay {
     }
 
     try {
-      if (pageSession?.autoAttach && !pageSession.autoAttach.applied) {
-        await this.runSetupCommand(targetId, 'Target.setAutoAttach', pageSession.autoAttach.params);
-        pageSession.autoAttach.applied = true;
+      if (method.startsWith('Input.')) {
+        const participantId = this.clients.get(client)?.participantId;
+        if (!participantId) throw new Error('Automation participant disconnected');
+        await this.ensureFocusEmulation(targetId, participantId);
       }
     } catch (error) {
       releaseTarget();
@@ -935,13 +1276,6 @@ export class BrowserRelay {
       sessionId,
       releaseTarget,
       timer,
-      ...(pageSession && method === 'Target.setAutoAttach'
-        ? {
-            onResult: (message: CdpResultMessage) => {
-              if (pageSession.autoAttach) pageSession.autoAttach.applied = !message.error;
-            },
-          }
-        : {}),
     });
     try {
       this.options.sendToExtension({
@@ -950,8 +1284,8 @@ export class BrowserRelay {
         requestId,
         targetId,
         method,
-        ...(Object.keys(forwardedParams).length > 0 ? { params: forwardedParams } : {}),
-        ...(childSession ? { sessionId } : {}),
+        ...(Object.keys(params).length > 0 ? { params } : {}),
+        ...(childSession ? { sessionId: childSession.chromeSessionId } : {}),
       });
     } catch (error) {
       clearTimeout(timer);
@@ -969,41 +1303,54 @@ export class BrowserRelay {
   }
 
   private ensureTargetAttached(targetId: string): Promise<void> {
-    if (this.attachedTargets.has(targetId)) return Promise.resolve();
+    if (this.attachedTargets.has(targetId) && this.autoAttachTargets.has(targetId)) {
+      return Promise.resolve();
+    }
     const existing = this.attachPromises.get(targetId);
     if (existing) return existing;
 
-    const requestId = randomUUID();
-    const timeoutMs = this.options.extensionRequestTimeoutMs ?? EXTENSION_REQUEST_TIMEOUT_MS;
-    const promise = new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        this.pendingAttaches.delete(requestId);
-        reject(new Error('Timed out waiting for Extension debugger attachment'));
-      }, timeoutMs);
-      this.pendingAttaches.set(requestId, {
-        resolve: message => {
-          if (!message.success) {
-            reject(new Error(message.error || 'Extension could not attach the target'));
-            return;
-          }
-          if (message.target) this.targets.set(message.target.targetId, message.target);
-          this.attachedTargets.add(targetId);
-          this.emitCurrentSessionState('active');
-          resolve();
-        },
-        reject,
-        timer,
+    let attachment: Promise<void> = Promise.resolve();
+    if (!this.attachedTargets.has(targetId)) {
+      const requestId = randomUUID();
+      const timeoutMs = this.options.extensionRequestTimeoutMs ?? EXTENSION_REQUEST_TIMEOUT_MS;
+      attachment = new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          this.pendingAttaches.delete(requestId);
+          reject(new Error('Timed out waiting for Extension debugger attachment'));
+        }, timeoutMs);
+        this.pendingAttaches.set(requestId, {
+          resolve: message => {
+            if (!message.success) {
+              reject(new Error(message.error || 'Extension could not attach the target'));
+              return;
+            }
+            if (message.target) this.targets.set(message.target.targetId, message.target);
+            this.attachedTargets.add(targetId);
+            this.emitCurrentSessionState('active');
+            resolve();
+          },
+          reject,
+          timer,
+        });
       });
-    }).finally(() => {
-      this.attachPromises.delete(targetId);
-    });
+      this.options.sendToExtension({
+        type: 'cdp.attach',
+        protocol: PANERELAY_PROTOCOL_VERSION,
+        requestId,
+        targetId,
+      });
+    }
+
+    const promise = attachment
+      .then(async () => {
+        if (this.autoAttachTargets.has(targetId)) return;
+        await this.runSetupCommand(targetId, 'Target.setAutoAttach', CHILD_AUTO_ATTACH_PARAMS);
+        if (this.attachedTargets.has(targetId)) this.autoAttachTargets.add(targetId);
+      })
+      .finally(() => {
+        this.attachPromises.delete(targetId);
+      });
     this.attachPromises.set(targetId, promise);
-    this.options.sendToExtension({
-      type: 'cdp.attach',
-      protocol: PANERELAY_PROTOCOL_VERSION,
-      requestId,
-      targetId,
-    });
     return promise;
   }
 
@@ -1019,6 +1366,7 @@ export class BrowserRelay {
     targetId: string,
     method: string,
     params: Record<string, unknown>,
+    sessionId?: string,
   ): Promise<void> {
     const requestId = randomUUID();
     const timeoutMs = this.options.extensionRequestTimeoutMs ?? EXTENSION_REQUEST_TIMEOUT_MS;
@@ -1038,6 +1386,7 @@ export class BrowserRelay {
         targetId,
         method,
         ...(Object.keys(params).length > 0 ? { params } : {}),
+        ...(sessionId ? { sessionId } : {}),
       });
     } catch (error) {
       const pending = this.pendingSetupCommands.get(requestId);
@@ -1059,6 +1408,365 @@ export class BrowserRelay {
     clearTimeout(pending.timer);
     pending.resolve(message);
     return true;
+  }
+
+  private participantForClient(client: WebSocket): RelayParticipant | undefined {
+    const state = this.clients.get(client);
+    return state ? this.activeLease?.participants.get(state.participantId) : undefined;
+  }
+
+  private virtualChildTargetInfos(client: WebSocket): Record<string, unknown>[] {
+    const participant = this.participantForClient(client);
+    if (!participant) return [];
+    return [...this.childTargets.values()]
+      .filter(child => child.type === 'iframe' && this.targets.has(child.ownerTargetId))
+      .map(child => this.toVirtualChildTargetInfo(client, child));
+  }
+
+  private virtualChildTargetId(participant: RelayParticipant, child: PhysicalChildTarget): string {
+    const existing = participant.childTargetIds.get(child.chromeSessionId);
+    if (existing) return existing;
+    const targetId = randomUUID();
+    participant.childTargetIds.set(child.chromeSessionId, targetId);
+    return targetId;
+  }
+
+  private physicalChildTargetForClient(
+    client: WebSocket,
+    virtualTargetId: string,
+  ): PhysicalChildTarget | undefined {
+    const participant = this.participantForClient(client);
+    if (!participant) return undefined;
+    for (const [chromeSessionId, targetId] of participant.childTargetIds) {
+      if (targetId !== virtualTargetId) continue;
+      const child = this.childTargets.get(chromeSessionId);
+      if (
+        child?.type === 'iframe' &&
+        child.ownerTargetId &&
+        this.targets.has(child.ownerTargetId)
+      ) {
+        return child;
+      }
+      return undefined;
+    }
+    return undefined;
+  }
+
+  private toVirtualChildTargetInfo(
+    client: WebSocket,
+    child: PhysicalChildTarget,
+  ): Record<string, unknown> {
+    const participant = this.participantForClient(client);
+    if (!participant) throw new Error('Automation participant disconnected');
+    return {
+      targetId: this.virtualChildTargetId(participant, child),
+      type: child.type,
+      title: child.title,
+      url: child.url,
+      attached: true,
+    };
+  }
+
+  private registerPhysicalChild(message: CdpEventMessage): PhysicalChildTarget | undefined {
+    const chromeSessionId = message.params?.sessionId;
+    const targetInfo = message.params?.targetInfo;
+    if (typeof chromeSessionId !== 'string' || !targetInfo || typeof targetInfo !== 'object') {
+      return undefined;
+    }
+    const candidate = targetInfo as Record<string, unknown>;
+    if (typeof candidate.targetId !== 'string' || typeof candidate.type !== 'string') {
+      return undefined;
+    }
+    const existing = this.childTargets.get(chromeSessionId);
+    const child: PhysicalChildTarget = {
+      ownerTargetId: message.targetId,
+      chromeSessionId,
+      chromeTargetId: candidate.targetId,
+      ...(message.sessionId ? { parentChromeSessionId: message.sessionId } : {}),
+      type: candidate.type,
+      title: typeof candidate.title === 'string' ? candidate.title : '',
+      url: typeof candidate.url === 'string' ? candidate.url : '',
+    };
+    this.childTargets.set(chromeSessionId, child);
+    if (!existing && child.type === 'iframe') {
+      this.broadcastVirtualChildTargetEvent(child, 'Target.targetCreated');
+    }
+    this.ensureRecursiveChildAutoAttach(child);
+    return child;
+  }
+
+  private ensureRecursiveChildAutoAttach(child: PhysicalChildTarget): void {
+    if (
+      child.type !== 'iframe' ||
+      this.autoAttachChildSessions.has(child.chromeSessionId) ||
+      this.childAutoAttachPromises.has(child.chromeSessionId)
+    ) {
+      return;
+    }
+    const promise = this.runSetupCommand(
+      child.ownerTargetId,
+      'Target.setAutoAttach',
+      CHILD_AUTO_ATTACH_PARAMS,
+      child.chromeSessionId,
+    )
+      .then(() => {
+        if (this.childTargets.has(child.chromeSessionId)) {
+          this.autoAttachChildSessions.add(child.chromeSessionId);
+        }
+      })
+      .catch(() => undefined)
+      .finally(() => this.childAutoAttachPromises.delete(child.chromeSessionId));
+    this.childAutoAttachPromises.set(child.chromeSessionId, promise);
+  }
+
+  private emitExistingChildAttachments(pageSession: PageSession): void {
+    if (!pageSession.autoAttach?.enabled || !this.pageSessions.has(pageSession.id)) return;
+    const visit = (parentChromeSessionId: string | undefined, parentSessionId: string): void => {
+      for (const child of this.childTargets.values()) {
+        if (
+          child.ownerTargetId !== pageSession.targetId ||
+          child.parentChromeSessionId !== parentChromeSessionId
+        ) {
+          continue;
+        }
+        const session = this.emitAutoAttachedChild(pageSession, child, parentSessionId);
+        if (session) visit(child.chromeSessionId, session.id);
+      }
+    };
+    visit(undefined, pageSession.id);
+  }
+
+  private emitAutoAttachedChild(
+    pageSession: PageSession,
+    child: PhysicalChildTarget,
+    parentSessionId: string,
+  ): ChildSession | undefined {
+    if (!pageSession.autoAttach?.enabled || pageSession.client.readyState !== WebSocket.OPEN) {
+      return undefined;
+    }
+    const existing = [...this.childSessions.values()].find(
+      session =>
+        session.chromeSessionId === child.chromeSessionId &&
+        session.rootPageSessionId === pageSession.id &&
+        session.parentSessionId === parentSessionId,
+    );
+    if (existing) return existing;
+    const participant = this.participantForClient(pageSession.client);
+    if (!participant) return undefined;
+    const sessionId = randomUUID();
+    const childTargetId = this.virtualChildTargetId(participant, child);
+    const session: ChildSession = {
+      id: sessionId,
+      targetId: child.ownerTargetId,
+      childTargetId,
+      chromeSessionId: child.chromeSessionId,
+      client: pageSession.client,
+      parentSessionId,
+      rootPageSessionId: pageSession.id,
+    };
+    this.childSessions.set(sessionId, session);
+    this.clients.get(pageSession.client)?.sessions.add(sessionId);
+    pageSession.client.send(
+      JSON.stringify({
+        method: 'Target.attachedToTarget',
+        params: {
+          sessionId,
+          targetInfo: this.toVirtualChildTargetInfo(pageSession.client, child),
+          waitingForDebugger: false,
+        },
+        sessionId: parentSessionId,
+      }),
+    );
+    return session;
+  }
+
+  private removeAutoAttachedChildSessions(rootPageSessionId: string): void {
+    for (const [sessionId, session] of [...this.childSessions]) {
+      if (session.rootPageSessionId === rootPageSessionId) this.removeChildSession(sessionId);
+    }
+  }
+
+  private broadcastVirtualChildTargetEvent(
+    child: PhysicalChildTarget,
+    method: 'Target.targetCreated' | 'Target.targetInfoChanged' | 'Target.targetDestroyed',
+  ): void {
+    const lease = this.activeLease;
+    if (!lease) return;
+    for (const participant of lease.participants.values()) {
+      const virtualTargetId =
+        method === 'Target.targetDestroyed'
+          ? participant.childTargetIds.get(child.chromeSessionId)
+          : this.virtualChildTargetId(participant, child);
+      if (!virtualTargetId) continue;
+      for (const client of participant.clients) {
+        const state = this.clients.get(client);
+        if (!state?.discoverTargets || client.readyState !== WebSocket.OPEN) continue;
+        client.send(
+          JSON.stringify({
+            method,
+            params:
+              method === 'Target.targetDestroyed'
+                ? { targetId: virtualTargetId }
+                : { targetInfo: this.toVirtualChildTargetInfo(client, child) },
+          }),
+        );
+      }
+    }
+  }
+
+  private updatePhysicalChildTarget(message: CdpEventMessage): boolean {
+    const targetInfo = message.params?.targetInfo;
+    if (!targetInfo || typeof targetInfo !== 'object') return false;
+    const candidate = targetInfo as Record<string, unknown>;
+    if (typeof candidate.targetId !== 'string') return false;
+    const matches = [...this.childTargets.values()].filter(
+      child =>
+        child.ownerTargetId === message.targetId && child.chromeTargetId === candidate.targetId,
+    );
+    if (matches.length === 0) return false;
+    for (const child of matches) {
+      child.type = typeof candidate.type === 'string' ? candidate.type : child.type;
+      child.title = typeof candidate.title === 'string' ? candidate.title : child.title;
+      child.url = typeof candidate.url === 'string' ? candidate.url : child.url;
+      if (child.type === 'iframe') {
+        this.broadcastVirtualChildTargetEvent(child, 'Target.targetInfoChanged');
+      }
+      for (const session of this.childSessions.values()) {
+        if (
+          session.chromeSessionId !== child.chromeSessionId ||
+          !session.parentSessionId ||
+          session.client.readyState !== WebSocket.OPEN
+        ) {
+          continue;
+        }
+        session.client.send(
+          JSON.stringify({
+            method: 'Target.targetInfoChanged',
+            params: { targetInfo: this.toVirtualChildTargetInfo(session.client, child) },
+            sessionId: session.parentSessionId,
+          }),
+        );
+      }
+    }
+    return true;
+  }
+
+  private removePhysicalChild(chromeSessionId: string, reason: string): boolean {
+    const child = this.childTargets.get(chromeSessionId);
+    if (!child) return false;
+    for (const descendant of [...this.childTargets.values()]) {
+      if (descendant.parentChromeSessionId === chromeSessionId) {
+        this.removePhysicalChild(descendant.chromeSessionId, reason);
+      }
+    }
+    for (const [sessionId, session] of [...this.childSessions]) {
+      if (session.chromeSessionId !== chromeSessionId) continue;
+      if (session.client.readyState === WebSocket.OPEN) {
+        if (session.parentSessionId) {
+          session.client.send(
+            JSON.stringify({
+              method: 'Target.detachedFromTarget',
+              params: { sessionId, targetId: session.childTargetId },
+              sessionId: session.parentSessionId,
+            }),
+          );
+        } else {
+          session.client.send(
+            JSON.stringify({
+              method: 'Inspector.detached',
+              params: { reason },
+              sessionId,
+            }),
+          );
+        }
+      }
+      this.removeChildSession(sessionId, false);
+    }
+    if (child.type === 'iframe') {
+      this.broadcastVirtualChildTargetEvent(child, 'Target.targetDestroyed');
+    }
+    for (const participant of this.activeLease?.participants.values() ?? []) {
+      participant.childTargetIds.delete(chromeSessionId);
+    }
+    this.childTargets.delete(chromeSessionId);
+    this.autoAttachChildSessions.delete(chromeSessionId);
+    this.childAutoAttachPromises.delete(chromeSessionId);
+    this.detachTargetIfUnreferenced(child.ownerTargetId);
+    return true;
+  }
+
+  private async ensureFocusEmulation(targetId: string, participantId: string): Promise<void> {
+    if (!this.focusEmulationTargets.has(targetId)) {
+      await this.runSetupCommand(targetId, 'Emulation.setFocusEmulationEnabled', {
+        enabled: true,
+      });
+      this.focusEmulationTargets.add(targetId);
+    }
+    const participants = this.focusEmulationParticipants.get(targetId) ?? new Set<string>();
+    participants.add(participantId);
+    this.focusEmulationParticipants.set(targetId, participants);
+  }
+
+  private releaseParticipantFocusClaims(participantId: string): void {
+    for (const [targetId, participants] of [...this.focusEmulationParticipants]) {
+      if (!participants.delete(participantId)) continue;
+      if (participants.size > 0) continue;
+      this.focusEmulationParticipants.delete(targetId);
+      void this.disableUnusedFocusEmulation(targetId);
+    }
+  }
+
+  private async disableUnusedFocusEmulation(targetId: string): Promise<void> {
+    if (!this.focusEmulationTargets.has(targetId)) return;
+    const owner = [...this.pageSessions.values(), ...this.childSessions.values()].find(
+      session => session.targetId === targetId && this.clients.has(session.client),
+    )?.client;
+    if (!this.attachedTargets.has(targetId)) {
+      this.focusEmulationTargets.delete(targetId);
+      return;
+    }
+    if (!owner) {
+      this.detachTargetAfterSetupCleanupFailure(targetId);
+      return;
+    }
+
+    try {
+      await this.targetCommands.run(targetId, owner, async () => {
+        if (
+          (this.focusEmulationParticipants.get(targetId)?.size ?? 0) > 0 ||
+          !this.focusEmulationTargets.has(targetId) ||
+          !this.attachedTargets.has(targetId)
+        ) {
+          return;
+        }
+        await this.runSetupCommand(targetId, 'Emulation.setFocusEmulationEnabled', {
+          enabled: false,
+        });
+        this.focusEmulationTargets.delete(targetId);
+      });
+    } catch {
+      if ((this.focusEmulationParticipants.get(targetId)?.size ?? 0) > 0) return;
+      this.detachTargetAfterSetupCleanupFailure(targetId);
+    }
+  }
+
+  private detachTargetAfterSetupCleanupFailure(targetId: string): void {
+    this.focusEmulationTargets.delete(targetId);
+    this.focusEmulationParticipants.delete(targetId);
+    if (!this.attachedTargets.delete(targetId)) return;
+    this.autoAttachTargets.delete(targetId);
+    this.controlledTargets.delete(targetId);
+    this.removePhysicalChildrenForTarget(
+      targetId,
+      'Panerelay could not restore target focus emulation after participant release',
+    );
+    this.options.sendToExtension({
+      type: 'cdp.detach',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      targetId,
+      reason: 'Panerelay could not restore target focus emulation after participant release',
+    });
+    this.emitCurrentSessionState();
   }
 
   private forwardResult(message: CdpResultMessage): void {
@@ -1085,33 +1793,64 @@ export class BrowserRelay {
   }
 
   private forwardEvent(message: CdpEventMessage): void {
-    const childId = message.sessionId;
     if (message.method === 'Target.attachedToTarget') {
-      const attachedSessionId = message.params?.sessionId;
-      if (typeof attachedSessionId === 'string') {
-        this.childSessions.set(attachedSessionId, { targetId: message.targetId });
+      const child = this.registerPhysicalChild(message);
+      if (!child) return;
+      if (message.sessionId) {
+        for (const parentSession of [...this.childSessions.values()]) {
+          if (
+            parentSession.chromeSessionId !== message.sessionId ||
+            !parentSession.rootPageSessionId
+          ) {
+            continue;
+          }
+          const pageSession = this.pageSessions.get(parentSession.rootPageSessionId);
+          if (pageSession) this.emitAutoAttachedChild(pageSession, child, parentSession.id);
+        }
+      } else {
+        for (const pageSession of this.pageSessions.values()) {
+          if (pageSession.targetId === message.targetId && pageSession.autoAttach?.enabled) {
+            this.emitAutoAttachedChild(pageSession, child, pageSession.id);
+          }
+        }
       }
-    } else if (message.method === 'Target.detachedFromTarget') {
+      return;
+    }
+    if (message.method === 'Target.detachedFromTarget') {
       const detachedSessionId = message.params?.sessionId;
-      if (typeof detachedSessionId === 'string') this.childSessions.delete(detachedSessionId);
+      if (typeof detachedSessionId === 'string') {
+        this.removePhysicalChild(detachedSessionId, 'Chrome detached the child target');
+      }
+      return;
+    }
+    if (message.method === 'Target.targetInfoChanged' && this.updatePhysicalChildTarget(message)) {
+      return;
+    }
+    if (message.method === 'Target.targetDestroyed') {
+      const chromeTargetId = message.params?.targetId;
+      if (typeof chromeTargetId === 'string') {
+        for (const child of [...this.childTargets.values()]) {
+          if (child.chromeTargetId === chromeTargetId) {
+            this.removePhysicalChild(child.chromeSessionId, 'Chrome destroyed the child target');
+          }
+        }
+      }
+      return;
     }
 
-    if (childId) {
-      const delivered = new Set<WebSocket>();
-      for (const pageSession of this.pageSessions.values()) {
+    if (message.sessionId) {
+      for (const childSession of this.childSessions.values()) {
         if (
-          pageSession.targetId === message.targetId &&
-          pageSession.client.readyState === WebSocket.OPEN &&
-          !delivered.has(pageSession.client)
+          childSession.chromeSessionId === message.sessionId &&
+          childSession.client.readyState === WebSocket.OPEN
         ) {
-          pageSession.client.send(
+          childSession.client.send(
             JSON.stringify({
               method: message.method,
               params: message.params ?? {},
-              sessionId: childId,
+              sessionId: childSession.id,
             }),
           );
-          delivered.add(pageSession.client);
         }
       }
       return;
@@ -1169,12 +1908,16 @@ export class BrowserRelay {
   private removeTarget(targetId: string): void {
     this.targets.delete(targetId);
     const wasAttached = this.attachedTargets.delete(targetId);
+    this.autoAttachTargets.delete(targetId);
     this.controlledTargets.delete(targetId);
+    this.focusEmulationTargets.delete(targetId);
+    this.focusEmulationParticipants.delete(targetId);
+    this.removePhysicalChildrenForTarget(targetId, 'The owning target is no longer authorized');
     for (const [sessionId, session] of [...this.pageSessions]) {
       if (session.targetId === targetId) this.removePageSession(sessionId);
     }
     for (const [sessionId, session] of [...this.childSessions]) {
-      if (session.targetId === targetId) this.childSessions.delete(sessionId);
+      if (session.targetId === targetId) this.removeChildSession(sessionId);
     }
     if (wasAttached) this.emitCurrentSessionState();
   }
@@ -1182,36 +1925,69 @@ export class BrowserRelay {
   private removePageSession(sessionId: string): boolean {
     const session = this.pageSessions.get(sessionId);
     if (!session) return false;
+    this.removeAutoAttachedChildSessions(sessionId);
     this.pageSessions.delete(sessionId);
     this.clients.get(session.client)?.sessions.delete(sessionId);
-    const stillReferenced = [...this.pageSessions.values()].some(
-      candidate => candidate.targetId === session.targetId,
-    );
-    if (!stillReferenced && this.attachedTargets.delete(session.targetId)) {
-      this.controlledTargets.delete(session.targetId);
-      this.options.sendToExtension({
-        type: 'cdp.detach',
-        protocol: PANERELAY_PROTOCOL_VERSION,
-        targetId: session.targetId,
-        reason: 'No CDP sessions remain for the target',
-      });
-      this.emitCurrentSessionState();
-    }
+    this.detachTargetIfUnreferenced(session.targetId);
     return true;
+  }
+
+  private removeChildSession(sessionId: string, detachIfUnreferenced = true): boolean {
+    const session = this.childSessions.get(sessionId);
+    if (!session) return false;
+    this.childSessions.delete(sessionId);
+    this.clients.get(session.client)?.sessions.delete(sessionId);
+    for (const [descendantId, descendant] of [...this.childSessions]) {
+      if (descendant.parentSessionId === sessionId) {
+        this.removeChildSession(descendantId, detachIfUnreferenced);
+      }
+    }
+    if (detachIfUnreferenced) this.detachTargetIfUnreferenced(session.targetId);
+    return true;
+  }
+
+  private removeClientSession(sessionId: string, client: WebSocket): boolean {
+    const pageSession = this.pageSessions.get(sessionId);
+    if (pageSession) return pageSession.client === client && this.removePageSession(sessionId);
+    const childSession = this.childSessions.get(sessionId);
+    return Boolean(
+      childSession && childSession.client === client && this.removeChildSession(sessionId),
+    );
+  }
+
+  private detachTargetIfUnreferenced(targetId: string): void {
+    const stillReferenced =
+      [...this.pageSessions.values()].some(session => session.targetId === targetId) ||
+      [...this.childSessions.values()].some(session => session.targetId === targetId);
+    if (stillReferenced || !this.attachedTargets.delete(targetId)) return;
+    this.autoAttachTargets.delete(targetId);
+    this.controlledTargets.delete(targetId);
+    this.focusEmulationTargets.delete(targetId);
+    this.focusEmulationParticipants.delete(targetId);
+    this.removePhysicalChildrenForTarget(targetId, 'No CDP sessions remain for the target');
+    this.options.sendToExtension({
+      type: 'cdp.detach',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      targetId,
+      reason: 'No CDP sessions remain for the target',
+    });
+    this.emitCurrentSessionState();
+  }
+
+  private removePhysicalChildrenForTarget(targetId: string, reason: string): void {
+    for (const child of [...this.childTargets.values()]) {
+      if (child.ownerTargetId === targetId) this.removePhysicalChild(child.chromeSessionId, reason);
+    }
   }
 
   private handleDetached(message: CdpDetachedMessage): void {
     if (message.scope === 'target' && message.targetId) {
       const wasAttached = this.attachedTargets.delete(message.targetId);
+      this.autoAttachTargets.delete(message.targetId);
       this.controlledTargets.delete(message.targetId);
-      for (const pageSession of this.pageSessions.values()) {
-        if (pageSession.targetId === message.targetId && pageSession.autoAttach) {
-          pageSession.autoAttach.applied = false;
-        }
-      }
-      for (const [sessionId, session] of [...this.childSessions]) {
-        if (session.targetId === message.targetId) this.childSessions.delete(sessionId);
-      }
+      this.focusEmulationTargets.delete(message.targetId);
+      this.focusEmulationParticipants.delete(message.targetId);
+      this.removePhysicalChildrenForTarget(message.targetId, message.reason);
       const target = this.targets.get(message.targetId);
       if (target) {
         this.targets.set(message.targetId, { ...target, attached: false });
@@ -1222,7 +1998,7 @@ export class BrowserRelay {
       if (wasAttached) this.emitCurrentSessionState();
       return;
     }
-    this.revokeActiveLease(message.reason, 1011, false, 'released');
+    this.revokeActiveLease(message.reason, 1011, false, 'released', true);
   }
 
   private handleClientClose(client: WebSocket): void {
@@ -1247,7 +2023,7 @@ export class BrowserRelay {
     const state = this.clients.get(client);
     if (!state) return;
     this.activityJournal.failClient(client, failure);
-    for (const sessionId of [...state.sessions]) this.removePageSession(sessionId);
+    for (const sessionId of [...state.sessions]) this.removeClientSession(sessionId, client);
     this.clients.delete(client);
     for (const [requestId, pending] of this.pendingCommands) {
       if (pending.client !== client) continue;
@@ -1269,6 +2045,7 @@ export class BrowserRelay {
     if (!lease || !participant) return;
 
     this.clearParticipantExpiry(participant);
+    this.bootstrapTickets.releaseParticipant(participant);
     lease.participants.delete(participant.id);
     if (lease.participants.size === 0) {
       this.revokeActiveLease(reason, closeCode, true, terminalState);
@@ -1280,6 +2057,7 @@ export class BrowserRelay {
       this.disconnectClient(client, closeCode, reason);
     }
     participant.clients.clear();
+    this.releaseParticipantFocusClaims(participant.id);
     if (lease.activeParticipantId === participant.id) {
       const next = [...lease.participants.values()].at(-1);
       if (next) {
@@ -1295,8 +2073,20 @@ export class BrowserRelay {
     closeCode: number,
     notifyExtension: boolean,
     terminalState: Extract<ControlSessionState, 'released' | 'expired' | 'failed'> = 'released',
+    invalidateBootstrapTickets = false,
   ): void {
     const lease = this.activeLease;
+    if (invalidateBootstrapTickets && lease) {
+      for (const participant of lease.participants.values()) {
+        this.bootstrapTickets.releaseParticipant(participant);
+      }
+    }
+    if (invalidateBootstrapTickets && this.browser) {
+      this.bootstrapTickets.invalidateBinding(
+        { browserId: this.browser.browserId, generation: this.generation },
+        reason,
+      );
+    }
     if (!lease) return;
     const hadTargets = this.attachedTargets.size > 0 || this.targets.size > 0;
     this.activityJournal.failOutstanding('session-ended');
@@ -1324,9 +2114,15 @@ export class BrowserRelay {
     this.targetCommands.clear(new Error(reason));
     this.pageSessions.clear();
     this.childSessions.clear();
+    this.childTargets.clear();
     this.targets.clear();
     this.attachedTargets.clear();
+    this.autoAttachTargets.clear();
+    this.autoAttachChildSessions.clear();
+    this.childAutoAttachPromises.clear();
     this.controlledTargets.clear();
+    this.focusEmulationTargets.clear();
+    this.focusEmulationParticipants.clear();
     this.attachPromises.clear();
     this.rejectExtensionRequests(new Error(reason));
 

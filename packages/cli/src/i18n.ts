@@ -11,6 +11,20 @@ const englishMessages = {
   browserListTitle: 'Panerelay browsers',
   browserReady: 'ready',
   browserUnavailable: 'CDP unavailable',
+  connectionModeSaved: 'Default {adapter} connection mode: {mode}',
+  errorAdapterIdMissing: 'connection command requires an adapter ID',
+  errorAdapterModeInvalid: 'Connection mode must be direct or extension',
+  errorAdapterMissing: 'Connection adapter is not installed: {adapter}',
+  errorAdapterIncompatible: 'Connection adapter registration is incompatible.',
+  errorAdapterUnavailable: 'Connection adapter is unavailable.',
+  errorAdapterTimeout: 'Connection adapter timed out.',
+  errorAdapterInvalidResponse: 'Connection adapter returned an invalid response.',
+  errorBrowserUnavailable: 'The selected Panerelay browser is unavailable.',
+  errorChildCommandMissing: 'run requires -- followed by the child command',
+  errorGenerationChanged: 'The selected browser connection changed. Run the command again.',
+  errorConnectionNotReady: 'The selected connection is not ready.',
+  errorConnectionBusy: 'The selected connection is busy. Try again shortly.',
+  errorOptionValueMissing: '{option} requires a value',
   errorBrowserSelectorMissing: 'browser use requires a registration ID or browser family',
   errorLanguageMissing: '--lang requires a language',
   errorLanguageRepeated: '--lang can only be provided once',
@@ -23,12 +37,20 @@ Usage:
   panerelay browsers [--lang <language>]
   panerelay browser use <registration-id|family> [--lang <language>]
   panerelay browser clear [--lang <language>]
+  panerelay connection use <adapter-id> <direct|extension> [--lang <language>]
+  panerelay connection resolve <adapter-id> [--mode <mode>] [--browser <selector>]
+  panerelay run <adapter-id> [--mode <mode>] [--browser <selector>] -- <command> [arguments...]
 
 Commands:
   browsers    List live Panerelay browser registrations
   browser use Save one live registration as the routing default
   browser clear
               Clear the saved browser default
+  connection use
+              Save a connection mode for one installed adapter
+  connection resolve
+              Resolve connection material without running an automation command
+  run         Run the caller's command with the selected connection
 
 Options:
   --lang      Use en or zh-CN instead of the system language
@@ -49,6 +71,20 @@ const chineseMessages: Record<MessageKey, string> = {
   browserListTitle: 'Panerelay 浏览器',
   browserReady: '可用',
   browserUnavailable: 'CDP 不可用',
+  connectionModeSaved: '{adapter} 的默认连接模式：{mode}',
+  errorAdapterIdMissing: 'connection 命令需要指定 adapter ID',
+  errorAdapterModeInvalid: '连接模式必须是 direct 或 extension',
+  errorAdapterMissing: '未安装连接 adapter：{adapter}',
+  errorAdapterIncompatible: '连接 adapter 注册不兼容。',
+  errorAdapterUnavailable: '连接 adapter 当前不可用。',
+  errorAdapterTimeout: '连接 adapter 响应超时。',
+  errorAdapterInvalidResponse: '连接 adapter 返回了无效响应。',
+  errorBrowserUnavailable: '所选 Panerelay 浏览器当前不可用。',
+  errorChildCommandMissing: 'run 需要在 -- 后指定要运行的子命令',
+  errorGenerationChanged: '所选浏览器连接已变化，请重新运行命令。',
+  errorConnectionNotReady: '所选连接尚未就绪。',
+  errorConnectionBusy: '所选连接正忙，请稍后重试。',
+  errorOptionValueMissing: '{option} 后需要指定值',
   errorBrowserSelectorMissing: 'browser use 后需要指定注册 ID 或浏览器类型',
   errorLanguageMissing: '--lang 后需要指定语言',
   errorLanguageRepeated: '--lang 只能指定一次',
@@ -61,12 +97,20 @@ const chineseMessages: Record<MessageKey, string> = {
   panerelay browsers [--lang <语言>]
   panerelay browser use <注册 ID|浏览器类型> [--lang <语言>]
   panerelay browser clear [--lang <语言>]
+  panerelay connection use <adapter ID> <direct|extension> [--lang <语言>]
+  panerelay connection resolve <adapter ID> [--mode <模式>] [--browser <选择器>]
+  panerelay run <adapter ID> [--mode <模式>] [--browser <选择器>] -- <命令> [参数...]
 
 命令：
   browsers    列出在线的 Panerelay 浏览器注册
   browser use 保存一个在线注册作为路由默认浏览器
   browser clear
               清除保存的默认浏览器
+  connection use
+              保存一个已安装 adapter 的连接模式
+  connection resolve
+              解析连接信息，但不运行自动化命令
+  run         使用所选连接运行调用者指定的命令
 
 选项：
   --lang      使用 en 或 zh-CN，不跟随系统语言

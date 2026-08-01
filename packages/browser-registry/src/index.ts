@@ -96,6 +96,8 @@ function isBridgeState(value: unknown): value is BridgeState {
     state.port <= 65_535 &&
     typeof state.token === 'string' &&
     state.token.length > 0 &&
+    typeof state.generation === 'string' &&
+    /^[A-Za-z0-9._:-]{1,128}$/.test(state.generation) &&
     typeof state.browserId === 'string' &&
     state.browserId.length > 0 &&
     typeof state.browserName === 'string' &&

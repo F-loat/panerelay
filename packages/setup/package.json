@@ -36,7 +36,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node build-private.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "pnpm run build && node ../../scripts/run-compiled-tests.mjs dist",
     "prepublishOnly": "pnpm build"
@@ -44,6 +44,11 @@
   "dependencies": {
     "@panerelay/bridge": "workspace:*",
     "@panerelay/browser-registry": "workspace:*",
+    "@panerelay/browser-use": "workspace:*",
+    "@panerelay/cli": "workspace:*",
     "@panerelay/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1"
   }
 }

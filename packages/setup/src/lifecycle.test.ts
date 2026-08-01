@@ -23,6 +23,7 @@ test('setup can opt into global and project default providers', async () => {
   const result = await setupPanerelay(
     {
       environment: { PANERELAY_EXTENSION_ID: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
+      browserUse: true,
       extensionId,
       globalProvider: true,
       homeDirectory: '/home',
@@ -48,6 +49,58 @@ test('setup can opt into global and project default providers', async () => {
         );
         return host;
       },
+      installBrowserUse: async () => {
+        calls.push('install-browser-use');
+        return {
+          config: {
+            adapterId: 'browser-use',
+            adapterLauncherPath: '/home/.panerelay/adapter',
+            cliLauncherPath: '/home/.panerelay/cli',
+            protocol: 'panerelay.browser-use-integration.v1',
+            runtimeDirectory: '/home/.panerelay/browser-use/runtime',
+            runtimeName: 'panerelay',
+            version: '0.2.0',
+          },
+          paths: {
+            adapterArtifactPath: '/home/.panerelay/adapter.mjs',
+            adapterLauncherPath: '/home/.panerelay/adapter',
+            adapterPackagePath: '/home/.panerelay/package.json',
+            adapterStorageDirectory: '/home/.panerelay/adapters/browser-use',
+            browserUseDirectory: '/home/.panerelay/browser-use',
+            cliArtifactPath: '/home/.panerelay/cli.mjs',
+            cliLauncherPath: '/home/.panerelay/cli',
+            cliStorageDirectory: '/home/.panerelay/cli/browser-use',
+            dataDirectory: '/home/.panerelay',
+            integrationConfigPath: '/home/.panerelay/browser-use/config.json',
+            mcpLauncherPath: '/home/.panerelay/bin/panerelay-browser-use-mcp',
+            mcpRunnerArtifactPath: '/home/.panerelay/cli/0.2.0/dist/mcp-runner.mjs',
+            runtimeDirectory: '/home/.panerelay/browser-use/runtime',
+          },
+          registration: {
+            adapterId: 'browser-use',
+            version: '0.2.0',
+            executablePath: '/home/.panerelay/adapter',
+            protocol: 'panerelay.cli-adapter.v1',
+            capabilities: ['connection.resolve', 'adapter.doctor'],
+            modes: ['direct', 'extension'],
+            childEnvironmentKeys: [],
+          },
+          registry: {
+            protocol: 'panerelay.cli-adapter-registry.v1',
+            adapters: [],
+          },
+        };
+      },
+      installBrowserUseSkill: async cliLauncherPath => {
+        calls.push('install-browser-use-skill');
+        assert.equal(cliLauncherPath, '/home/.panerelay/cli');
+        return '/home/.agents/skills/panerelay-browser-use';
+      },
+      probeBrowserUse: async () => ({
+        browserHarness: '0.1.8',
+        browserUse: '0.13.7',
+        browserUseExecutable: '/bin/browser-use',
+      }),
       installSkill: async scope => {
         calls.push(`install-skill:${scope}`);
         return `/${scope}/skill`;
@@ -64,10 +117,14 @@ test('setup can opt into global and project default providers', async () => {
     'register-provider',
     'configure-global',
     'install-skill:global',
+    'install-browser-use',
+    'install-browser-use-skill',
     'configure-project',
     'install-skill:project',
   ]);
   assert.equal(result.globalProvider, true);
+  assert.equal(result.browserUseRequested, true);
+  assert.equal(result.browserUseReady, true);
   assert.equal(result.projectConfigPath, '/project/agent-browser.json');
 });
 
@@ -84,6 +141,36 @@ test('uninstall removes only Panerelay-owned integration through scoped operatio
         calls.push('uninstall-host');
         return host;
       },
+      uninstallBrowserUse: async () => {
+        calls.push('uninstall-browser-use');
+        return {
+          detachedDaemonMayRemain: false,
+          paths: {
+            adapterArtifactPath: '/home/.panerelay/adapter.mjs',
+            adapterLauncherPath: '/home/.panerelay/adapter',
+            adapterPackagePath: '/home/.panerelay/package.json',
+            adapterStorageDirectory: '/home/.panerelay/adapters/browser-use',
+            browserUseDirectory: '/home/.panerelay/browser-use',
+            cliArtifactPath: '/home/.panerelay/cli.mjs',
+            cliLauncherPath: '/home/.panerelay/cli',
+            cliStorageDirectory: '/home/.panerelay/cli/browser-use',
+            dataDirectory: '/home/.panerelay',
+            integrationConfigPath: '/home/.panerelay/browser-use/config.json',
+            mcpLauncherPath: '/home/.panerelay/bin/panerelay-browser-use-mcp',
+            mcpRunnerArtifactPath: '/home/.panerelay/cli/browser-use/0.2.0/mcp-runner.mjs',
+            runtimeDirectory: '/home/.panerelay/browser-use/runtime',
+          },
+          registry: {
+            protocol: 'panerelay.cli-adapter-registry.v1',
+            adapters: [],
+          },
+          runtimeStateRemoved: false,
+        };
+      },
+      uninstallBrowserUseSkill: async () => {
+        calls.push('uninstall-browser-use-skill');
+        return '/home/.agents/skills/panerelay-browser-use';
+      },
       uninstallSkill: async scope => {
         calls.push(`uninstall-skill:${scope}`);
         return `/${scope}/skill`;
@@ -99,6 +186,8 @@ test('uninstall removes only Panerelay-owned integration through scoped operatio
     'uninstall-host',
     'unregister-provider',
     'uninstall-skill:global',
+    'uninstall-browser-use',
+    'uninstall-browser-use-skill',
     'remove-project',
     'uninstall-skill:project',
   ]);

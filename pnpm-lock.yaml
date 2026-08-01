@@ -123,9 +123,25 @@ importers:
       ws:
         specifier: ^8.21.1
         version: 8.21.1
+    devDependencies:
+      '@panerelay/browser-use':
+        specifier: workspace:*
+        version: link:../browser-use
+      '@panerelay/cli':
+        specifier: workspace:*
+        version: link:../cli
 
   packages/browser-registry:
     dependencies:
+      '@panerelay/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+
+  packages/browser-use:
+    dependencies:
+      '@panerelay/browser-registry':
+        specifier: workspace:*
+        version: link:../browser-registry
       '@panerelay/protocol':
         specifier: workspace:*
         version: link:../protocol
@@ -135,6 +151,9 @@ importers:
       '@panerelay/browser-registry':
         specifier: workspace:*
         version: link:../browser-registry
+      '@panerelay/protocol':
+        specifier: workspace:*
+        version: link:../protocol
 
   packages/protocol: {}
 
@@ -146,9 +165,19 @@ importers:
       '@panerelay/browser-registry':
         specifier: workspace:*
         version: link:../browser-registry
+      '@panerelay/browser-use':
+        specifier: workspace:*
+        version: link:../browser-use
+      '@panerelay/cli':
+        specifier: workspace:*
+        version: link:../cli
       '@panerelay/protocol':
         specifier: workspace:*
         version: link:../protocol
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.1
+        version: 0.28.1
 
 packages:
 

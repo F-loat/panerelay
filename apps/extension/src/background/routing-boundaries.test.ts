@@ -55,6 +55,24 @@ test('marks the current document on Agent commands without persisting across nav
   assert.doesNotMatch(tabUpdatedHandler, /applyControlledFavicon/);
 });
 
+test('releases the single-tab lease when navigation leaves its authorized origin', async () => {
+  const source = await readFile(join(process.cwd(), 'src/background/index.ts'), 'utf8');
+  const tabUpdatedHandler = source.slice(
+    source.indexOf('chrome.tabs.onUpdated.addListener'),
+    source.indexOf('chrome.permissions.onRemoved.addListener'),
+  );
+
+  assert.ok(
+    tabUpdatedHandler.indexOf('const authorizationModeAtUpdate = authorizationMode') <
+      tabUpdatedHandler.indexOf("authorizationMode = 'none'"),
+  );
+  assert.match(tabUpdatedHandler, /if \(authorizationModeAtUpdate === 'single-tab'\)/);
+  assert.match(
+    tabUpdatedHandler,
+    /await releaseControl\('Tab navigated outside its authorized origin', true\)/,
+  );
+});
+
 test('deduplicates unchanged target metadata before publishing lifecycle events', async () => {
   const source = await readFile(join(process.cwd(), 'src/background/index.ts'), 'utf8');
   const publisher = source.slice(

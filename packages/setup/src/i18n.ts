@@ -6,6 +6,14 @@ const englishMessages = {
   agentBrowserMissing: 'Warning: agent-browser was not found.',
   agentCommand: 'Agent command: agent-browser --provider panerelay tab list',
   agentSkill: 'Agent Skill: {path}',
+  browserUseIntegration: 'Browser Use integration: {path}',
+  browserUseMcp: 'Optional Browser Use CLI MCP command: {path}',
+  browserUseMissing:
+    'Warning: Browser Use 0.13.7 with Browser Harness 0.1.8 was not found. Install the compatible versions, then run setup again with --browser-use.',
+  browserUseReady: 'Browser Use: {browserUse}; Browser Harness: {browserHarness}',
+  browserUseDetachedDaemon:
+    'Browser Use private runtime state was removed. A detached daemon process may remain temporarily, but Native Host shutdown removed its browser authority; Panerelay did not kill processes by name.',
+  browserUseSkill: 'Browser Use Agent Skill: {path}',
   claudeMissing: 'Warning: a supported Claude Code CLI was not found (optional).',
   codexMissing: 'Warning: Codex CLI was not found.',
   doctorAttention: 'Panerelay needs attention.',
@@ -21,6 +29,7 @@ const englishMessages = {
   doctorTip: 'Tip',
   doctorTitle: 'Panerelay doctor',
   doctorWarningCount: 'Warnings: {count}',
+  errorBrowserUseUninstall: '--browser-use is not needed with uninstall',
   errorGlobalProviderUninstall: '--global-provider is not needed with uninstall',
   errorExtensionIdMissing: '--extension-id requires a Chrome Extension ID',
   errorExtensionIdRepeated: '--extension-id can only be provided once',
@@ -38,8 +47,8 @@ const englishMessages = {
   help: `Panerelay Setup
 
 Usage:
-  npx --yes @panerelay/setup [--project-provider] [--global-provider] [--extension-id <id>] [--lang <language>]
-  npx --yes @panerelay/setup doctor [--project-provider] [--global-provider] [--extension-id <id>] [--json] [--lang <language>]
+  npx --yes @panerelay/setup [--browser-use] [--project-provider] [--global-provider] [--extension-id <id>] [--lang <language>]
+  npx --yes @panerelay/setup doctor [--browser-use] [--project-provider] [--global-provider] [--extension-id <id>] [--json] [--lang <language>]
   npx --yes @panerelay/setup uninstall [--project-provider] [--yes] [--lang <language>]
 
 Commands:
@@ -48,6 +57,7 @@ Commands:
   uninstall   Remove Panerelay-managed local integration files
 
 Options:
+  --browser-use        Also install or diagnose the Panerelay Browser Use integration
   --project-provider   Also configure the current project to default to Panerelay
   --global-provider
               Set Panerelay as the user-level default agent-browser provider
@@ -75,6 +85,14 @@ const chineseMessages: Record<MessageKey, string> = {
   agentBrowserMissing: '警告：未找到 agent-browser。',
   agentCommand: 'Agent 命令：agent-browser --provider panerelay tab list',
   agentSkill: 'Agent Skill：{path}',
+  browserUseIntegration: 'Browser Use 集成：{path}',
+  browserUseMcp: '可选 Browser Use CLI MCP 命令：{path}',
+  browserUseMissing:
+    '警告：未找到 Browser Use 0.13.7 与 Browser Harness 0.1.8。请安装兼容版本后，使用 --browser-use 重新运行 setup。',
+  browserUseReady: 'Browser Use：{browserUse}；Browser Harness：{browserHarness}',
+  browserUseDetachedDaemon:
+    '已移除 Browser Use 私有运行状态。分离的 daemon 进程可能暂时仍在，但 Native Host 关闭已移除其浏览器权限；Panerelay 未按进程名执行清理。',
+  browserUseSkill: 'Browser Use Agent Skill：{path}',
   claudeMissing: '警告：未找到受支持的 Claude Code CLI（可选）。',
   codexMissing: '警告：未找到 Codex CLI。',
   doctorAttention: 'Panerelay 需要处理以下问题。',
@@ -90,6 +108,7 @@ const chineseMessages: Record<MessageKey, string> = {
   doctorTip: '提示',
   doctorTitle: 'Panerelay 诊断',
   doctorWarningCount: '警告项：{count}',
+  errorBrowserUseUninstall: 'uninstall 无需使用 --browser-use',
   errorGlobalProviderUninstall: 'uninstall 无需使用 --global-provider',
   errorExtensionIdMissing: '--extension-id 后需要指定 Chrome 扩展 ID',
   errorExtensionIdRepeated: '--extension-id 只能指定一次',
@@ -107,8 +126,8 @@ const chineseMessages: Record<MessageKey, string> = {
   help: `Panerelay 安装工具
 
 用法：
-  npx --yes @panerelay/setup [--project-provider] [--global-provider] [--extension-id <id>] [--lang <语言>]
-  npx --yes @panerelay/setup doctor [--project-provider] [--global-provider] [--extension-id <id>] [--json] [--lang <语言>]
+  npx --yes @panerelay/setup [--browser-use] [--project-provider] [--global-provider] [--extension-id <id>] [--lang <语言>]
+  npx --yes @panerelay/setup doctor [--browser-use] [--project-provider] [--global-provider] [--extension-id <id>] [--json] [--lang <语言>]
   npx --yes @panerelay/setup uninstall [--project-provider] [--yes] [--lang <语言>]
 
 命令：
@@ -117,6 +136,7 @@ const chineseMessages: Record<MessageKey, string> = {
   uninstall   移除由 Panerelay 管理的本地集成文件
 
 选项：
+  --browser-use        同时安装或诊断 Panerelay Browser Use 集成
   --project-provider   同时将当前项目的默认 Provider 配置为 Panerelay
   --global-provider
               将 Panerelay 设为用户级默认 agent-browser Provider

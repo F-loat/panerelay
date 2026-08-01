@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Panerelay chrome.debugger capability probe",
+  "version": "1.0.0",
+  "permissions": ["debugger", "scripting", "tabs"],
+  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  }
+}

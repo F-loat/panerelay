@@ -1,0 +1,47 @@
+{
+  "name": "@panerelay/browser-use",
+  "version": "0.2.0",
+  "description": "Browser Use connection adapter for Panerelay.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/F-loat/panerelay.git",
+    "directory": "packages/browser-use"
+  },
+  "homepage": "https://github.com/F-loat/panerelay#readme",
+  "bugs": {
+    "url": "https://github.com/F-loat/panerelay/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/adapter.d.ts",
+      "default": "./dist/adapter.js"
+    }
+  },
+  "bin": {
+    "panerelay-browser-use": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.*",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm run build && node ../../scripts/run-compiled-tests.mjs dist",
+    "prepublishOnly": "pnpm build"
+  },
+  "dependencies": {
+    "@panerelay/browser-registry": "workspace:*",
+    "@panerelay/protocol": "workspace:*"
+  }
+}

@@ -13,11 +13,24 @@ import { realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { normalizeLocale, resolveLocale, translate, type SupportedLocale } from './i18n.js';
+import {
+  CliAdapterDispatchError,
+  resolveCliConnection,
+  saveCliConnectionMode,
+} from './adapter-dispatcher.js';
+import type { CliAdapterMode } from '@panerelay/protocol';
+import { runCliConnectionCommand } from './command-runner.js';
 
-export type CliOperation = 'browsers' | 'browser-use' | 'browser-clear';
+export type CliOperation =
+  'browsers' | 'browser-use' | 'browser-clear' | 'connection-use' | 'connection-resolve' | 'run';
 
 export interface ParsedCliArgs {
   browserSelector?: string;
+  adapterId?: string;
+  connectionMode?: CliAdapterMode;
+  childCommand?: string[];
+  actorName?: string;
+  sessionLabel?: string;
   help: boolean;
   language?: SupportedLocale;
   operation?: CliOperation;
@@ -32,6 +45,7 @@ function languageValue(argv: string[]): string | undefined {
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (!argument) continue;
+    if (argument === '--') break;
     if (argument === '--lang') return argv[index + 1];
     if (argument.startsWith('--lang=')) return argument.slice('--lang='.length);
   }
@@ -44,6 +58,10 @@ function extractLanguageArguments(argv: string[]): LanguageArguments {
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (!argument) continue;
+    if (argument === '--') {
+      remaining.push(...argv.slice(index));
+      break;
+    }
     if (argument !== '--lang' && !argument.startsWith('--lang=')) {
       remaining.push(argument);
       continue;
@@ -61,10 +79,12 @@ function extractLanguageArguments(argv: string[]): LanguageArguments {
 
 export function parseCliArgs(argv: string[]): ParsedCliArgs {
   const localized = extractLanguageArguments(argv);
+  const separator = localized.argv.indexOf('--');
+  const commandArguments = separator < 0 ? localized.argv : localized.argv.slice(0, separator);
   if (
     localized.argv.length === 0 ||
-    localized.argv.includes('--help') ||
-    localized.argv.includes('-h')
+    commandArguments.includes('--help') ||
+    commandArguments.includes('-h')
   ) {
     return {
       help: true,
@@ -74,6 +94,11 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
 
   const command = localized.argv[0]!;
   let browserSelector: string | undefined;
+  let adapterId: string | undefined;
+  let connectionMode: CliAdapterMode | undefined;
+  let childCommand: string[] | undefined;
+  let actorName: string | undefined;
+  let sessionLabel: string | undefined;
   let operation: CliOperation;
   let optionStart: number;
   if (command === 'browsers') {
@@ -94,6 +119,78 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
     } else {
       throw new Error(`Unknown command: browser${action ? ` ${action}` : ''}`);
     }
+  } else if (command === 'connection') {
+    const action = localized.argv[1];
+    if (action !== 'use' && action !== 'resolve') {
+      throw new Error(`Unknown command: connection${action ? ` ${action}` : ''}`);
+    }
+    adapterId = localized.argv[2];
+    if (!adapterId || adapterId.startsWith('-')) throw new Error('ADAPTER_ID_MISSING');
+    if (action === 'use') {
+      const rawMode = localized.argv[3];
+      if (rawMode !== 'direct' && rawMode !== 'extension') {
+        throw new Error('ADAPTER_MODE_INVALID');
+      }
+      connectionMode = rawMode;
+      operation = 'connection-use';
+      optionStart = 4;
+    } else {
+      operation = 'connection-resolve';
+      optionStart = 3;
+      for (let index = optionStart; index < localized.argv.length; index += 1) {
+        const argument = localized.argv[index]!;
+        const [option, inlineValue] = argument.split('=', 2);
+        if (!['--mode', '--browser', '--actor', '--session-label'].includes(option!)) {
+          throw new Error(`Unknown option: ${argument}`);
+        }
+        const value = inlineValue ?? localized.argv[++index];
+        if (!value || value.startsWith('-')) throw new Error(`OPTION_VALUE_MISSING:${option}`);
+        if (option === '--mode') {
+          if (value !== 'direct' && value !== 'extension') {
+            throw new Error('ADAPTER_MODE_INVALID');
+          }
+          connectionMode = value;
+        } else if (option === '--browser') {
+          browserSelector = value;
+        } else if (option === '--actor') {
+          actorName = value;
+        } else {
+          sessionLabel = value;
+        }
+      }
+      optionStart = localized.argv.length;
+    }
+  } else if (command === 'run') {
+    adapterId = localized.argv[1];
+    if (!adapterId || adapterId.startsWith('-')) throw new Error('ADAPTER_ID_MISSING');
+    const separator = localized.argv.indexOf('--', 2);
+    if (separator < 0 || !localized.argv[separator + 1]) throw new Error('CHILD_COMMAND_MISSING');
+    for (let index = 2; index < separator; index += 1) {
+      const argument = localized.argv[index]!;
+      const [option, inlineValue] = argument.split('=', 2);
+      if (!['--mode', '--browser', '--actor', '--session-label'].includes(option!)) {
+        throw new Error(`Unknown option: ${argument}`);
+      }
+      const value = inlineValue ?? localized.argv[++index];
+      if (!value || value.startsWith('-') || index >= separator) {
+        throw new Error(`OPTION_VALUE_MISSING:${option}`);
+      }
+      if (option === '--mode') {
+        if (value !== 'direct' && value !== 'extension') {
+          throw new Error('ADAPTER_MODE_INVALID');
+        }
+        connectionMode = value;
+      } else if (option === '--browser') {
+        browserSelector = value;
+      } else if (option === '--actor') {
+        actorName = value;
+      } else {
+        sessionLabel = value;
+      }
+    }
+    childCommand = localized.argv.slice(separator + 1);
+    operation = 'run';
+    optionStart = localized.argv.length;
   } else {
     throw new Error(`Unknown command: ${command}`);
   }
@@ -103,6 +200,11 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
   }
   return {
     ...(browserSelector ? { browserSelector } : {}),
+    ...(adapterId ? { adapterId } : {}),
+    ...(connectionMode ? { connectionMode } : {}),
+    ...(childCommand ? { childCommand } : {}),
+    ...(actorName ? { actorName } : {}),
+    ...(sessionLabel ? { sessionLabel } : {}),
     help: false,
     language: localized.language,
     operation,
@@ -120,6 +222,9 @@ export interface CliDependencies {
   readBrowserDefault?: typeof readBrowserDefault;
   selectBrowserRegistration?: typeof selectBrowserRegistration;
   setBrowserDefault?: typeof setBrowserDefault;
+  resolveCliConnection?: typeof resolveCliConnection;
+  saveCliConnectionMode?: typeof saveCliConnectionMode;
+  runCliConnectionCommand?: typeof runCliConnectionCommand;
   systemLocale?: string;
 }
 
@@ -129,6 +234,14 @@ function localizeArgumentError(error: unknown, locale: SupportedLocale): string 
   if (message === 'LANGUAGE_REPEATED') return translate(locale, 'errorLanguageRepeated');
   if (message === 'BROWSER_SELECTOR_MISSING') {
     return translate(locale, 'errorBrowserSelectorMissing');
+  }
+  if (message === 'ADAPTER_ID_MISSING') return translate(locale, 'errorAdapterIdMissing');
+  if (message === 'CHILD_COMMAND_MISSING') return translate(locale, 'errorChildCommandMissing');
+  if (message === 'ADAPTER_MODE_INVALID') return translate(locale, 'errorAdapterModeInvalid');
+  if (message.startsWith('OPTION_VALUE_MISSING:')) {
+    return translate(locale, 'errorOptionValueMissing', {
+      option: message.slice('OPTION_VALUE_MISSING:'.length),
+    });
   }
   if (message.startsWith('LANGUAGE_UNSUPPORTED:')) {
     return translate(locale, 'errorLanguageUnsupported', {
@@ -146,6 +259,27 @@ function localizeArgumentError(error: unknown, locale: SupportedLocale): string 
     });
   }
   return message;
+}
+
+function localizeRuntimeError(error: unknown, locale: SupportedLocale): string {
+  if (!(error instanceof CliAdapterDispatchError)) {
+    return error instanceof Error ? error.message : String(error);
+  }
+  if (locale === 'en') return error.message;
+  const keys = {
+    'adapter-missing': 'errorAdapterMissing',
+    'adapter-incompatible': 'errorAdapterIncompatible',
+    'adapter-unavailable': 'errorAdapterUnavailable',
+    'adapter-timeout': 'errorAdapterTimeout',
+    'adapter-invalid-response': 'errorAdapterInvalidResponse',
+    'browser-unavailable': 'errorBrowserUnavailable',
+    'generation-changed': 'errorGenerationChanged',
+    'not-ready': 'errorConnectionNotReady',
+    busy: 'errorConnectionBusy',
+  } as const;
+  return translate(locale, keys[error.code], {
+    adapter: /"([^"]+)"/.exec(error.message)?.[1] ?? 'unknown',
+  });
 }
 
 export async function main(
@@ -230,11 +364,82 @@ export async function main(
       return 0;
     }
 
+    if (parsed.operation === 'connection-use') {
+      await (dependencies.saveCliConnectionMode ?? saveCliConnectionMode)(
+        parsed.adapterId!,
+        parsed.connectionMode!,
+        {
+          adapterPreferences: { environment: dependencies.environment },
+          adapterRegistry: { environment: dependencies.environment },
+          environment: dependencies.environment,
+        },
+      );
+      console.log(
+        translate(locale, 'connectionModeSaved', {
+          adapter: parsed.adapterId!,
+          mode: parsed.connectionMode!,
+        }),
+      );
+      return 0;
+    }
+
+    if (parsed.operation === 'connection-resolve') {
+      const result = await (dependencies.resolveCliConnection ?? resolveCliConnection)(
+        {
+          adapterId: parsed.adapterId!,
+          actor: {
+            name: parsed.actorName ?? parsed.adapterId!,
+            ...(parsed.sessionLabel ? { sessionLabel: parsed.sessionLabel } : {}),
+          },
+          ...(parsed.browserSelector ? { browserSelector: parsed.browserSelector } : {}),
+          ...(parsed.connectionMode ? { mode: parsed.connectionMode } : {}),
+        },
+        {
+          adapterPreferences: { environment: dependencies.environment },
+          adapterRegistry: { environment: dependencies.environment },
+          environment: dependencies.environment,
+        },
+      );
+      console.log(
+        JSON.stringify({
+          protocol: 'panerelay.connection.v1',
+          adapterId: result.adapterId,
+          mode: result.mode,
+          connection: result.connection,
+          ...(result.expiresAt ? { expiresAt: result.expiresAt } : {}),
+          ...(result.concurrencyKey ? { concurrencyKey: result.concurrencyKey } : {}),
+          environmentKeys: Object.keys(result.environment).sort(),
+        }),
+      );
+      return 0;
+    }
+
+    if (parsed.operation === 'run') {
+      return await (dependencies.runCliConnectionCommand ?? runCliConnectionCommand)(
+        {
+          adapterId: parsed.adapterId!,
+          actor: {
+            name: parsed.actorName ?? parsed.adapterId!,
+            ...(parsed.sessionLabel ? { sessionLabel: parsed.sessionLabel } : {}),
+          },
+          childCommand: parsed.childCommand!,
+          ...(parsed.browserSelector ? { browserSelector: parsed.browserSelector } : {}),
+          ...(parsed.connectionMode ? { mode: parsed.connectionMode } : {}),
+        },
+        {
+          adapterPreferences: { environment: dependencies.environment },
+          adapterRegistry: { environment: dependencies.environment },
+          environment: dependencies.environment,
+          concurrencyLock: { environment: dependencies.environment },
+        },
+      );
+    }
+
     await (dependencies.clearBrowserDefault ?? clearBrowserDefault)(undefined, registryOptions);
     console.log(translate(locale, 'browserDefaultCleared'));
     return 0;
   } catch (error) {
-    console.error(error instanceof Error ? error.message : String(error));
+    console.error(localizeRuntimeError(error, locale));
     return 1;
   }
 }
