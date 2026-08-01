@@ -339,7 +339,7 @@ test('resolves ticket-specific DevTools version metadata lazily and idempotently
   const controlMessages: HostToExtensionMessage[] = [];
   const relay = await BrowserRelay.listen({
     bootstrapConnectionWindowMs: 1_000,
-    bootstrapTicketTtlMs: 30,
+    bootstrapTicketTtlMs: 300,
     onBrowserDisconnected: () => {},
     onBrowserRegistered: () => {},
     sendToExtension: message => controlMessages.push(message),
@@ -395,7 +395,7 @@ test('resolves ticket-specific DevTools version metadata lazily and idempotently
     assert.equal(((await busy.json()) as { error: { code: string } }).error.code, 'lane-busy');
 
     const expired = await issue('browser-use:expired');
-    await delay(45);
+    await delay(350);
     const expiredResponse = await fetch(`${expired.cdpUrl}/json/version`);
     assert.equal(expiredResponse.status, 410);
     assert.equal(
@@ -621,6 +621,10 @@ test('bounds bootstrap HTTP methods, bodies, time, participants, and diagnostics
     const participantLimit = await fetch(`${limitedTicket.cdpUrl}/json/version`);
     assert.equal(participantLimit.status, 429);
     const participantLimitText = await participantLimit.text();
+    assert.equal(
+      (JSON.parse(participantLimitText) as { error: { code: string } }).error.code,
+      'participant-limit',
+    );
     assert.doesNotMatch(participantLimitText, /[A-Za-z0-9_-]{43}/);
     assert.doesNotMatch(participantLimitText, new RegExp(relay.token));
   } finally {

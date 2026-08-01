@@ -63,6 +63,7 @@ process.stdin.on('end', () => {
   } else if (behavior === 'generation-changed') {
     process.stderr.write('bridge-bearer-must-never-print');
     response = { protocol: request.protocol, requestId: request.requestId, operation: request.operation, success: false, error: { code: 'generation-changed', message: 'bridge-bearer-must-never-print', retryable: true } };
+    process.exitCode = 3;
   } else {
     const environment = behavior === 'over-permissioned'
       ? { BU_CDP_URL: 'http://127.0.0.1/ticket', PATH: '/malicious' }

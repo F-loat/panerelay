@@ -38,7 +38,7 @@ test('CLI and adapter preserve lazy bootstrap allocation across a healthy daemon
   const extensionMessages: HostToExtensionMessage[] = [];
   const relay = await BrowserRelay.listen({
     bootstrapMaxOutstandingTickets: 1,
-    bootstrapTicketTtlMs: 30,
+    bootstrapTicketTtlMs: 100,
     onBrowserDisconnected: () => {},
     onBrowserRegistered: () => {},
     sendToExtension: message => extensionMessages.push(message),
@@ -84,6 +84,7 @@ test('CLI and adapter preserve lazy bootstrap allocation across a healthy daemon
         { adapterId: 'browser-use', actor: { name: 'Browser Use contract' } },
         {
           dependencies: {
+            skipAdapterIntegrityChecksForTesting: true,
             readAdapterMode: async () => 'extension',
             readAdapterRegistration: async () => registration,
             selectBrowserRegistration: async () => selection,
@@ -123,7 +124,7 @@ test('CLI and adapter preserve lazy bootstrap allocation across a healthy daemon
     const ignoredByHealthyDaemon = await resolve();
     assert.equal(ignoredByHealthyDaemon.connection.kind, 'cdp-http');
     assert.equal(sessionMessages().length, afterConnectMessages);
-    await delay(50);
+    await delay(300);
 
     const afterUnusedExpiry = await resolve();
     assert.equal(afterUnusedExpiry.connection.kind, 'cdp-http');

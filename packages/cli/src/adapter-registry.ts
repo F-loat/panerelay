@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { chmod, lstat, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import path, { dirname, join } from 'node:path';
+import path from 'node:path';
 import {
   PANERELAY_CLI_ADAPTER_PROTOCOL_VERSION,
   isCliAdapterManifest,
@@ -37,14 +37,18 @@ export interface CliAdapterRegistryOptions {
 }
 
 export function cliAdapterDataDirectory(options: CliAdapterRegistryOptions = {}): string {
-  return options.dataDirectory ?? join(options.homeDirectory ?? homedir(), '.panerelay');
+  const paths = pathImplementation(options.platform ?? process.platform);
+  return options.dataDirectory ?? paths.join(options.homeDirectory ?? homedir(), '.panerelay');
 }
 
 export function cliAdapterRegistryPath(options: CliAdapterRegistryOptions = {}): string {
   return (
     options.registryPath ??
     options.environment?.[PANERELAY_CLI_ADAPTER_REGISTRY_PATH_ENV] ??
-    join(cliAdapterDataDirectory(options), 'cli-adapters.json')
+    pathImplementation(options.platform ?? process.platform).join(
+      cliAdapterDataDirectory(options),
+      'cli-adapters.json',
+    )
   );
 }
 
@@ -125,19 +129,38 @@ function isCliAdapterRegistry(
   return new Set(adapterIds).size === adapterIds.length;
 }
 
-async function assertProtectedFile(filePath: string): Promise<void> {
-  const directoryMetadata = await lstat(dirname(filePath));
-  if (!directoryMetadata.isDirectory() || directoryMetadata.isSymbolicLink()) {
-    throw new Error('Panerelay CLI adapter registry directory is not protected');
+async function assertProtectedFile(
+  filePath: string,
+  trustedDirectory: string,
+  platform: NodeJS.Platform,
+): Promise<void> {
+  const paths = pathImplementation(platform);
+  const root = paths.resolve(trustedDirectory);
+  let current = paths.resolve(paths.dirname(filePath));
+  const relativeDirectory = paths.relative(root, current);
+  if (relativeDirectory.startsWith('..') || paths.isAbsolute(relativeDirectory)) {
+    throw new Error('Panerelay CLI adapter registry is outside protected storage');
   }
-  if (process.platform !== 'win32' && (directoryMetadata.mode & 0o077) !== 0) {
-    throw new Error('Panerelay CLI adapter registry directory permissions are too broad');
+  while (true) {
+    const directoryMetadata = await lstat(current);
+    if (!directoryMetadata.isDirectory() || directoryMetadata.isSymbolicLink()) {
+      throw new Error('Panerelay CLI adapter registry directory is not protected');
+    }
+    if (platform !== 'win32' && (directoryMetadata.mode & 0o077) !== 0) {
+      throw new Error('Panerelay CLI adapter registry directory permissions are too broad');
+    }
+    if (current === root) break;
+    const parent = paths.dirname(current);
+    if (parent === current) {
+      throw new Error('Panerelay CLI adapter registry is outside protected storage');
+    }
+    current = parent;
   }
   const metadata = await lstat(filePath);
   if (!metadata.isFile() || metadata.isSymbolicLink()) {
     throw new Error('Panerelay CLI adapter registry is not a protected regular file');
   }
-  if (process.platform !== 'win32' && (metadata.mode & 0o077) !== 0) {
+  if (platform !== 'win32' && (metadata.mode & 0o077) !== 0) {
     throw new Error('Panerelay CLI adapter registry permissions are too broad');
   }
 }
@@ -147,7 +170,11 @@ export async function readCliAdapterRegistry(
 ): Promise<CliAdapterRegistry> {
   const registryPath = cliAdapterRegistryPath(options);
   try {
-    await assertProtectedFile(registryPath);
+    await assertProtectedFile(
+      registryPath,
+      cliAdapterDataDirectory(options),
+      options.platform ?? process.platform,
+    );
     const value = JSON.parse(await readFile(registryPath, 'utf8')) as unknown;
     if (!isCliAdapterRegistry(value, options)) {
       throw new Error('Panerelay CLI adapter registry is invalid');
@@ -169,13 +196,14 @@ async function writeCliAdapterRegistry(
     throw new Error('Panerelay CLI adapter registry is invalid');
   }
   const registryPath = cliAdapterRegistryPath(options);
-  const directory = dirname(registryPath);
+  const platform = options.platform ?? process.platform;
+  const directory = pathImplementation(platform).dirname(registryPath);
   const temporaryPath = `${registryPath}.${process.pid}.${randomBytes(6).toString('hex')}.tmp`;
   await mkdir(directory, { recursive: true, mode: 0o700 });
-  if (process.platform !== 'win32') await chmod(directory, 0o700);
+  if (platform !== 'win32') await chmod(directory, 0o700);
   await writeFile(temporaryPath, `${JSON.stringify(registry, null, 2)}\n`, { mode: 0o600 });
   await rename(temporaryPath, registryPath);
-  if (process.platform !== 'win32') await chmod(registryPath, 0o600);
+  if (platform !== 'win32') await chmod(registryPath, 0o600);
 }
 
 export async function registerCliAdapter(

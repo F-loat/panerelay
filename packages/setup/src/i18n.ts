@@ -12,7 +12,7 @@ const englishMessages = {
     'Warning: Browser Use 0.13.7 with Browser Harness 0.1.8 was not found. Install the compatible versions, then run setup again with --browser-use.',
   browserUseReady: 'Browser Use: {browserUse}; Browser Harness: {browserHarness}',
   browserUseDetachedDaemon:
-    'Browser Use private runtime state was removed. A detached daemon process may remain temporarily, but Native Host shutdown removed its browser authority; Panerelay did not kill processes by name.',
+    'Browser Use private runtime state was removed. A detached daemon and its current browser participant may remain until the user releases it or the Extension/Native Host disconnects; Panerelay did not kill processes by name.',
   browserUseSkill: 'Browser Use Agent Skill: {path}',
   claudeMissing: 'Warning: a supported Claude Code CLI was not found (optional).',
   codexMissing: 'Warning: Codex CLI was not found.',
@@ -91,7 +91,7 @@ const chineseMessages: Record<MessageKey, string> = {
     '警告：未找到 Browser Use 0.13.7 与 Browser Harness 0.1.8。请安装兼容版本后，使用 --browser-use 重新运行 setup。',
   browserUseReady: 'Browser Use：{browserUse}；Browser Harness：{browserHarness}',
   browserUseDetachedDaemon:
-    '已移除 Browser Use 私有运行状态。分离的 daemon 进程可能暂时仍在，但 Native Host 关闭已移除其浏览器权限；Panerelay 未按进程名执行清理。',
+    '已移除 Browser Use 私有运行状态。分离的 daemon 及其当前浏览器 participant 可能持续到用户主动释放，或 Extension/Native Host 断开；Panerelay 未按进程名终止进程。',
   browserUseSkill: 'Browser Use Agent Skill：{path}',
   claudeMissing: '警告：未找到受支持的 Claude Code CLI（可选）。',
   codexMissing: '警告：未找到 Codex CLI。',

@@ -78,7 +78,7 @@ test('parses browser administration commands and localized options', () => {
       'chrome',
       '--actor',
       'Browser Use',
-      '--session-label=skill-run',
+      '--session-label=skill=run',
     ]),
     {
       adapterId: 'browser-use',
@@ -88,7 +88,7 @@ test('parses browser administration commands and localized options', () => {
       help: false,
       language: undefined,
       operation: 'connection-resolve',
-      sessionLabel: 'skill-run',
+      sessionLabel: 'skill=run',
     },
   );
   assert.equal(parseCliArgs(['--lang', 'zh-CN', 'browsers']).language, 'zh-CN');

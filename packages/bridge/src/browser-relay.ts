@@ -126,6 +126,7 @@ class RelayHttpError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    readonly bootstrapCode?: CdpBootstrapError['error']['code'],
   ) {
     super(message);
   }
@@ -486,7 +487,12 @@ export class BrowserRelay {
       this.sendJson(response, 200, result);
     } catch (error) {
       if (error instanceof RelayHttpError && error.status === 429) {
-        this.sendBootstrapError(response, 429, 'ticket-limit', error.message);
+        this.sendBootstrapError(
+          response,
+          429,
+          error.bootstrapCode ?? 'participant-limit',
+          error.message,
+        );
         return;
       }
       if (error instanceof CdpBootstrapStoreError) {
@@ -638,7 +644,11 @@ export class BrowserRelay {
     connectionPolicy: RelayParticipant['connectionPolicy'],
   ): RelayParticipant {
     if ((this.activeLease?.participants.size ?? 0) >= MAX_LEASE_PARTICIPANTS) {
-      throw new RelayHttpError(429, 'The authorized browser has too many automation participants');
+      throw new RelayHttpError(
+        429,
+        'The authorized browser has too many automation participants',
+        'participant-limit',
+      );
     }
     const participant: RelayParticipant = {
       id: randomUUID(),

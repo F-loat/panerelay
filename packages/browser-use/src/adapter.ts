@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
+import { constants } from 'node:fs';
 import { access, readFile } from 'node:fs/promises';
-import { delimiter, dirname, isAbsolute, join } from 'node:path';
+import path from 'node:path';
 import { homedir } from 'node:os';
 import { promisify } from 'node:util';
 import {
@@ -38,6 +39,11 @@ export const BROWSER_USE_CHILD_ENVIRONMENT_KEYS = [
 ] as const;
 
 const executeFile = promisify(execFile);
+
+interface PythonInvocation {
+  args: string[];
+  command: string;
+}
 
 export interface BrowserUseVersions {
   browserUseExecutable?: string;
@@ -102,21 +108,25 @@ async function resolveExecutable(
   environment: NodeJS.ProcessEnv,
   platform: NodeJS.Platform,
 ): Promise<string | null> {
-  if (isAbsolute(executable)) {
+  const paths = platform === 'win32' ? path.win32 : path.posix;
+  const accessMode = platform === 'win32' ? constants.F_OK : constants.X_OK;
+  if (paths.isAbsolute(executable)) {
     try {
-      await access(executable);
+      await access(executable, accessMode);
       return executable;
     } catch {
       return null;
     }
   }
   const extensions =
-    platform === 'win32' ? (environment.PATHEXT ?? '.EXE;.CMD;.BAT').split(';') : [''];
-  for (const directory of (environment.PATH ?? '').split(delimiter).filter(Boolean)) {
+    platform === 'win32'
+      ? (environment.PATHEXT ?? '.COM;.EXE;.CMD;.BAT').split(';').filter(Boolean).concat('')
+      : [''];
+  for (const directory of (environment.PATH ?? '').split(paths.delimiter).filter(Boolean)) {
     for (const extension of extensions) {
-      const candidate = join(directory, `${executable}${extension}`);
+      const candidate = paths.join(directory, `${executable}${extension}`);
       try {
-        await access(candidate);
+        await access(candidate, accessMode);
         return candidate;
       } catch {
         // Continue through the bounded PATH candidates.
@@ -130,22 +140,36 @@ async function pythonForBrowserUse(
   executablePath: string,
   environment: NodeJS.ProcessEnv,
   platform: NodeJS.Platform,
-): Promise<string | null> {
+): Promise<PythonInvocation | null> {
+  const paths = platform === 'win32' ? path.win32 : path.posix;
   const configured = environment.PANERELAY_BROWSER_USE_PYTHON;
-  if (configured && isAbsolute(configured)) return configured;
+  if (configured && paths.isAbsolute(configured)) {
+    const command = await resolveExecutable(configured, environment, platform);
+    return command ? { command, args: [] } : null;
+  }
   if (platform === 'win32') {
-    const candidate = join(dirname(executablePath), 'python.exe');
-    try {
-      await access(candidate);
-      return candidate;
-    } catch {
-      return null;
-    }
+    const command = await resolveExecutable(
+      paths.join(paths.dirname(executablePath), 'python.exe'),
+      environment,
+      platform,
+    );
+    return command ? { command, args: [] } : null;
   }
   try {
     const header = (await readFile(executablePath, 'utf8')).slice(0, 512);
     const shebang = /^#!([^\r\n]+)/.exec(header)?.[1]?.trim();
-    return shebang && isAbsolute(shebang) ? shebang : null;
+    if (!shebang) return null;
+    const [interpreter, ...interpreterArgs] = shebang.split(/\s+/);
+    if (!interpreter || !paths.isAbsolute(interpreter)) return null;
+    if (paths.basename(interpreter) !== 'env') {
+      const command = await resolveExecutable(interpreter, environment, platform);
+      return command ? { command, args: interpreterArgs } : null;
+    }
+    const envArgs = interpreterArgs[0] === '-S' ? interpreterArgs.slice(1) : interpreterArgs;
+    const [target, ...targetArgs] = envArgs;
+    if (!target || target.startsWith('-')) return null;
+    const command = await resolveExecutable(target, environment, platform);
+    return command ? { command, args: targetArgs } : null;
   } catch {
     return null;
   }
@@ -165,8 +189,9 @@ export async function probeBrowserUseVersions(
   if (!python) return { browserUseExecutable: executable };
   try {
     const result = await executeFile(
-      python,
+      python.command,
       [
+        ...python.args,
         '-c',
         "import importlib.metadata as m,json; print(json.dumps({'browserUse':m.version('browser-use'),'browserHarness':m.version('browser-harness')}))",
       ],
@@ -367,7 +392,12 @@ async function requestBootstrap(
         true,
       );
     }
-    if (response.status === 429 || errorCode === 'ticket-limit' || errorCode === 'lane-busy') {
+    if (
+      response.status === 429 ||
+      errorCode === 'ticket-limit' ||
+      errorCode === 'participant-limit' ||
+      errorCode === 'lane-busy'
+    ) {
       return failure(request, 'busy', 'The Panerelay Browser Use lane is busy', true);
     }
     if (response.status === 503 || errorCode === 'browser-unavailable') {
@@ -406,8 +436,8 @@ export async function handleBrowserUseAdapterRequest(
   if ('success' in bootstrap) return bootstrap;
   const runtimeDirectory =
     dependencies.runtimeDirectory ??
-    join(dependencies.homeDirectory ?? homedir(), '.panerelay', 'browser-use', 'runtime');
-  const temporaryDirectory = join(dirname(runtimeDirectory), 'tmp');
+    path.join(dependencies.homeDirectory ?? homedir(), '.panerelay', 'browser-use', 'runtime');
+  const temporaryDirectory = path.join(path.dirname(runtimeDirectory), 'tmp');
   return success(request, {
     mode: 'extension',
     connection: { kind: 'cdp-http', url: bootstrap.cdpUrl },

@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readFile } from 'node:fs/promises';
+import { chmod, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { delimiter, join } from 'node:path';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   PANERELAY_CLI_ADAPTER_PROTOCOL_VERSION,
   parseCliAdapterResponse,
@@ -9,7 +12,11 @@ import {
   type CliAdapterRequest,
   type BridgeState,
 } from '@panerelay/protocol';
-import { BROWSER_USE_CHILD_ENVIRONMENT_KEYS, handleBrowserUseAdapterRequest } from './adapter.js';
+import {
+  BROWSER_USE_CHILD_ENVIRONMENT_KEYS,
+  handleBrowserUseAdapterRequest,
+  probeBrowserUseVersions,
+} from './adapter.js';
 
 function request(operation: CliAdapterRequest['operation']): CliAdapterRequest {
   return {
@@ -84,14 +91,54 @@ test('reports a compatible generic manifest and pinned doctor readiness', async 
 
 test('the standalone executable serves one bounded stdio request', () => {
   const input = serializeCliAdapterMessage(request('adapter.manifest'));
-  const result = spawnSync(process.execPath, [new URL('./index.js', import.meta.url).pathname], {
-    encoding: 'utf8',
-    input,
-  });
+  const result = spawnSync(
+    process.execPath,
+    [fileURLToPath(new URL('./index.js', import.meta.url))],
+    {
+      encoding: 'utf8',
+      input,
+    },
+  );
   assert.equal(result.status, 0, result.stderr);
   const response = parseCliAdapterResponse(result.stdout.trim());
   assert.equal(response.success, true);
   assert.equal(response.operation, 'adapter.manifest');
+});
+
+test('resolves an env shebang target and preserves its interpreter arguments', async t => {
+  if (process.platform === 'win32') {
+    t.skip('POSIX shebang behavior');
+    return;
+  }
+  const fixture = await mkdtemp(join(tmpdir(), 'panerelay-browser-use-shebang-'));
+  const browserUse = join(fixture, 'browser-use');
+  const fakePython = join(fixture, 'fake-python');
+  try {
+    await writeFile(browserUse, '#!/usr/bin/env fake-python --isolated\n', { mode: 0o700 });
+    await writeFile(
+      fakePython,
+      `#!${process.execPath}\nconsole.log(JSON.stringify({browserUse:'0.13.7',browserHarness:'0.1.8'}));\n`,
+      { mode: 0o700 },
+    );
+    await chmod(browserUse, 0o700);
+    await chmod(fakePython, 0o700);
+    assert.deepEqual(
+      await probeBrowserUseVersions(
+        {
+          PATH: `${fixture}${delimiter}${process.env.PATH ?? ''}`,
+          PANERELAY_BROWSER_USE_EXECUTABLE: browserUse,
+        },
+        process.platform,
+      ),
+      {
+        browserUseExecutable: browserUse,
+        browserUse: '0.13.7',
+        browserHarness: '0.1.8',
+      },
+    );
+  } finally {
+    await rm(fixture, { force: true, recursive: true });
+  }
 });
 
 test('rereads only the selected live generation and requests an authenticated ticket', async () => {
@@ -216,6 +263,7 @@ test('fails closed for unavailable, changed, unsupported, and rejected browser c
     [401, 'unauthorized', 'not-ready'],
     [409, 'generation-changed', 'generation-changed'],
     [429, 'ticket-limit', 'busy'],
+    [429, 'participant-limit', 'busy'],
     [503, 'browser-unavailable', 'browser-unavailable'],
   ] as const) {
     const response = await handleBrowserUseAdapterRequest(resolveRequest(), {

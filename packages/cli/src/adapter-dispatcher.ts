@@ -225,17 +225,6 @@ async function invokeCliAdapter(
     });
     child.on('close', code => {
       if (settled) return;
-      if (code !== 0) {
-        finish(() =>
-          reject(
-            new CliAdapterDispatchError(
-              'adapter-unavailable',
-              'Registered connection adapter exited before returning a result',
-            ),
-          ),
-        );
-        return;
-      }
       try {
         const response = parseCliAdapterResponse(output.trim());
         if (response.requestId !== request.requestId || response.operation !== request.operation) {
@@ -246,8 +235,10 @@ async function invokeCliAdapter(
         finish(() =>
           reject(
             new CliAdapterDispatchError(
-              'adapter-invalid-response',
-              'Connection adapter returned an invalid response',
+              code === 0 ? 'adapter-invalid-response' : 'adapter-unavailable',
+              code === 0
+                ? 'Connection adapter returned an invalid response'
+                : 'Registered connection adapter exited before returning a result',
             ),
           ),
         );
@@ -259,9 +250,10 @@ async function invokeCliAdapter(
 }
 
 function sameSet(left: readonly string[], right: readonly string[]): boolean {
+  const sortedRight = [...right].sort();
   return (
     left.length === right.length &&
-    [...left].sort().every((value, index) => value === [...right].sort()[index])
+    [...left].sort().every((value, index) => value === sortedRight[index])
   );
 }
 
@@ -362,6 +354,7 @@ export interface ResolvedCliConnection extends CliAdapterResolvedConnection {
 
 export interface CliConnectionResolverDependencies {
   invokeAdapter?: typeof invokeCliAdapter;
+  skipAdapterIntegrityChecksForTesting?: boolean;
   readAdapterMode?: typeof readCliAdapterMode;
   readAdapterRegistration?: typeof readCliAdapterRegistration;
   setAdapterMode?: typeof setCliAdapterMode;
@@ -446,7 +439,7 @@ export async function resolveCliConnection(
       cliAdapterDataDirectory(options.adapterRegistry),
   };
   let executableIdentity: ExecutableIdentity | undefined;
-  if (!dependencies.invokeAdapter) {
+  if (!dependencies.skipAdapterIntegrityChecksForTesting) {
     executableIdentity = (await verifiedManifest(registration, invocationOptions)).identity;
   }
   const request: CliAdapterRequest = {

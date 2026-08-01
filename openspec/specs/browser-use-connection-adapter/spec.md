@@ -32,6 +32,7 @@ Panerelay setup SHALL install and register the Browser Use adapter, its Panerela
 - **WHEN** the user removes that integration
 - **THEN** setup removes the adapter registration, Panerelay-owned Skill, configuration, and private runtime artifacts
 - **AND** it leaves Browser Use, its configuration, and its official Skill unchanged
+- **AND** if private runtime state existed, setup reports that a detached daemon and participant may remain until user release or Extension/Native Host disconnection
 
 ### Requirement: Panerelay supports reversible default and one-run connection selection
 
@@ -49,6 +50,7 @@ The integration SHALL store a Direct or Panerelay Extension connection preferenc
 - **GIVEN** the saved preference selects Direct
 - **WHEN** the installed Skill starts Browser Use without an explicit override
 - **THEN** Browser Use uses its normal direct connection behavior
+- **AND** the CLI bypasses Panerelay browser selection and reads no Bridge connection credentials
 - **AND** no Panerelay CDP ticket, participant, or Extension authorization is created
 
 #### Scenario: One run overrides the saved mode
@@ -80,7 +82,7 @@ The Browser Use adapter SHALL assign a Panerelay-owned Browser Harness runtime d
 
 - **GIVEN** a Browser Use command is currently using the persistent Panerelay lane
 - **WHEN** another command attempts simultaneous adapter execution
-- **THEN** the integration serializes the invocation or fails it with an explicit busy error
+- **THEN** the adapter's `browser-use:panerelay` concurrency key serializes the invocation for at most 750 milliseconds or fails it deterministically with `busy`
 - **AND** it does not create a second daemon or silently claim task isolation
 
 #### Scenario: Independent Agents interleave sequential commands

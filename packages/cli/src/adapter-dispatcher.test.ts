@@ -88,6 +88,7 @@ test('defaults to Direct without selecting a browser or invoking the adapter', a
     { adapterId: 'browser-use', actor: { name: 'Browser Use' } },
     {
       dependencies: {
+        skipAdapterIntegrityChecksForTesting: true,
         readAdapterRegistration: async () => registration,
         readAdapterMode: async () => null,
         selectBrowserRegistration: async (_options?: BrowserRegistryOptions) => {
@@ -125,6 +126,7 @@ test('applies an Extension one-run override without mutating the saved mode', as
     {
       environment: { PANERELAY_BROWSER_ID: 'ambient-browser' },
       dependencies: {
+        skipAdapterIntegrityChecksForTesting: true,
         readAdapterRegistration: async () => registration,
         readAdapterMode: async () => 'direct',
         setAdapterMode: async () => {
@@ -156,6 +158,7 @@ test('applies an Extension one-run override without mutating the saved mode', as
 
 test('rejects undeclared child environment and saves only supported modes', async () => {
   const dependencies = {
+    skipAdapterIntegrityChecksForTesting: true,
     readAdapterRegistration: async () => registration,
     readAdapterMode: async () => 'extension' as const,
     selectBrowserRegistration: async () => selection,
@@ -186,4 +189,26 @@ test('rejects undeclared child environment and saves only supported modes', asyn
     },
   });
   assert.equal(saved, 'extension');
+});
+
+test('an injected invoker does not implicitly disable adapter integrity checks', async () => {
+  let invoked = false;
+  await assert.rejects(
+    resolveCliConnection(
+      { adapterId: 'browser-use', actor: { name: 'Browser Use' }, mode: 'extension' },
+      {
+        dependencies: {
+          readAdapterRegistration: async () => registration,
+          selectBrowserRegistration: async () => selection,
+          invokeAdapter: async (_registration, request) => {
+            invoked = true;
+            return success(request);
+          },
+        },
+      },
+    ),
+    (error: unknown) =>
+      error instanceof CliAdapterDispatchError && error.code === 'adapter-unavailable',
+  );
+  assert.equal(invoked, false);
 });

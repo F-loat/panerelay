@@ -26,7 +26,7 @@ if (!browserUseExecutable || !isAbsolute(browserUseExecutable)) {
     warmup.once('error', () => finish(1));
     warmup.once('close', code => finish(code ?? 1));
     warmup.stdin.on('error', () => undefined);
-    warmup.stdin.end('print(daemon_alive())\n');
+    warmup.stdin.end('assert daemon_alive()\n');
   });
 
   if (warmupResult !== 0) {

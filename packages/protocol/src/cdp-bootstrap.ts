@@ -14,6 +14,7 @@ export type CdpBootstrapErrorCode =
   | 'generation-changed'
   | 'unsupported'
   | 'ticket-limit'
+  | 'participant-limit'
   | 'ticket-invalid'
   | 'ticket-expired'
   | 'ticket-consumed'

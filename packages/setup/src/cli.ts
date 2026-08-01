@@ -241,7 +241,9 @@ function doctorHint(id: string, hint: string, locale: SupportedLocale): string {
       : '请安装可正常运行的 agent-browser 0.33.0 或更高版本，然后运行：npx --yes @panerelay/setup';
   }
   if (id === 'browser-use') {
-    return '请安装 Browser Use 0.13.7，然后重新运行：npx --yes @panerelay/setup doctor --browser-use';
+    return hint.includes('doctor --browser-use')
+      ? '请安装 Browser Use 0.13.7，然后重新运行：npx --yes @panerelay/setup doctor --browser-use'
+      : '请安装 Browser Use 0.13.7，然后重新运行：npx --yes @panerelay/setup --browser-use';
   }
   if (id === 'browser-harness') {
     return '请在 Browser Use 环境中安装 Browser Harness 0.1.8，然后重新运行：npx --yes @panerelay/setup doctor --browser-use';

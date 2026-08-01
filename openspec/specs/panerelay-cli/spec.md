@@ -58,13 +58,14 @@ Panerelay SHALL publish an optional `@panerelay/cli` package whose executable na
 
 ### Requirement: CLI adapters are explicitly registered and protocol bounded
 
-The Panerelay CLI SHALL load connection adapters only from a protected setup-managed registry containing an adapter identifier, absolute executable path, expected protocol version, and declared capabilities. It SHALL NOT discover adapters from ambient package names or `PATH`, load adapter code into the CLI process, or invoke an adapter whose manifest is missing, incompatible, or inconsistent with its registration.
+The Panerelay CLI SHALL load connection adapters only from a protected setup-managed registry containing an adapter identifier, absolute executable path, expected protocol version, declared capabilities, and a `childEnvironmentKeys` allow-list. It SHALL NOT discover adapters from ambient package names or `PATH`, load adapter code into the CLI process, or invoke an adapter whose manifest is missing, incompatible, or inconsistent with its registration.
 
 #### Scenario: Registered adapter is compatible
 
 - **GIVEN** a protected adapter registration names an existing executable by absolute path
 - **WHEN** the CLI verifies its manifest over the bounded stdio protocol
 - **THEN** the CLI permits only operations declared by that manifest
+- **AND** it accepts only adapter-returned child environment keys declared by the matching registration and manifest
 - **AND** it invokes the adapter out of process with bounded input, output, and timeout limits
 
 #### Scenario: Adapter registration is missing or unsafe
@@ -75,14 +76,21 @@ The Panerelay CLI SHALL load connection adapters only from a protected setup-man
 
 ### Requirement: CLI connection commands preserve defaults and credentials
 
-The CLI SHALL provide engine-neutral connection resolution and execution surfaces. It SHALL apply an explicit one-run mode over the Panerelay-owned saved default, select one live ready browser through the existing routing rules, pass only the opaque selected browser identity to the adapter request, and avoid printing Bridge bearer credentials. A run surface SHALL inject only the adapter-returned bounded environment into the child process and SHALL preserve the child's standard streams, signals, and exit status.
+The CLI SHALL provide engine-neutral connection resolution and execution surfaces. It SHALL apply an explicit one-run mode over the Panerelay-owned saved default and avoid printing Bridge bearer credentials. In Extension mode only, it SHALL select one live ready browser through the existing routing rules and pass only the opaque selected browser identity to the adapter request. Direct mode SHALL bypass Panerelay browser selection and Bridge connection state. A run surface SHALL inject only the adapter-returned bounded environment into the child process and SHALL preserve the child's standard streams, signals, and exit status.
 
 #### Scenario: Caller resolves a CDP URL
 
-- **GIVEN** a compatible adapter and live selected browser are available
+- **GIVEN** a compatible adapter is available and Extension mode has selected one live browser
 - **WHEN** the caller explicitly requests the connection URL output
 - **THEN** the CLI returns only the adapter's short-lived scoped URL and documented metadata format
 - **AND** it does not print the live registration bearer token or unrelated adapter configuration
+
+#### Scenario: Caller resolves a Direct connection
+
+- **GIVEN** a compatible adapter resolves in Direct mode
+- **WHEN** no live Panerelay browser registration is available
+- **THEN** the CLI returns the adapter's Direct connection result without selecting a browser
+- **AND** it reads no Bridge connection credentials and creates no Panerelay connection state
 
 #### Scenario: CLI runs an engine command
 
@@ -91,6 +99,7 @@ The CLI SHALL provide engine-neutral connection resolution and execution surface
 - **THEN** the CLI starts that exact command without interpreting its automation arguments
 - **AND** it applies the adapter environment only to that child
 - **AND** it forwards standard streams, termination signals, and the final exit status
+- **AND** when the adapter returns a concurrency key, the CLI waits at most 750 milliseconds for that user-scoped lane before failing deterministically with `busy`
 
 #### Scenario: One-run mode overrides the saved preference
 

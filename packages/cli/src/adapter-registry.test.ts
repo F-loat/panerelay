@@ -54,7 +54,9 @@ test('atomically registers protected exact adapter paths and preserves unrelated
     assert.deepEqual(await readCliAdapterRegistration('first-adapter', options), first);
 
     const registryPath = cliAdapterRegistryPath(options);
-    assert.equal((await lstat(registryPath)).mode & 0o077, 0);
+    if (process.platform !== 'win32') {
+      assert.equal((await lstat(registryPath)).mode & 0o077, 0);
+    }
     assert.equal(
       JSON.parse(await readFile(registryPath, 'utf8')).protocol,
       'panerelay.cli-adapter-registry.v1',
@@ -65,6 +67,31 @@ test('atomically registers protected exact adapter paths and preserves unrelated
     await removeCliAdapterRegistration('missing-adapter', options);
     assert.deepEqual((await readCliAdapterRegistry(options)).adapters, [second]);
   } finally {
+    await rm(fixture, { force: true, recursive: true });
+  }
+});
+
+test('rejects an unsafe ancestor inside the trusted registry storage', async t => {
+  if (process.platform === 'win32') {
+    t.skip('POSIX permission behavior');
+    return;
+  }
+  const fixture = await mkdtemp(join(tmpdir(), 'panerelay-cli-adapters-ancestor-'));
+  const dataDirectory = join(fixture, 'panerelay-data');
+  const nestedDirectory = join(dataDirectory, 'registry');
+  const options: CliAdapterRegistryOptions = {
+    dataDirectory,
+    registryPath: join(nestedDirectory, 'cli-adapters.json'),
+  };
+  try {
+    const adapter = registration(dataDirectory, 'fixture-adapter', 'FIXTURE_URL');
+    await mkdir(join(adapter.executablePath, '..'), { recursive: true });
+    await writeFile(adapter.executablePath, '#!/usr/bin/env node\n', { mode: 0o700 });
+    await registerCliAdapter(adapter, options);
+    await chmod(dataDirectory, 0o777);
+    await assert.rejects(readCliAdapterRegistry(options), /permissions are too broad/);
+  } finally {
+    await chmod(dataDirectory, 0o700).catch(() => undefined);
     await rm(fixture, { force: true, recursive: true });
   }
 });

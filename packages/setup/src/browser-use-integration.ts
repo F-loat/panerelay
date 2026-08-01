@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { chmod, lstat, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import path, { dirname } from 'node:path';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   browserUseAdapterManifest,
@@ -53,6 +53,7 @@ export interface InstallBrowserUseIntegrationOptions extends BrowserUseIntegrati
   nodePath?: string;
   readAdapterMode?: typeof readCliAdapterMode;
   registerAdapter?: typeof registerCliAdapter;
+  removeAdapter?: typeof removeCliAdapterRegistration;
   setAdapterMode?: typeof setCliAdapterMode;
 }
 
@@ -223,7 +224,7 @@ async function writeProtectedFile(
   mode: number,
   platform: NodeJS.Platform,
 ): Promise<void> {
-  await ensureProtectedDirectory(dirname(filePath), platform);
+  await ensureProtectedDirectory(pathImplementation(platform).dirname(filePath), platform);
   const bytes = Buffer.isBuffer(content) ? content : Buffer.from(content);
   const existing = await existingRegularFile(filePath);
   if (existing?.equals(bytes)) {
@@ -438,8 +439,17 @@ export async function installBrowserUseIntegrationArtifacts(
     try {
       await restoreProtectedFiles(snapshots, platform);
       if (registrationCompleted) {
-        if (previousRegistration) await registerCliAdapter(previousRegistration, registryOptions);
-        else await removeCliAdapterRegistration('browser-use', registryOptions);
+        if (previousRegistration) {
+          await (options.registerAdapter ?? registerCliAdapter)(
+            previousRegistration,
+            registryOptions,
+          );
+        } else {
+          await (options.removeAdapter ?? removeCliAdapterRegistration)(
+            'browser-use',
+            registryOptions,
+          );
+        }
       }
     } catch (rollbackError) {
       throw new AggregateError(

@@ -41,6 +41,13 @@ interface LanguageArguments {
   language?: SupportedLocale;
 }
 
+function optionAndInlineValue(argument: string): [string, string | undefined] {
+  const separator = argument.indexOf('=');
+  return separator < 0
+    ? [argument, undefined]
+    : [argument.slice(0, separator), argument.slice(separator + 1)];
+}
+
 function languageValue(argv: string[]): string | undefined {
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
@@ -139,7 +146,7 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       optionStart = 3;
       for (let index = optionStart; index < localized.argv.length; index += 1) {
         const argument = localized.argv[index]!;
-        const [option, inlineValue] = argument.split('=', 2);
+        const [option, inlineValue] = optionAndInlineValue(argument);
         if (!['--mode', '--browser', '--actor', '--session-label'].includes(option!)) {
           throw new Error(`Unknown option: ${argument}`);
         }
@@ -167,7 +174,7 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
     if (separator < 0 || !localized.argv[separator + 1]) throw new Error('CHILD_COMMAND_MISSING');
     for (let index = 2; index < separator; index += 1) {
       const argument = localized.argv[index]!;
-      const [option, inlineValue] = argument.split('=', 2);
+      const [option, inlineValue] = optionAndInlineValue(argument);
       if (!['--mode', '--browser', '--actor', '--session-label'].includes(option!)) {
         throw new Error(`Unknown option: ${argument}`);
       }

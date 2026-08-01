@@ -6,7 +6,7 @@
 - Authors: F-loat
 - Created: 2026-07-31
 - Updated: 2026-08-01
-- OpenSpec: `openspec/changes/add-browser-use-connection-adapter`
+- OpenSpec: `openspec/changes/archive/2026-08-01-add-browser-use-connection-adapter`
 
 ## Summary
 
@@ -97,7 +97,7 @@ The first valid ticket-specific `/json/version` request creates at most one part
 
 Browser Harness needs one WebSocket. Its participant uses a single-connection policy: the first successful handshake consumes the connection capability, further handshakes fail, and a later disconnected daemon obtains a new ticket. Existing agent-browser `/sessions` and multi-connection participant behavior remain unchanged.
 
-Bootstrap is loopback-only, no-store, has no permissive CORS, bounds methods, paths, bodies, timeouts, and outstanding tickets, and excludes credentials and content from logs. The ticket and participant are bound to one browser and Native Host generation; host shutdown invalidates all of them.
+Bootstrap is loopback-only, no-store, has no permissive CORS, bounds methods, paths, bodies, timeouts, and outstanding tickets, and excludes credentials and content from logs. Ticket capacity, participant capacity, invalid or expired tickets, generation changes, and occupied lanes have distinct bounded error codes. The ticket and participant are bound to one browser and Native Host generation; host shutdown invalidates all of them.
 
 ## Persistent Browser Use lane
 
@@ -105,7 +105,7 @@ The adapter supplies a private Browser Harness runtime directory, a protected te
 
 Normal task completion does not close the lane because Browser Harness is intentionally daemonized and the Skill lacks a reliable cross-Agent task boundary. The side panel therefore presents a persistent Browser Use actor and retains immediate release. RFC-0004 continues to distinguish observed and controlled targets.
 
-Browser Harness is not a child of the Native Host. Native Host shutdown closes its relay and participant but may leave a stale detached daemon process. The next invocation must recover through verified Browser Harness public health/restart behavior or fail explicitly. Panerelay will not inspect undocumented daemon internals, kill broad process patterns, or silently fall back to Direct Chrome.
+Browser Harness is not a child of the Native Host. Native Host shutdown closes its relay and participant but may leave a stale detached daemon process. Removing installed files does not itself prove that an already running Native Host disconnected, so uninstall reports that the current participant may remain until user release or Extension/Native Host disconnection. The next invocation must recover through verified Browser Harness public health/restart behavior or fail explicitly. Panerelay will not inspect undocumented daemon internals, kill broad process patterns, or silently fall back to Direct Chrome.
 
 The canonical Panerelay CLI run surface serializes or fails simultaneous child invocations for this lane. Sequential commands from separate Agents may still interleave through Browser Harness's shared current-page/session state; the first release documents that limitation and does not claim task isolation.
 

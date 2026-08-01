@@ -51,7 +51,7 @@ candidate_directory=".artifacts/panerelay-$release_version"
 ```
 
 - [ ] Confirm `$candidate_directory/inventory.json` records channel `stable`, the intended version and commit, `"dirty": false`, official Extension ID, minimum agent-browser and Claude Code versions, and the verified agent-browser version list.
-- [ ] Confirm the directory contains six `@panerelay` npm tarballs, one shared Chrome/Edge Extension zip, `inventory.json`, and `SHA256SUMS`.
+- [ ] Confirm the directory contains seven `@panerelay` npm tarballs, one shared Chrome/Edge Extension zip, `inventory.json`, and `SHA256SUMS`.
 - [ ] Verify checksums from inside the candidate directory:
 
   ```bash
@@ -60,7 +60,7 @@ candidate_directory=".artifacts/panerelay-$release_version"
 
 - [ ] Inspect every npm tarball for its intended public files, exact internal dependency pins matching the candidate version, the ACP dependency, no Claude Agent SDK or Claude platform runtime, and absence of tests, workspace ranges, credentials, logs, and signing keys.
 - [ ] Inspect the shared Chrome/Edge Extension archive for all manifest/HTML-referenced assets, versions, public key, and derived official ID; confirm it contains no Firefox manifest, Gecko identity, WebDriver transport, or browser launcher.
-- [ ] Install all six packed tarballs in one disposable consumer and confirm browser administration plus setup → doctor → update → doctor → uninstall, including a persisted custom Extension ID.
+- [ ] Install all seven packed tarballs in one disposable consumer and confirm browser administration plus setup → doctor → update → doctor → uninstall, including a persisted custom Extension ID.
 
 ## Runtime acceptance
 
@@ -142,6 +142,6 @@ Afterward:
 
 ## Retry and recovery
 
-npm publication is not transactional across six packages. Before any new package is published, the workflow compares existing registry SHA-512 integrity with the candidate. A retry skips only an identical package and publishes the missing packages in dependency order; a different package with the same immutable version fails closed.
+npm publication is not transactional across seven packages. Before any new package is published, the workflow compares existing registry SHA-512 integrity with the candidate. A retry skips only an identical package and publishes the missing packages in dependency order; a different package with the same immutable version fails closed.
 
 If a beta fails, rerun it to produce a new beta version. If stable npm publication succeeds but GitHub Release creation fails before creating a tag or draft, rerun the same workflow: it accepts identical npm tarballs and retries the missing Release. If the failed attempt already created a tag or draft, finish that Release manually from the same commit and accepted assets. If public contents differ, prepare a new patch version rather than overwriting npm packages or reusing a tag.

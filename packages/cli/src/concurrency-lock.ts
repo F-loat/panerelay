@@ -9,6 +9,9 @@ export const PANERELAY_CLI_ADAPTER_LOCK_DIRECTORY_ENV =
 const LOCK_PROTOCOL = 'panerelay.cli-adapter-lock.v1' as const;
 const DEFAULT_WAIT_MS = 750;
 const POLL_MS = 50;
+const MAX_STALE_RECLAIMS = 8;
+
+class StaleLockRemovedError extends Error {}
 
 interface LockRecord {
   protocol: typeof LOCK_PROTOCOL;
@@ -86,7 +89,7 @@ async function readProtectedLock(
   }
   if (!processAlive(value.pid, options)) {
     await unlink(filePath).catch(() => undefined);
-    throw new Error('STALE_LOCK_REMOVED');
+    throw new StaleLockRemovedError();
   }
   return value;
 }
@@ -115,8 +118,16 @@ export async function acquireCliConcurrencyLock(
   };
   const waitMs = Math.max(0, Math.min(options.waitMs ?? DEFAULT_WAIT_MS, 5_000));
   const deadline = Date.now() + waitMs;
+  let attempts = 0;
+  let staleReclaims = 0;
+  let retryAfterReclaim = false;
 
   while (true) {
+    if (attempts > 0 && Date.now() >= deadline && !retryAfterReclaim) {
+      throw new CliAdapterDispatchError('busy', 'Another command is using this connection lane');
+    }
+    attempts += 1;
+    retryAfterReclaim = false;
     try {
       const handle = await open(filePath, 'wx', 0o600);
       try {
@@ -147,9 +158,20 @@ export async function acquireCliConcurrencyLock(
       try {
         await readProtectedLock(filePath, options);
       } catch (readError) {
-        if (readError instanceof Error && readError.message === 'STALE_LOCK_REMOVED') continue;
-        if ((readError as NodeJS.ErrnoException).code === 'ENOENT') continue;
-        throw readError;
+        const reclaimable =
+          readError instanceof StaleLockRemovedError ||
+          (readError as NodeJS.ErrnoException).code === 'ENOENT';
+        if (!reclaimable) throw readError;
+        staleReclaims += 1;
+        if (staleReclaims > MAX_STALE_RECLAIMS || (Date.now() >= deadline && staleReclaims > 1)) {
+          throw new CliAdapterDispatchError(
+            'busy',
+            'Another command is using this connection lane',
+          );
+        }
+        retryAfterReclaim = true;
+        if (Date.now() < deadline) await delay(1);
+        continue;
       }
       if (Date.now() >= deadline) {
         throw new CliAdapterDispatchError('busy', 'Another command is using this connection lane');

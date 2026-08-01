@@ -8,6 +8,7 @@ const fixtureRoot = resolve(fileURLToPath(new URL('.', import.meta.url)));
 const primaryPort = parsePort(process.env.PANERELAY_BROWSER_USE_FIXTURE_PORT, 41_741);
 const crossOriginPort = parsePort(process.env.PANERELAY_BROWSER_USE_CROSS_ORIGIN_PORT, 41_742);
 const crossSitePort = parsePort(process.env.PANERELAY_BROWSER_USE_CROSS_SITE_PORT, 41_743);
+const crossSiteHost = '127.0.0.2';
 
 if (new Set([primaryPort, crossOriginPort, crossSitePort]).size !== 3) {
   throw new Error('Primary, cross-origin, and cross-site fixture ports must differ');
@@ -140,7 +141,7 @@ const primaryServer = createServer(async (request, response) => {
     response,
     new Map([
       ['__CROSS_ORIGIN__', `http://127.0.0.1:${crossOriginPort}`],
-      ['__CROSS_SITE__', `http://localhost:${crossSitePort}`],
+      ['__CROSS_SITE__', `http://${crossSiteHost}:${crossSitePort}`],
     ]),
   );
 });
@@ -157,7 +158,7 @@ const crossOriginServer = createServer(async (request, response) => {
 });
 
 const crossSiteServer = createServer(async (request, response) => {
-  const requestUrl = new URL(request.url || '/', `http://${request.headers.host || 'localhost'}`);
+  const requestUrl = new URL(request.url || '/', `http://${request.headers.host || crossSiteHost}`);
   if (requestUrl.pathname !== '/cross-frame.html') {
     response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' });
     response.end('Not found');
@@ -180,13 +181,13 @@ await Promise.all([
   new Promise((resolveReady, reject) => {
     crossSiteServer.once('listening', resolveReady);
     crossSiteServer.once('error', reject);
-    crossSiteServer.listen(crossSitePort, '::1');
+    crossSiteServer.listen(crossSitePort, crossSiteHost);
   }),
 ]);
 
 console.log(`Browser Use fixture: http://127.0.0.1:${primaryPort}/`);
 console.log(`Cross-origin fixture: http://127.0.0.1:${crossOriginPort}/`);
-console.log(`Cross-site iframe fixture: http://localhost:${crossSitePort}/cross-frame.html`);
+console.log(`Cross-site iframe fixture: http://${crossSiteHost}:${crossSitePort}/cross-frame.html`);
 
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.once(signal, () => {
