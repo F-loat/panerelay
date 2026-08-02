@@ -4,12 +4,12 @@ English ｜ [简体中文](README.zh-CN.md)
 
 [Website](https://f-loat.github.io/panerelay/) · [Chrome Web Store](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi) · [Releases](https://github.com/F-loat/panerelay/releases)
 
-**Let AI agents work in the Chromium browser you already use.**
+**Agent in Browser. Agent Use Browser.**
 
-Panerelay is an open-source local bridge between AI agents and your existing Chrome or Microsoft Edge session. It solves two problems while keeping browser access explicit and revocable:
+Panerelay is an open-source local bridge between AI agents and your existing Chrome or Microsoft Edge session. It carries browser context in both directions:
 
-1. **Let Agents work directly in Chrome or Edge.** Any Agent that can use [agent-browser](https://github.com/vercel-labs/agent-browser) through CLI or MCP can control the tabs you authorize with your current browser profile and login state—no separate browser, repeated login, or cookie export.
-2. **Bring local Agents into the browser side panel.** After one Panerelay setup, the Extension discovers Codex, Claude Code, and Qoder and gives them a browser-native chat surface with conversation history, approvals, activity, and immediate control release.
+- **Agent in Browser.** Open Codex, Claude Code, or Qoder beside the current page for browser-native conversations, approvals, activity, and immediate control release.
+- **Agent Use Browser.** Let an external Agent use [agent-browser](https://agent-browser.dev/), [browser-use](https://docs.browser-use.com/open-source/browser-use-cli), or both in the tabs you authorize while each tool keeps its native workflow.
 
 Credentials stay in the browser. Panerelay works only in tabs you explicitly authorize. Agent tab selection and background automation do not switch the Chrome or Edge tab you are viewing.
 
@@ -18,69 +18,88 @@ Credentials stay in the browser. Panerelay works only in tabs you explicitly aut
 ## How it works
 
 ```text
-Any AI Agent → agent-browser CLI / MCP → Panerelay Bridge
-                                              ↕ Native Messaging
+Any AI Agent ─┬─ agent-browser CLI / MCP ─┐
+              └─ browser-use CLI / MCP ───┤
+                                          ▼
+                                   Panerelay Bridge
+                                          ↕ Native Messaging
 Local Agents ← browser side panel ← Panerelay Extension ↔ Authorized tabs
 ```
 
-- **agent-browser keeps browser automation semantics** such as snapshots, locators, input, waits, tabs, and screenshots.
-- **The local Bridge handles routing and policy** between agent-browser, local Agent runtimes, and the Extension.
+- **Automation engines keep their semantics.** agent-browser and browser-use still own their commands, helpers, waits, and page state.
+- **The local Bridge handles routing and policy** between automation engines, local Agent runtimes, and the Extension.
 - **The Extension owns user authorization and visibility.** It does not store model credentials or start native Agent processes.
 
 ## Quickstart
 
-Requirements: Chrome or Microsoft Edge on macOS, Linux, or Windows; Node.js 20+; and a compatible agent-browser.
+Requirements: Chrome or Microsoft Edge on macOS, Linux, or Windows and Node.js 20+. Panerelay itself needs neither automation engine. agent-browser 0.33.0+ or browser-use 0.13.7+ is required only when you ask your Agent to configure that workflow.
 
 Microsoft Edge runtime capabilities are currently classified as `Forwarded` pending complete representative acceptance. See the [browser platform compatibility record](docs/compatibility/browser-platforms.md) for the evidence boundary.
 
 1. Install [Panerelay from the Chrome Web Store](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi) in Chrome or Edge. Edge may first ask you to allow extensions from other stores.
-2. Install the local integration:
+2. Install the Panerelay local integration:
 
    ```bash
    npx --yes @panerelay/setup
    ```
 
-3. Open Panerelay from the Chrome or Edge toolbar and authorize the current web tab or all supported web tabs.
-4. If Panerelay is connected in more than one browser, use the Extension's `Default Browser` setting or select one from the CLI:
+3. Open Panerelay from the Chrome or Edge toolbar and authorize the current web tab or all supported web tabs. Installation and tool selection never authorize a tab by themselves.
+4. For **Agent in Browser**, select an installed, signed-in Codex, Claude Code, or Qoder and start a conversation. Panerelay keeps the selected project as the Agent working directory and supplies only bounded current-tab URL/title context; browser MCPs and Skills come from the Agent's own configuration.
+5. For **Agent Use Browser**, give your Agent one of the setup prompts below.
+6. If Panerelay is connected in more than one browser, use the Extension's `Default Browser` setting or select one from the CLI:
 
    ```bash
    npx --yes @panerelay/cli browsers
    npx --yes @panerelay/cli browser use edge
    ```
 
-5. Verify that any Agent can reach the selected authorized browser through agent-browser:
+### Let your Agent configure browser automation
 
-   ```bash
-   agent-browser --provider panerelay tab list
-   ```
+Copy the instruction that matches your workflow into the Agent you already use. It should inspect first, change only what is needed, and leave tab authorization to you.
 
-6. To work from the browser, open the side panel and select an installed local Agent. Panerelay automatically discovers Codex, Claude Code, and Qoder; each Agent CLI must already be installed and signed in. Side-panel Agents stay scoped to the browser containing that side panel, independently of the saved default.
+**agent-browser**
 
-### Optional Browser Use connection
-
-If Browser Use `0.13.7` or newer is already installed, opt into the Panerelay connection adapter and additive Skill:
-
-```bash
-npx --yes @panerelay/setup --browser-use
-npx --yes @panerelay/setup doctor --browser-use
+```text
+Set up Panerelay so my Agent can use agent-browser with my existing Chrome or Edge browser. Inspect the local environment first. Install or update agent-browser from its official source only if needed, then use Panerelay's official setup tool to enable the agent-browser integration. Run the relevant Panerelay doctor check and verify that agent-browser can list only the tabs I authorize. Do not change unrelated Agent settings, and ask me to authorize a tab in the Panerelay extension when required.
 ```
 
-Setup does not install or modify Browser Use and does not change `PATH`. The installed Skill continues to use normal Browser Use helpers through a protected private CLI, while Panerelay supplies the authenticated virtual CDP connection to explicitly authorized tabs. Direct and Extension modes have a saved Panerelay-owned preference plus one-run overrides. The private Browser Use daemon is intentionally persistent and shared across sequential Agent commands; it is not per-Agent task isolation. See the [Browser Use compatibility record](docs/compatibility/browser-use-0.13.7.md) for CLI, CLI MCP, lifecycle, security, and unsupported browser-ownership boundaries.
+**browser-use**
+
+```text
+Set up Panerelay so my Agent can use browser-use with my existing signed-in Chrome browser. Inspect the local environment first. Install or update browser-use from its official source only if needed, then use Panerelay's official setup tool to enable the browser-use integration. Run the relevant Panerelay doctor check and verify the Extension-backed connection. Preserve browser-use's native workflow, do not change unrelated Agent settings, and ask me to authorize a tab in the Panerelay extension when required.
+```
+
+**Both**
+
+```text
+Set up Panerelay for both agent-browser and browser-use with my existing browser. Inspect the local environment first. Install or update each tool from its official source only if needed, then use Panerelay's official setup tool to enable both integrations together. Run the relevant doctor checks and verify each connection. Do not change unrelated Agent settings, and ask me to authorize a tab in the Panerelay extension when required.
+```
+
+Exact adapter flags and diagnostics remain available in the [`@panerelay/setup` technical reference](packages/setup/README.md).
+
+### browser-use support boundary
+
+Panerelay supports the setup-managed browser-use CLI, additive Skill, and CLI MCP surface.
+
+Setup does not install or modify browser-use and does not change `PATH`. The installed Skill continues to use normal browser-use helpers through a protected private CLI, while Panerelay supplies the authenticated virtual CDP connection to explicitly authorized tabs. Direct and Extension modes have a saved Panerelay-owned preference plus one-run overrides. The private browser-use daemon is intentionally persistent and shared across sequential Agent commands; it is not per-Agent task isolation. See the [browser-use compatibility record](docs/compatibility/browser-use-0.13.7.md) for CLI, CLI MCP, lifecycle, security, and unsupported browser-ownership boundaries.
+
+Panerelay does not transparently intercept arbitrary browser-use Python SDK construction. SDK applications need an explicit connection integration. The exact verified baseline is browser-use 0.13.7 with Browser Harness 0.1.8; newer supported versions meet the minimum but do not automatically inherit `Verified` status.
 
 To omit `--provider panerelay` in later commands, set Panerelay as the user-level default from Extension settings or run setup with `--global-provider`. Use `--project-provider` instead when the default should apply only to the current project. Provider selection changes routing only—it never grants browser permission or authorizes a tab.
 
 ## What Panerelay provides
 
 - agent-browser workflows in authorized tabs: page interaction, screenshots, navigation, tabs and popups, diagnostics, network inspection, and request mocking.
+- browser-use CLI, additive Skill, and CLI MCP workflows through an explicit authorized existing-Chrome integration.
 - Side-panel conversations with supported local Agents, including history, approvals, interruption, activity, and tab-linked workspaces.
 - User-scoped Native Messaging setup on macOS, Linux, and Windows.
 - Local-first routing: no Panerelay cloud service is required.
 
-See the [browser platform compatibility record](docs/compatibility/browser-platforms.md), [Claude Code compatibility record](docs/compatibility/claude-code.md), and the other [compatibility records](docs/compatibility) for exact runtime coverage.
+See the [agent-browser record](docs/compatibility/agent-browser-0.33.0.md), [browser-use record](docs/compatibility/browser-use-0.13.7.md), [browser platform record](docs/compatibility/browser-platforms.md), and other [compatibility records](docs/compatibility) for exact runtime coverage.
 
 ## Manage the installation
 
-Running without an action installs or updates the local integration:
+The human-facing command manages Panerelay itself:
 
 ```bash
 npx --yes @panerelay/setup
@@ -88,12 +107,7 @@ npx --yes @panerelay/setup doctor
 npx --yes @panerelay/setup uninstall
 ```
 
-Extension settings can set or clear Panerelay as the user-level agent-browser default without uninstalling anything. The same defaults can be selected during setup:
-
-```bash
-npx --yes @panerelay/setup --global-provider
-npx --yes @panerelay/setup --project-provider
-```
+Adapter-specific setup, diagnostics, and provider-default flags are documented in the [`@panerelay/setup` technical reference](packages/setup/README.md). Extension settings can set or clear Panerelay as the user-level agent-browser default without uninstalling anything.
 
 agent-browser reads the user default from `~/.agent-browser/config.json`; the current project's `./agent-browser.json` takes precedence. To restore another default, change or remove its `provider` field. Panerelay remains installed and can always be selected with `--provider panerelay`.
 
@@ -126,7 +140,7 @@ The ID must contain 32 lowercase letters from `a` through `p`.
 - Reusing login state means operating inside an authorized existing tab. Panerelay does not export or log cookies, credentials, prompts, screenshots, page content, or request bodies by default.
 - Panerelay cannot own browser-process features such as isolated profiles, launch-time proxy changes, or closing the user's Chrome or Edge process.
 - `webNavigation` is used only to recognize browser-reported related tabs so they can share conversation context. It does not read browsing history or grant site access.
-- The Extension, protocol, Bridge, Providers/adapters, setup package, browser registry, optional administration CLI, and optional Browser Use adapter form one lockstep compatibility unit.
+- The Extension, protocol, Bridge, Providers/adapters, setup package, browser registry, optional administration CLI, and optional browser-use adapter form one lockstep compatibility unit.
 
 ## Development and release checks
 

@@ -6,23 +6,29 @@ Define a public, trustworthy entry point that explains Panerelay, guides visitor
 
 ### Requirement: Focused product narrative
 
-The website SHALL explain that Panerelay connects AI Agents to explicitly authorized tabs in an existing Chrome or Microsoft Edge session and SHALL distinguish that workflow from the browser side-panel Agent workflow.
+The website SHALL explain Panerelay through two complementary outcomes: **Agent in Browser**, where a local Agent works from the browser side panel, and **Agent Use Browser**, where an external Agent works through explicitly authorized tabs in an existing Chrome or Microsoft Edge session. It SHALL present agent-browser and Browser Use as peer automation-engine choices within Agent Use Browser rather than as separate product modes.
 
 #### Scenario: Visitor understands the product from the landing page
 
 - **GIVEN** a visitor opens the website without prior Panerelay knowledge
 - **WHEN** the primary page content is rendered
-- **THEN** the visitor can identify both the existing-browser agent-browser workflow and the local-Agent side-panel workflow without opening another resource
+- **THEN** the visitor can identify Agent in Browser and Agent Use Browser, and can see agent-browser and Browser Use as choices within the latter, without opening another resource
+
+#### Scenario: Visitor compares automation engines
+
+- **GIVEN** a visitor is reading the external-Agent workflow
+- **WHEN** the engine comparison is rendered
+- **THEN** agent-browser and Browser Use are identified as peer, explicitly selected integrations, and both choices retain the same explicit-authorization and visible-revocation boundary
 
 ### Requirement: Actionable installation journey
 
-The website SHALL provide direct paths to the Chrome Web Store, the Panerelay GitHub repository, project documentation, the upstream agent-browser website, and a complete `npx --yes @panerelay/setup` command. The command SHALL remain readable without JavaScript, and supported browsers SHALL offer a copy interaction with an accessible success indication.
+The website SHALL provide direct paths to the Chrome Web Store, the Panerelay GitHub repository, project documentation, and the upstream agent-browser and Browser Use websites. Its human installation journey SHALL show only the engine-neutral `npx --yes @panerelay/setup` product command after Extension installation. It SHALL provide separate copyable natural-language Agent handoffs for configuring agent-browser, Browser Use, or both integrations. Each handoff SHALL tell the Agent to inspect the local environment, install or update the selected upstream tool only when needed, configure the corresponding Panerelay integration, verify the result, and keep tab authorization as an explicit user action. The command and prompts SHALL remain readable without JavaScript, and supported browsers SHALL offer copy interactions with accessible success indications.
 
 #### Scenario: Visitor installs from the primary call to action
 
 - **GIVEN** the landing page has loaded
 - **WHEN** the visitor follows the primary installation path
-- **THEN** the website exposes both the Extension installation link and the local setup command in the required order
+- **THEN** the website exposes the Extension installation link and one engine-neutral Panerelay setup command before any workflow-specific Agent handoff
 
 #### Scenario: Visitor copies the setup command
 
@@ -30,21 +36,55 @@ The website SHALL provide direct paths to the Chrome Web Store, the Panerelay Gi
 - **WHEN** the visitor activates the setup command copy control
 - **THEN** the exact setup command is written to the clipboard and the control communicates completion without removing the visible command
 
+#### Scenario: Visitor delegates workflow setup to an Agent
+
+- **GIVEN** the visitor has installed Panerelay and wants agent-browser, Browser Use, or both
+- **WHEN** the visitor selects and copies the corresponding Agent handoff
+- **THEN** the copied natural-language instruction covers environment inspection, conditional upstream installation or update, explicit Panerelay integration, verification, and user-controlled tab authorization without presenting adapter flags as another manual product installation path
+
 #### Scenario: Visitor continues to upstream agent-browser documentation
 
 - **GIVEN** the visitor is reading the agent-browser workflow
 - **WHEN** the visitor follows its quickstart link
 - **THEN** the website opens `https://agent-browser.dev/` as the upstream resource
 
+#### Scenario: Visitor continues to upstream Browser Use documentation
+
+- **GIVEN** the visitor is reading the Browser Use workflow
+- **WHEN** the visitor follows its upstream documentation link
+- **THEN** the website opens the official Browser Use documentation as the upstream resource
+
 #### Scenario: Page is usable without JavaScript
 
 - **GIVEN** JavaScript is disabled or fails to load
 - **WHEN** the visitor opens the website
-- **THEN** the product narrative, source links, Extension link, documentation links, and setup command remain available
+- **THEN** the product narrative, both engine descriptions, source links, Extension link, documentation links, base setup command, and all Agent handoff prompts remain available
+
+### Requirement: Accessible automation-engine comparison
+
+The website SHALL expose the agent-browser and Browser Use comparison as a keyboard-operable tab interface when JavaScript enhancement is available and as two readable sections without JavaScript. The enhanced comparison MAY rotate automatically at a restrained interval, but SHALL stop automatic rotation after manual selection, pause while hovered or keyboard-focused, and disable automatic rotation when reduced motion is requested. Selecting an engine SHALL update the associated description and upstream and compatibility links without changing the global navigation, the human-facing product installation command, or the separate Agent handoff choices.
+
+#### Scenario: Visitor selects Browser Use
+
+- **GIVEN** the agent-browser comparison panel is active
+- **WHEN** the visitor activates the Browser Use tab by pointer or keyboard
+- **THEN** the Browser Use explanation and links become visible and automatic rotation stops
+
+#### Scenario: Automatic rotation remains non-disruptive
+
+- **GIVEN** the visitor has not interacted with the comparison and does not request reduced motion
+- **WHEN** the automatic interval elapses while the comparison has neither hover nor focus
+- **THEN** the active engine advances while the tab selection and panel relationship remain available to assistive technology
+
+#### Scenario: Reduced motion keeps a stable engine
+
+- **GIVEN** the visitor requests reduced motion
+- **WHEN** the enhanced engine comparison loads
+- **THEN** no automatic engine rotation starts and both engine choices remain manually operable
 
 ### Requirement: Honest safety and compatibility claims
 
-The website SHALL state that site permission, tab authorization, and active control are separate; that access is visible and revocable; and that Panerelay does not own browser-process features. It SHALL identify agent-browser 0.33.0 as the pinned evidence baseline and SHALL NOT describe Edge capability groups as `Verified` while the checked-in compatibility record classifies them as `Forwarded`.
+The website SHALL state that site permission, tab authorization, and active control are separate; that access is visible and revocable; and that Panerelay does not own browser-process features. It SHALL identify agent-browser 0.33.0 and Browser Use 0.13.7 with Browser Harness 0.1.8 as pinned evidence baselines, distinguish an accepted minimum from an exact verified baseline, and SHALL NOT describe Edge capability groups as `Verified` while the checked-in compatibility record classifies them as `Forwarded`. Browser Use claims SHALL cover its setup-managed CLI, additive Skill, and CLI MCP surfaces and SHALL NOT imply transparent interception of arbitrary Python SDK construction.
 
 #### Scenario: Visitor reviews the trust boundary
 
@@ -54,9 +94,25 @@ The website SHALL state that site permission, tab authorization, and active cont
 
 #### Scenario: Compatibility claim follows project evidence
 
-- **GIVEN** the website presents browser or agent-browser compatibility
+- **GIVEN** the website presents browser, agent-browser, or Browser Use compatibility
 - **WHEN** the published page is compared with the checked-in compatibility records
-- **THEN** agent-browser 0.33.0 is identified as the evidence baseline and Edge is not promoted beyond its recorded `Forwarded` classification
+- **THEN** both engine baselines and Browser Use integration boundaries match the records and Edge is not promoted beyond its recorded `Forwarded` classification
+
+### Requirement: Coherent repository onboarding
+
+The root English and Simplified Chinese READMEs SHALL lead with Agent in Browser and Agent Use Browser, show one engine-neutral Panerelay installation command, and offer natural-language Agent handoffs for configuring agent-browser, Browser Use, or both. Integration READMEs SHALL lead with the supported user outcome, prerequisites, Agent-first setup guidance, success criteria, upstream documentation, and compatibility record before internal adapter terminology, while technical CLI reference remains discoverable. Repository guidance SHALL use consistent labels for the two product outcomes, peer automation integrations, accepted minimums, and exact verified baselines.
+
+#### Scenario: New user chooses a setup path
+
+- **GIVEN** a user opens either root README without prior Panerelay knowledge
+- **WHEN** the user reaches the quickstart
+- **THEN** the user sees one Panerelay installation command and can copy or adapt a natural-language instruction for an Agent to configure agent-browser, Browser Use, or both
+
+#### Scenario: Browser Use user finds the supported boundary
+
+- **GIVEN** a user opens the Browser Use integration README
+- **WHEN** the user reviews prerequisites and compatibility
+- **THEN** the document links to upstream Browser Use documentation, identifies supported CLI, additive Skill, and CLI MCP surfaces, and states that arbitrary Python SDK construction is outside the transparent integration
 
 ### Requirement: Responsive and accessible experience
 

@@ -16,11 +16,19 @@ test('source contains the complete product and installation journey', async () =
   for (const requiredText of [
     'Your browser.',
     'Agent-ready.',
+    'Agent in Browser.',
+    'Agent Use Browser.',
     'npx --yes @panerelay/setup',
+    'Ask your Agent to connect the workflow.',
+    'Set up Panerelay so my Agent can use agent-browser',
+    'Set up Panerelay so my Agent can use browser-use',
+    'Set up Panerelay for both agent-browser and browser-use',
     'Bring agent-browser into your daily tabs.',
+    'Keep browser-use.',
     'Bring local Agents into the side panel.',
     'Chrome Web Store',
     'agent-browser 0.33.0',
+    'browser-use 0.13.7',
     'Edge remains <code>Forwarded</code>',
     'Credentials stay in the browser.',
     'No browser-process ownership.',
@@ -31,8 +39,12 @@ test('source contains the complete product and installation journey', async () =
 
   assert.match(html, /chromewebstore\.google\.com\/detail\/panerelay\//);
   assert.match(html, /https:\/\/agent-browser\.dev\//);
+  assert.match(html, /Browser\s+Harness 0\.1\.8/);
+  assert.match(html, /https:\/\/docs\.browser-use\.com\/open-source\/browser-use-cli/);
   assert.match(html, /https:\/\/github\.com\/F-loat\/panerelay/);
   assert.match(html, /docs\/compatibility\/browser-platforms\.md/);
+  assert.match(html, /docs\/compatibility\/browser-use-0\.13\.7\.md/);
+  assert.doesNotMatch(html, /@panerelay\/setup --(?:agent-browser|browser-use)/);
 });
 
 test('source preserves semantic and accessible interactions', async () => {
@@ -49,15 +61,33 @@ test('source preserves semantic and accessible interactions', async () => {
   assert.match(html, /aria-expanded="false"/);
   assert.match(html, /class="nav-github"[\s\S]+?aria-label="GitHub"/);
   assert.equal((html.match(/data-copy-command=/g) ?? []).length, 2);
+  assert.equal((html.match(/data-copy-text-key=/g) ?? []).length, 3);
+  assert.match(html, /role="tablist"/);
+  assert.equal((html.match(/data-engine-tab=/g) ?? []).length, 2);
+  assert.equal((html.match(/data-engine-panel=/g) ?? []).length, 2);
+  assert.equal((html.match(/data-handoff-tab=/g) ?? []).length, 3);
+  assert.equal((html.match(/data-handoff-panel=/g) ?? []).length, 3);
   assert.match(script, /navigator\.clipboard\.writeText/);
   assert.match(script, /event\.key !== 'Escape'/);
   assert.match(script, /getAttribute\('aria-expanded'\) !== 'true'/);
+  assert.match(script, /ENGINE_ROTATION_INTERVAL_MS = 6_000/);
+  assert.match(script, /engineSelectionIsManual/);
+  assert.match(script, /pointerenter/);
+  assert.match(script, /pointerleave/);
+  assert.match(script, /focusin/);
+  assert.match(script, /focusout/);
+  assert.match(script, /prefers-reduced-motion: reduce/);
+  assert.match(script, /'ArrowLeft', 'ArrowRight', 'Home', 'End'/);
   assert.match(styles, /:focus-visible/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(styles, /@media \(max-width: 520px\)/);
   assert.match(styles, /\.primary-navigation > \.button-small/);
   assert.match(styles, /\.primary-navigation > \.nav-github/);
   assert.match(styles, /\.language-switcher \+ \.button-small/);
+  assert.match(styles, /\.engine-tabs/);
+  assert.match(styles, /\.engine-panel/);
+  assert.match(styles, /\.agent-handoff-picker/);
+  assert.match(styles, /\.agent-prompt/);
 });
 
 test('source provides complete English and Simplified Chinese language contracts', async () => {
@@ -83,10 +113,16 @@ test('source provides complete English and Simplified Chinese language contracts
   assert.match(script, /document\.documentElement\.lang = locale/);
   assert.match(script, /const localeStorageKey = 'panerelay\.locale'/);
   assert.match(i18n, /浏览器不用换。<span>Agent 直接上手。<\/span>/);
+  assert.match(i18n, /Agent 在浏览器里，<br><em>也能直接使用浏览器。<\/em>/);
   assert.match(i18n, /不用另开配置文件，不用反复登录，也不用导出 Cookie/);
+  assert.match(i18n, /请帮我把 Panerelay 接入 agent-browser/);
+  assert.match(i18n, /请帮我把 Panerelay 接入 browser-use/);
+  assert.match(i18n, /请帮我同时完成 Panerelay 的 agent-browser 和 browser-use 接入/);
   assert.match(i18n, /控制权始终看得见/);
   assert.match(i18n, /获得访问，<br>不等于获得控制。<br><em>控制权始终可见。<\/em>/);
   assert.match(i18n, /让 agent-browser<br>直接操作日常标签页。/);
+  assert.match(i18n, /继续用 browser-use，<br>复用已登录的 Chrome。/);
+  assert.match(i18n, /browser-use 0\.13\.7 \+ Browser Harness 0\.1\.8/);
   assert.match(i18n, /把本地 Agent<br>放到页面旁边。/);
   assert.match(styles, /html\[lang='zh-CN'\] \.workflow-copy h3/);
   assert.match(styles, /html\[lang='zh-CN'\] \.step-content h3/);

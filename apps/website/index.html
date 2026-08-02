@@ -131,15 +131,21 @@
           <div class="hero-copy">
             <div class="eyebrow">
               <span class="status-dot"></span>
-              <span data-i18n="hero.eyebrow">Open browser relay · local-first</span>
+              <span data-i18n="hero.eyebrow">Agent in Browser · Agent Use Browser</span>
             </div>
             <h1 data-i18n-html="hero.title">
               Your browser.
               <span>Agent-ready.</span>
             </h1>
             <p class="hero-lede" data-i18n="hero.lede">
-              Let AI agents work in the Chrome or Edge browser you already use—without a second
-              profile, repeated logins, or exported cookies.
+              Put local Agents beside the page, or let external Agents use the tabs you
+              authorize—without a second profile, repeated logins, or exported cookies.
+            </p>
+            <p class="hero-engines">
+              <span data-i18n="hero.engines.label">Two directions</span>
+              <strong>Agent in Browser</strong>
+              <i aria-hidden="true">·</i>
+              <strong>Agent Use Browser</strong>
             </p>
 
             <div class="hero-actions">
@@ -223,7 +229,7 @@
           <div
             class="hero-visual"
             role="img"
-            aria-label="Panerelay connects an agent-browser terminal and local Agent side panel to an explicitly authorized browser tab."
+            aria-label="Panerelay connects agent-browser, browser-use, and a local Agent side panel to an explicitly authorized browser tab."
             data-i18n-aria-label="visual.hero"
           >
             <div class="browser-window">
@@ -398,54 +404,126 @@
         <div class="shell">
           <div class="section-heading split-heading" data-reveal>
             <div>
-              <span class="section-index" data-i18n="workflows.index"> 02 · TWO DIRECTIONS </span>
-              <h2 data-i18n-html="workflows.title">Meet agents<br /><em>where you work.</em></h2>
+              <span class="section-index" data-i18n="workflows.index"> 02 · AGENT × BROWSER </span>
+              <h2 data-i18n-html="workflows.title">
+                Agent in Browser.<br /><em>Agent Use Browser.</em>
+              </h2>
             </div>
             <p data-i18n="workflows.lede">
-              Panerelay carries browser context both ways while the Bridge remains the local routing
-              and policy boundary.
+              Two directions, one local relay, and the same explicit boundary around every tab.
             </p>
           </div>
 
-          <article class="workflow workflow-cli" data-reveal>
-            <div class="workflow-copy">
-              <span class="workflow-label" data-i18n="workflow.cli.label">FROM ANY AGENT</span>
-              <h3 data-i18n-html="workflow.cli.title">Bring agent-browser into your daily tabs.</h3>
-              <p data-i18n="workflow.cli.body">
-                Any Agent that can run CLI or MCP tools can use agent-browser through Panerelay.
-                Snapshots, locators, input, waits, screenshots, tabs, and diagnostics stay in the
-                automation engine built for them.
+          <article class="workflow workflow-engines" data-engine-workflow data-reveal>
+            <div class="engine-intro">
+              <div>
+                <span class="workflow-label" data-i18n="workflow.cli.label">AGENT USE BROWSER</span>
+                <h3 data-i18n-html="workflow.external.title">
+                  Keep your automation engine.<br />Connect it to daily tabs.
+                </h3>
+              </div>
+              <p data-i18n="workflow.external.body">
+                agent-browser and browser-use keep their own automation semantics. Panerelay gives
+                either one the same explicitly authorized existing-browser connection.
               </p>
-              <ul class="check-list">
-                <li data-i18n="workflow.cli.point1">Works with shell-capable Agents</li>
-                <li data-i18n="workflow.cli.point2">
-                  Background automation does not steal visible tab focus
-                </li>
-                <li data-i18n="workflow.cli.point3">
-                  Current profile and login state stay in the browser
-                </li>
-              </ul>
-              <a
-                class="text-link"
-                href="https://agent-browser.dev/"
-                target="_blank"
-                rel="noreferrer"
-              >
-                <span data-i18n="workflow.cli.link">Read the agent-browser quickstart</span>
-                <span aria-hidden="true">↗</span>
-              </a>
             </div>
+
             <div
-              class="workflow-demo cli-demo"
-              role="img"
-              aria-label="CLI flow example"
-              data-i18n-aria-label="workflow.cli.demo"
+              class="engine-tabs"
+              role="tablist"
+              aria-label="Choose an automation engine"
+              data-i18n-aria-label="workflow.engine.group"
             >
-              <div class="code-window">
-                <div class="code-title">
-                  <span></span><span data-i18n="workflow.cli.terminal">terminal</span>
+              <button
+                id="engine-tab-agent-browser"
+                type="button"
+                role="tab"
+                aria-selected="true"
+                aria-controls="engine-panel-agent-browser"
+                tabindex="0"
+                data-engine-tab="agent-browser"
+                data-engine-select="agent-browser"
+              >
+                <span>agent-browser</span>
+                <small data-i18n="workflow.engine.explicit">Integration</small>
+              </button>
+              <button
+                id="engine-tab-browser-use"
+                type="button"
+                role="tab"
+                aria-selected="false"
+                aria-controls="engine-panel-browser-use"
+                tabindex="-1"
+                data-engine-tab="browser-use"
+                data-engine-select="browser-use"
+              >
+                <span>browser-use</span>
+                <small data-i18n="workflow.engine.explicit">Integration</small>
+              </button>
+            </div>
+
+            <div class="engine-panels">
+              <section
+                class="engine-panel"
+                id="engine-panel-agent-browser"
+                role="tabpanel"
+                aria-labelledby="engine-tab-agent-browser"
+                tabindex="0"
+                data-engine-panel="agent-browser"
+              >
+                <div class="workflow-copy">
+                  <span class="engine-status" data-i18n="workflow.engine.explicitIntegration"
+                    >Explicit integration</span
+                  >
+                  <h4 data-i18n-html="workflow.cli.title">
+                    Bring agent-browser into your daily tabs.
+                  </h4>
+                  <p data-i18n="workflow.cli.body">
+                    Let CLI- or MCP-capable Agents use agent-browser on the tabs you explicitly
+                    authorize. Native snapshots, refs, screenshots, network tools, and diagnostics
+                    stay intact.
+                  </p>
+                  <ul class="check-list">
+                    <li data-i18n="workflow.cli.point1">Works with shell-capable Agents</li>
+                    <li data-i18n="workflow.cli.point2">
+                      Background automation does not steal visible tab focus
+                    </li>
+                    <li data-i18n="workflow.cli.point3">
+                      Current profile and login state stay in the browser
+                    </li>
+                  </ul>
+                  <div class="engine-links">
+                    <a
+                      class="text-link"
+                      href="https://agent-browser.dev/"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <span data-i18n="workflow.cli.link">Read the agent-browser quickstart</span>
+                      <span aria-hidden="true">↗</span>
+                    </a>
+                    <a
+                      class="text-link"
+                      href="https://github.com/F-loat/panerelay/blob/main/docs/compatibility/agent-browser-0.33.0.md"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <span data-i18n="workflow.engine.compatibility">Compatibility evidence</span>
+                      <span aria-hidden="true">↗</span>
+                    </a>
+                  </div>
                 </div>
-                <pre><span class="code-comment" data-i18n="workflow.cli.comment1"># See the tabs you authorized</span>
+                <div
+                  class="workflow-demo cli-demo"
+                  role="img"
+                  aria-label="agent-browser CLI flow example"
+                  data-i18n-aria-label="workflow.cli.demo"
+                >
+                  <div class="code-window">
+                    <div class="code-title">
+                      <span></span><span data-i18n="workflow.cli.terminal">terminal</span>
+                    </div>
+                    <pre><span class="code-comment" data-i18n="workflow.cli.comment1"># See the tabs you authorized</span>
 <span class="code-prompt">$</span> agent-browser \
   <span class="code-green">--provider panerelay</span> tab list
 
@@ -455,16 +533,95 @@
 <span class="code-comment" data-i18n="workflow.cli.comment2"># Work without switching your visible tab</span>
 <span class="code-prompt">$</span> agent-browser <span class="code-green">--provider panerelay</span> \
   --session research snapshot -i</pre>
-              </div>
-              <div class="flow-labels" aria-hidden="true">
-                <span>Agent</span><i></i><span>agent-browser</span><i></i><span>Panerelay</span>
-              </div>
+                  </div>
+                  <div class="flow-labels" aria-hidden="true">
+                    <span>Agent</span><i></i><span>agent-browser</span><i></i><span>Panerelay</span>
+                  </div>
+                </div>
+              </section>
+
+              <section
+                class="engine-panel"
+                id="engine-panel-browser-use"
+                role="tabpanel"
+                aria-labelledby="engine-tab-browser-use"
+                tabindex="0"
+                data-engine-panel="browser-use"
+              >
+                <div class="workflow-copy">
+                  <span class="engine-status" data-i18n="workflow.engine.explicitIntegration"
+                    >Explicit integration</span
+                  >
+                  <h4 data-i18n-html="workflow.browserUse.title">
+                    Keep browser-use.<br />Reuse your signed-in Chrome.
+                  </h4>
+                  <p data-i18n="workflow.browserUse.body">
+                    Continue with the browser-use CLI, its CLI MCP, and native helpers. Panerelay
+                    supplies an authorized existing-Chrome connection without remote debugging or
+                    exported login state.
+                  </p>
+                  <ul class="check-list">
+                    <li data-i18n="workflow.browserUse.point1">
+                      Setup-managed CLI, additive Skill, and CLI MCP
+                    </li>
+                    <li data-i18n="workflow.browserUse.point2">
+                      Persistent private lane with visible release
+                    </li>
+                    <li data-i18n="workflow.browserUse.point3">
+                      Arbitrary Python SDK construction is outside this transparent path
+                    </li>
+                  </ul>
+                  <div class="engine-links">
+                    <a
+                      class="text-link"
+                      href="https://docs.browser-use.com/open-source/browser-use-cli"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <span data-i18n="workflow.browserUse.link"
+                        >Read the browser-use CLI docs</span
+                      >
+                      <span aria-hidden="true">↗</span>
+                    </a>
+                    <a
+                      class="text-link"
+                      href="https://github.com/F-loat/panerelay/blob/main/docs/compatibility/browser-use-0.13.7.md"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <span data-i18n="workflow.engine.compatibility">Compatibility evidence</span>
+                      <span aria-hidden="true">↗</span>
+                    </a>
+                  </div>
+                </div>
+                <div
+                  class="workflow-demo browser-use-demo"
+                  role="img"
+                  aria-label="browser-use flow example"
+                  data-i18n-aria-label="workflow.browserUse.demo"
+                >
+                  <div class="code-window">
+                    <div class="code-title"><span></span><span>browser-use</span></div>
+                    <pre><span class="code-comment" data-i18n="workflow.browserUse.comment1"># Keep using browser-use helpers</span>
+<span class="code-prompt">›</span> tabs = await browser.list_tabs()
+<span class="code-output" data-i18n="workflow.browserUse.output1">→ Existing Chrome · authorized tabs</span>
+
+<span class="code-prompt">›</span> await browser.switch_tab(tabs[1])
+<span class="code-prompt">›</span> await browser.click_at_xy(640, 420)
+
+<span class="code-output" data-i18n="workflow.browserUse.output2">✓ Control visible · release stays available</span></pre>
+                  </div>
+                  <div class="flow-labels" aria-hidden="true">
+                    <span>Agent</span><i></i><span>browser-use</span><i></i><span>Panerelay</span>
+                  </div>
+                </div>
+              </section>
             </div>
           </article>
 
           <article class="workflow workflow-panel" data-reveal>
             <div class="workflow-copy">
-              <span class="workflow-label" data-i18n="workflow.panel.label">FROM THE BROWSER</span>
+              <span class="workflow-label" data-i18n="workflow.panel.label">AGENT IN BROWSER</span>
               <h3 data-i18n-html="workflow.panel.title">Bring local Agents into the side panel.</h3>
               <p data-i18n="workflow.panel.body">
                 Open Panerelay beside the page and talk to installed local Agents without leaving
@@ -565,56 +722,311 @@
             <li data-reveal>
               <span class="step-index">02</span>
               <div class="step-content">
-                <span class="step-kicker" data-i18n="setup.bridge.label">LOCAL BRIDGE</span>
-                <h3 data-i18n="setup.bridge.title">Connect the browser to local tools.</h3>
+                <span class="step-kicker" data-i18n="setup.bridge.label">AGENT-FIRST SETUP</span>
+                <h3 data-i18n="setup.bridge.title">Ask your Agent to connect the workflow.</h3>
                 <p data-i18n="setup.bridge.body">
-                  One setup command installs or updates the user-scoped Native Messaging
-                  integration. No administrator account is required.
+                  Choose the tools you want to use, then paste the prompt into your Agent. It can
+                  inspect the environment, install what is missing, configure Panerelay, and verify
+                  the result.
                 </p>
                 <div
-                  class="command command-inline"
-                  role="group"
-                  aria-label="Local setup command"
-                  data-i18n-aria-label="command.group"
+                  class="agent-handoff-picker"
+                  role="tablist"
+                  aria-label="Choose what your Agent should configure"
+                  data-i18n-aria-label="setup.agent.group"
                 >
-                  <span class="command-prompt" aria-hidden="true">$</span>
-                  <code>npx --yes @panerelay/setup</code>
                   <button
-                    class="copy-button"
+                    id="handoff-tab-agent-browser"
                     type="button"
-                    aria-label="Copy setup command"
-                    data-i18n-aria-label="command.copy"
-                    data-copy-command="npx --yes @panerelay/setup"
-                    data-copied="false"
+                    role="tab"
+                    aria-selected="true"
+                    aria-controls="handoff-panel-agent-browser"
+                    tabindex="0"
+                    data-handoff-tab="agent-browser"
+                    data-handoff-select="agent-browser"
+                    data-active="true"
                   >
-                    <svg class="copy-icon" viewBox="0 0 20 20" aria-hidden="true">
-                      <rect
-                        x="6.5"
-                        y="6.5"
-                        width="9"
-                        height="9"
-                        rx="1.5"
-                        fill="none"
-                        stroke="currentColor"
-                      />
-                      <path
-                        d="M4.5 12.5h-1a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1"
-                        fill="none"
-                        stroke="currentColor"
-                      />
-                    </svg>
-                    <svg class="check-icon" viewBox="0 0 20 20" aria-hidden="true">
-                      <path
-                        d="m4 10 4 4 8-9"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="1.8"
-                      />
-                    </svg>
-                    <span class="copy-label" data-copy-label data-i18n="command.copyShort"
-                      >Copy</span
-                    >
+                    <span data-i18n="setup.agent.agentBrowser">agent-browser</span>
                   </button>
+                  <button
+                    id="handoff-tab-browser-use"
+                    type="button"
+                    role="tab"
+                    aria-selected="false"
+                    aria-controls="handoff-panel-browser-use"
+                    tabindex="-1"
+                    data-handoff-tab="browser-use"
+                    data-handoff-select="browser-use"
+                    data-active="false"
+                  >
+                    <span data-i18n="setup.agent.browserUse">browser-use</span>
+                  </button>
+                  <button
+                    id="handoff-tab-both"
+                    type="button"
+                    role="tab"
+                    aria-selected="false"
+                    aria-controls="handoff-panel-both"
+                    tabindex="-1"
+                    data-handoff-tab="both"
+                    data-handoff-select="both"
+                    data-active="false"
+                  >
+                    <span data-i18n="setup.agent.both">Use both</span>
+                  </button>
+                </div>
+
+                <div class="agent-handoff-panels">
+                  <section
+                    class="agent-handoff-panel"
+                    id="handoff-panel-agent-browser"
+                    role="tabpanel"
+                    aria-labelledby="handoff-tab-agent-browser"
+                    tabindex="0"
+                    data-handoff-panel="agent-browser"
+                  >
+                    <span class="agent-prompt-label" data-i18n="setup.agent.promptLabel"
+                      >PROMPT FOR YOUR AGENT</span
+                    >
+                    <div
+                      class="agent-prompt"
+                      role="group"
+                      aria-label="Agent prompt for agent-browser setup"
+                      data-i18n-aria-label="prompt.group.agentBrowser"
+                    >
+                      <p data-i18n="setup.agentPrompt.agentBrowser">
+                        Set up Panerelay so my Agent can use agent-browser with my existing Chrome
+                        or Edge browser. Inspect the local environment first. Install or update
+                        agent-browser from its official source only if needed, then use Panerelay's
+                        official setup tool to enable the agent-browser integration. Run the
+                        relevant Panerelay doctor check and verify that agent-browser can list only
+                        the tabs I authorize. Do not change unrelated Agent settings, and ask me to
+                        authorize a tab in the Panerelay extension when required.
+                      </p>
+                      <button
+                        class="copy-button agent-prompt-copy"
+                        type="button"
+                        aria-label="Copy Agent setup prompt"
+                        data-i18n-aria-label="prompt.copy"
+                        data-copy-text-key="setup.agentPrompt.agentBrowser"
+                        data-copy-label-key="prompt.copyShort"
+                        data-copy-success-key="prompt.copySuccess"
+                        data-copied="false"
+                      >
+                        <svg class="copy-icon" viewBox="0 0 20 20" aria-hidden="true">
+                          <rect
+                            x="6.5"
+                            y="6.5"
+                            width="9"
+                            height="9"
+                            rx="1.5"
+                            fill="none"
+                            stroke="currentColor"
+                          />
+                          <path
+                            d="M4.5 12.5h-1a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1"
+                            fill="none"
+                            stroke="currentColor"
+                          />
+                        </svg>
+                        <svg class="check-icon" viewBox="0 0 20 20" aria-hidden="true">
+                          <path
+                            d="m4 10 4 4 8-9"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.8"
+                          />
+                        </svg>
+                        <span class="copy-label" data-copy-label data-i18n="prompt.copyShort"
+                          >Copy prompt</span
+                        >
+                      </button>
+                    </div>
+                  </section>
+
+                  <section
+                    class="agent-handoff-panel"
+                    id="handoff-panel-browser-use"
+                    role="tabpanel"
+                    aria-labelledby="handoff-tab-browser-use"
+                    tabindex="0"
+                    data-handoff-panel="browser-use"
+                  >
+                    <span class="agent-prompt-label" data-i18n="setup.agent.promptLabel"
+                      >PROMPT FOR YOUR AGENT</span
+                    >
+                    <div
+                      class="agent-prompt"
+                      role="group"
+                      aria-label="Agent prompt for browser-use setup"
+                      data-i18n-aria-label="prompt.group.browserUse"
+                    >
+                      <p data-i18n="setup.agentPrompt.browserUse">
+                        Set up Panerelay so my Agent can use browser-use with my existing signed-in
+                        Chrome browser. Inspect the local environment first. Install or update
+                        browser-use from its official source only if needed, then use Panerelay's
+                        official setup tool to enable the browser-use integration. Run the relevant
+                        Panerelay doctor check and verify the Extension-backed connection. Preserve
+                        browser-use's native workflow, do not change unrelated Agent settings, and
+                        ask me to authorize a tab in the Panerelay extension when required.
+                      </p>
+                      <button
+                        class="copy-button agent-prompt-copy"
+                        type="button"
+                        aria-label="Copy Agent setup prompt"
+                        data-i18n-aria-label="prompt.copy"
+                        data-copy-text-key="setup.agentPrompt.browserUse"
+                        data-copy-label-key="prompt.copyShort"
+                        data-copy-success-key="prompt.copySuccess"
+                        data-copied="false"
+                      >
+                        <svg class="copy-icon" viewBox="0 0 20 20" aria-hidden="true">
+                          <rect
+                            x="6.5"
+                            y="6.5"
+                            width="9"
+                            height="9"
+                            rx="1.5"
+                            fill="none"
+                            stroke="currentColor"
+                          />
+                          <path
+                            d="M4.5 12.5h-1a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1"
+                            fill="none"
+                            stroke="currentColor"
+                          />
+                        </svg>
+                        <svg class="check-icon" viewBox="0 0 20 20" aria-hidden="true">
+                          <path
+                            d="m4 10 4 4 8-9"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.8"
+                          />
+                        </svg>
+                        <span class="copy-label" data-copy-label data-i18n="prompt.copyShort"
+                          >Copy prompt</span
+                        >
+                      </button>
+                    </div>
+                  </section>
+
+                  <section
+                    class="agent-handoff-panel"
+                    id="handoff-panel-both"
+                    role="tabpanel"
+                    aria-labelledby="handoff-tab-both"
+                    tabindex="0"
+                    data-handoff-panel="both"
+                  >
+                    <span class="agent-prompt-label" data-i18n="setup.agent.promptLabel"
+                      >PROMPT FOR YOUR AGENT</span
+                    >
+                    <div
+                      class="agent-prompt"
+                      role="group"
+                      aria-label="Agent prompt for agent-browser and browser-use setup"
+                      data-i18n-aria-label="prompt.group.both"
+                    >
+                      <p data-i18n="setup.agentPrompt.both">
+                        Set up Panerelay for both agent-browser and browser-use with my existing
+                        browser. Inspect the local environment first. Install or update each tool
+                        from its official source only if needed, then use Panerelay's official setup
+                        tool to enable both integrations together. Run the relevant doctor checks
+                        and verify each connection. Do not change unrelated Agent settings, and ask
+                        me to authorize a tab in the Panerelay extension when required.
+                      </p>
+                      <button
+                        class="copy-button agent-prompt-copy"
+                        type="button"
+                        aria-label="Copy Agent setup prompt"
+                        data-i18n-aria-label="prompt.copy"
+                        data-copy-text-key="setup.agentPrompt.both"
+                        data-copy-label-key="prompt.copyShort"
+                        data-copy-success-key="prompt.copySuccess"
+                        data-copied="false"
+                      >
+                        <svg class="copy-icon" viewBox="0 0 20 20" aria-hidden="true">
+                          <rect
+                            x="6.5"
+                            y="6.5"
+                            width="9"
+                            height="9"
+                            rx="1.5"
+                            fill="none"
+                            stroke="currentColor"
+                          />
+                          <path
+                            d="M4.5 12.5h-1a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1"
+                            fill="none"
+                            stroke="currentColor"
+                          />
+                        </svg>
+                        <svg class="check-icon" viewBox="0 0 20 20" aria-hidden="true">
+                          <path
+                            d="m4 10 4 4 8-9"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.8"
+                          />
+                        </svg>
+                        <span class="copy-label" data-copy-label data-i18n="prompt.copyShort"
+                          >Copy prompt</span
+                        >
+                      </button>
+                    </div>
+                  </section>
+                </div>
+
+                <div class="manual-setup">
+                  <strong data-i18n="setup.agent.manual"
+                    >Prefer to install Panerelay yourself?</strong
+                  >
+                  <div
+                    class="command command-inline"
+                    role="group"
+                    aria-label="Panerelay local integration setup command"
+                    data-i18n-aria-label="command.group.base"
+                  >
+                    <span class="command-prompt" aria-hidden="true">$</span>
+                    <code>npx --yes @panerelay/setup</code>
+                    <button
+                      class="copy-button"
+                      type="button"
+                      aria-label="Copy setup command"
+                      data-i18n-aria-label="command.copy"
+                      data-copy-command="npx --yes @panerelay/setup"
+                      data-copied="false"
+                    >
+                      <svg class="copy-icon" viewBox="0 0 20 20" aria-hidden="true">
+                        <rect
+                          x="6.5"
+                          y="6.5"
+                          width="9"
+                          height="9"
+                          rx="1.5"
+                          fill="none"
+                          stroke="currentColor"
+                        />
+                        <path
+                          d="M4.5 12.5h-1a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1"
+                          fill="none"
+                          stroke="currentColor"
+                        />
+                      </svg>
+                      <svg class="check-icon" viewBox="0 0 20 20" aria-hidden="true">
+                        <path
+                          d="m4 10 4 4 8-9"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="1.8"
+                        />
+                      </svg>
+                      <span class="copy-label" data-copy-label data-i18n="command.copyShort"
+                        >Copy</span
+                      >
+                    </button>
+                  </div>
                 </div>
               </div>
               <div class="step-visual bridge-visual" aria-hidden="true">
@@ -757,19 +1169,39 @@
               <span class="fact-icon fact-icon-status" aria-hidden="true"></span>
               <h3 data-i18n="trust.compatibility.title">Compatibility, without hand-waving.</h3>
               <p data-i18n-html="trust.compatibility.body">
-                agent-browser 0.33.0 is the pinned evidence baseline. Chrome has recorded
-                version-specific classifications; Edge remains <code>Forwarded</code> pending
-                representative acceptance.
+                Exact evidence baselines: agent-browser 0.33.0 and browser-use 0.13.7 with Browser
+                Harness 0.1.8. Edge remains <code>Forwarded</code> pending representative
+                acceptance.
               </p>
-              <a
-                class="text-link"
-                href="https://github.com/F-loat/panerelay/blob/main/docs/compatibility/browser-platforms.md"
-                target="_blank"
-                rel="noreferrer"
-              >
-                <span data-i18n="trust.compatibility.link"> Inspect the compatibility record </span>
-                <span aria-hidden="true">↗</span>
-              </a>
+              <div class="compatibility-links">
+                <a
+                  class="text-link"
+                  href="https://github.com/F-loat/panerelay/blob/main/docs/compatibility/browser-platforms.md"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <span data-i18n="trust.compatibility.platforms">Chrome &amp; Edge</span>
+                  <span aria-hidden="true">↗</span>
+                </a>
+                <a
+                  class="text-link"
+                  href="https://github.com/F-loat/panerelay/blob/main/docs/compatibility/agent-browser-0.33.0.md"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <span>agent-browser 0.33.0</span>
+                  <span aria-hidden="true">↗</span>
+                </a>
+                <a
+                  class="text-link"
+                  href="https://github.com/F-loat/panerelay/blob/main/docs/compatibility/browser-use-0.13.7.md"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <span>browser-use 0.13.7</span>
+                  <span aria-hidden="true">↗</span>
+                </a>
+              </div>
             </article>
           </div>
         </div>

@@ -457,6 +457,33 @@ pre {
   line-height: 1.5;
 }
 
+.hero-engines {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  margin: 18px 0 0;
+  color: var(--muted-strong);
+  font-family: var(--mono);
+  font-size: 11px;
+}
+
+.hero-engines span {
+  margin-right: 4px;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+.hero-engines strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.hero-engines i {
+  color: var(--green);
+  font-style: normal;
+}
+
 .hero-actions,
 .final-actions {
   display: flex;
@@ -1289,6 +1316,150 @@ pre {
   margin-top: 24px;
 }
 
+.workflow-engines {
+  display: block;
+  min-height: 0;
+}
+
+.engine-intro {
+  display: grid;
+  align-items: end;
+  padding: clamp(42px, 5vw, 68px);
+  border-bottom: 1px solid var(--line);
+  grid-template-columns: 1fr minmax(280px, 0.7fr);
+  gap: clamp(32px, 6vw, 90px);
+}
+
+.engine-intro .workflow-label {
+  display: block;
+}
+
+.engine-intro h3 {
+  max-width: 660px;
+  margin: 0;
+  font-size: clamp(38px, 4vw, 56px);
+  font-weight: 600;
+  letter-spacing: -0.055em;
+  line-height: 1;
+}
+
+.engine-intro > p {
+  max-width: 500px;
+  margin: 0 0 3px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.engine-tabs {
+  display: none;
+  padding: 12px;
+  border-bottom: 1px solid var(--line);
+  background: #0c110f;
+  gap: 8px;
+}
+
+.js .engine-tabs {
+  display: flex;
+}
+
+.engine-tabs button,
+.agent-handoff-picker button {
+  display: flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 0 18px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted-strong);
+  cursor: pointer;
+  font-family: var(--mono);
+}
+
+.engine-tabs button {
+  flex: 1;
+}
+
+.engine-tabs button:hover,
+.agent-handoff-picker button:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.engine-tabs button[data-active='true'],
+.agent-handoff-picker button[data-active='true'] {
+  border-color: rgb(32 230 143 / 55%);
+  background: rgb(32 230 143 / 10%);
+  color: var(--green-soft);
+}
+
+.engine-tabs small,
+.agent-handoff-picker small {
+  color: var(--muted);
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.engine-panel {
+  display: grid;
+  min-height: 650px;
+  grid-template-columns: 0.88fr 1.12fr;
+}
+
+.engine-panel + .engine-panel {
+  border-top: 1px solid var(--line);
+}
+
+.engine-panel[hidden],
+.agent-handoff-panel[hidden] {
+  display: none;
+}
+
+.engine-status {
+  margin-bottom: 20px;
+  color: var(--green);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.workflow-copy h4 {
+  max-width: 500px;
+  margin: 0;
+  font-size: clamp(35px, 3.5vw, 50px);
+  font-weight: 600;
+  letter-spacing: -0.055em;
+  line-height: 1.02;
+}
+
+.engine-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+}
+
+.browser-use-demo {
+  background:
+    radial-gradient(circle at 50% 35%, rgb(106 217 255 / 9%), transparent 37%),
+    linear-gradient(135deg, #111714, #090d0b);
+}
+
+.browser-use-demo::before {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgb(244 247 245 / 3%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(244 247 245 / 3%) 1px, transparent 1px);
+  background-size: 42px 42px;
+  content: '';
+  mask-image: radial-gradient(circle, black, transparent 78%);
+}
+
 .workflow-copy {
   display: flex;
   align-items: flex-start;
@@ -1753,6 +1924,89 @@ pre {
 
 .command-inline {
   width: min(100%, 475px);
+}
+
+.agent-handoff-picker {
+  display: none;
+  width: min(100%, 540px);
+  gap: 8px;
+  margin-top: 28px;
+}
+
+.js .agent-handoff-picker {
+  display: flex;
+}
+
+.agent-handoff-picker button {
+  min-width: 0;
+  flex: 1;
+  justify-content: center;
+  padding: 0 13px;
+  font-size: 11px;
+}
+
+.agent-handoff-panels {
+  display: grid;
+  gap: 18px;
+  margin-top: 20px;
+}
+
+.agent-handoff-panel + .agent-handoff-panel {
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.agent-prompt-label,
+.manual-setup > strong {
+  display: block;
+  color: var(--muted-strong);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.agent-prompt {
+  position: relative;
+  width: min(100%, 540px);
+  margin-top: 9px;
+  padding: 17px 122px 17px 18px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: rgb(11 16 13 / 88%);
+  box-shadow: inset 0 1px 0 rgb(244 247 245 / 4%);
+}
+
+.agent-prompt p {
+  max-width: none;
+  margin: 0;
+  color: var(--muted-strong);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.agent-prompt-copy {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+
+.manual-setup {
+  width: min(100%, 540px);
+  padding-top: 20px;
+  margin-top: 20px;
+  border-top: 1px solid var(--line);
+}
+
+.manual-setup .command {
+  margin-top: 9px;
+}
+
+.compatibility-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
 }
 
 .step-visual {
@@ -2409,6 +2663,15 @@ pre {
     grid-template-columns: 1fr;
   }
 
+  .engine-intro,
+  .engine-panel {
+    grid-template-columns: 1fr;
+  }
+
+  .engine-intro {
+    align-items: start;
+  }
+
   .workflow-demo {
     min-height: 590px;
     border-top: 1px solid var(--line);
@@ -2567,6 +2830,15 @@ pre {
 
   .workflow-copy h3 {
     font-size: 39px;
+  }
+
+  .workflow-copy h4,
+  .engine-intro h3 {
+    font-size: 39px;
+  }
+
+  .engine-intro {
+    padding: 50px 28px;
   }
 
   .setup-steps {
@@ -2745,6 +3017,37 @@ pre {
     font-size: 35px;
   }
 
+  .workflow-copy h4,
+  .engine-intro h3 {
+    font-size: 34px;
+  }
+
+  .engine-intro {
+    padding: 44px 23px;
+  }
+
+  .engine-tabs {
+    padding: 8px;
+  }
+
+  .engine-tabs button {
+    min-height: 58px;
+    align-items: flex-start;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+    padding: 8px 12px;
+  }
+
+  .agent-handoff-picker {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .agent-prompt {
+    padding: 16px 58px 16px 16px;
+  }
+
   .workflow-demo {
     min-height: 505px;
   }
@@ -2894,6 +3197,14 @@ html[lang='zh-CN'] .workflow-copy h3 {
   text-wrap: balance;
 }
 
+html[lang='zh-CN'] .workflow-copy h4,
+html[lang='zh-CN'] .engine-intro h3 {
+  font-size: clamp(32px, 3vw, 44px);
+  letter-spacing: -0.045em;
+  line-height: 1.12;
+  text-wrap: balance;
+}
+
 html[lang='zh-CN'] .step-content h3 {
   font-size: clamp(30px, 2.85vw, 40px);
   letter-spacing: -0.04em;
@@ -2955,6 +3266,11 @@ html[lang='zh-CN'] .final-content > p {
 
   html[lang='zh-CN'] .workflow-copy h3 {
     font-size: 32px;
+  }
+
+  html[lang='zh-CN'] .workflow-copy h4,
+  html[lang='zh-CN'] .engine-intro h3 {
+    font-size: 31px;
   }
 
   html[lang='zh-CN'] .step-content h3 {

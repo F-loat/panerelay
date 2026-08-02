@@ -132,30 +132,193 @@ menuMedia.addEventListener('change', event => {
   }
 });
 
-const copyButtons = document.querySelectorAll<HTMLButtonElement>('[data-copy-command]');
+type AutomationEngine = 'agent-browser' | 'browser-use';
+
+const engineWorkflow = document.querySelector<HTMLElement>('[data-engine-workflow]');
+const engineSelectors = document.querySelectorAll<HTMLButtonElement>('[data-engine-select]');
+const engineTabs = document.querySelectorAll<HTMLButtonElement>('[data-engine-tab]');
+const enginePanels = document.querySelectorAll<HTMLElement>('[data-engine-panel]');
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+const ENGINE_ROTATION_INTERVAL_MS = 6_000;
+let activeEngine: AutomationEngine = 'agent-browser';
+let engineSelectionIsManual = false;
+let engineWorkflowHovered = false;
+let engineWorkflowFocused = false;
+let engineRotationTimer: number | undefined;
+
+function isAutomationEngine(value: string | undefined): value is AutomationEngine {
+  return value === 'agent-browser' || value === 'browser-use';
+}
+
+function clearEngineRotation(): void {
+  if (engineRotationTimer !== undefined) {
+    window.clearTimeout(engineRotationTimer);
+    engineRotationTimer = undefined;
+  }
+}
+
+function scheduleEngineRotation(): void {
+  clearEngineRotation();
+  if (
+    !engineWorkflow ||
+    engineSelectionIsManual ||
+    engineWorkflowHovered ||
+    engineWorkflowFocused ||
+    reducedMotion.matches
+  ) {
+    return;
+  }
+  engineRotationTimer = window.setTimeout(() => {
+    setActiveEngine(activeEngine === 'agent-browser' ? 'browser-use' : 'agent-browser', false);
+    scheduleEngineRotation();
+  }, ENGINE_ROTATION_INTERVAL_MS);
+}
+
+function setActiveEngine(engine: AutomationEngine, manual: boolean): void {
+  activeEngine = engine;
+  if (manual) engineSelectionIsManual = true;
+
+  for (const selector of engineSelectors) {
+    const selected = selector.dataset.engineSelect === engine;
+    selector.dataset.active = String(selected);
+    if (selector.getAttribute('role') === 'tab') {
+      selector.setAttribute('aria-selected', String(selected));
+      selector.tabIndex = selected ? 0 : -1;
+    }
+  }
+  for (const panel of enginePanels) {
+    panel.hidden = panel.dataset.enginePanel !== engine;
+  }
+
+  if (manual) clearEngineRotation();
+}
+
+for (const selector of engineSelectors) {
+  selector.addEventListener('click', () => {
+    const engine = selector.dataset.engineSelect;
+    if (isAutomationEngine(engine)) setActiveEngine(engine, true);
+  });
+}
+
+for (const tab of engineTabs) {
+  tab.addEventListener('keydown', event => {
+    const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+    if (!keys.includes(event.key)) return;
+    event.preventDefault();
+    const engine =
+      event.key === 'ArrowRight' || event.key === 'End' ? 'browser-use' : 'agent-browser';
+    setActiveEngine(engine, true);
+    [...engineTabs].find(candidate => candidate.dataset.engineTab === engine)?.focus();
+  });
+}
+
+engineWorkflow?.addEventListener('pointerenter', () => {
+  engineWorkflowHovered = true;
+  clearEngineRotation();
+});
+engineWorkflow?.addEventListener('pointerleave', () => {
+  engineWorkflowHovered = false;
+  scheduleEngineRotation();
+});
+engineWorkflow?.addEventListener('focusin', () => {
+  engineWorkflowFocused = true;
+  clearEngineRotation();
+});
+engineWorkflow?.addEventListener('focusout', event => {
+  if (engineWorkflow.contains(event.relatedTarget as Node | null)) return;
+  engineWorkflowFocused = false;
+  scheduleEngineRotation();
+});
+reducedMotion.addEventListener('change', event => {
+  if (event.matches) clearEngineRotation();
+  else scheduleEngineRotation();
+});
+
+setActiveEngine(activeEngine, false);
+scheduleEngineRotation();
+
+type HandoffChoice = AutomationEngine | 'both';
+
+const handoffSelectors = document.querySelectorAll<HTMLButtonElement>('[data-handoff-select]');
+const handoffTabs = document.querySelectorAll<HTMLButtonElement>('[data-handoff-tab]');
+const handoffPanels = document.querySelectorAll<HTMLElement>('[data-handoff-panel]');
+
+function isHandoffChoice(value: string | undefined): value is HandoffChoice {
+  return isAutomationEngine(value) || value === 'both';
+}
+
+function setActiveHandoff(choice: HandoffChoice): void {
+  for (const selector of handoffSelectors) {
+    const selected = selector.dataset.handoffSelect === choice;
+    selector.dataset.active = String(selected);
+    selector.setAttribute('aria-selected', String(selected));
+    selector.tabIndex = selected ? 0 : -1;
+  }
+  for (const panel of handoffPanels) {
+    panel.hidden = panel.dataset.handoffPanel !== choice;
+  }
+}
+
+for (const selector of handoffSelectors) {
+  selector.addEventListener('click', () => {
+    const choice = selector.dataset.handoffSelect;
+    if (isHandoffChoice(choice)) setActiveHandoff(choice);
+  });
+}
+
+for (const tab of handoffTabs) {
+  tab.addEventListener('keydown', event => {
+    const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+    if (!keys.includes(event.key)) return;
+    event.preventDefault();
+
+    const choices: HandoffChoice[] = ['agent-browser', 'browser-use', 'both'];
+    const currentIndex = choices.findIndex(choice => choice === tab.dataset.handoffTab);
+    const nextIndex =
+      event.key === 'Home'
+        ? 0
+        : event.key === 'End'
+          ? choices.length - 1
+          : (currentIndex + (event.key === 'ArrowRight' ? 1 : -1) + choices.length) %
+            choices.length;
+    const nextChoice = choices[nextIndex] ?? 'agent-browser';
+    setActiveHandoff(nextChoice);
+    [...handoffTabs].find(candidate => candidate.dataset.handoffTab === nextChoice)?.focus();
+  });
+}
+
+setActiveHandoff('agent-browser');
+
+const copyButtons = document.querySelectorAll<HTMLButtonElement>(
+  '[data-copy-command], [data-copy-text-key]',
+);
 const copyStatus = document.querySelector<HTMLElement>('[data-copy-status]');
 
 for (const button of copyButtons) {
   button.addEventListener('click', async () => {
-    const command = button.dataset.copyCommand;
-    if (!command) {
+    const textKey = button.dataset.copyTextKey as TranslationKey | undefined;
+    const textToCopy = textKey ? translation(textKey) : button.dataset.copyCommand;
+    if (!textToCopy) {
       return;
     }
 
     try {
-      await navigator.clipboard.writeText(command);
+      await navigator.clipboard.writeText(textToCopy);
       button.dataset.copied = 'true';
       const label = button.querySelector<HTMLElement>('[data-copy-label]');
       if (label) {
         label.textContent = translation('command.copied');
       }
       if (copyStatus) {
-        copyStatus.textContent = translation('command.copySuccess');
+        const successKey = (button.dataset.copySuccessKey ??
+          'command.copySuccess') as TranslationKey;
+        copyStatus.textContent = translation(successKey);
       }
       window.setTimeout(() => {
         button.dataset.copied = 'false';
         if (label) {
-          label.textContent = translation('command.copyShort');
+          const labelKey = (button.dataset.copyLabelKey ?? 'command.copyShort') as TranslationKey;
+          label.textContent = translation(labelKey);
         }
       }, 1800);
     } catch {

@@ -1,6 +1,6 @@
 ## Context
 
-See `proposal.md` for the motivation. Panerelay currently has a pnpm workspace, a Vite-based Extension application, extensive repository documentation, and no public website application or GitHub Pages configuration. The website must explain existing behavior without changing the durable authorization, ownership, or browser-compatibility decisions in RFC-0001 through RFC-0005 and the version-specific records under `docs/compatibility/`.
+See `proposal.md` for the motivation. Panerelay now has a vanilla Vite website implementation and GitHub Pages workflow awaiting production deployment, but its public narrative still starts from individual integrations instead of the product outcomes. The refreshed journey must explain Panerelay first as Agent in Browser and Agent Use Browser, then explain both automation engines without changing the durable authorization, ownership, or compatibility decisions in RFC-0001 through RFC-0007 and the version-specific records under `docs/compatibility/`.
 
 The two reference sites establish a useful developer-tool pattern: a restrained dark palette, a single strong value statement, code as product proof, and a short sequence of capability sections. Panerelay needs its own visual identity and a more prominent trust model because it operates in a user's daily browser.
 
@@ -9,6 +9,8 @@ The two reference sites establish a useful developer-tool pattern: a restrained 
 **Goals:**
 
 - Deliver a polished, responsive single-page project site with clear install and source paths.
+- Present Agent in Browser and Agent Use Browser as the core product model, with agent-browser and Browser Use as peer choices inside the latter.
+- Make repository entry documentation answer “which outcome do I want, how do I install Panerelay, and what should I ask my Agent to configure?” before explaining internals.
 - Keep the initial page fully useful as static HTML, with JavaScript limited to progressive enhancement.
 - Make the permission model, revocation behavior, credential boundary, and browser-ownership limits visible rather than hiding them in secondary documentation.
 - Present the complete product narrative in English and Simplified Chinese without introducing a localization service or client-rendered application shell.
@@ -20,6 +22,7 @@ The two reference sites establish a useful developer-tool pattern: a restrained 
 - Build a full documentation portal, blog, CMS, hosted application, telemetry pipeline, external localization platform, or arbitrary locale catalog.
 - Reimplement browser automation visuals with captured user data or claim behavior beyond the accepted RFCs and compatibility records.
 - Change any Extension, Bridge, protocol, setup, release, or browser-control behavior.
+- Claim that Panerelay transparently intercepts arbitrary Browser Use Python SDK construction or that Edge Browser Use has a verified baseline.
 
 ## Decisions
 
@@ -36,8 +39,8 @@ The page will contain:
 1. a compact navigation and direct install/source actions;
 2. a hero that states the existing-browser value proposition and exposes the setup command;
 3. a browser-and-Agent relay illustration built from HTML/CSS/SVG rather than product screenshots;
-4. separate sections for authorized agent-browser control and browser side-panel Agents, with the agent-browser workflow linking directly to its upstream website;
-5. a short installation sequence;
+4. paired Agent in Browser and Agent Use Browser workflows, with an agent-browser/Browser Use comparison inside the latter;
+5. a short product installation sequence followed by Agent-first workflow handoffs;
 6. a trust and compatibility section that links to the authoritative records;
 7. a final call to action and repository-oriented footer.
 
@@ -51,9 +54,23 @@ The design borrows the reference sites' clarity and developer-tool density, not 
 
 ### Keep JavaScript optional
 
-HTML will contain the complete English content and usable links. TypeScript will handle only language selection, the mobile navigation state, setup-command copying, and small view-state enhancements. Copy status will use an `aria-live` region, and navigation and language state will remain keyboard-operable.
+HTML will contain the complete English content, both engine panels, the base product setup command, all Agent handoff prompts, and usable links. TypeScript will handle only language selection, the mobile navigation state, command and prompt copying, the engine tab enhancement, and small view-state enhancements. Copy status will use an `aria-live` region, and navigation, language, and engine state will remain keyboard-operable.
 
 Alternative considered: heavier scroll and canvas effects would make a more theatrical page, but increase failure modes, accessibility cost, and bundle size without strengthening the product explanation.
+
+### Keep engine choice local to the external-Agent workflow
+
+The global header remains product navigation. A segmented `tablist` inside the external-Agent card switches between agent-browser and Browser Use because these are automation-engine choices, not site-wide modes. The no-JavaScript baseline renders both panels in document order. Enhancement hides the inactive panel, maintains `aria-selected`, `tabindex`, and `aria-controls`, and supports arrow-key navigation.
+
+The comparison may advance every six seconds only before visitor interaction. Pointer hover or focus pauses the timer; manual selection permanently stops it for that page load; `prefers-reduced-motion: reduce` prevents it from starting. The setup section keeps one human-facing product command and offers Agent handoff choices for agent-browser, Browser Use, or both. Selecting a handoff changes the visible natural-language prompt, not the product installation command, and all prompts remain present in source HTML.
+
+Alternative considered: a header-level engine switch would incorrectly imply a global product mode and would compete with language and navigation controls on narrow screens. Permanently animated carousels were rejected because they interrupt reading and conflict with accessible tab behavior.
+
+### Lead installation with the Agent
+
+The website and root READMEs will show one manual Panerelay installation: install the Extension, run engine-neutral setup, and authorize a tab. Workflow-specific setup is offered as natural-language text that users can paste into their existing Agent. Separate handoffs cover agent-browser, Browser Use, and both; each tells the Agent to inspect the environment, install or update the selected upstream tool only when needed, configure the corresponding Panerelay integration, verify the result, and preserve explicit tab authorization.
+
+Package READMEs still provide technical CLI reference for explicit adapter flags, but those flags are not promoted as competing human installation paths. Version copy distinguishes minimum supported versions from the exact verified records. Browser Use text names the setup-managed CLI, additive Skill, and CLI MCP, and keeps arbitrary Python SDK construction outside the claimed transparent path. The existing `docs/compatibility/` files remain the dense evidence source and are linked rather than duplicated.
 
 ### Keep bilingual content in a small local dictionary
 
@@ -77,7 +94,7 @@ Alternative considered: a `gh-pages` branch would add generated commits and long
 
 Node tests will assert essential source and build contracts, including calls to action, compatibility language, bilingual dictionary completeness, preference behavior, and relative output assets. Workspace checks will cover formatting, lint, tests, and build. Browser validation will exercise desktop and 375-pixel layouts, language switching and reload persistence, keyboard focus, copy behavior, console errors, accessibility checks, and the final production URL.
 
-The website will state agent-browser 0.33.0 as the pinned evidence baseline. Chrome claims will link to their recorded classifications; Edge will remain `Forwarded`. `Verified`, `Forwarded`, `Partial`, and `Unsupported` keep their meanings from the existing compatibility records and are not redefined by this site.
+The website will state agent-browser 0.33.0 and Browser Use 0.13.7 with Browser Harness 0.1.8 as pinned evidence baselines. Chrome claims will link to their recorded classifications; Edge will remain `Forwarded`. `Verified`, `Forwarded`, `Partial`, and `Unsupported` keep their meanings from the existing compatibility records and are not redefined by this site.
 
 ## Risks / Trade-offs
 
@@ -87,6 +104,8 @@ The website will state agent-browser 0.33.0 as the pinned evidence baseline. Chr
 - [Static illustrations may imply capabilities too broadly] → Label flows and browser states explicitly and avoid fabricated performance metrics or unsupported integrations.
 - [Relative assets can behave differently between root preview and project hosting] → use relative Vite output, inspect the built HTML, and test both local preview and production.
 - [English headline sizing can orphan fixed-width Chinese glyphs at intermediate widths] → Give `zh-CN` container-specific type scales and deliberate trust-statement breaks, then verify intentional phrase wrapping at 1024, 375, and wide desktop viewports.
+- [Automatic engine rotation can move content while it is being read] → Keep the interval restrained, pause on hover/focus, stop after interaction, and disable it under reduced motion.
+- [Peer presentation can overstate Browser Use coverage] → Label it optional, link its exact compatibility record, and keep the CLI/Skill/CLI MCP and Python SDK boundaries in visible copy.
 
 ## Migration Plan
 
