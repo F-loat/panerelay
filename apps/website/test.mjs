@@ -53,9 +53,8 @@ test('source contains the complete product and installation journey', async () =
   assert.match(html, /docs\/compatibility\/browser-platforms\.md/);
   assert.match(html, /docs\/compatibility\/browser-use-0\.13\.7\.md/);
   assert.match(html, /browser-use CLI · Browser Harness/);
-  assert.match(html, /panerelay-browser-use-cli run browser-use/);
-  assert.match(html, /browser-use tab list/);
-  assert.doesNotMatch(html, /list_tabs\(\)/);
+  assert.match(html, /panerelay-browser-use/);
+  assert.match(html, /list_tabs\(\)/);
   assert.doesNotMatch(html, /await browser\./);
   assert.doesNotMatch(html, /data-copy-command="[^\"]*--(?:agent-browser|browser-use)/);
   assert.doesNotMatch(html, /waiting for your approval|You authorize this tab/);
@@ -279,7 +278,7 @@ test('published Agent setup guide keeps upstream installation and user authoriza
   assert.match(guide, /npx --yes @panerelay\/setup --agent-browser --browser-use/);
   assert.match(guide, /doctor --agent-browser --browser-use/);
   assert.match(guide, /agent-browser --provider panerelay tab list/);
-  assert.match(guide, /run `browser-use tab list` and confirm/);
+  assert.match(guide, /run its pre-imported `list_tabs\(\)` helper and confirm/);
   assert.match(guide, /Browser Harness listed only explicitly authorized tabs/);
   assert.doesNotMatch(guide, /browser-use --version/);
   assert.match(guide, /Stop and ask the user to authorize/);

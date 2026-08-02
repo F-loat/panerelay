@@ -86,13 +86,14 @@ The supported surfaces are the setup-managed browser-use CLI, additive Skill, an
 The private CLI supports a durable Panerelay-owned mode and a one-run override:
 
 ```bash
-~/.panerelay/bin/panerelay-browser-use-cli connection use browser-use extension
-~/.panerelay/bin/panerelay-browser-use-cli connection use browser-use direct
-~/.panerelay/bin/panerelay-browser-use-cli run browser-use --mode extension -- /absolute/path/to/browser-use
-~/.panerelay/bin/panerelay-browser-use-cli run browser-use --mode direct -- /absolute/path/to/browser-use
+panerelay connection use browser-use extension
+panerelay connection use browser-use direct
+~/.panerelay/bin/panerelay-browser-use <<'PY'
+print(page_info())
+PY
 ```
 
-These paths are POSIX examples; use the exact launchers printed by setup on the current platform. One-run overrides do not change the saved mode or another Agent's default. A healthy Extension-mode browser-use daemon persists and is reused after the command exits. Sequential Agents share its current-page state; simultaneous canonical runs are serialized or fail busy. User release, authorization loss, Extension/Native Host disconnect, or WebSocket loss removes browser authority even if the detached browser-use process remains alive.
+These paths are POSIX examples; use the exact launchers printed by setup on the current platform. A healthy Extension-mode browser-use daemon persists and is reused after the command exits. Sequential Agents share its current-page state; simultaneous canonical runs are serialized or fail busy. User release, authorization loss, Extension/Native Host disconnect, or WebSocket loss removes browser authority even if the detached browser-use process remains alive.
 
 The adapter disables browser-use telemetry and automatic recording for this lane and confines its daemon log and temporary artifacts to protected Panerelay-owned storage. Full Panerelay uninstall removes the owned adapter, mode, Skill, launchers, configuration, runtime, and temporary files; it does not kill processes by a broad command-line pattern.
 

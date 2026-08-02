@@ -3,9 +3,7 @@
 ## Purpose
 
 Define how an optional Panerelay adapter connects supported Browser Use CLI and Browser Harness workflows to explicitly authorized tabs in the user's existing Chromium browser without changing Browser Use automation semantics or unrelated configuration.
-
 ## Requirements
-
 ### Requirement: Setup installs the Browser Use integration only when requested
 
 Panerelay setup SHALL install and register the Browser Use adapter, its Panerelay Skill, private runtime configuration, and diagnostics only when the user selects the Browser Use integration. Setup SHALL preserve Browser Use's own configuration, official Skill, executable installation, default daemon, and shell `PATH`, and uninstall SHALL remove only Panerelay-owned Browser Use artifacts. User-facing setup, doctor, Skill, and package documentation SHALL present Browser Use as the single product prerequisite and SHALL NOT require the user to install or manage its internal Browser Harness runtime separately.
@@ -239,3 +237,33 @@ The integration SHALL accept Browser Use stable releases at or above 0.13.7 when
 - **WHEN** that code runs outside the installed CLI/Skill integration
 - **THEN** Panerelay does not claim or attempt transparent interception
 - **AND** the application follows Browser Use's native SDK connection behavior
+
+### Requirement: The setup-managed Browser Use launcher is a dedicated Browser Use entry point
+
+The setup-managed launcher SHALL be named `panerelay-browser-use` and SHALL invoke the configured Browser Use executable through the existing internal adapter dispatch when called with no command-line arguments. It SHALL preserve stdin unchanged, use the saved connection mode and saved browser routing default, and forward the Browser Use process's exit status and output. It SHALL NOT expose a Browser selector of its own; browser selection SHALL remain managed by the unified Panerelay CLI. Durable connection mode selection SHALL remain available through `panerelay connection use browser-use <direct|extension>`.
+
+#### Scenario: No-argument launcher starts Browser Use
+
+- **GIVEN** setup has installed a supported Browser Use executable and registered the Browser Use adapter
+- **WHEN** the user invokes `panerelay-browser-use` with a Browser Use stdin script and no arguments
+- **THEN** the launcher runs that executable through the Browser Use adapter
+- **AND** the saved Direct or Extension mode and browser selection apply
+- **AND** the stdin script reaches Browser Use unchanged
+
+#### Scenario: Browser selection remains unified
+
+- **GIVEN** the user wants to change the browser used by Browser Use
+- **WHEN** the user runs `panerelay browser use <family-or-registration>`
+- **THEN** the next no-argument `panerelay-browser-use` invocation uses that saved browser
+
+#### Scenario: Missing configured executable fails closed
+
+- **GIVEN** the setup-managed launcher has no configured Browser Use executable
+- **WHEN** the user invokes `panerelay-browser-use` with no arguments
+- **THEN** it reports an unavailable integration and does not start an arbitrary executable from `PATH`
+
+#### Scenario: Shorthand does not bypass Panerelay boundaries
+
+- **GIVEN** the saved mode is Extension
+- **WHEN** the no-argument launcher starts Browser Use
+- **THEN** it uses the same adapter, authorization, protected runtime, concurrency, and lifecycle path as the previous explicit adapter invocation

@@ -33,10 +33,12 @@ npx --yes @panerelay/setup doctor --browser-use
 
 Open Panerelay in Chrome and authorize the current tab or all supported web tabs. Re-run the doctor command and require the browser-use compatibility and Extension-connection checks to pass.
 
-Then use the exact launcher and browser-use executable paths printed by setup to run the standard browser-use tab-list command. This POSIX example uses the default launcher path and a browser-use executable on `PATH`:
+Then use the exact setup-managed Browser Use launcher printed during installation to run browser-use's pre-imported helpers. This POSIX example uses the default launcher path:
 
 ```bash
-~/.panerelay/bin/panerelay-browser-use-cli run browser-use -- browser-use tab list
+~/.panerelay/bin/panerelay-browser-use <<'PY'
+print(list_tabs())
+PY
 ```
 
 Success means the command lists only tabs authorized in Panerelay.

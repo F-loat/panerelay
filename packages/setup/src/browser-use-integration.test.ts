@@ -19,6 +19,7 @@ import {
 } from '@panerelay/cli';
 import {
   installBrowserUseIntegrationArtifacts,
+  browserUseLauncherContent,
   posixNodeLauncherContent,
   resolveBrowserUseIntegrationPaths,
   windowsNodeLauncherContent,
@@ -32,7 +33,7 @@ test('resolves private cross-platform Browser Use artifact and launcher paths', 
       unix.cliArtifactPath,
       '/Users/test/.panerelay/cli/browser-use/0.2.0/dist/panerelay-cli.mjs',
     );
-    assert.equal(unix.cliLauncherPath, '/Users/test/.panerelay/bin/panerelay-browser-use-cli');
+    assert.equal(unix.cliLauncherPath, '/Users/test/.panerelay/bin/panerelay-browser-use');
   }
   const windows = resolveBrowserUseIntegrationPaths({
     homeDirectory: 'C:\\Users\\Test User',
@@ -58,6 +59,24 @@ test('resolves private cross-platform Browser Use artifact and launcher paths', 
     posixNodeLauncherContent('/node path/node', "/user's path/cli.mjs"),
     "#!/bin/sh\nexec '/node path/node' '/user'\"'\"'s path/cli.mjs' \"$@\"\n",
   );
+  assert.equal(
+    browserUseLauncherContent(
+      '/node path/node',
+      '/cli.mjs',
+      '/browser use/bin/browser-use',
+      'darwin',
+    ),
+    "#!/bin/sh\nif [ \"$#\" -eq 0 ]; then\n  exec '/node path/node' '/cli.mjs' run browser-use -- '/browser use/bin/browser-use'\nfi\nexec '/node path/node' '/cli.mjs' \"$@\"\n",
+  );
+  assert.match(
+    browserUseLauncherContent(
+      'C:\\Program Files\\nodejs\\node.exe',
+      'C:\\Users\\Test User\\cli.mjs',
+      'C:\\Users\\Test User\\browser-use.exe',
+      'win32',
+    ),
+    /if "%~1"=="" \(\r\n\s{2}"C:\\Program Files\\nodejs\\node\.exe"/,
+  );
 });
 
 test('installs protected pinned bundles and preserves unrelated adapter registrations', async () => {
@@ -70,9 +89,13 @@ test('installs protected pinned bundles and preserves unrelated adapter registra
     await mkdir(join(dataDirectory, 'bin'), { recursive: true, mode: 0o700 });
     await chmod(dataDirectory, 0o700);
     await writeFile(unrelatedExecutable, '#!/bin/sh\nexit 0\n', { mode: 0o700 });
-    await writeFile(browserUseExecutable, '#!/bin/sh\nprintf "%s\\n" "$@"\n', {
-      mode: 0o700,
-    });
+    await writeFile(
+      browserUseExecutable,
+      '#!/bin/sh\nif [ "$1" = "--cli-mcp" ]; then printf "%s\\n" "$@"; else cat; fi\n',
+      {
+        mode: 0o700,
+      },
+    );
     await registerCliAdapter(
       {
         adapterId: 'other-engine',
@@ -174,6 +197,12 @@ test('installs protected pinned bundles and preserves unrelated adapter registra
       homeDirectory,
     });
     assert.equal(await readCliAdapterMode('browser-use', { homeDirectory }), 'direct');
+    const shorthand = spawnSync(installation.paths.cliLauncherPath, [], {
+      encoding: 'utf8',
+      input: 'print(list_tabs())\n',
+    });
+    assert.equal(shorthand.status, 0, shorthand.stderr);
+    assert.equal(shorthand.stdout, 'print(list_tabs())\n');
     const mcpLauncher = await readFile(installation.paths.mcpLauncherPath, 'utf8');
     assert.match(mcpLauncher, /run browser-use --/);
     assert.match(mcpLauncher, /panerelay-browser-use-mcp-runner\.mjs/);

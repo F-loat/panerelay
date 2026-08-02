@@ -130,11 +130,7 @@ export function resolveBrowserUseIntegrationPaths(
     adapterStorageDirectory,
     browserUseDirectory,
     cliArtifactPath: paths.join(cliVersionDirectory, 'dist', 'panerelay-cli.mjs'),
-    cliLauncherPath: paths.join(
-      dataDirectory,
-      'bin',
-      `panerelay-browser-use-cli${launcherExtension}`,
-    ),
+    cliLauncherPath: paths.join(dataDirectory, 'bin', `panerelay-browser-use${launcherExtension}`),
     cliStorageDirectory,
     dataDirectory,
     integrationConfigPath: paths.join(browserUseDirectory, 'config.json'),
@@ -172,6 +168,33 @@ export function windowsNodeLauncherContent(nodePath: string, scriptPath: string)
     `"${escapePercent(nodePath)}" "${escapePercent(scriptPath)}" %*`,
     '',
   ].join('\r\n');
+}
+
+export function browserUseLauncherContent(
+  nodePath: string,
+  cliArtifactPath: string,
+  browserUseExecutable: string,
+  platform: NodeJS.Platform,
+): string {
+  if (platform === 'win32') {
+    const escapePercent = (value: string): string => value.replaceAll('%', '%%');
+    return [
+      '@echo off',
+      'setlocal DisableDelayedExpansion',
+      'if "%~1"=="" (',
+      `  "${escapePercent(nodePath)}" "${escapePercent(cliArtifactPath)}" run browser-use -- "${escapePercent(browserUseExecutable)}"`,
+      '  exit /b %ERRORLEVEL%',
+      ')',
+      `"${escapePercent(nodePath)}" "${escapePercent(cliArtifactPath)}" %*`,
+      '',
+    ].join('\r\n');
+  }
+  return `#!/bin/sh
+if [ "$#" -eq 0 ]; then
+  exec ${shellQuote(nodePath)} ${shellQuote(cliArtifactPath)} run browser-use -- ${shellQuote(browserUseExecutable)}
+fi
+exec ${shellQuote(nodePath)} ${shellQuote(cliArtifactPath)} "$@"
+`;
 }
 
 export function browserUseMcpLauncherContent(
@@ -386,7 +409,17 @@ export async function installBrowserUseIntegrationArtifacts(
       await rm(paths.mcpLauncherPath, { force: true });
     }
     await Promise.all([
-      writeProtectedFile(paths.cliLauncherPath, launcher(paths.cliArtifactPath), 0o700, platform),
+      writeProtectedFile(
+        paths.cliLauncherPath,
+        browserUseLauncherContent(
+          nodePath,
+          paths.cliArtifactPath,
+          options.browserUseVersions?.browserUseExecutable ?? '',
+          platform,
+        ),
+        0o700,
+        platform,
+      ),
       writeProtectedFile(
         paths.adapterLauncherPath,
         launcher(paths.adapterArtifactPath),

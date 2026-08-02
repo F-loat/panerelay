@@ -76,10 +76,12 @@ agent-browser --provider panerelay tab list
 
 它只能列出你已授权的标签页。空列表通常表示当前没有符合条件的已授权标签页，不一定代表安装失败。
 
-browser-use 则通过安装时输出的托管 CLI 执行标准的 `tab list` 命令。下面是使用默认路径的 macOS / Linux 示例：
+browser-use 则通过安装时输出的托管 CLI 执行预置的 helper。下面是使用默认路径的 macOS / Linux 示例：
 
 ```bash
-~/.panerelay/bin/panerelay-browser-use-cli run browser-use -- browser-use tab list
+~/.panerelay/bin/panerelay-browser-use <<'PY'
+print(list_tabs())
+PY
 ```
 
 结果同样只能包含你明确授权的标签页。Windows 或 browser-use 不在默认路径时，请使用 setup 输出的实际启动器和可执行文件路径。
