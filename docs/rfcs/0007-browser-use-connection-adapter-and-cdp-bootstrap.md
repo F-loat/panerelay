@@ -5,13 +5,13 @@
 - Status: Accepted
 - Authors: F-loat
 - Created: 2026-07-31
-- Updated: 2026-08-01
+- Updated: 2026-08-02
 - OpenSpec: `openspec/changes/archive/2026-08-01-add-browser-use-connection-adapter`
-- Amendments: `openspec/changes/archive/2026-08-01-relax-browser-use-version-gate`, `openspec/changes/archive/2026-08-01-add-browser-use-default-setting`
+- Amendments: `openspec/changes/archive/2026-08-01-relax-browser-use-version-gate`, `openspec/changes/archive/2026-08-01-add-browser-use-default-setting`, `openspec/changes/show-control-engine-favicon`, `openspec/changes/archive/2026-08-02-make-adapter-installation-explicit`
 
 ## Summary
 
-Panerelay defines an optional Browser Use connection adapter behind the recurring Panerelay CLI. Setup installs the adapter and a Panerelay Browser Use Skill only when requested. The Skill continues to use Browser Use and Browser Harness automation semantics while the adapter supplies a short-lived authenticated HTTP CDP bootstrap URL for explicitly authorized targets in the user's existing Chromium browser.
+Panerelay defines an explicitly selected Browser Use connection adapter behind the recurring Panerelay CLI. It is a peer of the explicitly selected agent-browser integration; plain setup installs neither. `--browser-use` installs the adapter and a Panerelay Browser Use Skill. The Skill continues to use Browser Use and Browser Harness automation semantics while the adapter supplies a short-lived authenticated HTTP CDP bootstrap URL for explicitly authorized targets in the user's existing Chromium browser. Side-panel Agent providers do not inject this Skill or its MCP launcher; Agents load them from their own configuration.
 
 Browser Harness uses one isolated, lazily started Panerelay daemon lane and keeps its virtual CDP WebSocket participant connected across sequential commands. Task completion does not stop that lane. Extension revocation, authorization loss, WebSocket or heartbeat failure, and Native Host shutdown remain authoritative cleanup boundaries.
 
@@ -92,7 +92,7 @@ GET  /cdp/bootstrap/<ticket>/json/version
 WS   /cdp?session=<participant>&token=<connection capability>
 ```
 
-The POST requires the current Bridge bearer and validates a bounded automation actor, lane key, and connection policy. It creates a random, memory-only, short-lived ticket but no participant, lease, target, or WebSocket.
+The POST requires the current Bridge bearer and validates a bounded automation actor, a closed automation-engine identifier, lane key, and connection policy. The registered Browser Use adapter always supplies `browser-use` independently from the caller-customizable actor name and session label. It creates a random, memory-only, short-lived ticket but no participant, lease, target, or WebSocket.
 
 The first valid ticket-specific `/json/version` request creates at most one participant and returns its virtual WebSocket URL. Repeated version requests are idempotent before connection. An invalid, expired, consumed, wrong-generation, or occupied-lane ticket fails closed without disclosing live state.
 
@@ -104,7 +104,7 @@ Bootstrap is loopback-only, no-store, has no permissive CORS, bounds methods, pa
 
 The adapter supplies a private Browser Harness runtime directory, a protected temporary directory, a stable Panerelay daemon name, and a fresh HTTP CDP bootstrap URL. It also disables Browser Harness/Browser Use telemetry and automatic recording for this lane. The first Browser Use invocation starts the daemon and consumes the URL. Later sequential invocations reuse the healthy daemon and WebSocket; their unused tickets expire without consuming participant capacity.
 
-Normal task completion does not close the lane because Browser Harness is intentionally daemonized and the Skill lacks a reliable cross-Agent task boundary. The side panel therefore presents a persistent Browser Use actor and retains immediate release. RFC-0004 continues to distinguish observed and controlled targets.
+Normal task completion does not close the lane because Browser Harness is intentionally daemonized and the Skill lacks a reliable cross-Agent task boundary. The side panel therefore presents a persistent Browser Use actor and retains immediate release. When that participant issues a control-class command, the routed command carries `browser-use` so the Extension can mark the controlled document with the Browser Use icon and shared green control dot. Actor text, focus, and saved connection preference are not used to infer the icon. RFC-0004 continues to distinguish observed and controlled targets.
 
 Browser Harness is not a child of the Native Host. Native Host shutdown closes its relay and participant but may leave a stale detached daemon process. Removing installed files does not itself prove that an already running Native Host disconnected, so uninstall reports that the current participant may remain until user release or Extension/Native Host disconnection. The next invocation must recover through verified Browser Harness public health/restart behavior or fail explicitly. Panerelay will not inspect undocumented daemon internals, kill broad process patterns, or silently fall back to Direct Chrome.
 

@@ -4,8 +4,12 @@ export type SupportedLocale = 'en' | 'zh-CN';
 
 const englishMessages = {
   agentBrowserMissing: 'Warning: agent-browser was not found.',
+  agentBrowserUnsupported:
+    'Warning: agent-browser {version} is unsupported. Panerelay requires 0.33.0 or newer.',
   agentCommand: 'Agent command: agent-browser --provider panerelay tab list',
   agentSkill: 'Agent Skill: {path}',
+  automationChoices:
+    'Optional automation integrations: rerun with --agent-browser and/or --browser-use.',
   browserUseIntegration: 'Browser Use integration: {path}',
   browserUseMcp: 'Optional Browser Use CLI MCP command: {path}',
   browserUseMissing:
@@ -30,6 +34,9 @@ const englishMessages = {
   doctorTitle: 'Panerelay doctor',
   doctorWarningCount: 'Warnings: {count}',
   errorBrowserUseUninstall: '--browser-use is not needed with uninstall',
+  errorAgentBrowserRequired:
+    '--agent-browser is required with --project-provider or --global-provider',
+  errorAgentBrowserUninstall: '--agent-browser is not needed with uninstall',
   errorGlobalProviderUninstall: '--global-provider is not needed with uninstall',
   errorExtensionIdMissing: '--extension-id requires a Chrome Extension ID',
   errorExtensionIdRepeated: '--extension-id can only be provided once',
@@ -47,20 +54,21 @@ const englishMessages = {
   help: `Panerelay Setup
 
 Usage:
-  npx --yes @panerelay/setup [--browser-use] [--project-provider] [--global-provider] [--extension-id <id>] [--lang <language>]
-  npx --yes @panerelay/setup doctor [--browser-use] [--project-provider] [--global-provider] [--extension-id <id>] [--json] [--lang <language>]
+  npx --yes @panerelay/setup [--agent-browser] [--browser-use] [--project-provider] [--global-provider] [--extension-id <id>] [--lang <language>]
+  npx --yes @panerelay/setup doctor [--agent-browser] [--browser-use] [--project-provider] [--global-provider] [--extension-id <id>] [--json] [--lang <language>]
   npx --yes @panerelay/setup uninstall [--project-provider] [--yes] [--lang <language>]
 
 Commands:
-  setup       Install the Native Host, agent-browser provider, and Agent Skill (default)
+  setup       Install the Native Host for the Extension and side panel (default)
   doctor      Diagnose the local Panerelay integration
   uninstall   Remove Panerelay-managed local integration files
 
 Options:
+  --agent-browser      Also install or diagnose the Panerelay agent-browser integration
   --browser-use        Also install or diagnose the Panerelay Browser Use integration
-  --project-provider   Also configure the current project to default to Panerelay
+  --project-provider   Also configure the current project to default to Panerelay (requires --agent-browser)
   --global-provider
-              Set Panerelay as the user-level default agent-browser provider
+              Set Panerelay as the user-level default agent-browser provider (requires --agent-browser)
   --extension-id
               Use a custom 32-character Chrome Extension ID for this installation
   --json      Print a machine-readable doctor report
@@ -68,8 +76,9 @@ Options:
   --yes, -y   Confirm uninstall without a prompt
   --help, -h  Show this help
 
-Agent usage after setup:
-  agent-browser --provider panerelay tab list`,
+Optional automation integrations:
+  npx --yes @panerelay/setup --agent-browser
+  npx --yes @panerelay/setup --browser-use`,
   nativeHost: 'Native Host: {path}',
   nonInteractiveUninstall: 'Non-interactive input detected. Re-run with --yes.',
   projectProvider: 'Project provider: {path}',
@@ -83,8 +92,11 @@ type MessageKey = keyof typeof englishMessages;
 
 const chineseMessages: Record<MessageKey, string> = {
   agentBrowserMissing: '警告：未找到 agent-browser。',
+  agentBrowserUnsupported:
+    '警告：agent-browser {version} 不受支持。Panerelay 需要 0.33.0 或更高版本。',
   agentCommand: 'Agent 命令：agent-browser --provider panerelay tab list',
   agentSkill: 'Agent Skill：{path}',
+  automationChoices: '可选自动化集成：使用 --agent-browser 和/或 --browser-use 重新运行安装命令。',
   browserUseIntegration: 'Browser Use 集成：{path}',
   browserUseMcp: '可选 Browser Use CLI MCP 命令：{path}',
   browserUseMissing:
@@ -109,6 +121,8 @@ const chineseMessages: Record<MessageKey, string> = {
   doctorTitle: 'Panerelay 诊断',
   doctorWarningCount: '警告项：{count}',
   errorBrowserUseUninstall: 'uninstall 无需使用 --browser-use',
+  errorAgentBrowserRequired: '--project-provider 或 --global-provider 必须同时使用 --agent-browser',
+  errorAgentBrowserUninstall: 'uninstall 无需使用 --agent-browser',
   errorGlobalProviderUninstall: 'uninstall 无需使用 --global-provider',
   errorExtensionIdMissing: '--extension-id 后需要指定 Chrome 扩展 ID',
   errorExtensionIdRepeated: '--extension-id 只能指定一次',
@@ -126,20 +140,21 @@ const chineseMessages: Record<MessageKey, string> = {
   help: `Panerelay 安装工具
 
 用法：
-  npx --yes @panerelay/setup [--browser-use] [--project-provider] [--global-provider] [--extension-id <id>] [--lang <语言>]
-  npx --yes @panerelay/setup doctor [--browser-use] [--project-provider] [--global-provider] [--extension-id <id>] [--json] [--lang <语言>]
+  npx --yes @panerelay/setup [--agent-browser] [--browser-use] [--project-provider] [--global-provider] [--extension-id <id>] [--lang <语言>]
+  npx --yes @panerelay/setup doctor [--agent-browser] [--browser-use] [--project-provider] [--global-provider] [--extension-id <id>] [--json] [--lang <语言>]
   npx --yes @panerelay/setup uninstall [--project-provider] [--yes] [--lang <语言>]
 
 命令：
-  setup       安装 Native Host、agent-browser Provider 和 Agent Skill（默认）
+  setup       为 Extension 和侧边栏安装 Native Host（默认）
   doctor      诊断本地 Panerelay 集成
   uninstall   移除由 Panerelay 管理的本地集成文件
 
 选项：
+  --agent-browser      同时安装或诊断 Panerelay agent-browser 集成
   --browser-use        同时安装或诊断 Panerelay Browser Use 集成
-  --project-provider   同时将当前项目的默认 Provider 配置为 Panerelay
+  --project-provider   同时将当前项目的默认 Provider 配置为 Panerelay（需要 --agent-browser）
   --global-provider
-              将 Panerelay 设为用户级默认 agent-browser Provider
+              将 Panerelay 设为用户级默认 agent-browser Provider（需要 --agent-browser）
   --extension-id
               为当前安装指定 32 位 Chrome 扩展 ID
   --json      输出机器可读的 doctor 报告
@@ -147,8 +162,9 @@ const chineseMessages: Record<MessageKey, string> = {
   --yes, -y   无需确认直接卸载
   --help, -h  显示帮助
 
-安装后的 Agent 用法：
-  agent-browser --provider panerelay tab list`,
+可选自动化集成：
+  npx --yes @panerelay/setup --agent-browser
+  npx --yes @panerelay/setup --browser-use`,
   nativeHost: 'Native Host：{path}',
   nonInteractiveUninstall: '检测到非交互式输入，请添加 --yes 后重试。',
   projectProvider: '项目 Provider：{path}',

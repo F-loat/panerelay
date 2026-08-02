@@ -69,6 +69,28 @@ test('cleans up synchronous dispatch failures and deterministic timeouts', async
   assert.equal(tracker.pendingCount, 0);
 });
 
+test('allows one long-running request to override the ordinary timeout', async () => {
+  const timeouts: number[] = [];
+  const tracker = new PendingRequestTracker<string>(1_000, {
+    createRequestId: () => 'install-request',
+    scheduleTimer: (_callback, timeoutMs) => {
+      timeouts.push(timeoutMs);
+      return 1 as unknown as ReturnType<typeof setTimeout>;
+    },
+    cancelTimer: () => undefined,
+  });
+  const result = tracker.request(
+    'integration.install',
+    requestId => {
+      tracker.resolve(requestId, 'installed');
+    },
+    310_000,
+  );
+
+  assert.equal(await result, 'installed');
+  assert.deepEqual(timeouts, [310_000]);
+});
+
 test('rejects every pending request during disconnect cleanup', async () => {
   const timers = deferredTimers();
   let nextId = 0;

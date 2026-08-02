@@ -26,6 +26,7 @@ Prepare Release requires repository **Settings → Actions → General → Workf
 - [ ] Confirm the four-component Chrome numeric version matches `release.config.json` and sorts after the prior stable Store version.
 - [ ] Confirm the retained public manifest key derives official Extension ID `panplnkjlkoceaonlmpdekjphgmbggmi` and no private signing material exists in source or artifacts.
 - [ ] Confirm agent-browser 0.33.0 is the minimum and each version in the verified list has a version-specific compatibility record.
+- [ ] Confirm Browser Use 0.13.7 is the minimum supported version for the explicit Browser Use integration.
 - [ ] Confirm Claude Code 2.1.206 is the minimum external CLI version and Panerelay does not package a Claude runtime.
 - [ ] Confirm the Bridge packages its ACP SDK runtime, excludes the Claude Agent SDK and Claude platform binaries, and keeps the bounded Claude/Qoder CLI compatibility probes current.
 - [ ] Run:
@@ -38,7 +39,7 @@ Prepare Release requires repository **Settings → Actions → General → Workf
   git diff --check
   ```
 
-- [ ] Confirm Windows Node.js 20 and 22 packed-consumer CI passes setup, doctor, update, and uninstall.
+- [ ] Confirm Windows Node.js 20 and 22 packed-consumer CI passes base setup, each explicit `--agent-browser` / `--browser-use` path, their combined path, doctor, update, and uninstall.
 
 ## Retained candidate inspection
 
@@ -60,12 +61,12 @@ candidate_directory=".artifacts/panerelay-$release_version"
 
 - [ ] Inspect every npm tarball for its intended public files, exact internal dependency pins matching the candidate version, the ACP dependency, no Claude Agent SDK or Claude platform runtime, and absence of tests, workspace ranges, credentials, logs, and signing keys.
 - [ ] Inspect the shared Chrome/Edge Extension archive for all manifest/HTML-referenced assets, versions, public key, and derived official ID; confirm it contains no Firefox manifest, Gecko identity, WebDriver transport, or browser launcher.
-- [ ] Install all seven packed tarballs in one disposable consumer and confirm browser administration plus setup → doctor → update → doctor → uninstall, including a persisted custom Extension ID.
+- [ ] Install all seven packed tarballs in one disposable consumer and confirm browser administration plus setup → doctor → update → doctor → uninstall, including a persisted custom Extension ID. Exercise base setup, `--agent-browser`, `--browser-use`, and both flags together; diagnose each selected integration with the matching doctor flags.
 
 ## Runtime acceptance
 
 - [ ] Extract and load the retained Extension archive in the daily Chrome profile.
-- [ ] Run `panerelay doctor`; confirm the Native Host, exact Extension origin, actual registered Extension ID, agent-browser version, Provider config, and optional Claude/Qoder status.
+- [ ] Run `npx --yes @panerelay/setup doctor` and confirm the Native Host, exact Extension origin, actual registered Extension ID, and optional side-panel Agent status without engine checks. Then rerun it with `--agent-browser`, `--browser-use`, and both to confirm the selected version and registration checks.
 - [ ] With agent-browser 0.33.0, authorize a local fixture tab, run one bounded Provider session, observe visible control, revoke it, and confirm debugger/session cleanup.
 - [ ] Load the same retained archive in a daily Edge profile, confirm Edge registration and side-panel identity, repeat the bounded fixture flow, and retain the result before changing Edge groups from `Forwarded` to `Verified`.
 - [ ] Run one bounded Codex browser-MCP turn, one external Claude Code CLI browser-MCP turn, and one Qoder ACP browser-MCP turn when each optional runtime is available. Exercise a permission decision, interruption, and browser authorization revocation without retaining prompts or page data.
@@ -111,6 +112,10 @@ Rerunning the same workflow reuses its beta package version and safely resumes o
 npx --yes @panerelay/setup@beta
 ```
 
+That command installs the Native Host and side-panel prerequisites only. Add `--agent-browser`, `--browser-use`, or both when validating the corresponding explicit adapter artifacts.
+
+Do not distribute or load a beta Extension archive until the exact `@panerelay/setup@<ExtensionVersion>` package referenced by that archive is visible from npm. The Extension's bounded install action invokes that exact lockstep version rather than a dist-tag.
+
 Beta Extension archives are developer downloads, not Chrome Web Store updates. Their numeric Chrome versions identify the workflow build but do not define Store upgrade order.
 
 ## Automated stable publication
@@ -133,11 +138,13 @@ Run **Release** from the default branch with channel `stable`, then approve the 
 
 The complete Actions artifact remains the audit and recovery source for `inventory.json` and full candidate checksums. The [Chrome Web Store listing](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi) is the default end-user installation channel for Chrome and Edge; the GitHub Release zip is retained for manual and offline verification.
 
+The workflow may retain the Extension artifact before npm publication, but that artifact is not ready for distribution until the exact `@panerelay/setup@<ExtensionVersion>` package is published and resolvable. In particular, do not submit the Extension to Chrome Web Store before that npm check passes.
+
 Afterward:
 
-- [ ] Install again from npm and the downloaded GitHub Release asset.
-- [ ] Upload the same stable Extension zip to Chrome Web Store and complete Store review manually.
-- [ ] Verify npm provenance and the `latest` tags.
+- [ ] Verify npm provenance, the `latest` tags, and exact-version resolution for `@panerelay/setup@<ExtensionVersion>`.
+- [ ] Install again from npm and the downloaded GitHub Release asset; exercise both Extension-triggered integration installs.
+- [ ] Only then upload the same stable Extension zip to Chrome Web Store and complete Store review manually.
 - [ ] Mark an RFC `Implemented` only after released artifacts pass their applicable acceptance evidence.
 
 ## Retry and recovery

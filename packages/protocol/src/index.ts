@@ -373,7 +373,10 @@ export interface AgentResponseMessage {
   error?: string;
 }
 
+export type AutomationIntegrationId = 'agent-browser' | 'browser-use';
+
 export type IntegrationRequest =
+  | { method: 'integration.install'; integration: AutomationIntegrationId }
   | { method: 'default-provider.get' }
   | { method: 'default-provider.set' }
   | { method: 'default-provider.clear' }
@@ -386,6 +389,7 @@ export type IntegrationRequest =
   | { method: 'workspace.pick-directory' };
 
 export interface IntegrationDefaultProviderResult {
+  available: boolean;
   provider: string | null;
   isPanerelay: boolean;
 }
@@ -400,6 +404,11 @@ export interface IntegrationBrowserUseDefaultResult {
   isPanerelay: boolean;
 }
 
+export interface IntegrationInstallResult {
+  integration: AutomationIntegrationId;
+  installed: true;
+}
+
 export interface IntegrationBrowserDefaultResult {
   currentBrowser: {
     browserId: string;
@@ -412,6 +421,7 @@ export interface IntegrationBrowserDefaultResult {
 }
 
 export type IntegrationResult =
+  | IntegrationInstallResult
   | IntegrationDefaultProviderResult
   | IntegrationBrowserUseDefaultResult
   | IntegrationWorkspaceDirectoryResult

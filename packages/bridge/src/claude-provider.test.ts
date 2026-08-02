@@ -117,24 +117,17 @@ class FakePermissionServerFactory {
 
 function createProvider(cli = new FakeClaudeCli()) {
   const events: ConversationEvent[] = [];
-  const browserSessions: string[] = [];
   const permissions = new FakePermissionServerFactory();
   const provider = new ClaudeProvider({
     cli,
-    environment: { PANERELAY_BROWSER_ID: 'sidepanel-browser-id' },
     runtimeConfig: async () => ({
       claudePath: '/usr/local/bin/claude',
       claudeVersion: '2.1.206',
-      agentBrowserPath: '/usr/local/bin/agent-browser',
-      agentBrowserConfigPath: '/Users/test/.panerelay/agent-browser.json',
     }),
     createPermissionServer: permissions.create,
-    closeBrowserSession: async session => {
-      browserSessions.push(session.label);
-    },
   });
   provider.onEvent(event => events.push(event));
-  return { browserSessions, cli, events, permissions, provider };
+  return { cli, events, permissions, provider };
 }
 
 async function waitFor(
@@ -189,9 +182,8 @@ test('exposes Claude Code and normalizes cwd-scoped session history', async () =
 
 test('keeps missing and incompatible Claude Code optional', async () => {
   for (const config of [
-    { agentBrowserConfigPath: '/tmp/agent-browser.json' },
+    {},
     {
-      agentBrowserConfigPath: '/tmp/agent-browser.json',
       claudePath: '/usr/local/bin/claude',
       claudeVersion: '2.0.99',
     },
@@ -287,7 +279,7 @@ test('streams text, reasoning, tool activity, images, usage, and terminal events
       session_id: 'session-1',
     };
   };
-  const { browserSessions, events, provider } = createProvider(cli);
+  const { events, provider } = createProvider(cli);
   const cwd = process.cwd();
   const detail = await provider.startConversation({
     cwd,
@@ -305,16 +297,7 @@ test('streams text, reasoning, tool activity, images, usage, and terminal events
   assert.equal(cli.queryParameters?.resume, undefined);
   assert.match(cli.queryParameters?.systemPrompt ?? '', /App/);
   assert.doesNotMatch(cli.queryParameters?.systemPrompt ?? '', /secret/);
-  const browserMcp = cli.queryParameters?.mcpServers?.panerelay_browser;
-  assert.equal(browserMcp?.type, 'stdio');
-  assert.equal(
-    browserMcp && 'command' in browserMcp ? browserMcp.command : undefined,
-    '/usr/local/bin/agent-browser',
-  );
-  assert.equal(
-    browserMcp && 'env' in browserMcp ? browserMcp.env?.PANERELAY_BROWSER_ID : undefined,
-    'sidepanel-browser-id',
-  );
+  assert.equal(cli.queryParameters?.mcpServers?.panerelay_browser, undefined);
   assert.equal(cli.queryParameters?.permissionPromptTool, 'mcp__panerelay_permission__approve');
   assert.equal(cli.queryParameters?.mcpServers?.panerelay_permission?.type, 'http');
   assert.match(JSON.stringify(cli.queryParameters?.prompt), /image/);
@@ -366,7 +349,6 @@ test('streams text, reasoning, tool activity, images, usage, and terminal events
         event.kind === 'turn.completed' && event.turnId === turnId && event.status === 'completed',
     ),
   );
-  assert.equal(browserSessions.length, 1);
 });
 
 test('correlates one-request MCP approvals and interrupts an active query', async () => {
@@ -523,7 +505,7 @@ test('terminates the scoped query when Claude emits an internal control request'
   );
 });
 
-test('cleans up a scoped browser session only once when provider close races turn cleanup', async () => {
+test('closes only the active Claude query and permission bridge', async () => {
   const cli = new FakeClaudeCli();
   let release!: () => void;
   cli.run = async function* () {
@@ -538,15 +520,15 @@ test('cleans up a scoped browser session only once when provider close races tur
       session_id: 'session-close',
     };
   };
-  const { browserSessions, provider } = createProvider(cli);
+  const { permissions, provider } = createProvider(cli);
   const detail = await provider.startConversation({ cwd: process.cwd() });
   await provider.sendMessage(detail.conversation.id, 'Wait');
   await waitFor(() => release !== undefined);
 
   await provider.close();
   assert.equal(cli.controls.closed, true);
-  assert.equal(browserSessions.length, 1);
+  assert.equal(permissions.closed, 1);
   release();
   await new Promise<void>(resolve => setImmediate(resolve));
-  assert.equal(browserSessions.length, 1);
+  assert.equal(permissions.closed, 1);
 });

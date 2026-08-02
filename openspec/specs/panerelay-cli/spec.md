@@ -32,14 +32,14 @@ Panerelay SHALL publish an optional `@panerelay/cli` package whose executable na
 
 ### Requirement: Setup remains a one-time integration surface
 
-`@panerelay/setup` SHALL expose setup, update, doctor, and uninstall behavior without owning recurring browser-administration commands. Setup SHALL NOT silently install `@panerelay/cli` globally or modify the user's shell `PATH`; when the user explicitly selects an adapter integration, setup MAY install a private CLI launcher and adapter artifact for the installed Skill.
+`@panerelay/setup` SHALL expose setup, update, doctor, and uninstall behavior without owning recurring browser-administration commands. Plain setup SHALL install only the user-scoped Native Host and side-panel runtime prerequisites. Setup SHALL NOT silently install `@panerelay/cli` globally, modify the user's shell `PATH`, or install either automation integration. `--agent-browser` and `--browser-use` SHALL independently select their peer setup-managed integrations and MAY be combined in one invocation.
 
-#### Scenario: User performs normal setup
+#### Scenario: User performs base setup
 
 - **GIVEN** the user invokes `npx --yes @panerelay/setup`
 - **WHEN** setup completes
-- **THEN** the Native Host, Provider registration, and Agent Skill are installed as requested
-- **AND** no global Panerelay CLI or shell-path modification is added
+- **THEN** the Native Host and side-panel runtime prerequisites are installed
+- **AND** no automation engine is probed and no agent-browser Provider, agent-browser Skill, Browser Use adapter, Browser Use Skill, global Panerelay CLI, side-panel MCP override, or shell-path modification is added
 
 #### Scenario: User requests a browser command from setup
 
@@ -48,13 +48,27 @@ Panerelay SHALL publish an optional `@panerelay/cli` package whose executable na
 - **THEN** setup rejects the command as unsupported
 - **AND** its help keeps browser administration outside the setup command catalog
 
-#### Scenario: User explicitly selects an adapter integration
+#### Scenario: User explicitly selects agent-browser
 
-- **GIVEN** a Skill requires recurring Panerelay CLI adapter calls
-- **WHEN** the user selects that integration during setup
-- **THEN** setup installs a private version-pinned CLI launcher and adapter artifact under Panerelay-owned storage
-- **AND** the generated Skill uses that exact launcher
-- **AND** neither package claims the user's global `panerelay` command
+- **GIVEN** the user wants agent-browser to connect through Panerelay
+- **WHEN** setup receives `--agent-browser`
+- **THEN** setup validates agent-browser and installs its Panerelay Provider and Skill in addition to the base Native Host
+- **AND** it does not inject an MCP server or Skill into a side-panel conversation
+- **AND** it does not install or modify agent-browser itself
+
+#### Scenario: User explicitly selects Browser Use
+
+- **GIVEN** the user wants Browser Use to connect through Panerelay
+- **WHEN** setup receives `--browser-use`
+- **THEN** setup installs the private version-pinned CLI launcher, adapter artifact, and Browser Use Skill in addition to the base Native Host
+- **AND** it does not install or modify Browser Use itself
+
+#### Scenario: User selects both automation integrations
+
+- **GIVEN** both supported engines satisfy their pinned minimum versions
+- **WHEN** setup receives `--agent-browser --browser-use`
+- **THEN** setup installs both peer integrations and the shared Native Host in one idempotent invocation
+- **AND** neither integration becomes the implicit default for the other
 
 ### Requirement: CLI adapters are explicitly registered and protocol bounded
 

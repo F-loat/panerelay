@@ -17,6 +17,7 @@ const PANERELAY_CHROME_WEB_STORE_URL =
 export type SetupOperation = 'setup' | 'doctor' | 'uninstall';
 
 export interface ParsedSetupArgs {
+  agentBrowser: boolean;
   browserUse: boolean;
   extensionId?: string;
   globalProvider: boolean;
@@ -68,6 +69,7 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
   const localized = extractLanguageArguments(argv);
   if (localized.argv.includes('--help') || localized.argv.includes('-h')) {
     return {
+      agentBrowser: false,
       browserUse: false,
       globalProvider: false,
       help: true,
@@ -93,6 +95,7 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
 
   let project = false;
   let globalProvider = false;
+  let agentBrowser = false;
   let browserUse = false;
   let json = false;
   let yes = false;
@@ -101,6 +104,7 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
     const argument = localized.argv[index]!;
     if (argument === '--project-provider') project = true;
     else if (argument === '--global-provider') globalProvider = true;
+    else if (argument === '--agent-browser') agentBrowser = true;
     else if (argument === '--browser-use') browserUse = true;
     else if (argument === '--json') json = true;
     else if (argument === '--extension-id' || argument.startsWith('--extension-id=')) {
@@ -123,13 +127,20 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
   if (globalProvider && operation === 'uninstall') {
     throw new Error('--global-provider is not needed with uninstall');
   }
+  if (agentBrowser && operation === 'uninstall') {
+    throw new Error('--agent-browser is not needed with uninstall');
+  }
   if (browserUse && operation === 'uninstall') {
     throw new Error('--browser-use is not needed with uninstall');
   }
   if (extensionId && operation === 'uninstall') {
     throw new Error('--extension-id is not available with uninstall');
   }
+  if ((globalProvider || (project && operation !== 'uninstall')) && !agentBrowser) {
+    throw new Error('--agent-browser is required with Provider scope options');
+  }
   return {
+    agentBrowser,
     browserUse,
     ...(extensionId ? { extensionId } : {}),
     globalProvider,
@@ -237,7 +248,7 @@ function doctorHint(id: string, hint: string, locale: SupportedLocale): string {
   if (id === 'agent-browser') {
     return hint.startsWith('Upgrade ')
       ? '请将 agent-browser 升级到 0.33.0 或更高版本'
-      : '请安装可正常运行的 agent-browser 0.33.0 或更高版本，然后运行：npx --yes @panerelay/setup';
+      : '请安装可正常运行的 agent-browser 0.33.0 或更高版本，然后运行：npx --yes @panerelay/setup --agent-browser';
   }
   if (id === 'browser-use') {
     return hint.includes('doctor --browser-use')
@@ -249,9 +260,11 @@ function doctorHint(id: string, hint: string, locale: SupportedLocale): string {
   }
   if (id === 'extension') return '请加载或重新加载扩展，然后打开侧边栏';
   if (id === 'extension-id') return '请使用仅包含 a 到 p 的 32 位 Chrome 扩展 ID';
-  if (id === 'global-provider') return '请运行：npx --yes @panerelay/setup --global-provider';
+  if (id === 'global-provider') {
+    return '请运行：npx --yes @panerelay/setup --agent-browser --global-provider';
+  }
   if (id === 'project-provider' || id === 'project-skill') {
-    return '请运行：npx --yes @panerelay/setup --project-provider';
+    return '请运行：npx --yes @panerelay/setup --agent-browser --project-provider';
   }
   return '请运行：npx --yes @panerelay/setup';
 }
@@ -357,6 +370,12 @@ function localizeArgumentError(error: unknown, locale: SupportedLocale): string 
   if (message === '--global-provider is not needed with uninstall') {
     return translate(locale, 'errorGlobalProviderUninstall');
   }
+  if (message === '--agent-browser is not needed with uninstall') {
+    return translate(locale, 'errorAgentBrowserUninstall');
+  }
+  if (message === '--agent-browser is required with Provider scope options') {
+    return translate(locale, 'errorAgentBrowserRequired');
+  }
   if (message === '--browser-use is not needed with uninstall') {
     return translate(locale, 'errorBrowserUseUninstall');
   }
@@ -392,6 +411,7 @@ export async function main(
   try {
     if (parsed.operation === 'doctor') {
       const report = await (dependencies.doctor ?? doctorPanerelay)({
+        agentBrowser: parsed.agentBrowser,
         browserUse: parsed.browserUse,
         environment: dependencies.environment,
         extensionId: parsed.extensionId,
@@ -424,6 +444,7 @@ export async function main(
     }
 
     const result = await (dependencies.setup ?? setupPanerelay)({
+      agentBrowser: parsed.agentBrowser,
       browserUse: parsed.browserUse,
       environment: dependencies.environment,
       extensionId: parsed.extensionId,
@@ -440,16 +461,26 @@ export async function main(
           })
         : translate(locale, 'extensionCustomNextStep', { id: result.host.extensionId }),
     );
-    console.log(translate(locale, 'agentSkill', { path: result.globalSkillPath }));
+    if (result.globalSkillPath) {
+      console.log(translate(locale, 'agentSkill', { path: result.globalSkillPath }));
+    }
     if (!result.host.codexPath) console.log(translate(locale, 'codexMissing'));
     if (!result.host.claudePath || !isClaudeCodeSupported(result.host.claudeVersion)) {
       console.log(translate(locale, 'claudeMissing'));
     }
-    if (!result.host.agentBrowserPath) console.log(translate(locale, 'agentBrowserMissing'));
+    if (parsed.agentBrowser && !result.agentBrowserInstallation?.executable) {
+      console.log(translate(locale, 'agentBrowserMissing'));
+    } else if (parsed.agentBrowser && result.agentBrowserInstallation?.supported !== true) {
+      console.log(
+        translate(locale, 'agentBrowserUnsupported', {
+          version: result.agentBrowserInstallation?.version ?? 'unknown',
+        }),
+      );
+    }
     if (result.projectConfigPath) {
       console.log(translate(locale, 'projectProvider', { path: result.projectConfigPath }));
     }
-    if (result.globalProvider) {
+    if (result.globalProvider && result.agentBrowserConfigPath) {
       console.log(translate(locale, 'globalProvider', { path: result.agentBrowserConfigPath }));
     }
     if (parsed.browserUse) {
@@ -482,8 +513,18 @@ export async function main(
         console.log(translate(locale, 'browserUseMissing'));
       }
     }
-    console.log(translate(locale, 'agentCommand'));
-    return result.host.agentBrowserSupported && (!parsed.browserUse || result.browserUseReady)
+    if (
+      parsed.agentBrowser &&
+      result.agentBrowserInstallation?.executable &&
+      result.agentBrowserInstallation.supported === true
+    ) {
+      console.log(translate(locale, 'agentCommand'));
+    }
+    if (!parsed.agentBrowser && !parsed.browserUse) {
+      console.log(translate(locale, 'automationChoices'));
+    }
+    return (!parsed.agentBrowser || result.agentBrowserInstallation?.supported === true) &&
+      (!parsed.browserUse || result.browserUseReady)
       ? 0
       : 1;
   } catch (error) {

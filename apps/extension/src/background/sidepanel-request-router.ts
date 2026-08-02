@@ -1,4 +1,4 @@
-import type { AgentRequest } from '@panerelay/protocol';
+import type { AgentRequest, AutomationIntegrationId } from '@panerelay/protocol';
 import type {
   AuthorizationMode,
   ExtensionStatus,
@@ -17,6 +17,7 @@ type PageCommentRequests = Pick<PageCommentService, 'clear' | 'edit' | 'remove' 
 export interface SidePanelRequestRouterOptions {
   activateControlledTab: (tabId: number) => Promise<void>;
   closeControlledTab: (tabId: number) => Promise<void>;
+  installIntegration: (integration: AutomationIntegrationId) => Promise<ExtensionStatus>;
   pageComments: PageCommentRequests;
   releaseControl: () => Promise<ExtensionStatus>;
   refreshBrowserDefault: () => Promise<void>;
@@ -45,6 +46,8 @@ export function createSidePanelRequestRouter(options: SidePanelRequestRouterOpti
         return { success: true, status: await options.releaseControl() };
       case 'panerelay.native.retry':
         return { success: true, status: await options.retryNativeHost() };
+      case 'panerelay.integration.install':
+        return { success: true, status: await options.installIntegration(message.integration) };
       case 'panerelay.default-provider.set':
         return { success: true, status: await options.setDefaultProvider(message.enabled) };
       case 'panerelay.browser-use-default.set':

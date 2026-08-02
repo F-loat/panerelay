@@ -37,13 +37,17 @@ export class PendingRequestTracker<TResult> {
     return this.pending.size;
   }
 
-  request(label: string, dispatch: (requestId: string) => void): Promise<TResult> {
+  request(
+    label: string,
+    dispatch: (requestId: string) => void,
+    timeoutMs = this.timeoutMs,
+  ): Promise<TResult> {
     const requestId = this.createRequestId();
     return new Promise<TResult>((resolve, reject) => {
       const timer = this.scheduleTimer(() => {
         if (!this.take(requestId)) return;
         reject(new Error(this.timeoutMessage(label)));
-      }, this.timeoutMs);
+      }, timeoutMs);
       this.pending.set(requestId, { reject, resolve, timer });
       try {
         dispatch(requestId);

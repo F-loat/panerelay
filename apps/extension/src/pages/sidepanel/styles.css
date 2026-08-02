@@ -538,12 +538,6 @@ summary:focus-visible {
   font-size: 9px;
 }
 
-.settings-provider-toggle:hover:not(:disabled) {
-  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
 .settings-provider-toggle[aria-pressed='true'] {
   border-color: color-mix(in srgb, var(--accent) 38%, var(--border));
   background: var(--accent-soft);
@@ -553,6 +547,11 @@ summary:focus-visible {
 .settings-provider-toggle:disabled {
   cursor: not-allowed;
   opacity: 0.45;
+}
+
+.settings-provider-toggle[aria-busy='true']:disabled {
+  cursor: progress;
+  opacity: 0.72;
 }
 
 .settings-default-field {
@@ -573,6 +572,16 @@ summary:focus-visible {
   justify-content: center;
   padding-inline: 8px;
   white-space: nowrap;
+}
+
+@media (hover: hover) {
+  .settings-default-toggle[data-installable='true']:hover .settings-default-label {
+    display: none;
+  }
+
+  .settings-default-toggle[data-installable='true']:hover::after {
+    content: attr(data-install-label);
+  }
 }
 
 .settings-switch {
@@ -1101,6 +1110,25 @@ summary:focus-visible {
   text-align: left;
 }
 
+.setup-guidance[data-native-host='true'] {
+  width: min(330px, 100%);
+  grid-template-columns: 1fr;
+  gap: 6px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.setup-guide-card {
+  display: grid;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+  padding: 10px;
+}
+
 .setup-guidance-copy {
   display: grid;
   grid-column: 1 / -1;
@@ -1118,6 +1146,82 @@ summary:focus-visible {
   line-height: 1.45;
 }
 
+.setup-guidance-features {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.setup-guidance-features > span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-secondary);
+  padding: 3px 0;
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.setup-guidance-features svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  color: var(--accent);
+}
+
+.setup-integration-picker {
+  display: grid;
+  grid-column: 1 / -1;
+  gap: 7px;
+}
+
+.setup-integration-picker > div:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.setup-integration-picker > div:first-child strong,
+.setup-guidance-status {
+  color: var(--text);
+  font-size: 11px;
+}
+
+.setup-integration-picker > div:first-child span {
+  color: var(--text-secondary);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.setup-integration-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.setup-integration-toggle {
+  min-height: 28px;
+  padding-inline: 9px;
+  font-size: 10px;
+}
+
+.setup-guidance-status {
+  grid-column: 1 / -1;
+}
+
+.setup-action-card {
+  gap: 7px;
+}
+
+.setup-command-row {
+  position: relative;
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 5px;
+}
+
 .setup-guidance code {
   min-width: 0;
   overflow: hidden;
@@ -1126,26 +1230,78 @@ summary:focus-visible {
   color: var(--text);
   padding: 6px 7px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 8px;
+  font-size: 9px;
   line-height: 14px;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.setup-guidance > button {
+.setup-command-row code {
+  display: flex;
+  min-height: 24px;
+  align-items: center;
+  background: var(--surface-raised);
+  overflow: visible;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.setup-command-copy {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--accent);
+}
+
+.setup-command-copy:hover {
+  border-color: color-mix(in srgb, var(--accent) 36%, var(--border));
+  background: var(--accent-soft);
+}
+
+.setup-command-copy svg {
+  width: 11px;
+  height: 11px;
+}
+
+.setup-guidance > button,
+.setup-action-card > button {
   min-height: 26px;
   border: 1px solid var(--accent);
   border-radius: 6px;
   background: var(--accent);
   color: var(--accent-contrast);
   padding: 5px 8px;
-  font-size: 9px;
+  font-size: 10px;
   white-space: nowrap;
 }
 
-.setup-guidance > button:disabled {
+.setup-guidance > button:disabled,
+.setup-action-card > button:disabled {
   cursor: wait;
   opacity: 0.55;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  margin: -1px;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (max-width: 340px) {
+  .setup-guidance-features {
+    grid-template-columns: 1fr;
+  }
 }
 
 .activity-stack,

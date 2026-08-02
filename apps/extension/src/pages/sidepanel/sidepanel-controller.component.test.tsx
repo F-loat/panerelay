@@ -19,7 +19,7 @@ import type { SidepanelClient, SidepanelRuntimeMessage } from './sidepanel-clien
 const baseStatus: ExtensionStatus = {
   bridgeConnected: true,
   nativeHostState: 'connected',
-  defaultProvider: { provider: null, isPanerelay: false },
+  defaultProvider: { available: true, provider: null, isPanerelay: false },
   browserUseDefault: { available: true, mode: 'direct', isPanerelay: false },
   browserDefault: {
     currentBrowser: {
@@ -97,6 +97,8 @@ class FakeSidepanelClient implements SidepanelClient {
   nextWorkspace = 1;
   projectCancelled = false;
   projectError = '';
+  installError = '';
+  installPromise: Promise<void> | null = null;
   sendError = '';
   resumeHandler:
     | ((message: Extract<SidePanelRequest, { type: 'panerelay.conversation.resume' }>) => Promise<{
@@ -181,12 +183,37 @@ class FakeSidepanelClient implements SidepanelClient {
         return { success: true as const, status: this.status };
       case 'panerelay.native.retry':
         return { success: true as const, status: baseStatus };
+      case 'panerelay.integration.install':
+        if (this.installPromise) await this.installPromise;
+        if (this.installError) throw new Error(this.installError);
+        return {
+          success: true as const,
+          status: {
+            ...baseStatus,
+            ...(message.integration === 'agent-browser'
+              ? {
+                  defaultProvider: {
+                    available: true,
+                    provider: 'panerelay',
+                    isPanerelay: true,
+                  },
+                }
+              : {
+                  browserUseDefault: {
+                    available: true,
+                    mode: 'extension' as const,
+                    isPanerelay: true,
+                  },
+                }),
+          },
+        };
       case 'panerelay.default-provider.set':
         return {
           success: true as const,
           status: {
             ...baseStatus,
             defaultProvider: {
+              available: true,
               provider: message.enabled ? 'panerelay' : null,
               isPanerelay: message.enabled,
             },
@@ -460,6 +487,48 @@ describe('Side Panel controller', () => {
     expect(hook.result.current.state.browserDefaultPending).toBe(false);
     expect(hook.result.current.state.controlledTabPendingId).toBeNull();
     expect(hook.result.current.state.nativeRetryPending).toBe(false);
+  });
+
+  it('routes fixed integration installs and localizes installation failures', async () => {
+    const { client, hook } = await readyController();
+    client.requests.length = 0;
+
+    await act(() => hook.result.current.installIntegration('agent-browser'));
+    await act(() => hook.result.current.installIntegration('browser-use'));
+    expect(client.requests).toEqual([
+      { type: 'panerelay.integration.install', integration: 'agent-browser' },
+      { type: 'panerelay.integration.install', integration: 'browser-use' },
+    ]);
+
+    client.installError = 'private package runner output';
+    await act(() => hook.result.current.installIntegration('browser-use'));
+    expect(hook.result.current.state.error).toBe(
+      'Could not install browser-use. Run: npx --yes @panerelay/setup --browser-use',
+    );
+    expect(hook.result.current.state.error).not.toContain('private package runner output');
+  });
+
+  it('rejects duplicate integration clicks while installation is pending', async () => {
+    const { client, hook } = await readyController();
+    client.requests.length = 0;
+    let release: (() => void) | undefined;
+    client.installPromise = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    let first: Promise<void> | undefined;
+    await act(async () => {
+      first = hook.result.current.installIntegration('agent-browser');
+      await Promise.resolve();
+    });
+    await act(() => hook.result.current.installIntegration('agent-browser'));
+
+    expect(
+      client.requests.filter(request => request.type === 'panerelay.integration.install'),
+    ).toHaveLength(1);
+    expect(hook.result.current.state.defaultProviderPending).toBe(true);
+    release?.();
+    await act(() => first);
+    expect(hook.result.current.state.defaultProviderPending).toBe(false);
   });
 
   it('switches providers through a new draft without listing or resuming history', async () => {

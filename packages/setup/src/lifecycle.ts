@@ -27,8 +27,13 @@ import {
   probeBrowserUseVersions,
   type BrowserUseVersions,
 } from '@panerelay/browser-use';
+import {
+  probeAgentBrowserInstallation,
+  type AgentBrowserInstallation,
+} from './agent-browser-integration.js';
 
 export interface PanerelaySetupOptions {
+  agentBrowser?: boolean;
   browserUse?: boolean;
   environment?: NodeJS.ProcessEnv;
   extensionId?: string;
@@ -40,9 +45,10 @@ export interface PanerelaySetupOptions {
 }
 
 export interface PanerelaySetupResult {
-  agentBrowserConfigPath: string;
+  agentBrowserInstallation?: AgentBrowserInstallation;
+  agentBrowserConfigPath?: string;
   globalProvider: boolean;
-  globalSkillPath: string;
+  globalSkillPath?: string;
   host: NativeHostInstallationResult;
   browserUseRequested?: boolean;
   browserUseIntegration?: BrowserUseIntegrationInstallation;
@@ -69,6 +75,7 @@ export interface LifecycleDependencies {
   installBrowserUse?: typeof installBrowserUseIntegrationArtifacts;
   installBrowserUseSkill?: typeof installBrowserUseSkill;
   probeBrowserUse?: typeof probeBrowserUseVersions;
+  probeAgentBrowser?: typeof probeAgentBrowserInstallation;
   installSkill?: typeof installPanerelaySkill;
   registerProvider?: typeof registerPanerelayProvider;
   removeProject?: typeof removeProjectProvider;
@@ -91,21 +98,34 @@ export async function setupPanerelay(
   const installSelectedBrowserUseSkill =
     dependencies.installBrowserUseSkill ?? installBrowserUseSkill;
   const configureProject = dependencies.configureProject ?? configureProjectProvider;
+  if ((options.globalProvider || options.project) && !options.agentBrowser) {
+    throw new Error('agent-browser Provider scopes require agentBrowser: true');
+  }
+  const agentBrowserInstallation = options.agentBrowser
+    ? await (dependencies.probeAgentBrowser ?? probeAgentBrowserInstallation)({
+        environment: options.environment,
+        platform: options.platform,
+      })
+    : undefined;
   const host = await installHost({
     environment: options.environment,
     extensionId: options.extensionId,
     homeDirectory: options.homeDirectory,
     platform: options.platform,
   });
-  const agentBrowserConfigPath = await registerProvider(host.launchPath, {
-    homeDirectory: options.homeDirectory,
-  });
+  const agentBrowserConfigPath = options.agentBrowser
+    ? await registerProvider(host.launchPath, {
+        homeDirectory: options.homeDirectory,
+      })
+    : undefined;
   if (options.globalProvider) {
     await configureGlobal({ homeDirectory: options.homeDirectory });
   }
-  const globalSkillPath = await installSkill('global', {
-    homeDirectory: options.homeDirectory,
-  });
+  const globalSkillPath = options.agentBrowser
+    ? await installSkill('global', {
+        homeDirectory: options.homeDirectory,
+      })
+    : undefined;
   const browserUseVersions = options.browserUse
     ? await (dependencies.probeBrowserUse ?? probeBrowserUseVersions)(
         options.environment,
@@ -136,7 +156,8 @@ export async function setupPanerelay(
   if (!options.project) {
     return {
       host,
-      agentBrowserConfigPath,
+      ...(agentBrowserInstallation ? { agentBrowserInstallation } : {}),
+      ...(agentBrowserConfigPath ? { agentBrowserConfigPath } : {}),
       browserUseRequested: options.browserUse === true,
       ...(browserUseIntegration ? { browserUseIntegration } : {}),
       ...(browserUseSkillPath ? { browserUseSkillPath } : {}),
@@ -147,7 +168,7 @@ export async function setupPanerelay(
           }
         : {}),
       globalProvider: options.globalProvider === true,
-      globalSkillPath,
+      ...(globalSkillPath ? { globalSkillPath } : {}),
     };
   }
   const projectConfigPath = await configureProject({
@@ -158,7 +179,8 @@ export async function setupPanerelay(
   });
   return {
     host,
-    agentBrowserConfigPath,
+    ...(agentBrowserInstallation ? { agentBrowserInstallation } : {}),
+    ...(agentBrowserConfigPath ? { agentBrowserConfigPath } : {}),
     browserUseRequested: options.browserUse === true,
     ...(browserUseIntegration ? { browserUseIntegration } : {}),
     ...(browserUseSkillPath ? { browserUseSkillPath } : {}),
@@ -169,7 +191,7 @@ export async function setupPanerelay(
         }
       : {}),
     globalProvider: options.globalProvider === true,
-    globalSkillPath,
+    ...(globalSkillPath ? { globalSkillPath } : {}),
     projectConfigPath,
     projectSkillPath,
   };

@@ -76,9 +76,9 @@ test('uses the Claude stream-json protocol without putting the prompt in process
     sessionId: '11111111-1111-4111-8111-111111111111',
     systemPrompt: 'Panerelay context',
     mcpServers: {
-      panerelay_browser: {
+      user_browser: {
         type: 'stdio',
-        command: '/usr/local/bin/agent-browser',
+        command: '/usr/local/bin/user-browser-tool',
         args: ['mcp'],
       },
       panerelay_permission: {
@@ -102,9 +102,9 @@ test('uses the Claude stream-json protocol without putting the prompt in process
   assert.match(processArguments, /stream-json/);
   assert.match(processArguments, /permission-prompt-tool/);
   assert.match(processArguments, /mcp__panerelay_permission__approve/);
-  assert.match(processArguments, /strict-mcp-config/);
+  assert.doesNotMatch(processArguments, /strict-mcp-config|mcp__panerelay_browser/);
   assert.match(processArguments, /11111111-1111-4111-8111-111111111111/);
-  assert.match(processArguments, /panerelay_browser/);
+  assert.match(processArguments, /user_browser/);
   assert.match(processArguments, /panerelay_permission/);
   assert.match(processArguments, /Panerelay context/);
   assert.doesNotMatch(processArguments, /secret prompt/);

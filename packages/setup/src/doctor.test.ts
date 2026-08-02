@@ -15,6 +15,12 @@ test('doctor verifies the optional global default Provider', async () => {
   try {
     await configureGlobalProvider({ homeDirectory });
     const report = await doctorPanerelay({
+      agentBrowser: true,
+      agentBrowserProbe: async () => ({
+        executable: '/bin/agent-browser',
+        supported: true,
+        version: '0.33.0',
+      }),
       globalProvider: true,
       homeDirectory,
       platform: 'linux',
@@ -22,6 +28,26 @@ test('doctor verifies the optional global default Provider', async () => {
     const check = report.checks.find(item => item.id === 'global-provider');
     assert.equal(check?.status, 'pass');
     assert.equal(check?.detail, 'panerelay');
+  } finally {
+    await rm(homeDirectory, { force: true, recursive: true });
+  }
+});
+
+test('doctor rejects Provider scopes that omit the agent-browser selection', async () => {
+  const homeDirectory = await mkdtemp(join(tmpdir(), 'panerelay-doctor-scope-'));
+  try {
+    for (const scope of [{ globalProvider: true }, { project: true }]) {
+      const report = await doctorPanerelay({
+        ...scope,
+        homeDirectory,
+        platform: 'linux',
+      });
+      const check = report.checks.find(item => item.id === 'agent-browser-selection');
+      assert.equal(report.ok, false);
+      assert.equal(check?.status, 'fail');
+      assert.match(check?.detail ?? '', /require agentBrowser: true/);
+      assert.match(check?.hint ?? '', /doctor --agent-browser/);
+    }
   } finally {
     await rm(homeDirectory, { force: true, recursive: true });
   }
@@ -220,26 +246,18 @@ test('doctor verifies Windows registry, manifest, launcher, and effective origin
 test('doctor reports the detected agent-browser version and rejects versions below 0.33.0', async () => {
   const homeDirectory = await mkdtemp(join(tmpdir(), 'panerelay-version-doctor-'));
   const agentBrowserPath = join(homeDirectory, 'bin', 'agent-browser');
-  const runtimeConfigPath = join(homeDirectory, '.panerelay', 'runtime.json');
   await mkdir(dirname(agentBrowserPath), { recursive: true });
-  await mkdir(dirname(runtimeConfigPath), { recursive: true });
   await writeFile(agentBrowserPath, '#!/bin/sh\n');
   await chmod(agentBrowserPath, 0o755);
-  await writeFile(
-    runtimeConfigPath,
-    `${JSON.stringify({
-      agentBrowserConfigPath: join(homeDirectory, '.panerelay', 'agent-browser.json'),
-      agentBrowserPath,
-      extensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
-    })}\n`,
-  );
   try {
     const old = await doctorPanerelay({
+      agentBrowser: true,
       commandRunner: async () => ({
         code: 0,
         stderr: '',
         stdout: 'agent-browser 0.32.9',
       }),
+      environment: { PANERELAY_AGENT_BROWSER_PATH: agentBrowserPath },
       homeDirectory,
       platform: 'linux',
     });
@@ -249,11 +267,13 @@ test('doctor reports the detected agent-browser version and rejects versions bel
     assert.match(oldCheck?.hint || '', /0\.33\.0 or newer/);
 
     const newer = await doctorPanerelay({
+      agentBrowser: true,
       commandRunner: async () => ({
         code: 0,
         stderr: '',
         stdout: 'agent-browser 0.40.0',
       }),
+      environment: { PANERELAY_AGENT_BROWSER_PATH: agentBrowserPath },
       homeDirectory,
       platform: 'linux',
     });

@@ -10,7 +10,6 @@ import {
   type CommandRunner,
 } from './platform.js';
 import { resolveQoderExecutable } from './qoder-executable.js';
-import { probeAgentBrowserCompatibility } from './compatibility.js';
 
 export const CHROME_EXTENSION_ID_PATTERN = /^[a-p]{32}$/;
 
@@ -36,7 +35,6 @@ export interface NativeHostUninstallOptions extends NativeHostPathOptions {
 }
 
 export interface NativeHostInstallationPaths {
-  agentBrowserConfigPath: string;
   hostPath: string;
   launchPath: string;
   launcherPath?: string;
@@ -46,9 +44,6 @@ export interface NativeHostInstallationPaths {
 }
 
 export interface NativeHostInstallationResult extends NativeHostInstallationPaths {
-  agentBrowserPath?: string;
-  agentBrowserSupported: boolean;
-  agentBrowserVersion?: string;
   codexPath?: string;
   claudePath?: string;
   claudeVersion?: string;
@@ -184,7 +179,6 @@ export function resolveNativeHostInstallationPaths(
   const launcherPath =
     platform === 'win32' ? join(hostDirectory, 'panerelay-native-host.cmd') : undefined;
   return {
-    agentBrowserConfigPath: join(dataDirectory, 'agent-browser.json'),
     hostPath,
     launchPath: launcherPath ?? hostPath,
     ...(launcherPath ? { launcherPath } : {}),
@@ -304,26 +298,6 @@ export async function installNativeHost(
       // The executable remains usable; doctor surfaces the missing version metadata.
     }
   }
-  const agentBrowserPath = await resolveExecutablePath('agent-browser', {
-    configuredPath: environment.PANERELAY_AGENT_BROWSER_PATH,
-    environment,
-    platform,
-  });
-  let agentBrowserVersion: string | undefined;
-  let agentBrowserSupported = false;
-  if (agentBrowserPath) {
-    try {
-      const compatibility = await probeAgentBrowserCompatibility(agentBrowserPath, {
-        environment,
-        platform,
-        runner: options.probeRunner,
-      });
-      agentBrowserVersion = compatibility.version;
-      agentBrowserSupported = compatibility.supported;
-    } catch {
-      // Doctor reports the failed bounded version probe with upgrade guidance.
-    }
-  }
   const qoder = await resolveQoderExecutable({
     configuredPath: environment.PANERELAY_QODER_PATH,
     environment,
@@ -340,11 +314,8 @@ export async function installNativeHost(
         ...(codexPath ? { codexPath } : {}),
         ...(claudePath ? { claudePath } : {}),
         ...(claudeVersion ? { claudeVersion } : {}),
-        ...(agentBrowserPath ? { agentBrowserPath } : {}),
-        ...(agentBrowserVersion ? { agentBrowserVersion } : {}),
         ...(qoder.executable ? { qoderPath: qoder.executable } : {}),
         ...(qoder.version ? { qoderVersion: qoder.version } : {}),
-        agentBrowserConfigPath: paths.agentBrowserConfigPath,
       },
       null,
       2,
@@ -352,26 +323,6 @@ export async function installNativeHost(
     { mode: 0o600 },
   );
   if (platform !== 'win32') await chmod(paths.runtimeConfigPath, 0o600);
-  await writeFile(
-    paths.agentBrowserConfigPath,
-    `${JSON.stringify(
-      {
-        plugins: [
-          {
-            name: 'panerelay',
-            command: paths.launchPath,
-            args: ['--agent-browser-plugin'],
-            capabilities: ['browser.provider'],
-          },
-        ],
-      },
-      null,
-      2,
-    )}\n`,
-    { mode: 0o600 },
-  );
-  if (platform !== 'win32') await chmod(paths.agentBrowserConfigPath, 0o600);
-
   const manifest = `${JSON.stringify(
     {
       name: PANERELAY_NATIVE_HOST_NAME,
@@ -405,9 +356,6 @@ export async function installNativeHost(
     ...(codexPath ? { codexPath } : {}),
     ...(claudePath ? { claudePath } : {}),
     ...(claudeVersion ? { claudeVersion } : {}),
-    ...(agentBrowserPath ? { agentBrowserPath } : {}),
-    agentBrowserSupported,
-    ...(agentBrowserVersion ? { agentBrowserVersion } : {}),
     ...(qoder.executable ? { qoderPath: qoder.executable } : {}),
     ...(qoder.version ? { qoderVersion: qoder.version } : {}),
   };
@@ -435,7 +383,6 @@ export async function uninstallNativeHost(
     ...(paths.launcherPath ? [rm(paths.launcherPath, { force: true })] : []),
     rm(paths.legacyHostPath, { force: true }),
     rm(paths.runtimeConfigPath, { force: true }),
-    rm(paths.agentBrowserConfigPath, { force: true }),
   ]);
   return paths;
 }

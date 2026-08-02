@@ -24,7 +24,7 @@ Chrome is the verified runtime baseline. Microsoft Edge operations use the share
    agent-browser --session panerelay-task --provider panerelay click @e1
    ```
 
-   A user or project configured with `npx --yes @panerelay/setup --global-provider` or `npx --yes @panerelay/setup --project-provider` already defaults to this Provider, but keep the explicit flag when portability matters. Explicit CLI selection wins over project and user defaults. Changing the Provider never changes browser authorization.
+   A user or project configured with `npx --yes @panerelay/setup --agent-browser --global-provider` or `npx --yes @panerelay/setup --agent-browser --project-provider` already defaults to this Provider, but keep the explicit flag when portability matters. Explicit CLI selection wins over project and user defaults. Changing the Provider never changes browser authorization.
 
 3. If Panerelay reports multiple ready browsers, inspect them with `npx --yes @panerelay/cli browsers`. Ask the user which browser to use when their intent is not already explicit, then scope the process with `PANERELAY_BROWSER_ID=<registration-id>` or `PANERELAY_BROWSER=<chrome|edge>`. Do not change the saved browser default unless the user asks. An active session remains pinned to its original browser.
 
@@ -45,5 +45,5 @@ Chrome is the verified runtime baseline. Microsoft Edge operations use the share
 - Do not clear or read cookies for the whole Chrome or Edge profile, create isolated browser contexts, or close the browser. `tab new`, `tab close`, and closing the current Panerelay Provider participant remain supported.
 - Use a distinct stable `--session` for independent Agent work. Panerelay can share one authorized browser lease across bounded local participants while keeping credentials, virtual CDP sessions, refs, pending commands, heartbeat, and cleanup isolated. Always close the exact session you opened.
 - Never assume browser focus selects the automation browser. Browser selection, site permission, tab authorization, and the control lease are independent.
-- If the Provider is missing or unhealthy, run `npx --yes @panerelay/setup doctor`. It reports the detected agent-browser version; Panerelay requires 0.33.0 or newer. Do not reinstall or change browser authorization unless the user asks.
+- If the Provider is missing or unhealthy, run `npx --yes @panerelay/setup doctor --agent-browser`. It reports the detected agent-browser version; Panerelay requires 0.33.0 or newer. Do not reinstall or change browser authorization unless the user asks.
 - Use default agent-browser behavior when the user did not request their existing browser or Panerelay.

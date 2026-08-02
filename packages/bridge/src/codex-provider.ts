@@ -1,6 +1,4 @@
 import { homedir } from 'node:os';
-import { randomUUID } from 'node:crypto';
-import { dirname } from 'node:path';
 import type {
   AgentProviderSummary,
   AgentRequest,
@@ -15,19 +13,11 @@ import type {
   ConversationStatus,
   ConversationSummary,
 } from '@panerelay/protocol';
-import { PANERELAY_BROWSER_ID_ENV } from '@panerelay/browser-registry';
 import type { AgentProvider } from './agent-provider.js';
 import {
   createConversationContextInstructions,
   resolveConversationStartOptions,
 } from './agent-context.js';
-import {
-  AGENT_BROWSER_MCP_NAME,
-  AGENT_BROWSER_SIDEPANEL_INSTRUCTIONS,
-  agentBrowserMcpArguments,
-  agentBrowserSessionEnvironment,
-  createAgentBrowserSession,
-} from './agent-browser-session.js';
 import { CodexAppServer, type CodexRpcMessage } from './codex-app-server.js';
 import { readRuntimeConfig, type PanerelayRuntimeConfig } from './runtime-config.js';
 
@@ -226,7 +216,6 @@ export class CodexProvider implements AgentProvider {
   readonly id = CODEX_PROVIDER_ID;
   private client: CodexClient | null = null;
   private clientStart: Promise<CodexClient> | null = null;
-  private config: PanerelayRuntimeConfig | null = null;
   private readonly pendingApprovals = new Map<string, PendingApproval>();
   private readonly activeTurns = new Map<string, string>();
   private readonly listeners = new Set<(event: ConversationEvent) => void>();
@@ -268,7 +257,6 @@ export class CodexProvider implements AgentProvider {
     await client?.close();
     this.client = null;
     this.clientStart = null;
-    this.config = null;
     this.pendingApprovals.clear();
     this.activeTurns.clear();
   }
@@ -319,7 +307,6 @@ export class CodexProvider implements AgentProvider {
     if (!config.codexPath) {
       throw new Error('Codex CLI is unavailable. Install it and reinstall the Panerelay host.');
     }
-    this.config = config;
     const handlers = {
       onNotification: (message: CodexRpcMessage) => this.handleNotification(message),
       onServerRequest: (message: CodexRpcMessage & { id: number | string; method: string }) =>
@@ -333,7 +320,6 @@ export class CodexProvider implements AgentProvider {
       ? this.options.createClient(config, handlers)
       : new CodexAppServer({
           codexPath: config.codexPath,
-          pathEntries: config.agentBrowserPath ? [dirname(config.agentBrowserPath)] : [],
           ...handlers,
         });
     try {
@@ -342,7 +328,6 @@ export class CodexProvider implements AgentProvider {
       return client;
     } catch (error) {
       if (this.client === client) this.client = null;
-      this.config = null;
       await client.close().catch(() => {});
       throw error;
     }
@@ -369,25 +354,7 @@ export class CodexProvider implements AgentProvider {
 
   async startConversation(options: ConversationStartOptions = {}): Promise<ConversationDetail> {
     const client = await this.ensureClient();
-    const config = this.config;
     const resolvedOptions = resolveConversationStartOptions(options);
-    const browserSessionLabel = `panerelay-codex-${randomUUID()}`;
-    const browserSession = config
-      ? createAgentBrowserSession(config, browserSessionLabel)
-      : undefined;
-    const browserId = (this.options.environment ?? process.env)[PANERELAY_BROWSER_ID_ENV];
-    const browserMcpConfig = browserSession
-      ? {
-          [`mcp_servers.${AGENT_BROWSER_MCP_NAME}.command`]: browserSession.executable,
-          [`mcp_servers.${AGENT_BROWSER_MCP_NAME}.args`]: agentBrowserMcpArguments(),
-          [`mcp_servers.${AGENT_BROWSER_MCP_NAME}.env`]: agentBrowserSessionEnvironment(
-            browserSession,
-            browserId,
-          ),
-          [`mcp_servers.${AGENT_BROWSER_MCP_NAME}.required`]: false,
-          [`mcp_servers.${AGENT_BROWSER_MCP_NAME}.default_tools_approval_mode`]: 'auto',
-        }
-      : {};
     const contextInstructions = createConversationContextInstructions(resolvedOptions);
     const result = asRecord(
       await client.request('thread/start', {
@@ -395,10 +362,7 @@ export class CodexProvider implements AgentProvider {
         approvalPolicy: 'on-request',
         sandbox: 'read-only',
         serviceName: 'panerelay',
-        developerInstructions: [AGENT_BROWSER_SIDEPANEL_INSTRUCTIONS, contextInstructions]
-          .filter(Boolean)
-          .join('\n\n'),
-        config: browserMcpConfig,
+        ...(contextInstructions ? { developerInstructions: contextInstructions } : {}),
       }),
     );
     const thread = asRecord(result.thread) as unknown as CodexThread;

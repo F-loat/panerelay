@@ -59,6 +59,27 @@ export async function readUserDefaultProvider(
   return state(path, await readJsonObject(path));
 }
 
+export async function readPanerelayProviderAvailable(
+  options: UserAgentBrowserConfigOptions = {},
+): Promise<boolean> {
+  const path = userAgentBrowserConfigPath(options.homeDirectory);
+  const config = await readJsonObject(path);
+  if (!Array.isArray(config.plugins)) return false;
+  return config.plugins.some(plugin => {
+    if (!plugin || typeof plugin !== 'object' || Array.isArray(plugin)) return false;
+    const value = plugin as JsonObject;
+    return (
+      value.name === 'panerelay' &&
+      typeof value.command === 'string' &&
+      value.command.length > 0 &&
+      Array.isArray(value.args) &&
+      value.args.includes('--agent-browser-plugin') &&
+      Array.isArray(value.capabilities) &&
+      value.capabilities.includes('browser.provider')
+    );
+  });
+}
+
 export async function setPanerelayUserDefaultProvider(
   options: UserAgentBrowserConfigOptions = {},
 ): Promise<UserDefaultProviderState> {

@@ -12,7 +12,6 @@ import {
   AGENT_BROWSER_MINIMUM_VERSION,
   CLAUDE_CODE_MINIMUM_VERSION,
   isClaudeCodeSupported,
-  probeAgentBrowserCompatibility,
 } from '@panerelay/bridge/compatibility';
 import { PANERELAY_EXTENSION_ID, PANERELAY_NATIVE_HOST_NAME } from '@panerelay/protocol';
 import {
@@ -30,7 +29,7 @@ import {
   userAgentBrowserConfigPath,
 } from './config.js';
 import { globalSkillPath, projectSkillPath } from './skill.js';
-import { resolveBrowserUseIntegrationPaths } from './browser-use-integration.js';
+import { probeAgentBrowserInstallation } from './agent-browser-integration.js';
 
 const SETUP_COMMAND = 'npx --yes @panerelay/setup';
 
@@ -50,6 +49,8 @@ export interface DoctorReport {
 }
 
 export interface DoctorOptions {
+  agentBrowser?: boolean;
+  agentBrowserProbe?: typeof probeAgentBrowserInstallation;
   browserUse?: boolean;
   browserUseProbe?: typeof probeBrowserUseVersions;
   environment?: NodeJS.ProcessEnv;
@@ -147,6 +148,19 @@ export async function doctorPanerelay(options: DoctorOptions = {}): Promise<Doct
     platform,
   });
   const checks: DoctorCheck[] = [];
+  if (!options.agentBrowser && (options.globalProvider || options.project)) {
+    const scopes = [
+      ...(options.globalProvider ? ['globalProvider'] : []),
+      ...(options.project ? ['project'] : []),
+    ];
+    checks.push({
+      id: 'agent-browser-selection',
+      label: 'agent-browser Provider scope selection',
+      status: 'fail',
+      detail: `${scopes.join(' and ')} require agentBrowser: true`,
+      hint: `Run: ${SETUP_COMMAND} doctor --agent-browser${options.globalProvider ? ' --global-provider' : ''}${options.project ? ' --project-provider' : ''}`,
+    });
+  }
   const nodeMajor = Number.parseInt(process.versions.node.split('.')[0] || '0', 10);
   checks.push({
     id: 'node',
@@ -155,12 +169,7 @@ export async function doctorPanerelay(options: DoctorOptions = {}): Promise<Doct
     detail: process.version,
     ...(nodeMajor >= 20 ? {} : { hint: 'Install Node.js 20 or newer' }),
   });
-  const browserUsePaths = resolveBrowserUseIntegrationPaths({
-    homeDirectory: home,
-    platform,
-  });
-  const diagnoseBrowserUse =
-    options.browserUse === true || (await exists(browserUsePaths.integrationConfigPath));
+  const diagnoseBrowserUse = options.browserUse === true;
   if (diagnoseBrowserUse) {
     const versions = await (options.browserUseProbe ?? probeBrowserUseVersions)(
       options.environment,
@@ -256,8 +265,6 @@ export async function doctorPanerelay(options: DoctorOptions = {}): Promise<Doct
     typeof runtimeConfig.codexPath === 'string' ? runtimeConfig.codexPath : undefined;
   const claudePath =
     typeof runtimeConfig.claudePath === 'string' ? runtimeConfig.claudePath : undefined;
-  const agentBrowserPath =
-    typeof runtimeConfig.agentBrowserPath === 'string' ? runtimeConfig.agentBrowserPath : undefined;
   const qoderPath =
     typeof runtimeConfig.qoderPath === 'string' ? runtimeConfig.qoderPath : undefined;
   checks.push(
@@ -306,69 +313,68 @@ export async function doctorPanerelay(options: DoctorOptions = {}): Promise<Doct
           hint: `Install Qoder CLI or set PANERELAY_QODER_PATH, then run: ${SETUP_COMMAND}`,
         }),
   });
-  let agentBrowserStatus: DoctorStatus = 'fail';
-  let agentBrowserDetail = agentBrowserPath || 'Not found';
-  let agentBrowserHint = `Install agent-browser, then run: ${SETUP_COMMAND}`;
-  if (agentBrowserPath && (await isExecutableFile(agentBrowserPath, platform))) {
-    try {
-      const compatibility = await probeAgentBrowserCompatibility(agentBrowserPath, {
-        environment: options.environment,
-        platform,
-        runner: options.commandRunner,
-      });
-      agentBrowserStatus = compatibility.supported ? 'pass' : 'fail';
-      agentBrowserDetail = `${agentBrowserPath} (${compatibility.version})`;
-      agentBrowserHint = `Upgrade agent-browser to ${AGENT_BROWSER_MINIMUM_VERSION} or newer`;
-    } catch {
-      agentBrowserHint = `Install a working agent-browser ${AGENT_BROWSER_MINIMUM_VERSION} or newer, then run: ${SETUP_COMMAND}`;
-    }
-  }
-  checks.push({
-    id: 'agent-browser',
-    label: 'agent-browser CLI',
-    status: agentBrowserStatus,
-    detail: agentBrowserDetail,
-    ...(agentBrowserStatus === 'pass' ? {} : { hint: agentBrowserHint }),
-  });
-
-  const userConfigPath = userAgentBrowserConfigPath(home);
-  let userConfig: Record<string, unknown> = {};
-  try {
-    userConfig = await readJsonObject(userConfigPath);
-  } catch {
-    // Report an invalid or missing provider registration below.
-  }
-  const providerReady = providerPlugin(userConfig, paths.launchPath);
-  checks.push({
-    id: 'provider',
-    label: 'agent-browser Panerelay provider',
-    status: providerReady ? 'pass' : 'fail',
-    detail: userConfigPath,
-    ...(providerReady ? {} : { hint: `Run: ${SETUP_COMMAND}` }),
-  });
-  if (options.globalProvider) {
-    const globalProviderReady = userConfig.provider === 'panerelay';
+  if (options.agentBrowser) {
+    const installation = await (options.agentBrowserProbe ?? probeAgentBrowserInstallation)({
+      environment: options.environment,
+      platform,
+      runner: options.commandRunner,
+    });
+    const agentBrowserStatus: DoctorStatus = installation.supported ? 'pass' : 'fail';
+    const agentBrowserDetail = installation.executable
+      ? `${installation.executable}${installation.version ? ` (${installation.version})` : ''}`
+      : 'Not found';
+    const agentBrowserHint = installation.executable
+      ? `Upgrade agent-browser to ${AGENT_BROWSER_MINIMUM_VERSION} or newer`
+      : `Install a working agent-browser ${AGENT_BROWSER_MINIMUM_VERSION} or newer, then run: ${SETUP_COMMAND} --agent-browser`;
     checks.push({
-      id: 'global-provider',
-      label: 'Global default provider',
-      status: globalProviderReady ? 'pass' : 'fail',
-      detail: globalProviderReady
-        ? 'panerelay'
-        : typeof userConfig.provider === 'string'
-          ? userConfig.provider
-          : 'Not configured',
-      ...(globalProviderReady ? {} : { hint: `Run: ${SETUP_COMMAND} --global-provider` }),
+      id: 'agent-browser',
+      label: 'agent-browser CLI',
+      status: agentBrowserStatus,
+      detail: agentBrowserDetail,
+      ...(agentBrowserStatus === 'pass' ? {} : { hint: agentBrowserHint }),
+    });
+
+    const userConfigPath = userAgentBrowserConfigPath(home);
+    let userConfig: Record<string, unknown> = {};
+    try {
+      userConfig = await readJsonObject(userConfigPath);
+    } catch {
+      // Report an invalid or missing provider registration below.
+    }
+    const providerReady = providerPlugin(userConfig, paths.launchPath);
+    checks.push({
+      id: 'provider',
+      label: 'agent-browser Panerelay provider',
+      status: providerReady ? 'pass' : 'fail',
+      detail: userConfigPath,
+      ...(providerReady ? {} : { hint: `Run: ${SETUP_COMMAND} --agent-browser` }),
+    });
+    if (options.globalProvider) {
+      const globalProviderReady = userConfig.provider === 'panerelay';
+      checks.push({
+        id: 'global-provider',
+        label: 'Global default provider',
+        status: globalProviderReady ? 'pass' : 'fail',
+        detail: globalProviderReady
+          ? 'panerelay'
+          : typeof userConfig.provider === 'string'
+            ? userConfig.provider
+            : 'Not configured',
+        ...(globalProviderReady
+          ? {}
+          : { hint: `Run: ${SETUP_COMMAND} --agent-browser --global-provider` }),
+      });
+    }
+    const skillPath = globalSkillPath(home);
+    const skillReady = await exists(join(skillPath, 'SKILL.md'));
+    checks.push({
+      id: 'skill',
+      label: 'Panerelay Agent Skill',
+      status: skillReady ? 'pass' : 'fail',
+      detail: skillPath,
+      ...(skillReady ? {} : { hint: `Run: ${SETUP_COMMAND} --agent-browser` }),
     });
   }
-  const skillPath = globalSkillPath(home);
-  const skillReady = await exists(join(skillPath, 'SKILL.md'));
-  checks.push({
-    id: 'skill',
-    label: 'Panerelay Agent Skill',
-    status: skillReady ? 'pass' : 'fail',
-    detail: skillPath,
-    ...(skillReady ? {} : { hint: `Run: ${SETUP_COMMAND}` }),
-  });
 
   let bridgeStatus: DoctorStatus = 'warn';
   let bridgeDetail = 'Extension is not currently connected';
@@ -402,7 +408,7 @@ export async function doctorPanerelay(options: DoctorOptions = {}): Promise<Doct
       : { hint: 'Load or reload the extension, then open its side panel' }),
   });
 
-  if (options.project) {
+  if (options.agentBrowser && options.project) {
     const projectDirectory = options.projectDirectory ?? process.cwd();
     const projectConfigPath = projectAgentBrowserConfigPath(projectDirectory);
     let projectConfig: Record<string, unknown> = {};
@@ -417,7 +423,9 @@ export async function doctorPanerelay(options: DoctorOptions = {}): Promise<Doct
       label: 'Project default provider',
       status: projectConfigured ? 'pass' : 'fail',
       detail: projectConfigPath,
-      ...(projectConfigured ? {} : { hint: `Run: ${SETUP_COMMAND} --project-provider` }),
+      ...(projectConfigured
+        ? {}
+        : { hint: `Run: ${SETUP_COMMAND} --agent-browser --project-provider` }),
     });
     const installedProjectSkillPath = projectSkillPath(projectDirectory);
     const projectSkillReady = await exists(join(installedProjectSkillPath, 'SKILL.md'));
@@ -426,7 +434,9 @@ export async function doctorPanerelay(options: DoctorOptions = {}): Promise<Doct
       label: 'Project Panerelay Skill',
       status: projectSkillReady ? 'pass' : 'fail',
       detail: installedProjectSkillPath,
-      ...(projectSkillReady ? {} : { hint: `Run: ${SETUP_COMMAND} --project-provider` }),
+      ...(projectSkillReady
+        ? {}
+        : { hint: `Run: ${SETUP_COMMAND} --agent-browser --project-provider` }),
     });
   }
 

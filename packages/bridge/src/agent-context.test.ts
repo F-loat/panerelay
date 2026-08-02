@@ -22,7 +22,7 @@ test('redacts sensitive URL metadata and bounds the page title', () => {
   assert.equal(resolved.initialPage?.title?.length, 300);
 });
 
-test('validates the workspace and creates untrusted context without a tab id', async () => {
+test('validates the workspace and creates only untrusted tab context', async () => {
   const directory = await mkdtemp(path.join(tmpdir(), 'panerelay-context-'));
   const resolved = resolveConversationStartOptions({
     cwd: directory,
@@ -31,8 +31,17 @@ test('validates the workspace and creates untrusted context without a tab id', a
   const instructions = createConversationContextInstructions(resolved);
 
   assert.equal(resolved.cwd, await realpath(directory));
-  assert.match(instructions, /projectDirectory/);
+  assert.doesNotMatch(instructions, /projectDirectory|panerelay_browser|browser tool/i);
   assert.match(instructions, /untrusted metadata/);
   assert.match(instructions, /https:\/\/example\.com\/app/);
-  assert.doesNotMatch(instructions, /"tabId"/);
+  assert.match(instructions, /No raw browser tab ID/);
+  assert.doesNotMatch(instructions, /"tabId"|"authorization"|"control"/);
+});
+
+test('keeps project selection as cwd without adding it to prompt context', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'panerelay-project-'));
+  const resolved = resolveConversationStartOptions({ cwd: directory });
+
+  assert.equal(resolved.cwd, await realpath(directory));
+  assert.equal(createConversationContextInstructions(resolved), '');
 });

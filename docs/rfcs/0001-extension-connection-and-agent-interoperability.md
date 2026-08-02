@@ -5,7 +5,8 @@
 - Status: Accepted
 - Authors: F-loat
 - Created: 2026-07-29
-- Updated: 2026-08-01
+- Updated: 2026-08-02
+- Amendment: `openspec/changes/archive/2026-08-02-make-adapter-installation-explicit`
 - Amendment: `openspec/changes/archive/2026-08-01-add-browser-use-default-setting`
 - Amendment: `openspec/changes/archive/2026-08-01-improve-browser-authorization-controls`
 
@@ -112,7 +113,7 @@ The Extension:
 - hosts the side panel and its conversation interface;
 - sends explicitly selected elements, page context, screenshots, and user comments to a conversation;
 - receives normalized agent events, activity updates, and approval requests.
-- lets the user request user-level integration settings through the Native Host without editing local configuration itself.
+- lets the user request user-level integration settings and one fixed setup-backed installation for a missing supported adapter through the Native Host without editing local configuration or supplying command material itself.
 
 The Extension does not store model credentials or spawn local agent processes.
 
@@ -124,6 +125,7 @@ The Bridge:
 - authenticates the paired extension and local clients;
 - maintains browser registrations, relay participants, tab bindings, and control leases;
 - reads and conditionally updates Panerelay-owned user-level integration settings;
+- maps a closed adapter identifier to one lockstep, setup-backed installation command with bounded execution and output;
 - exposes loopback-only CDP WebSocket endpoints;
 - translates browser-level CDP target operations into extension and tab operations;
 - multiplexes tab-scoped CDP commands and events over Native Messaging;
@@ -258,9 +260,11 @@ transport.cancel
 
 `agent.request` carries a provider-neutral operation (`agent.providers`, `agent.prepare`, `conversation.list`, `conversation.start`, `conversation.resume`, `conversation.send`, `conversation.interrupt`, or `conversation.respond`). `agent.response` correlates the bounded result or error. Streaming and unsolicited updates use `conversation.event`.
 
-`integration.request` carries a local Panerelay integration operation. These operations read or update the user-level agent-browser default Provider, the Browser Use Direct/Extension connection preference, and the current-browser default, or open a platform-native project-directory chooser. `integration.response` returns a bounded resulting value, one canonical absolute directory, a cancelled-selection result, or a correlated error. The Extension only requests these changes over its authenticated Native Messaging connection; the Bridge validates the request and owns all access to protected Panerelay configuration.
+`integration.request` carries a local Panerelay integration operation. These operations read or update the user-level agent-browser default Provider, the Browser Use Direct/Extension connection preference, and the current-browser default, open a platform-native project-directory chooser, or request installation of the closed `agent-browser` / `browser-use` adapter enum. The install operation accepts no executable, package name, path, shell fragment, or argument from the Extension. The Bridge resolves a local package runner, pins `@panerelay/setup` to the connected lockstep Extension version, maps the enum to its fixed setup flag, bounds time and captured output, and serializes each adapter's installation. `integration.response` returns a bounded resulting value, one canonical absolute directory, a cancelled-selection result, one installed adapter identifier, or a correlated error. The Extension only requests these changes over its authenticated Native Messaging connection; the Bridge validates the request and owns all access to protected Panerelay configuration.
 
-The side panel presents agent-browser and Browser Use as independent choices under one “Set as default” setting. Clearing agent-browser removes the value only when it currently selects Panerelay. Clearing Browser Use selects Direct mode. When more than one live browser registration exists, a separate “Control by default” switch indicates whether the current browser is the saved unscoped routing default; the row is hidden for zero or one live registration without changing the saved value. None of these operations uninstalls an integration, edits project-level configuration, grants site or tab authorization, creates a relay participant, starts an automation daemon, or acquires a control lease.
+The side panel presents `agent-browser` and `browser-use` as independent choices under one “Set as default” setting. Hover does not change a control's background, border, or text color; only a missing integration replaces its label with a localized click-to-install action. A missing integration remains clickable while the Native Host is connected and shows a per-adapter installing state that rejects duplicate clicks. Successful setup is revalidated against protected registration state before that adapter is selected as the default. Clearing agent-browser removes the value only when it currently selects Panerelay. Clearing browser-use selects Direct mode. When more than one live browser registration exists, a separate “Control by default” switch indicates whether the current browser is the saved unscoped routing default; the row is hidden for zero or one live registration without changing the saved value. None of these operations installs or updates an upstream automation engine, uninstalls an integration, edits project-level configuration, grants site or tab authorization, creates a relay participant, starts an automation daemon, or acquires a control lease.
+
+When the browser reports that the Native Host is missing, the side panel places its title and primary description below the welcome icon using the connected welcome heading pattern. Supporting benefits, the required setup action, and optional tool selection then appear in that order as three lightweight sibling cards aligned with the connected layout, without one enclosing panel. The setup-action card uses an action-oriented installation title with the same heading treatment as the optional-tools card rather than repeating a missing-Host diagnostic, and its command uses the theme's muted-gray raised surface. The base setup command has neither automation adapter selected by default. The guide explains that Panerelay reuses the existing browser session under explicit tab authorization, offers `agent-browser` and `browser-use` as independent text-only toggles matching the settings controls, and deterministically composes either or both fixed flags into the visible command. The toggles contain no secondary descriptions, checkbox glyphs, or status indicators. An accessible compact icon action copies the exact command and confirms success locally. Retrying the Native Host connection, including a transient hide and return of the missing-Host view, preserves those selections and the generated command. These controls do not send an integration request, grant browser authorization, or claim to install either upstream engine; only the existing retry action reconnects to the Native Host after the user runs setup.
 
 The normalized conversation event union currently covers turn lifecycle, assistant message deltas and completion, reasoning-summary deltas, tool activity, approval requests and resolution, interruption, failure, and provider errors. Provider-native event objects do not cross the Bridge boundary.
 
@@ -350,11 +354,9 @@ The same internal registry adapts Qoder CLI over ACP when a compatible optional 
 
 Provider discovery is side-effect free. It may resolve an executable and version, but it does not start app-server, ACP, or a conversation. The side panel explicitly requests `agent.prepare` for the selected available provider and reports preparation failures as provider-local state rather than as a global Extension failure.
 
-For browser work, each new Codex or Qoder session receives a uniquely scoped Panerelay agent-browser MCP server. The MCP process uses the existing Panerelay agent-browser provider and therefore receives an independently authenticated participant inside the same short-lived, user-visible browser control lease as external automation clients. Chat availability does not imply browser authorization.
+Side-panel providers do not inject agent-browser, Browser Use, or another browser MCP, Skill, instruction block, engine session label, or engine-specific cleanup command. Each Agent loads browser tools through its own supported configuration. If that tool connects through Panerelay, the existing authenticated routing, explicit tab authorization, visible control lease, liveness, and user-release boundaries still apply. Chat availability and Agent tool configuration never imply browser authorization.
 
-The relationship between a side-panel agent and browser tools must be explicit. A provider receives a scoped relay session or scoped agent-browser MCP endpoint; it does not inherit unrestricted access to all registered browsers.
-
-For a new session, Codex receives the validated project directory as its working directory and the bounded page orientation as developer instructions. Qoder receives the same working directory through ACP and prepends the orientation to the first user prompt because ACP does not expose an equivalent developer-instruction field. Resumed provider-native sessions are not retroactively reoriented.
+For a new session, every provider receives the validated project directory as its actual working directory. Panerelay additionally passes only bounded, redacted current-tab URL/title orientation through the provider's supported instruction or first-prompt surface. It does not include raw browser tab IDs, authorization state, control state, a project path duplicated as prompt metadata, or instructions to use a particular browser engine. Resumed provider-native sessions are not retroactively reoriented.
 
 Codex maps validated images to `turn/start` data URLs. Qoder maps them to ACP image content blocks only after runtime preparation negotiates `promptCapabilities.image`; the Extension refreshes the provider descriptor after preparation so the composer reflects that result.
 
@@ -381,10 +383,11 @@ The page-comment runtime is injected into the authorized active tab's currently 
 7. Local endpoints are authenticated and bound to loopback or user-scoped operating-system transports.
 8. Unsupported or unauthorized actions fail closed.
 9. Sensitive browser data is not included in logs by default.
-10. Agent providers receive only the browser sessions and context explicitly bound to them.
-11. Automatic Agent approval remains separate from Chrome permissions and browser control ownership.
-12. Page evidence is bounded, user-selected, treated as untrusted, and cleared at document boundaries.
-13. Image inputs are explicit, bounded at both Extension and Bridge boundaries, capability-gated, and excluded from logs and durable workspace state.
+10. Extension-initiated integration installation selects only a fixed adapter enum and never carries arbitrary command material.
+11. Agent providers receive only the browser sessions and context explicitly bound to them.
+12. Automatic Agent approval remains separate from Chrome permissions and browser control ownership.
+13. Page evidence is bounded, user-selected, treated as untrusted, and cleared at document boundaries.
+14. Image inputs are explicit, bounded at both Extension and Bridge boundaries, capability-gated, and excluded from logs and durable workspace state.
 
 ### Native Messaging
 
@@ -488,7 +491,7 @@ This would constrain runtimes, complicate credentials, and place privileged logi
 - Integrate unmodified agent-browser through its Provider interface.
 - Enforce one short-lived, user-revocable Panerelay control lease with bounded, independently authenticated participants and serialized target commands.
 - Provide a Codex side-panel vertical slice with conversation lifecycle, streaming, approvals, and interruption.
-- Provide setup, diagnostics, uninstallation, Agent guidance, and optional global Provider selection.
+- Provide engine-neutral Native Host setup plus explicit agent-browser and Browser Use integration selection, diagnostics, uninstallation, Agent guidance, and optional agent-browser default selection.
 - Complete direct-page compatibility evidence and bounded large-message cancellation.
 
 ### Follow-up RFC topics
@@ -522,8 +525,8 @@ RFC-0001 can move from `Draft` to `Accepted` when:
 | Large messages support bounded chunks, integrity checks, cancellation, timeout, and cleanup. | Pass | Protocol tests cover UTF-8 reassembly, sub-1 MiB frames, corruption rejection, explicit cancellation, timeout, and released receiver state. |
 | The browser visibly identifies controlled state and offers immediate release. | Pass | The Extension shows a substantively controlled-tab count in its action badge, marks each document touched by an Agent page command with the agent-browser favicon and a green status dot, and keeps release in the side panel. Virtual target discovery and page-session bootstrap remain unmarked. |
 | Codex uses the provider-neutral conversation contract for lifecycle, streaming, approvals, and interruption. | Pass | Bridge contract tests cover provider discovery, normalized events, and approval requests. |
-| Qoder ACP uses the same provider-neutral boundary without becoming a prerequisite. | Pass | Qoder CLI 1.1.2 completed two consecutive daily-Chrome browser turns; each terminal turn closed its scoped agent-browser connection before another Agent acquired control. Adapter tests cover capabilities, streaming, permissions, interruption, process restart, MCP scoping, and cleanup. |
-| Local setup installs, diagnoses, and removes the Native Host, Provider configuration, and Agent guidance. | Pass | Setup and packed-consumer tests cover project/global selection, custom Extension IDs, doctor, Skill installation, scoped uninstall, and the Windows registry/launcher contract. |
+| Qoder ACP uses the same provider-neutral boundary without becoming a prerequisite. | Pass | Adapter tests cover capabilities, streaming, permissions, interruption, process restart, project working directories, bounded tab context, and the absence of Panerelay-injected browser MCPs or engine cleanup. |
+| Local setup installs, diagnoses, and removes only the selected components. | Pass | Plain setup covers the Native Host and side-panel prerequisites. `--agent-browser` and `--browser-use` independently gate their probes, registrations, Skills, output, success, settings availability, and doctor checks; project/global agent-browser defaults require the explicit agent-browser selection. The settings installer accepts only the two fixed adapter identifiers, pins the lockstep setup package, revalidates registration, and then changes only that adapter's default. |
 | Real Windows Chrome launches and removes the installed Native Host. | Pending | Windows path, launcher, registry, update, and uninstall behavior has deterministic coverage; the stable release gate still requires a real Windows Chrome run from a path containing spaces. |
 
 ## Open questions

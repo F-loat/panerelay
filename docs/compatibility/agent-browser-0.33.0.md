@@ -20,7 +20,7 @@ agent-browser versions newer than 0.33.0 satisfy Panerelay's minimum-version che
 
 | agent-browser capability | Status | Notes |
 | --- | --- | --- |
-| Provider selection and global default | Verified | `@panerelay/setup` installs the Provider and can set it globally. |
+| Provider selection and global default | Verified | `@panerelay/setup --agent-browser` installs the Provider and can set it globally; plain setup does not probe or configure agent-browser. |
 | Browser-level handshake | Verified | Target discovery and flattened page sessions remain virtual; page/runtime/network subscriptions attach as visible observation without entering the controlled count. |
 | `snapshot`, `get`, `eval` | Verified | Accessibility, DOM, and Runtime commands operate on the Agent-selected authorized target, including background tabs. |
 | `open`, `reload`, `back`, `forward`, `wait` | Verified | Navigation stays within Chrome site-access authorization. |
@@ -69,7 +69,7 @@ agent-browser versions newer than 0.33.0 satisfy Panerelay's minimum-version che
 | Bounded replay and history gaps | Verified | Bridge and Extension tests cover ring limits, epochs, sequence gaps, and reconnect snapshots. |
 | Durable activity history | Unsupported | Activity is intentionally memory-only and is cleared across process histories. |
 
-Real-browser evidence covers active heartbeat, completed page activity, tab activity, direct Provider release, two consecutive Qoder CLI 1.1.2 browser turns, and two simultaneously live agent-browser 0.33.0 participants. Both named participants listed the same eight authorized tabs and concurrently read the same GitHub target. Closing the first left the second usable; closing the second completed cleanup without changing tab authorization.
+Real-browser evidence covers active heartbeat, completed page activity, tab activity, direct Provider release, and two simultaneously live agent-browser 0.33.0 participants. Both named participants listed the same eight authorized tabs and concurrently read the same GitHub target. Closing the first left the second usable; closing the second completed cleanup without changing tab authorization.
 
 A later daily-Chrome focus-isolation run kept one user-visible tab active while an Agent selected a different authorized target, read its title, and captured its accessibility snapshot. Fresh observer participants continued to report the original Chrome-active target. The Agent then created an inactive `about:blank` target, observer participants still reported the original active target, and closing the background target did not change it. After the user independently changed the visible tab, an Agent DOM-focus command succeeded on the background target without pulling Chrome back to it. Every verification participant was released independently afterward.
 
@@ -111,7 +111,7 @@ Forced heartbeat expiry, Bridge-restart gaps, and injected failed or denied CDP 
 
 ## Side-panel provider sessions
 
-The side-panel providers create scoped agent-browser `0.33.0` MCP connections when a conversation uses browser tools. Conversation workspace behavior is Extension-private and does not alter agent-browser commands, authorization, or control leases.
+Side-panel providers do not create or close agent-browser MCP connections. They keep the selected project as the Agent working directory and pass only bounded, redacted current-tab URL/title context. Any agent-browser MCP or Skill is loaded from the Agent's own configuration and remains subject to normal Panerelay authorization and control leases.
 
 | capability | Status | Notes |
 | --- | --- | --- |

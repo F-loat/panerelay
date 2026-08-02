@@ -48,6 +48,7 @@ test('routes default-provider integration operations and returns current state',
   const sent: HostToExtensionMessage[] = [];
   const calls: string[] = [];
   const service = new IntegrationService(message => sent.push(message), {
+    readAgentBrowserProvider: async () => true,
     readDefaultProvider: async () => {
       calls.push('get');
       return { path: '/config', provider: null, isPanerelay: false };
@@ -74,9 +75,12 @@ test('routes default-provider integration operations and returns current state',
         : message,
     ),
     [
-      { success: true, result: { provider: null, isPanerelay: false } },
-      { success: true, result: { provider: 'panerelay', isPanerelay: true } },
-      { success: true, result: { provider: null, isPanerelay: false } },
+      { success: true, result: { available: true, provider: null, isPanerelay: false } },
+      {
+        success: true,
+        result: { available: true, provider: 'panerelay', isPanerelay: true },
+      },
+      { success: true, result: { available: true, provider: null, isPanerelay: false } },
     ],
   );
 });
@@ -86,6 +90,7 @@ test('manages the Browser Use connection default independently from agent-browse
   const calls: string[] = [];
   let mode: 'direct' | 'extension' | null = null;
   const service = new IntegrationService(message => sent.push(message), {
+    readAgentBrowserProvider: async () => true,
     readBrowserUseAdapter: async () => browserUseAdapter,
     readBrowserUseMode: async () => mode,
     setBrowserUseMode: async nextMode => {
@@ -109,10 +114,45 @@ test('manages the Browser Use connection default independently from agent-browse
     [
       { available: true, mode: 'direct', isPanerelay: false },
       { available: true, mode: 'extension', isPanerelay: true },
-      { provider: 'panerelay', isPanerelay: true },
+      { available: true, provider: 'panerelay', isPanerelay: true },
       { available: true, mode: 'direct', isPanerelay: false },
     ],
   );
+});
+
+test('reports an unavailable agent-browser integration and rejects its mutation', async () => {
+  const sent: HostToExtensionMessage[] = [];
+  let writes = 0;
+  const service = new IntegrationService(message => sent.push(message), {
+    readAgentBrowserProvider: async () => false,
+    readDefaultProvider: async () => ({ path: '/config', provider: null, isPanerelay: false }),
+    setDefaultProvider: async () => {
+      writes += 1;
+      return { path: '/config', provider: 'panerelay', isPanerelay: true };
+    },
+  });
+
+  await service.handle(request('default-provider.get', 'agent-browser-get'));
+  await service.handle(request('default-provider.set', 'agent-browser-set'));
+
+  assert.equal(writes, 0);
+  assert.deepEqual(sent, [
+    {
+      type: 'integration.response',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      requestId: 'agent-browser-get',
+      success: true,
+      result: { available: false, provider: null, isPanerelay: false },
+    },
+    {
+      type: 'integration.response',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      requestId: 'agent-browser-set',
+      success: false,
+      error:
+        'The Panerelay agent-browser integration is not available. Run npx --yes @panerelay/setup --agent-browser',
+    },
+  ]);
 });
 
 test('reports an unavailable Browser Use integration and rejects its mutation', async () => {
@@ -147,6 +187,115 @@ test('reports an unavailable Browser Use integration and rejects its mutation', 
   ]);
 });
 
+test('installs only the requested integration and selects it as the default', async () => {
+  const sent: HostToExtensionMessage[] = [];
+  const calls: string[] = [];
+  let agentBrowserAvailable = false;
+  let browserUseRegistration: CliAdapterRegistration | null = null;
+  const service = new IntegrationService(message => sent.push(message), {
+    currentBrowser: () => currentBrowser,
+    installIntegration: async (integration, version) => {
+      calls.push(`install:${integration}:${version}`);
+      if (integration === 'agent-browser') agentBrowserAvailable = true;
+      else browserUseRegistration = browserUseAdapter;
+    },
+    readAgentBrowserProvider: async () => agentBrowserAvailable,
+    readBrowserUseAdapter: async () => browserUseRegistration,
+    setBrowserUseMode: async mode => {
+      calls.push(`browser-use:${mode}`);
+    },
+    setDefaultProvider: async () => {
+      calls.push('agent-browser:default');
+      return { path: '/config', provider: 'panerelay', isPanerelay: true };
+    },
+  });
+
+  await service.handle({
+    ...request('integration.install', 'install-agent-browser'),
+    request: { method: 'integration.install', integration: 'agent-browser' },
+  });
+  await service.handle({
+    ...request('integration.install', 'install-browser-use'),
+    request: { method: 'integration.install', integration: 'browser-use' },
+  });
+
+  assert.deepEqual(calls, [
+    'install:agent-browser:0.2.0',
+    'agent-browser:default',
+    'install:browser-use:0.2.0',
+    'browser-use:extension',
+  ]);
+  assert.deepEqual(
+    sent.map(message =>
+      message.type === 'integration.response'
+        ? { requestId: message.requestId, success: message.success, result: message.result }
+        : message,
+    ),
+    [
+      {
+        requestId: 'install-agent-browser',
+        success: true,
+        result: { integration: 'agent-browser', installed: true },
+      },
+      {
+        requestId: 'install-browser-use',
+        success: true,
+        result: { integration: 'browser-use', installed: true },
+      },
+    ],
+  );
+});
+
+test('rejects a duplicate integration installation while the first request is running', async () => {
+  const sent: HostToExtensionMessage[] = [];
+  let releaseInstallation: (() => void) | undefined;
+  let available = false;
+  const installation = new Promise<void>(resolve => {
+    releaseInstallation = resolve;
+  });
+  const service = new IntegrationService(message => sent.push(message), {
+    currentBrowser: () => currentBrowser,
+    installIntegration: async () => {
+      await installation;
+      available = true;
+    },
+    readAgentBrowserProvider: async () => available,
+    setDefaultProvider: async () => ({
+      path: '/config',
+      provider: 'panerelay',
+      isPanerelay: true,
+    }),
+  });
+  const first = service.handle({
+    ...request('integration.install', 'install-first'),
+    request: { method: 'integration.install', integration: 'agent-browser' },
+  });
+  await Promise.resolve();
+  await service.handle({
+    ...request('integration.install', 'install-duplicate'),
+    request: { method: 'integration.install', integration: 'agent-browser' },
+  });
+  releaseInstallation?.();
+  await first;
+
+  const responses = sent.filter(message => message.type === 'integration.response');
+  assert.equal(responses.length, 2);
+  assert.deepEqual(responses[0], {
+    type: 'integration.response',
+    protocol: PANERELAY_PROTOCOL_VERSION,
+    requestId: 'install-duplicate',
+    success: false,
+    error: 'The agent-browser integration installation is already running',
+  });
+  assert.deepEqual(responses[1], {
+    type: 'integration.response',
+    protocol: PANERELAY_PROTOCOL_VERSION,
+    requestId: 'install-first',
+    success: true,
+    result: { integration: 'agent-browser', installed: true },
+  });
+});
+
 test('returns a correlated Browser Use default error for invalid protected state', async () => {
   const sent: HostToExtensionMessage[] = [];
   const service = new IntegrationService(message => sent.push(message), {
@@ -171,6 +320,7 @@ test('returns a correlated Browser Use default error for invalid protected state
 test('returns a correlated error when configuration cannot be read', async () => {
   const sent: HostToExtensionMessage[] = [];
   const service = new IntegrationService(message => sent.push(message), {
+    readAgentBrowserProvider: async () => true,
     readDefaultProvider: async () => {
       throw new Error('Invalid agent-browser configuration');
     },

@@ -2,6 +2,7 @@ import type {
   AutomationActivityCategory,
   AutomationActivityLabel,
   AutomationActivityStatus,
+  AutomationIntegrationId,
   ConversationActivity,
   ConversationApproval,
   ConversationApprovalDecision,
@@ -10,9 +11,11 @@ import type {
 import {
   ArrowUp,
   Bot,
+  Check,
   ChevronDown,
   ChevronRight,
   CircleAlert,
+  Copy,
   FilePenLine,
   FolderOpen,
   ListCollapse,
@@ -46,6 +49,36 @@ import { browserSidepanelClient, type SidepanelClient } from './sidepanel-client
 import { isPanerelaySetupFailure } from './setup-guidance.js';
 
 const PANERELAY_SETUP_COMMAND = 'npx --yes @panerelay/setup';
+type SetupIntegration = AutomationIntegrationId;
+type SetupIntegrationSelection = Record<SetupIntegration, boolean>;
+
+const SETUP_INTEGRATIONS: readonly SetupIntegration[] = ['agent-browser', 'browser-use'];
+const EMPTY_SETUP_INTEGRATION_SELECTION: Readonly<SetupIntegrationSelection> = {
+  'agent-browser': false,
+  'browser-use': false,
+};
+
+async function writeClipboardText(value: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+  } catch {
+    // Continue with the user-gesture fallback for extension contexts without Clipboard API access.
+  }
+
+  const input = document.createElement('textarea');
+  input.value = value;
+  input.setAttribute('readonly', '');
+  input.style.position = 'fixed';
+  input.style.opacity = '0';
+  document.body.append(input);
+  input.select();
+  const copied = document.execCommand('copy');
+  input.remove();
+  return copied;
+}
 
 interface AppProps {
   client?: SidepanelClient;
@@ -380,28 +413,136 @@ function automationStatusText(locale: Locale, status: AutomationActivityStatus):
 function PanerelaySetupGuide({
   controller,
   nativeHost = false,
+  onToggleIntegration,
+  selectedIntegrations = EMPTY_SETUP_INTEGRATION_SELECTION,
 }: {
   controller: SidepanelController;
   nativeHost?: boolean;
+  onToggleIntegration?: (integration: SetupIntegration) => void;
+  selectedIntegrations?: Readonly<SetupIntegrationSelection>;
 }) {
   const { state } = controller;
   const { t } = useCopy(state);
+  const [commandCopied, setCommandCopied] = useState(false);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const setupCommand = useMemo(
+    () =>
+      [
+        PANERELAY_SETUP_COMMAND,
+        ...SETUP_INTEGRATIONS.filter(integration => selectedIntegrations[integration]).map(
+          integration => `--${integration}`,
+        ),
+      ].join(' '),
+    [selectedIntegrations],
+  );
+
+  useEffect(
+    () => () => {
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    },
+    [],
+  );
+
+  const toggleIntegration = (integration: SetupIntegration) => {
+    onToggleIntegration?.(integration);
+    setCommandCopied(false);
+    if (copiedTimer.current) clearTimeout(copiedTimer.current);
+  };
+
+  const copySetupCommand = async () => {
+    if (!(await writeClipboardText(setupCommand))) return;
+    setCommandCopied(true);
+    if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    copiedTimer.current = setTimeout(() => setCommandCopied(false), 1_600);
+  };
+
+  if (nativeHost) {
+    return (
+      <section
+        aria-label={t('nativeHostMissingTitle')}
+        className="setup-guidance"
+        data-native-host="true"
+      >
+        <article className="setup-guide-card" data-setup-card="benefits">
+          <div className="setup-guidance-features">
+            <span>
+              <PanelTop aria-hidden="true" />
+              {t('nativeHostFeatureSession')}
+            </span>
+            <span>
+              <ShieldCheck aria-hidden="true" />
+              {t('nativeHostFeatureAuthorization')}
+            </span>
+          </div>
+        </article>
+        <article className="setup-guide-card setup-action-card" data-setup-card="action">
+          <strong className="setup-guidance-status">{t('nativeHostInstallTitle')}</strong>
+          <div className="setup-command-row">
+            <code>{setupCommand}</code>
+            <button
+              aria-label={t(commandCopied ? 'setupCommandCopied' : 'copySetupCommand')}
+              className="setup-command-copy"
+              onClick={() => void copySetupCommand()}
+              title={t(commandCopied ? 'setupCommandCopied' : 'copySetupCommand')}
+              type="button"
+            >
+              {commandCopied ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+            </button>
+            <span aria-live="polite" className="sr-only" role="status">
+              {commandCopied ? t('setupCommandCopied') : ''}
+            </span>
+          </div>
+          <button
+            disabled={state.nativeRetryPending}
+            onClick={() => void controller.retryNativeHost()}
+            type="button"
+          >
+            {state.nativeRetryPending ? t('connecting') : t('retryNativeHost')}
+          </button>
+        </article>
+        <article className="setup-guide-card" data-setup-card="integrations">
+          <div className="setup-integration-picker">
+            <div>
+              <strong>{t('setupIntegrationsTitle')}</strong>
+              <span>{t('setupIntegrationsBody')}</span>
+            </div>
+            <div
+              aria-label={t('setupIntegrationChoices')}
+              className="setup-integration-options"
+              role="group"
+            >
+              {SETUP_INTEGRATIONS.map(integration => {
+                const selected = selectedIntegrations[integration];
+                return (
+                  <button
+                    aria-pressed={selected}
+                    className="settings-provider-toggle settings-default-toggle setup-integration-toggle"
+                    key={integration}
+                    onClick={() => toggleIntegration(integration)}
+                    type="button"
+                  >
+                    {integration}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </article>
+      </section>
+    );
+  }
+
   return (
-    <section className="setup-guidance" data-native-host={nativeHost}>
+    <section
+      aria-label={t('panerelaySetupNeededTitle')}
+      className="setup-guidance"
+      data-native-host="false"
+    >
       <div className="setup-guidance-copy">
-        <strong>{t(nativeHost ? 'nativeHostMissingTitle' : 'panerelaySetupNeededTitle')}</strong>
-        <span>{t(nativeHost ? 'nativeHostMissingBody' : 'panerelaySetupNeededBody')}</span>
+        <strong>{t('panerelaySetupNeededTitle')}</strong>
+        <span>{t('panerelaySetupNeededBody')}</span>
       </div>
       <code>{PANERELAY_SETUP_COMMAND}</code>
-      {nativeHost && (
-        <button
-          disabled={state.nativeRetryPending}
-          onClick={() => void controller.retryNativeHost()}
-          type="button"
-        >
-          {state.nativeRetryPending ? t('connecting') : t('retryNativeHost')}
-        </button>
-      )}
     </section>
   );
 }
@@ -667,30 +808,70 @@ function AutomationDefaultsSetting({ controller }: { controller: SidepanelContro
   const connected = state.extensionStatus?.bridgeConnected ?? false;
   const agentBrowserEnabled = agentBrowser?.isPanerelay ?? false;
   const browserUseEnabled = browserUse?.isPanerelay ?? false;
+  const agentBrowserAvailable = agentBrowser?.available ?? false;
+  const browserUseAvailable = browserUse?.available ?? false;
+  const agentBrowserInstallable = connected && agentBrowser?.available === false;
+  const browserUseInstallable = connected && browserUse?.available === false;
+  const agentBrowserInstalling = agentBrowserInstallable && state.defaultProviderPending;
+  const browserUseInstalling = browserUseInstallable && state.browserUseDefaultPending;
 
   return (
     <div className="settings-field settings-default-field">
       <span>{t('setAsDefault')}</span>
       <div className="settings-default-actions">
         <button
-          aria-label={t(agentBrowserEnabled ? 'clearProviderDefault' : 'setProviderDefault')}
+          aria-busy={agentBrowserInstalling || undefined}
+          aria-label={t(
+            agentBrowserInstalling
+              ? 'installingIntegration'
+              : agentBrowserInstallable
+                ? 'installAgentBrowser'
+                : agentBrowserEnabled
+                  ? 'clearProviderDefault'
+                  : 'setProviderDefault',
+          )}
           aria-pressed={agentBrowserEnabled}
           className="settings-provider-toggle settings-default-toggle"
-          disabled={!connected || !agentBrowser || state.defaultProviderPending}
-          onClick={() => void controller.setDefaultProvider(!agentBrowserEnabled)}
+          data-install-label={agentBrowserInstallable ? t('clickToInstall') : undefined}
+          data-installable={agentBrowserInstallable && !state.defaultProviderPending}
+          disabled={!connected || agentBrowser === null || state.defaultProviderPending}
+          onClick={() =>
+            void (agentBrowserAvailable
+              ? controller.setDefaultProvider(!agentBrowserEnabled)
+              : controller.installIntegration('agent-browser'))
+          }
           type="button"
         >
-          agent-browser
+          <span className="settings-default-label">
+            {agentBrowserInstalling ? t('installingIntegration') : 'agent-browser'}
+          </span>
         </button>
         <button
-          aria-label={t(browserUseEnabled ? 'clearBrowserUseDefault' : 'setBrowserUseDefault')}
+          aria-busy={browserUseInstalling || undefined}
+          aria-label={t(
+            browserUseInstalling
+              ? 'installingIntegration'
+              : browserUseInstallable
+                ? 'installBrowserUse'
+                : browserUseEnabled
+                  ? 'clearBrowserUseDefault'
+                  : 'setBrowserUseDefault',
+          )}
           aria-pressed={browserUseEnabled}
           className="settings-provider-toggle settings-default-toggle"
-          disabled={!connected || !browserUse?.available || state.browserUseDefaultPending}
-          onClick={() => void controller.setBrowserUseDefault(!browserUseEnabled)}
+          data-install-label={browserUseInstallable ? t('clickToInstall') : undefined}
+          data-installable={browserUseInstallable && !state.browserUseDefaultPending}
+          disabled={!connected || browserUse === null || state.browserUseDefaultPending}
+          onClick={() =>
+            void (browserUseAvailable
+              ? controller.setBrowserUseDefault(!browserUseEnabled)
+              : controller.installIntegration('browser-use'))
+          }
           type="button"
         >
-          Browser Use
+          <span className="settings-default-label">
+            {browserUseInstalling ? t('installingIntegration') : 'browser-use'}
+          </span>
         </button>
       </div>
     </div>
@@ -1231,7 +1412,15 @@ function ApprovalCard({
   );
 }
 
-function Welcome({ controller }: { controller: SidepanelController }) {
+function Welcome({
+  controller,
+  onToggleSetupIntegration,
+  selectedSetupIntegrations,
+}: {
+  controller: SidepanelController;
+  onToggleSetupIntegration: (integration: SetupIntegration) => void;
+  selectedSetupIntegrations: Readonly<SetupIntegrationSelection>;
+}) {
   const { state } = controller;
   const { t, tf } = useCopy(state);
   const provider = state.providers.find(item => item.id === state.currentProviderId);
@@ -1283,7 +1472,16 @@ function Welcome({ controller }: { controller: SidepanelController }) {
     <div className="empty-state flex min-h-full flex-col items-center justify-center px-[18px] py-7 text-center">
       <Sparkles aria-hidden="true" className="empty-mark" />
       {nativeHostMissing ? (
-        <PanerelaySetupGuide controller={controller} nativeHost />
+        <>
+          <h2>{title}</h2>
+          <p>{body}</p>
+          <PanerelaySetupGuide
+            controller={controller}
+            nativeHost
+            onToggleIntegration={onToggleSetupIntegration}
+            selectedIntegrations={selectedSetupIntegrations}
+          />
+        </>
       ) : (
         <>
           <h2>{title}</h2>
@@ -1572,6 +1770,15 @@ export function SidepanelApp({ client = browserSidepanelClient }: AppProps) {
   const { t } = useCopy(state);
   const scrollRef = useRef<HTMLElement>(null);
   const settingsRef = useRef<HTMLElement>(null);
+  const [selectedSetupIntegrations, setSelectedSetupIntegrations] =
+    useState<SetupIntegrationSelection>(() => ({ ...EMPTY_SETUP_INTEGRATION_SELECTION }));
+
+  const toggleSetupIntegration = (integration: SetupIntegration) => {
+    setSelectedSetupIntegrations(current => ({
+      ...current,
+      [integration]: !current[integration],
+    }));
+  };
 
   useEffect(() => {
     if (!state.settingsOpen) return;
@@ -1616,7 +1823,11 @@ export function SidepanelApp({ client = browserSidepanelClient }: AppProps) {
             <span>{t('connectingAgent')}</span>
           </div>
         ) : state.timeline.length === 0 ? (
-          <Welcome controller={controller} />
+          <Welcome
+            controller={controller}
+            onToggleSetupIntegration={toggleSetupIntegration}
+            selectedSetupIntegrations={selectedSetupIntegrations}
+          />
         ) : (
           <Timeline controller={controller} scrollRef={scrollRef} />
         )}

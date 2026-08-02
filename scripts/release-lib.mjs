@@ -721,12 +721,24 @@ export async function smokePackedSetup(tarballs) {
       cwd: consumerDirectory,
       env: environment,
     });
-    const setupArgs = ['--project-provider', '--global-provider', '--extension-id', extensionId];
+    const setupArgs = [
+      '--agent-browser',
+      '--project-provider',
+      '--global-provider',
+      '--extension-id',
+      extensionId,
+    ];
     await run(process.execPath, setupCliArguments(setupArgs), {
       cwd: consumerDirectory,
       env: environment,
     });
-    const doctorArgs = ['doctor', '--project-provider', '--global-provider', '--json'];
+    const doctorArgs = [
+      'doctor',
+      '--agent-browser',
+      '--project-provider',
+      '--global-provider',
+      '--json',
+    ];
     const firstDoctor = await packedDoctor(process.execPath, setupCliArguments(doctorArgs), {
       cwd: consumerDirectory,
       env: environment,
@@ -741,7 +753,7 @@ export async function smokePackedSetup(tarballs) {
     );
     await run(
       process.execPath,
-      setupCliArguments(['update', '--project-provider', '--global-provider']),
+      setupCliArguments(['update', '--agent-browser', '--project-provider', '--global-provider']),
       {
         cwd: consumerDirectory,
         env: environment,

@@ -15,21 +15,11 @@ import type {
   ConversationStartOptions,
   ConversationSummary,
 } from '@panerelay/protocol';
-import { PANERELAY_BROWSER_ID_ENV } from '@panerelay/browser-registry';
 import type { AgentProvider } from './agent-provider.js';
 import {
   createConversationContextInstructions,
   resolveConversationStartOptions,
 } from './agent-context.js';
-import {
-  AGENT_BROWSER_MCP_NAME,
-  agentBrowserMcpArguments,
-  agentBrowserSessionEnvironment,
-  closeAgentBrowserSession,
-  createAgentBrowserSession,
-  type AgentBrowserSession,
-  type CloseAgentBrowserSessionOptions,
-} from './agent-browser-session.js';
 import { resolveSpawnCommand } from './platform.js';
 import {
   qoderInstallCommand,
@@ -61,7 +51,6 @@ export interface QoderRuntime {
 }
 
 export interface QoderProviderOptions {
-  closeBrowserSession?: (session: QoderBrowserSession) => Promise<void>;
   createRuntime?: (executable: string, handlers: QoderRuntimeHandlers) => QoderRuntime;
   cwd?: () => string;
   environment?: NodeJS.ProcessEnv;
@@ -72,12 +61,8 @@ export interface QoderProviderOptions {
   runtimeConfig?: () => Promise<PanerelayRuntimeConfig>;
 }
 
-export type QoderBrowserSession = AgentBrowserSession;
-
 interface QoderSession {
   activeTurn?: QoderTurn;
-  browserCleanup?: Promise<void>;
-  browserSession?: QoderBrowserSession;
   cwd: string;
   initialContext?: string;
   summary: ConversationSummary;
@@ -174,32 +159,6 @@ function failedToolDetail(update: acp.ToolCall | acp.ToolCallUpdate): string | u
     .filter(Boolean)
     .join('\n');
   return detail ? bounded(detail, MAX_DELTA_CHARS) : undefined;
-}
-
-export function qoderBrowserMcpServers(
-  config: PanerelayRuntimeConfig,
-  sessionLabel: string,
-  browserId = process.env[PANERELAY_BROWSER_ID_ENV],
-): acp.McpServer[] {
-  const browserSession = createAgentBrowserSession(config, sessionLabel);
-  if (!browserSession) return [];
-  return [
-    {
-      name: AGENT_BROWSER_MCP_NAME,
-      command: browserSession.executable,
-      args: agentBrowserMcpArguments(),
-      env: Object.entries(agentBrowserSessionEnvironment(browserSession, browserId)).map(
-        ([name, value]) => ({ name, value }),
-      ),
-    },
-  ];
-}
-
-export async function closeQoderBrowserSession(
-  session: QoderBrowserSession,
-  options: CloseAgentBrowserSessionOptions = {},
-): Promise<void> {
-  await closeAgentBrowserSession(session, options);
 }
 
 export class QoderProcessRuntime implements QoderRuntime {
@@ -368,7 +327,6 @@ export class QoderProvider implements AgentProvider {
   private runtime: QoderRuntime | null = null;
   private runtimeStart: Promise<void> | null = null;
   private initializeResponse: acp.InitializeResponse | null = null;
-  private runtimeConfigValue: PanerelayRuntimeConfig | null = null;
   private resolution: QoderExecutableResolution | null = null;
   private readonly listeners = new Set<(event: ConversationEvent) => void>();
   private readonly sessions = new Map<string, QoderSession>();
@@ -450,30 +408,14 @@ export class QoderProvider implements AgentProvider {
 
   async startConversation(options: ConversationStartOptions = {}): Promise<ConversationDetail> {
     await this.ensureRuntime();
-    const config = this.getRuntimeConfig();
     const resolvedOptions = resolveConversationStartOptions(options);
     const cwd = resolvedOptions.cwd ?? (this.options.cwd ?? homedir)();
-    const sessionLabel = `panerelay-qoder-${randomUUID()}`;
-    const browserSession = createAgentBrowserSession(config, sessionLabel);
-    let result: acp.NewSessionResponse;
-    try {
-      result = (await this.request(
-        acp.methods.agent.session.new,
-        {
-          cwd,
-          mcpServers: qoderBrowserMcpServers(
-            config,
-            sessionLabel,
-            (this.options.environment ?? process.env)[PANERELAY_BROWSER_ID_ENV],
-          ),
-        },
-        'Qoder session creation',
-      )) as acp.NewSessionResponse;
-      if (!result.sessionId) throw new Error('Qoder did not return a conversation ID');
-    } catch (error) {
-      await this.closeOwnedBrowserSession(browserSession);
-      throw error;
-    }
+    const result = (await this.request(
+      acp.methods.agent.session.new,
+      { cwd, mcpServers: [] },
+      'Qoder session creation',
+    )) as acp.NewSessionResponse;
+    if (!result.sessionId) throw new Error('Qoder did not return a conversation ID');
     const now = new Date().toISOString();
     const summary: ConversationSummary = {
       id: result.sessionId,
@@ -486,7 +428,6 @@ export class QoderProvider implements AgentProvider {
     };
     const initialContext = createConversationContextInstructions(resolvedOptions);
     this.sessions.set(result.sessionId, {
-      browserSession,
       cwd,
       ...(initialContext ? { initialContext } : {}),
       summary,
@@ -500,40 +441,28 @@ export class QoderProvider implements AgentProvider {
     if (!capabilities?.loadSession && !capabilities?.sessionCapabilities?.resume) {
       throw new Error('This Qoder CLI does not advertise ACP session resume or load');
     }
-    const config = this.getRuntimeConfig();
     const cwd = (this.options.cwd ?? homedir)();
-    const sessionLabel = `panerelay-qoder-${randomUUID()}`;
-    const browserSession = createAgentBrowserSession(config, sessionLabel);
     const request = {
       sessionId: conversationId,
       cwd,
-      mcpServers: qoderBrowserMcpServers(
-        config,
-        sessionLabel,
-        (this.options.environment ?? process.env)[PANERELAY_BROWSER_ID_ENV],
-      ),
+      mcpServers: [],
     };
     let messages: ConversationMessage[] = [];
-    try {
-      if (capabilities?.loadSession) {
-        const capture: HistoryCapture = {
-          messages: [],
-          messageIndexes: new Map(),
-          nextId: 1,
-        };
-        this.historyCaptures.set(conversationId, capture);
-        try {
-          await this.request(acp.methods.agent.session.load, request, 'Qoder session load');
-          messages = capture.messages;
-        } finally {
-          this.historyCaptures.delete(conversationId);
-        }
-      } else if (capabilities?.sessionCapabilities?.resume) {
-        await this.request(acp.methods.agent.session.resume, request, 'Qoder session resume');
+    if (capabilities?.loadSession) {
+      const capture: HistoryCapture = {
+        messages: [],
+        messageIndexes: new Map(),
+        nextId: 1,
+      };
+      this.historyCaptures.set(conversationId, capture);
+      try {
+        await this.request(acp.methods.agent.session.load, request, 'Qoder session load');
+        messages = capture.messages;
+      } finally {
+        this.historyCaptures.delete(conversationId);
       }
-    } catch (error) {
-      await this.closeOwnedBrowserSession(browserSession);
-      throw error;
+    } else if (capabilities?.sessionCapabilities?.resume) {
+      await this.request(acp.methods.agent.session.resume, request, 'Qoder session resume');
     }
     const now = new Date().toISOString();
     const summary: ConversationSummary = {
@@ -545,7 +474,7 @@ export class QoderProvider implements AgentProvider {
       createdAt: messages[0]?.createdAt || now,
       updatedAt: messages.at(-1)?.createdAt || now,
     };
-    this.sessions.set(conversationId, { browserSession, cwd, summary });
+    this.sessions.set(conversationId, { cwd, summary });
     return { conversation: summary, messages };
   }
 
@@ -633,7 +562,6 @@ export class QoderProvider implements AgentProvider {
     this.cancelPermissions();
     this.historyCaptures.clear();
     const runtime = this.runtime;
-    const sessions = [...this.sessions.values()];
     const closeSupported = this.initializeResponse?.agentCapabilities?.sessionCapabilities?.close;
     if (runtime && closeSupported) {
       await Promise.allSettled(
@@ -650,10 +578,8 @@ export class QoderProvider implements AgentProvider {
     this.runtime = null;
     this.runtimeStart = null;
     this.initializeResponse = null;
-    this.runtimeConfigValue = null;
     this.resolution = null;
     await runtime?.close();
-    await Promise.all(sessions.map(session => this.closeSessionBrowser(session)));
   }
 
   private async ensureRuntime(): Promise<void> {
@@ -697,21 +623,14 @@ export class QoderProvider implements AgentProvider {
         });
     runtimeReference.value = runtime;
     this.runtime = runtime;
-    this.runtimeConfigValue = config;
     try {
       this.initializeResponse = await runtime.start();
     } catch (error) {
       if (this.runtime === runtime) this.runtime = null;
       this.initializeResponse = null;
-      this.runtimeConfigValue = null;
       await runtime.close().catch(() => {});
       throw new Error(`Qoder ACP failed to initialize: ${errorMessage(error)}`, { cause: error });
     }
-  }
-
-  private getRuntimeConfig(): PanerelayRuntimeConfig {
-    if (!this.runtimeConfigValue) throw new Error('Qoder runtime configuration is unavailable');
-    return this.runtimeConfigValue;
   }
 
   private async request(method: string, params: unknown, label: string): Promise<unknown> {
@@ -792,7 +711,6 @@ export class QoderProvider implements AgentProvider {
       };
     } finally {
       this.cancelPermissions(conversationId);
-      await this.closeSessionBrowser(session);
       if (session.activeTurn === turn) {
         delete session.activeTurn;
         this.emit(terminalEvent!);
@@ -1019,7 +937,6 @@ export class QoderProvider implements AgentProvider {
     if (this.runtime !== runtime) return;
     this.runtime = null;
     this.initializeResponse = null;
-    this.runtimeConfigValue = null;
     this.resolution = null;
     this.cancelPermissions();
     const sessions = [...this.sessions.entries()];
@@ -1030,50 +947,19 @@ export class QoderProvider implements AgentProvider {
       activeTurns.push({ conversationId, turnId: session.activeTurn.id });
       delete session.activeTurn;
     }
-    void Promise.all(sessions.map(([, session]) => this.closeSessionBrowser(session))).then(() => {
-      for (const { conversationId, turnId } of activeTurns) {
-        this.emit({
-          kind: 'error',
-          conversationId,
-          message: bounded(message, 1_024),
-        });
-        this.emit({
-          kind: 'turn.completed',
-          conversationId,
-          turnId,
-          status: 'failed',
-          error: 'Qoder ACP exited before the turn completed',
-        });
-      }
-    });
-  }
-
-  private async closeSessionBrowser(session: QoderSession): Promise<void> {
-    if (!session.browserSession) return;
-    if (!session.browserCleanup) {
-      session.browserCleanup = this.closeOwnedBrowserSession(session.browserSession);
-    }
-    const cleanup = session.browserCleanup;
-    try {
-      await cleanup;
-    } finally {
-      if (session.browserCleanup === cleanup) delete session.browserCleanup;
-    }
-  }
-
-  private async closeOwnedBrowserSession(session: QoderBrowserSession | undefined): Promise<void> {
-    if (!session) return;
-    try {
-      if (this.options.closeBrowserSession) {
-        await this.options.closeBrowserSession(session);
-      } else {
-        await closeQoderBrowserSession(session, {
-          environment: this.options.environment,
-          platform: this.options.platform,
-        });
-      }
-    } catch {
-      this.options.onDiagnostic?.(`Failed to close Qoder browser session ${session.label}`);
+    for (const { conversationId, turnId } of activeTurns) {
+      this.emit({
+        kind: 'error',
+        conversationId,
+        message: bounded(message, 1_024),
+      });
+      this.emit({
+        kind: 'turn.completed',
+        conversationId,
+        turnId,
+        status: 'failed',
+        error: 'Qoder ACP exited before the turn completed',
+      });
     }
   }
 

@@ -33,5 +33,4 @@ if (process.argv.includes('--uninstall')) {
       result.claudeVersion ? ` (${result.claudeVersion})` : ''
     }\n`,
   );
-  process.stdout.write(`agent-browser: ${result.agentBrowserPath || 'not found'}\n`);
 }
