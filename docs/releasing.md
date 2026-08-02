@@ -66,7 +66,7 @@ candidate_directory=".artifacts/panerelay-$release_version"
 ## Runtime acceptance
 
 - [ ] Extract and load the retained Extension archive in the daily Chrome profile.
-- [ ] Run `npx --yes @panerelay/setup doctor` and confirm the Native Host, exact Extension origin, actual registered Extension ID, and optional side-panel Agent status without engine checks. Then rerun it with `--agent-browser`, `--browser-use`, and both to confirm the selected version and registration checks.
+- [ ] Run `npx --yes @panerelay/setup doctor` and confirm the Native Host, exact Extension origin, actual registered Extension ID, and optional Agent side-panel status without engine checks. Then rerun it with `--agent-browser`, `--browser-use`, and both to confirm the selected version and registration checks.
 - [ ] With agent-browser 0.33.0, authorize a local fixture tab, run one bounded Provider session, observe visible control, revoke it, and confirm debugger/session cleanup.
 - [ ] Load the same retained archive in a daily Edge profile, confirm Edge registration and side-panel identity, repeat the bounded fixture flow, and retain the result before changing Edge groups from `Forwarded` to `Verified`.
 - [ ] Run one bounded Codex browser-MCP turn, one external Claude Code CLI browser-MCP turn, and one Qoder ACP browser-MCP turn when each optional runtime is available. Exercise a permission decision, interruption, and browser authorization revocation without retaining prompts or page data.

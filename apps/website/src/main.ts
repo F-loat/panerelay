@@ -1,4 +1,5 @@
 import './styles.css';
+import { gsap } from 'gsap';
 import { translations, type Locale, type TranslationKey } from './i18n';
 
 document.documentElement.classList.add('js');
@@ -242,6 +243,13 @@ type HandoffChoice = AutomationEngine | 'both';
 const handoffSelectors = document.querySelectorAll<HTMLButtonElement>('[data-handoff-select]');
 const handoffTabs = document.querySelectorAll<HTMLButtonElement>('[data-handoff-tab]');
 const handoffPanels = document.querySelectorAll<HTMLElement>('[data-handoff-panel]');
+const handoffCommand = document.querySelector<HTMLElement>('[data-handoff-command]');
+const handoffCommandCopy = document.querySelector<HTMLButtonElement>('[data-handoff-command-copy]');
+const handoffCommands: Record<HandoffChoice, string> = {
+  'agent-browser': 'npx --yes @panerelay/setup --agent-browser',
+  'browser-use': 'npx --yes @panerelay/setup --browser-use',
+  both: 'npx --yes @panerelay/setup --agent-browser --browser-use',
+};
 
 function isHandoffChoice(value: string | undefined): value is HandoffChoice {
   return isAutomationEngine(value) || value === 'both';
@@ -256,6 +264,14 @@ function setActiveHandoff(choice: HandoffChoice): void {
   }
   for (const panel of handoffPanels) {
     panel.hidden = panel.dataset.handoffPanel !== choice;
+  }
+  const command = handoffCommands[choice];
+  if (handoffCommand) handoffCommand.textContent = command;
+  if (handoffCommandCopy) {
+    handoffCommandCopy.dataset.copyCommand = command;
+    handoffCommandCopy.dataset.copied = 'false';
+    const label = handoffCommandCopy.querySelector<HTMLElement>('[data-copy-label]');
+    if (label) label.textContent = translation('command.copyShort');
   }
 }
 
@@ -304,11 +320,8 @@ for (const button of copyButtons) {
 
     try {
       await navigator.clipboard.writeText(textToCopy);
+      button.dataset.copiedLabel = translation('command.copied');
       button.dataset.copied = 'true';
-      const label = button.querySelector<HTMLElement>('[data-copy-label]');
-      if (label) {
-        label.textContent = translation('command.copied');
-      }
       if (copyStatus) {
         const successKey = (button.dataset.copySuccessKey ??
           'command.copySuccess') as TranslationKey;
@@ -316,10 +329,6 @@ for (const button of copyButtons) {
       }
       window.setTimeout(() => {
         button.dataset.copied = 'false';
-        if (label) {
-          const labelKey = (button.dataset.copyLabelKey ?? 'command.copyShort') as TranslationKey;
-          label.textContent = translation(labelKey);
-        }
       }, 1800);
     } catch {
       if (copyStatus) {
@@ -329,9 +338,273 @@ for (const button of copyButtons) {
   });
 }
 
+type DemoStage = 'install' | 'local' | 'tool' | 'authorize' | 'work' | 'release';
+
+const productDemo = document.querySelector<HTMLElement>('[data-product-demo]');
+const demoStatus = document.querySelector<HTMLElement>('[data-demo-status]');
+const demoToggle = document.querySelector<HTMLButtonElement>('[data-demo-toggle]');
+const demoToggleLabel = demoToggle?.querySelector<HTMLElement>('[data-demo-toggle-label]');
+const demoReplay = document.querySelector<HTMLButtonElement>('[data-demo-replay]');
+const demoSteps = document.querySelectorAll<HTMLButtonElement>('[data-demo-step]');
+const demoPanels = document.querySelectorAll<HTMLElement>('[data-demo-panel]');
+const demoStageOrder: DemoStage[] = ['install', 'local', 'tool', 'authorize', 'work', 'release'];
+let productDemoTimeline: gsap.core.Timeline | undefined;
+let demoManuallyPaused = false;
+let demoPausedForVisibility = false;
+let demoPausedForViewport = false;
+let demoPausedForHover = false;
+let demoPausedForFocus = false;
+let demoComplete = false;
+
+function isDemoStage(value: string | undefined): value is DemoStage {
+  return demoStageOrder.includes(value as DemoStage);
+}
+
+function setDemoAutoplay(active: boolean): void {
+  if (productDemo) productDemo.dataset.demoAutoplay = String(active);
+}
+
+function addDemoTimelineStage(
+  timeline: gsap.core.Timeline,
+  stage: DemoStage,
+  duration: number,
+): void {
+  const step = [...demoSteps].find(candidate => candidate.dataset.demoStep === stage);
+  timeline.addLabel(stage).call(() => setDemoStage(stage, true));
+  if (!step) {
+    timeline.to({}, { duration });
+    return;
+  }
+  timeline.fromTo(
+    step,
+    { '--demo-step-progress': 0 },
+    { '--demo-step-progress': 1, duration, ease: 'none' },
+  );
+}
+
+function setDemoStage(stage: DemoStage, animate = false): void {
+  if (!productDemo) return;
+  productDemo.dataset.demoState = stage;
+  for (const step of demoSteps) {
+    const selected = step.dataset.demoStep === stage;
+    step.dataset.active = String(selected);
+    step.setAttribute('aria-selected', String(selected));
+    step.tabIndex = selected ? 0 : -1;
+  }
+  for (const panel of demoPanels) {
+    gsap.killTweensOf(panel);
+    const selected = panel.dataset.demoPanel === stage;
+    panel.hidden = !selected;
+    panel.inert = !selected;
+    panel.setAttribute('aria-hidden', String(!selected));
+    if (selected && animate) {
+      gsap.fromTo(
+        panel,
+        { autoAlpha: 0, y: 12 },
+        { autoAlpha: 1, y: 0, duration: 0.32, ease: 'power2.out', clearProps: 'transform' },
+      );
+    } else if (selected) {
+      gsap.set(panel, { autoAlpha: 1, clearProps: 'transform' });
+    }
+  }
+  if (demoStatus) {
+    const statusKey = `demo.status.${stage}` as TranslationKey;
+    demoStatus.dataset.i18n = statusKey;
+    demoStatus.textContent = translation(statusKey);
+  }
+}
+
+function setDemoPaused(paused: boolean): void {
+  productDemoTimeline?.paused(paused);
+  if (!demoToggle || !demoToggleLabel) return;
+  const labelKey: TranslationKey = paused ? 'demo.resumeShort' : 'demo.pauseShort';
+  const ariaKey: TranslationKey = paused ? 'demo.resume' : 'demo.pause';
+  demoToggleLabel.dataset.i18n = labelKey;
+  demoToggleLabel.textContent = translation(labelKey);
+  demoToggle.dataset.i18nAriaLabel = ariaKey;
+  demoToggle.setAttribute('aria-label', translation(ariaKey));
+}
+
+function resumeDemoWhenAllowed(): void {
+  if (
+    !productDemoTimeline ||
+    demoComplete ||
+    demoManuallyPaused ||
+    demoPausedForVisibility ||
+    demoPausedForViewport ||
+    demoPausedForHover ||
+    demoPausedForFocus
+  ) {
+    return;
+  }
+  productDemoTimeline.resume();
+  setDemoPaused(false);
+}
+
+function createProductDemoTimeline(): gsap.core.Timeline {
+  setDemoStage('install');
+  setDemoAutoplay(true);
+  demoComplete = false;
+
+  const timeline = gsap.timeline({
+    paused: true,
+    defaults: { ease: 'none' },
+    onComplete: () => {
+      demoComplete = true;
+      demoToggle?.setAttribute('disabled', '');
+    },
+  });
+
+  addDemoTimelineStage(timeline, 'install', 2.2);
+  addDemoTimelineStage(timeline, 'local', 2.6);
+  addDemoTimelineStage(timeline, 'tool', 3);
+  addDemoTimelineStage(timeline, 'authorize', 2.5);
+  addDemoTimelineStage(timeline, 'work', 3.3);
+  addDemoTimelineStage(timeline, 'release', 1.8);
+
+  return timeline;
+}
+
+function initializeProductDemo(): void {
+  if (!productDemo) return;
+
+  setDemoStage('install');
+
+  for (const step of demoSteps) {
+    step.addEventListener('click', () => {
+      const stage = step.dataset.demoStep;
+      if (!isDemoStage(stage)) return;
+      demoManuallyPaused = true;
+      setDemoAutoplay(false);
+      demoComplete = false;
+      demoToggle?.removeAttribute('disabled');
+      productDemoTimeline?.pause().seek(stage, true);
+      setDemoStage(stage, true);
+      setDemoPaused(true);
+    });
+    step.addEventListener('keydown', event => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      const currentIndex = demoStageOrder.indexOf(step.dataset.demoStep as DemoStage);
+      const nextIndex =
+        event.key === 'Home'
+          ? 0
+          : event.key === 'End'
+            ? demoStageOrder.length - 1
+            : (currentIndex + (event.key === 'ArrowRight' ? 1 : -1) + demoStageOrder.length) %
+              demoStageOrder.length;
+      const nextStage = demoStageOrder[nextIndex] ?? 'install';
+      const nextStep = [...demoSteps].find(candidate => candidate.dataset.demoStep === nextStage);
+      nextStep?.click();
+      nextStep?.focus();
+    });
+  }
+
+  const demoMedia = gsap.matchMedia();
+  demoMedia.add(
+    {
+      autoPlay: '(min-width: 901px) and (prefers-reduced-motion: no-preference)',
+      staticMode: '(max-width: 900px), (prefers-reduced-motion: reduce)',
+    },
+    context => {
+      const autoPlay = Boolean(context.conditions?.autoPlay);
+      productDemo.dataset.reducedMotion = String(!autoPlay);
+      demoManuallyPaused = false;
+      demoComplete = false;
+      setDemoStage('install');
+
+      if (!autoPlay) {
+        setDemoAutoplay(false);
+        demoToggle?.setAttribute('disabled', '');
+        demoReplay?.setAttribute('disabled', '');
+        return;
+      }
+
+      demoToggle?.removeAttribute('disabled');
+      demoReplay?.removeAttribute('disabled');
+      demoPausedForVisibility = document.hidden;
+      productDemoTimeline = createProductDemoTimeline();
+      resumeDemoWhenAllowed();
+      return () => {
+        productDemoTimeline?.kill();
+        productDemoTimeline = undefined;
+      };
+    },
+  );
+
+  demoToggle?.addEventListener('click', () => {
+    if (!productDemoTimeline) return;
+    demoManuallyPaused = !productDemoTimeline.paused();
+    if (demoManuallyPaused) setDemoPaused(true);
+    else {
+      setDemoAutoplay(true);
+      resumeDemoWhenAllowed();
+    }
+  });
+
+  demoReplay?.addEventListener('click', () => {
+    if (!productDemoTimeline) return;
+    demoManuallyPaused = false;
+    setDemoAutoplay(true);
+    demoComplete = false;
+    demoToggle?.removeAttribute('disabled');
+    setDemoStage('install');
+    productDemoTimeline.restart(true);
+    setDemoPaused(false);
+  });
+
+  productDemo.addEventListener('pointerenter', () => {
+    demoPausedForHover = true;
+    productDemoTimeline?.pause();
+  });
+  productDemo.addEventListener('pointerleave', () => {
+    demoPausedForHover = false;
+    resumeDemoWhenAllowed();
+  });
+  productDemo.addEventListener('focusin', () => {
+    demoPausedForFocus = true;
+    productDemoTimeline?.pause();
+  });
+  productDemo.addEventListener('focusout', event => {
+    if (productDemo.contains(event.relatedTarget as Node | null)) return;
+    demoPausedForFocus = false;
+    resumeDemoWhenAllowed();
+  });
+
+  const demoObserver = new IntersectionObserver(
+    entries => {
+      const entry = entries[0];
+      if (!entry || !productDemoTimeline) return;
+      demoPausedForViewport = !entry.isIntersecting;
+      if (demoPausedForViewport) productDemoTimeline.pause();
+      else resumeDemoWhenAllowed();
+    },
+    { threshold: 0.08 },
+  );
+  demoObserver.observe(productDemo);
+
+  document.addEventListener('visibilitychange', () => {
+    if (!productDemoTimeline) return;
+    demoPausedForVisibility = document.hidden;
+    if (document.hidden) productDemoTimeline.pause();
+    else resumeDemoWhenAllowed();
+  });
+
+  window.addEventListener(
+    'pagehide',
+    () => {
+      demoObserver.disconnect();
+      productDemoTimeline?.kill();
+      demoMedia.revert();
+    },
+    { once: true },
+  );
+}
+
 const year = document.querySelector<HTMLElement>('[data-current-year]');
 if (year) {
   year.textContent = String(new Date().getFullYear());
 }
 
 applyLocale(detectLocale());
+initializeProductDemo();

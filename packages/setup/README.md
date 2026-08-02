@@ -1,40 +1,55 @@
 # @panerelay/setup
 
-Local setup and diagnostics for Panerelay.
+Install, update, diagnose, and remove Panerelay's local components. The base command is automation-engine neutral; agent-browser and browser-use integrations are explicit peer choices.
 
-## Install Panerelay
+## Start here
 
-Install the official [Panerelay Extension from the Chrome Web Store](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi) in Chrome or Microsoft Edge, then install the Panerelay local integration. Edge may first ask you to allow extensions from other stores.
+First install the official [Panerelay Extension from the Chrome Web Store](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi) in Chrome or Microsoft Edge. Edge may ask you to allow extensions from other stores.
+
+### Panerelay only — Agent side panel
+
+Run the engine-neutral command when you need the side panel and local Agent providers:
 
 ```bash
 npx --yes @panerelay/setup
+npx --yes @panerelay/setup doctor
 ```
 
-This engine-neutral command installs the Native Host and side-panel prerequisites. It does not probe an automation engine, register an agent-browser Provider, or install an automation Skill. Side-panel Agents keep the selected project as their working directory and receive bounded current-tab URL/title context; they load browser MCPs and Skills from their own Agent configuration.
+The base command installs the Native Host and side-panel prerequisites. It does not probe an automation engine, register an agent-browser Provider, install an automation Skill, or change `PATH`.
 
-All paths require explicit tab authorization in the Extension. Setup, Provider defaults, browser-use mode, and browser selection never grant access to a tab.
+Agents in the side panel keep the selected project as their working directory and receive only bounded current-tab URL and title context. Browser MCP servers and Skills continue to come from the Agent's own configuration.
 
-## Ask your Agent to configure automation
+### Automation tool integrations — let your Agent configure them
 
-Use the natural-language handoff that matches your workflow. The Agent should inspect the environment before changing it and install an upstream tool only when needed.
+Copy the handoff that matches your workflow. The Agent setup guide requires environment inspection, official upstream installation only when needed, the selected Panerelay integration, diagnostics, a stop for user-controlled tab authorization, and an evidence-based result.
+
+All handoffs use the version-controlled [Panerelay Agent setup instructions](../../docs/agent-setup.md) as their executable source of truth.
 
 **agent-browser**
 
 ```text
-Set up Panerelay so my Agent can use agent-browser with my existing Chrome or Edge browser. Inspect the local environment first. Install or update agent-browser from its official source only if needed, then use Panerelay's official setup tool to enable the agent-browser integration. Run the relevant Panerelay doctor check and verify that agent-browser can list only the tabs I authorize. Do not change unrelated Agent settings, and ask me to authorize a tab in the Panerelay extension when required.
+Fetch this guide with curl -fsSL and follow the agent-browser scenario: https://f-loat.github.io/panerelay/agent-setup.md
 ```
 
 **browser-use**
 
 ```text
-Set up Panerelay so my Agent can use browser-use with my existing signed-in Chrome browser. Inspect the local environment first. Install or update browser-use from its official source only if needed, then use Panerelay's official setup tool to enable the browser-use integration. Run the relevant Panerelay doctor check and verify the Extension-backed connection. Preserve browser-use's native workflow, do not change unrelated Agent settings, and ask me to authorize a tab in the Panerelay extension when required.
+Fetch this guide with curl -fsSL and follow the browser-use scenario: https://f-loat.github.io/panerelay/agent-setup.md
 ```
 
-**Both**
+**Both tools**
 
 ```text
-Set up Panerelay for both agent-browser and browser-use with my existing browser. Inspect the local environment first. Install or update each tool from its official source only if needed, then use Panerelay's official setup tool to enable both integrations together. Run the relevant doctor checks and verify each connection. Do not change unrelated Agent settings, and ask me to authorize a tab in the Panerelay extension when required.
+Fetch this guide with curl -fsSL and follow the combined agent-browser and browser-use scenario: https://f-loat.github.io/panerelay/agent-setup.md
 ```
+
+`@panerelay/setup` does not install, update, downgrade, or rewrite agent-browser or browser-use. It verifies an existing supported installation before adding the selected Panerelay-owned integration files.
+
+### Authorize and verify
+
+Open Panerelay from the browser toolbar and authorize the current tab or all supported web tabs. Every path requires explicit tab authorization in the Extension. Setup, Provider defaults, browser-use mode, browser selection, and focus never grant access to a tab.
+
+Run the doctor command with the same integration flags used during setup. A healthy installation requires the selected checks to pass; an empty agent-browser tab list is expected until the user authorizes an eligible tab.
 
 ## Technical CLI reference
 
@@ -128,7 +143,7 @@ npx --yes @panerelay/setup doctor --agent-browser --project-provider --global-pr
 
 Human-readable setup output follows the system language when it resolves to Chinese or English. Override it per command with `--lang zh-CN` or `--lang en`, or set `PANERELAY_LANG`. The machine-readable `doctor --json` schema and values remain stable.
 
-Browser authorization remains controlled by the user in the Panerelay side panel. Provider and browser-default configuration cannot grant access to a tab or widen its authorization scope. A side-panel Agent explicitly uses the browser containing that side panel rather than the saved default.
+Browser authorization remains controlled by the user in the Panerelay side panel. Provider and browser-default configuration cannot grant access to a tab or widen its authorization scope. An Agent running in the side panel explicitly uses the browser containing that panel rather than the saved default.
 
 Official Extension artifacts use ID `panplnkjlkoceaonlmpdekjphgmbggmi`. Self-built or differently signed Extensions can use:
 

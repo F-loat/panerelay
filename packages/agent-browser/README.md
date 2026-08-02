@@ -1,60 +1,78 @@
 # `@panerelay/agent-browser`
 
-**Agent Use Browser with agent-browser.** Use explicitly authorized tabs from the Chrome or Microsoft Edge profile you already use. Panerelay supplies the existing-browser connection, authorization boundary, and visible control lease; agent-browser keeps its normal CLI and MCP commands.
+Use agent-browser with the Chrome or Microsoft Edge session you already use. Panerelay supplies an explicitly authorized existing-browser connection, while agent-browser keeps its normal CLI and MCP commands, waits, and page-state semantics.
 
-This is an explicit Panerelay external-automation integration, at the same setup level as browser-use.
+This is an opt-in **automation tool integration**. It is a peer of the browser-use integration and is not installed by the engine-neutral Panerelay setup command.
 
-## Requirements
+## Before you start
 
-- Chrome or Microsoft Edge with the Panerelay Extension installed
-- Node.js 20+
-- agent-browser 0.33.0 or newer
+- Install the official [Panerelay Extension](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi) in Chrome or Microsoft Edge.
+- Install Node.js 20 or newer.
+- Install agent-browser 0.33.0 or newer by following the [upstream installation instructions](https://agent-browser.dev/installation).
 
-## Ask your Agent to set it up
+Panerelay setup verifies agent-browser but does not install, update, downgrade, or add it to `PATH`.
+
+## Set up with your Agent
+
+Copy this instruction into the Agent you already use:
 
 ```text
-Set up Panerelay so my Agent can use agent-browser with my existing Chrome or Edge browser. Inspect the local environment first. Install or update agent-browser from its official source only if needed, then use Panerelay's official setup tool to enable the agent-browser integration. Run the relevant Panerelay doctor check and verify that agent-browser can list only the tabs I authorize. Do not change unrelated Agent settings, and ask me to authorize a tab in the Panerelay extension when required.
+Fetch this guide with curl -fsSL and follow the agent-browser scenario: https://f-loat.github.io/panerelay/agent-setup.md
 ```
 
-Success means agent-browser lists only the tabs authorized in the selected Panerelay browser. Setup and Provider selection do not grant site permission or authorize a tab.
+The version-controlled [Agent setup instructions](../../docs/agent-setup.md) define the inspection, official upstream installation, Panerelay integration, user authorization stop, and acceptance report.
 
-## Technical CLI reference
+## Set up manually
+
+After `agent-browser --version` reports a supported version, install and diagnose the Panerelay integration:
 
 ```bash
 npx --yes @panerelay/setup --agent-browser
 npx --yes @panerelay/setup doctor --agent-browser
 ```
 
-After the user authorizes the current tab or supported web tabs in the Extension, verify the connection:
+Open Panerelay in the browser and authorize the current tab or all supported web tabs. Then verify the authorization boundary:
 
 ```bash
 agent-browser --provider panerelay tab list
 ```
 
-## Use and defaults
+Success means the doctor checks pass and agent-browser lists only the tabs authorized in the selected Panerelay browser. Setup and Provider selection never grant site permission or authorize a tab.
 
-Run standard agent-browser commands with `--provider panerelay`. To omit that flag, configure a project or user default:
+## What setup adds
+
+`@panerelay/setup --agent-browser` installs the Panerelay Provider and additive Skill, then registers the exact compatible integration. This package is a setup-managed runtime and is not intended to be invoked directly by Agents.
+
+## Daily use and defaults
+
+Use standard agent-browser commands with `--provider panerelay`. If you explicitly want Panerelay as a default, choose the narrowest scope:
 
 ```bash
+# Current project only
 npx --yes @panerelay/setup --agent-browser --project-provider
+
+# Current user
 npx --yes @panerelay/setup --agent-browser --global-provider
 ```
 
-When more than one Panerelay browser is connected, choose one explicitly:
+Provider defaults change routing only. They do not grant browser permission, authorize a tab, or acquire the active control lease.
+
+When more than one Panerelay browser is connected, choose one in Extension settings or with the optional administration CLI:
 
 ```bash
 npx --yes @panerelay/cli browsers
 npx --yes @panerelay/cli browser use chrome
 ```
 
-An unavailable default or ambiguous choice fails closed. Every launched session stays pinned to its selected browser, including cleanup.
+An unavailable default or ambiguous browser choice fails closed. Every launched session remains pinned to the browser through which it was created, including cleanup.
 
-## Compatibility
+## Compatibility and limits
 
-agent-browser 0.33.0 is both the minimum supported version and the exact initial Chrome-verified baseline. Newer versions meet the version floor but need their own evidence before being classified as `Verified`. Edge uses the same Chromium Provider path and remains `Forwarded` until dedicated representative evidence is recorded.
+agent-browser 0.33.0 is both the minimum supported version and the exact initial Chrome-verified baseline. Newer versions meet the version floor but require their own evidence before being classified as `Verified`. Microsoft Edge uses the same Chromium Provider path and remains `Forwarded` until representative evidence is recorded.
+
+Panerelay operates only authorized tabs. It does not own browser-process features such as isolated profiles, launch-time proxy changes, or closing the user's browser process.
 
 - [Upstream agent-browser documentation](https://agent-browser.dev/)
 - [Panerelay agent-browser 0.33.0 compatibility record](../../docs/compatibility/agent-browser-0.33.0.md)
 - [Browser platform compatibility record](../../docs/compatibility/browser-platforms.md)
-
-This package is registered only by `@panerelay/setup --agent-browser`; Agents do not invoke it directly.
+- [`@panerelay/setup` technical reference](../setup/README.md)

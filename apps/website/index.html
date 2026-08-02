@@ -6,7 +6,7 @@
     <meta
       name="description"
       data-i18n-content="meta.description"
-      content="Panerelay lets AI agents work in the Chrome or Edge browser you already use—with explicit tab authorization, visible control, and instant release."
+      content="Panerelay connects AI agents to authorized Chrome or Edge tabs, reusing signed-in sessions while work stays in the background and control stays visible."
     />
     <meta name="theme-color" content="#080b0a" />
     <meta name="color-scheme" content="dark" />
@@ -15,7 +15,7 @@
     <meta property="og:title" content="Panerelay — Your browser. Agent-ready." />
     <meta
       property="og:description"
-      content="Let AI agents work in the browser you already use. Local-first, explicitly authorized, and always visible."
+      content="Reuse your signed-in browser. Let AI agents work in authorized tabs without stealing focus."
     />
     <meta property="og:url" content="https://f-loat.github.io/panerelay/" />
     <meta property="og:image" content="https://f-loat.github.io/panerelay/social-card.png" />
@@ -24,7 +24,10 @@
     <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Panerelay — Your browser. Agent-ready." />
-    <meta name="twitter:description" content="Let AI agents work in the browser you already use." />
+    <meta
+      name="twitter:description"
+      content="Reuse your signed-in browser. Let AI agents work in authorized tabs without stealing focus."
+    />
     <meta name="twitter:image" content="https://f-loat.github.io/panerelay/social-card.png" />
     <link rel="canonical" href="https://f-loat.github.io/panerelay/" />
     <link rel="icon" href="./panerelay-icon.svg" type="image/svg+xml" />
@@ -131,21 +134,15 @@
           <div class="hero-copy">
             <div class="eyebrow">
               <span class="status-dot"></span>
-              <span data-i18n="hero.eyebrow">Agent in Browser · Agent Use Browser</span>
+              <span data-i18n="hero.eyebrow">Agent side panel · Automation integrations</span>
             </div>
             <h1 data-i18n-html="hero.title">
-              Your browser.
-              <span>Agent-ready.</span>
+              Let Agents work with
+              <span>the browser you already use.</span>
             </h1>
             <p class="hero-lede" data-i18n="hero.lede">
-              Put local Agents beside the page, or let external Agents use the tabs you
-              authorize—without a second profile, repeated logins, or exported cookies.
-            </p>
-            <p class="hero-engines">
-              <span data-i18n="hero.engines.label">Two directions</span>
-              <strong>Agent in Browser</strong>
-              <i aria-hidden="true">·</i>
-              <strong>Agent Use Browser</strong>
+              Connect agent-browser or browser-use to Chrome or Edge, reuse signed-in sessions, and
+              run automation only in authorized tabs—without stealing focus.
             </p>
 
             <div class="hero-actions">
@@ -165,33 +162,14 @@
                   />
                 </svg>
               </a>
-              <a
-                class="button button-ghost"
-                href="https://github.com/F-loat/panerelay"
-                target="_blank"
-                rel="noreferrer"
-              >
-                <span data-i18n="action.source">Explore the source</span>
-              </a>
-            </div>
-
-            <div
-              class="command"
-              role="group"
-              aria-label="Local setup command"
-              data-i18n-aria-label="command.group"
-            >
-              <span class="command-prompt" aria-hidden="true">$</span>
-              <code>npx --yes @panerelay/setup</code>
               <button
-                class="copy-button"
+                class="button button-ghost"
                 type="button"
-                aria-label="Copy setup command"
-                data-i18n-aria-label="command.copy"
-                data-copy-command="npx --yes @panerelay/setup"
-                data-copied="false"
+                data-copy-text-key="hero.agentPrompt"
+                data-copy-label-key="hero.agentSetup"
+                data-copy-success-key="hero.agentSetupCopied"
               >
-                <svg class="copy-icon" viewBox="0 0 20 20" aria-hidden="true">
+                <svg class="button-copy-icon" viewBox="0 0 20 20" aria-hidden="true">
                   <rect
                     x="6.5"
                     y="6.5"
@@ -207,12 +185,10 @@
                     stroke="currentColor"
                   />
                 </svg>
-                <svg class="check-icon" viewBox="0 0 20 20" aria-hidden="true">
-                  <path d="m4 10 4 4 8-9" fill="none" stroke="currentColor" stroke-width="1.8" />
-                </svg>
-                <span class="copy-label" data-copy-label data-i18n="command.copyShort">Copy</span>
+                <span data-copy-label data-i18n="hero.agentSetup">Set up with your Agent</span>
               </button>
             </div>
+            <a class="hero-doc-link" href="#setup" data-i18n="hero.docs">See installation steps</a>
             <p class="sr-only" role="status" aria-live="polite" data-copy-status></p>
 
             <ul
@@ -220,120 +196,465 @@
               aria-label="Key properties"
               data-i18n-aria-label="hero.properties"
             >
-              <li data-i18n="hero.explicitTabs">Explicit tabs</li>
-              <li data-i18n="hero.visibleControl">Visible control</li>
-              <li data-i18n="hero.instantRelease">Instant release</li>
+              <li data-i18n="hero.explicitTabs">Reuse signed-in sessions</li>
+              <li data-i18n="hero.visibleControl">No focus stealing</li>
+              <li data-i18n="hero.instantRelease">Release anytime</li>
             </ul>
           </div>
 
           <div
-            class="hero-visual"
-            role="img"
-            aria-label="Panerelay connects agent-browser, browser-use, and a local Agent side panel to an explicitly authorized browser tab."
-            data-i18n-aria-label="visual.hero"
+            class="hero-visual product-demo"
+            role="group"
+            aria-label="A standard Panerelay external automation flow: request, explicit tab authorization, visible work, result, and release."
+            data-i18n-aria-label="demo.description"
+            data-product-demo
+            data-demo-state="release"
           >
-            <div class="browser-window">
-              <div class="browser-chrome">
-                <div class="window-dots" aria-hidden="true">
-                  <span></span><span></span><span></span>
+            <div class="product-demo-frame">
+              <div class="product-demo-head">
+                <div class="demo-brand">
+                  <span class="live-dot"></span>
+                  <span data-i18n="demo.brand">PANERELAY QUICKSTART</span>
                 </div>
-                <div class="browser-tab">
-                  <span class="tab-favicon"></span>
-                  <span data-i18n="visual.dailyBrowser">Daily browser</span>
-                </div>
-                <div class="address-bar">
-                  <svg viewBox="0 0 16 16" aria-hidden="true">
-                    <rect
-                      x="3.4"
-                      y="6.8"
-                      width="9.2"
-                      height="6.5"
-                      rx="1.5"
-                      fill="none"
-                      stroke="currentColor"
-                    />
-                    <path
-                      d="M5.5 6.8V5.4a2.5 2.5 0 0 1 5 0v1.4"
-                      fill="none"
-                      stroke="currentColor"
-                    />
-                  </svg>
-                  your-app.example
+                <div class="demo-head-actions">
+                  <span class="demo-status" data-demo-status data-i18n="demo.status.release"
+                    >Control released</span
+                  >
+                  <div class="demo-controls">
+                    <button
+                      type="button"
+                      aria-label="Pause walkthrough"
+                      data-i18n-aria-label="demo.pause"
+                      data-demo-toggle
+                    >
+                      <svg viewBox="0 0 16 16" aria-hidden="true">
+                        <path d="M5 3v10M11 3v10" />
+                      </svg>
+                      <span class="sr-only" data-demo-toggle-label data-i18n="demo.pauseShort"
+                        >Pause</span
+                      >
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Replay walkthrough"
+                      data-i18n-aria-label="demo.replay"
+                      data-demo-replay
+                    >
+                      <svg viewBox="0 0 16 16" aria-hidden="true">
+                        <path d="M13 7a5 5 0 1 0-.7 3M13 3v4H9" />
+                      </svg>
+                      <span class="sr-only" data-i18n="demo.replayShort">Replay</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              <div class="browser-content">
-                <div class="app-surface">
-                  <div class="app-kicker" data-i18n="visual.existingSession">
-                    YOUR EXISTING SESSION
-                  </div>
-                  <div class="app-heading"></div>
-                  <div class="app-line app-line-long"></div>
-                  <div class="app-line"></div>
-                  <div class="app-cards">
-                    <div></div>
-                    <div></div>
-                    <div></div>
-                  </div>
-                  <div class="authorization-pill">
-                    <span></span>
-                    <span data-i18n="visual.authorized">Tab authorized</span>
-                  </div>
-                </div>
-
-                <aside
-                  class="side-panel"
-                  aria-label="Panerelay side panel example"
-                  data-i18n-aria-label="visual.sidePanel"
+              <div class="journey-stage">
+                <section
+                  class="journey-panel journey-panel-store"
+                  id="demo-panel-install"
+                  role="tabpanel"
+                  aria-labelledby="demo-step-install"
+                  data-demo-panel="install"
+                  hidden
                 >
-                  <div class="panel-header">
-                    <img src="./panerelay-icon.svg" alt="" width="22" height="22" />
-                    <strong>Panerelay</strong>
-                    <span class="panel-status" data-i18n="visual.ready">Ready</span>
-                  </div>
-                  <div class="panel-context">
-                    <span data-i18n="visual.context">CONTEXT</span>
-                    <strong data-i18n="visual.currentTab">Current tab</strong>
-                  </div>
-                  <div class="agent-message">
-                    <span class="agent-avatar">C</span>
-                    <div>
-                      <strong>Codex</strong>
-                      <p data-i18n="visual.agentMessage">
-                        I can work here when you authorize control.
-                      </p>
+                  <div class="journey-browser journey-browser-light">
+                    <div class="journey-browser-top">
+                      <span class="browser-dots"><i></i><i></i><i></i></span>
+                      <span class="browser-address">chromewebstore.google.com</span>
+                      <span class="browser-toolbar-mark">
+                        <img src="./panerelay-icon.svg" width="18" height="18" alt="" />
+                      </span>
+                    </div>
+                    <div class="store-surface">
+                      <div class="store-app-icon">
+                        <img src="./panerelay-icon.svg" width="58" height="58" alt="" />
+                      </div>
+                      <div class="store-copy">
+                        <span class="journey-kicker" data-i18n="demo.store.kicker"
+                          >BROWSER EXTENSION</span
+                        >
+                        <strong>Panerelay</strong>
+                        <p data-i18n="demo.store.description">
+                          Connect authorized browser tabs to local AI agents.
+                        </p>
+                      </div>
+                      <span class="store-install-action" data-i18n="demo.store.action"
+                        >Add to Chrome</span
+                      >
+                    </div>
+                    <div class="journey-note">
+                      <span class="note-check">✓</span>
+                      <span data-i18n="demo.store.result"
+                        >Installed · Panerelay is now in the browser toolbar</span
+                      >
                     </div>
                   </div>
-                  <div class="control-card">
-                    <div>
-                      <span class="live-dot"></span>
-                      <strong data-i18n="visual.controlVisible">Control visible</strong>
+                </section>
+
+                <section
+                  class="journey-panel journey-panel-local"
+                  id="demo-panel-local"
+                  role="tabpanel"
+                  aria-labelledby="demo-step-local"
+                  data-demo-panel="local"
+                  hidden
+                >
+                  <div class="sidepanel-shell">
+                    <div class="sidepanel-titlebar">
+                      <span class="sidepanel-brand">
+                        <img src="./panerelay-icon.svg" width="20" height="20" alt="" />
+                        <strong>Panerelay</strong>
+                      </span>
+                      <span class="connection-state" data-i18n="demo.local.offline"
+                        >Bridge offline</span
+                      >
                     </div>
-                    <span class="control-release" data-i18n="visual.release">Release</span>
+                    <div class="sidepanel-content">
+                      <div class="setup-heading">
+                        <strong data-i18n="demo.local.title"
+                          >Install the Panerelay integration</strong
+                        >
+                        <p data-i18n="demo.local.body">
+                          Connect local Agents to this browser while keeping tab access under your
+                          control.
+                        </p>
+                      </div>
+                      <div class="setup-benefits">
+                        <span
+                          ><i class="benefit-window"></i
+                          ><b data-i18n="demo.local.session"
+                            >Reuse your signed-in browser session</b
+                          ></span
+                        >
+                        <span
+                          ><i class="benefit-shield"></i
+                          ><b data-i18n="demo.local.authorization"
+                            >Authorize only the tabs you choose</b
+                          ></span
+                        >
+                      </div>
+                      <div class="setup-command-card">
+                        <span data-i18n="demo.local.install">Install the local integration</span>
+                        <div class="setup-command-surface">
+                          <code>npx --yes @panerelay/setup</code>
+                          <span class="mini-copy" aria-hidden="true">
+                            <svg viewBox="0 0 20 20">
+                              <rect x="7" y="7" width="9" height="9" rx="1.5" />
+                              <path d="M5 13H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" />
+                            </svg>
+                          </span>
+                        </div>
+                        <span class="retry-action" data-i18n="demo.local.retry"
+                          >Retry connection</span
+                        >
+                      </div>
+                      <div class="setup-complete-row">
+                        <span>✓</span>
+                        <code data-i18n="demo.local.result"
+                          >Panerelay setup complete · Native Host connected</code
+                        >
+                      </div>
+                    </div>
                   </div>
-                  <div class="agent-picker">
-                    <span>Codex</span>
-                    <span>Claude</span>
-                    <span>Qoder</span>
+                </section>
+
+                <section
+                  class="journey-panel journey-panel-agent"
+                  id="demo-panel-tool"
+                  role="tabpanel"
+                  aria-labelledby="demo-step-tool"
+                  data-demo-panel="tool"
+                  hidden
+                >
+                  <div class="agent-setup-shell">
+                    <div class="agent-setup-head">
+                      <span class="agent-avatar">A</span>
+                      <span>
+                        <strong data-i18n="demo.tool.agent">Your Agent</strong>
+                        <small data-i18n="demo.tool.subtitle">Panerelay setup</small>
+                      </span>
+                    </div>
+                    <div class="tool-options" aria-label="Automation tool example">
+                      <span data-selected="true">agent-browser</span>
+                      <span>browser-use</span>
+                      <span data-i18n="demo.tool.both">Both tools</span>
+                    </div>
+                    <div class="agent-message" data-i18n="demo.tool.prompt">
+                      Read the official Panerelay Agent setup guide. Follow the agent-browser
+                      scenario, inspect first, run doctor, and stop when I need to authorize a tab.
+                    </div>
+                    <div class="agent-checks">
+                      <span
+                        ><i>✓</i
+                        ><b data-i18n="demo.tool.detected">Found agent-browser 0.33.0</b></span
+                      >
+                      <span><i>$</i><code>npx --yes @panerelay/setup --agent-browser</code></span>
+                      <span
+                        ><i>$</i
+                        ><code>npx --yes @panerelay/setup doctor --agent-browser</code></span
+                      >
+                      <span
+                        ><i>✓</i
+                        ><b data-i18n="demo.tool.ready"
+                          >Panerelay is ready · tab authorization required</b
+                        ></span
+                      >
+                    </div>
                   </div>
-                </aside>
+                </section>
+
+                <section
+                  class="journey-panel journey-panel-authorize"
+                  id="demo-panel-authorize"
+                  role="tabpanel"
+                  aria-labelledby="demo-step-authorize"
+                  data-demo-panel="authorize"
+                  hidden
+                >
+                  <div class="journey-browser auth-browser">
+                    <div class="journey-browser-top journey-browser-top-dark">
+                      <span class="browser-dots"><i></i><i></i><i></i></span>
+                      <span class="browser-tab-title" data-i18n="demo.tab.title"
+                        >Project board</span
+                      >
+                      <span class="browser-toolbar-mark">
+                        <img src="./panerelay-icon.svg" width="18" height="18" alt="" />
+                      </span>
+                    </div>
+                    <div class="auth-stage">
+                      <div class="project-page" aria-hidden="true">
+                        <span></span><strong></strong><i></i><i></i><i></i>
+                      </div>
+                      <div class="settings-popover-demo">
+                        <div class="settings-demo-head">
+                          <strong data-i18n="demo.auth.settings">Settings</strong><span>×</span>
+                        </div>
+                        <div class="browser-scope-demo">
+                          <div class="scope-summary-demo">
+                            <span class="scope-window-icon"></span>
+                            <span>
+                              <strong data-i18n="demo.auth.title">Browser access</strong>
+                              <small data-i18n="demo.auth.target">Authorized: Project board</small>
+                            </span>
+                            <b data-i18n="demo.release.action">Release</b>
+                          </div>
+                          <div class="scope-switch-demo">
+                            <span data-active="true" data-i18n="demo.auth.current">This tab</span>
+                            <span data-i18n="demo.auth.all">All tabs</span>
+                          </div>
+                          <p data-i18n="demo.auth.help">
+                            Only this tab and its current site are eligible for the next control
+                            session.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section
+                  class="journey-panel journey-panel-work"
+                  id="demo-panel-work"
+                  role="tabpanel"
+                  aria-labelledby="demo-step-work"
+                  data-demo-panel="work"
+                  hidden
+                >
+                  <div class="work-desktop">
+                    <div class="work-agent-pane">
+                      <div class="work-pane-head">
+                        <span data-i18n="demo.work.agent">AGENT</span
+                        ><i data-i18n="demo.work.connected">CONNECTED</i>
+                      </div>
+                      <div class="work-command-list">
+                        <span
+                          ><i>$</i><code>agent-browser --provider panerelay tab list</code></span
+                        >
+                        <span><i>→</i><b data-i18n="demo.work.tab">t1 · Project board</b></span>
+                        <span
+                          ><i>$</i><code>agent-browser --provider panerelay snapshot -i</code></span
+                        >
+                        <span
+                          ><i>→</i
+                          ><b data-i18n="demo.work.observe">observing 1 · controlling 0</b></span
+                        >
+                        <span
+                          ><i>$</i><code>agent-browser --provider panerelay click @e4</code></span
+                        >
+                        <span class="work-result"
+                          ><i>✓</i
+                          ><b data-i18n="demo.work.result">Found 2 issues blocking release</b></span
+                        >
+                      </div>
+                    </div>
+                    <div class="work-browser-pane">
+                      <div class="work-browser-tab">
+                        <span class="agent-browser-favicon"><i></i></span>
+                        <strong data-i18n="demo.tab.title">Project board</strong>
+                        <span class="action-badge">1</span>
+                      </div>
+                      <div class="work-browser-body">
+                        <div class="project-page compact" aria-hidden="true">
+                          <span></span><strong></strong><i></i><i></i><i></i>
+                        </div>
+                        <div class="external-control-demo">
+                          <div class="external-control-icon">⌁</div>
+                          <div>
+                            <small data-i18n="demo.control.title">EXTERNAL CONTROL</small>
+                            <strong>agent-browser · quickstart</strong>
+                            <span data-i18n="demo.control.active"
+                              >Active · 1 controlled tab · Heartbeat live</span
+                            >
+                          </div>
+                        </div>
+                        <div class="activity-demo">
+                          <span><i></i><b data-i18n="demo.activity.read">Read page · done</b></span>
+                          <span
+                            ><i></i
+                            ><b data-i18n="demo.activity.interact"
+                              >Interact with page · done</b
+                            ></span
+                          >
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section
+                  class="journey-panel journey-panel-release"
+                  id="demo-panel-release"
+                  role="tabpanel"
+                  aria-labelledby="demo-step-release"
+                  data-demo-panel="release"
+                >
+                  <div class="release-shell">
+                    <div class="release-sidepanel">
+                      <div class="sidepanel-titlebar">
+                        <span class="sidepanel-brand">
+                          <img src="./panerelay-icon.svg" width="20" height="20" alt="" />
+                          <strong>Panerelay</strong>
+                        </span>
+                        <span
+                          class="connection-state is-connected"
+                          data-i18n="demo.release.connected"
+                          >Connected</span
+                        >
+                      </div>
+                      <div class="release-settings">
+                        <div class="browser-scope-demo">
+                          <div class="scope-summary-demo">
+                            <span class="scope-window-icon"></span>
+                            <span>
+                              <strong data-i18n="demo.auth.title">Browser access</strong>
+                              <small data-i18n="demo.auth.target">Authorized: Project board</small>
+                            </span>
+                            <b data-i18n="demo.release.action">Release</b>
+                          </div>
+                          <div class="scope-switch-demo">
+                            <span data-active="true" data-i18n="demo.auth.current">This tab</span>
+                            <span data-i18n="demo.auth.all">All tabs</span>
+                          </div>
+                        </div>
+                        <div class="external-control-demo released">
+                          <div class="external-control-icon">⌁</div>
+                          <div>
+                            <small data-i18n="demo.control.title">EXTERNAL CONTROL</small>
+                            <strong>agent-browser · quickstart</strong>
+                            <span data-i18n="demo.control.released"
+                              >Released · 0 controlled tabs</span
+                            >
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="release-result">
+                      <span class="release-result-icon">✓</span>
+                      <div>
+                        <strong data-i18n="demo.release.title">Control released</strong>
+                        <p data-i18n="demo.release.body">
+                          This tab remains authorized. Click the selected scope separately to cancel
+                          authorization.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </section>
               </div>
-            </div>
 
-            <div class="terminal-card">
-              <div class="terminal-header">
-                <span><i></i> agent-browser</span>
-                <span data-i18n="visual.local">local</span>
+              <div
+                class="demo-progress"
+                role="tablist"
+                aria-label="Quickstart walkthrough steps"
+                data-i18n-aria-label="demo.steps"
+              >
+                <button
+                  id="demo-step-install"
+                  type="button"
+                  role="tab"
+                  aria-selected="false"
+                  aria-controls="demo-panel-install"
+                  tabindex="-1"
+                  data-demo-step="install"
+                >
+                  <span>01</span><strong data-i18n="demo.step.install">Install</strong>
+                </button>
+                <button
+                  id="demo-step-local"
+                  type="button"
+                  role="tab"
+                  aria-selected="false"
+                  aria-controls="demo-panel-local"
+                  tabindex="-1"
+                  data-demo-step="local"
+                >
+                  <span>02</span><strong data-i18n="demo.step.local">Connect local</strong>
+                </button>
+                <button
+                  id="demo-step-tool"
+                  type="button"
+                  role="tab"
+                  aria-selected="false"
+                  aria-controls="demo-panel-tool"
+                  tabindex="-1"
+                  data-demo-step="tool"
+                >
+                  <span>03</span><strong data-i18n="demo.step.tool">Connect tool</strong>
+                </button>
+                <button
+                  id="demo-step-authorize"
+                  type="button"
+                  role="tab"
+                  aria-selected="false"
+                  aria-controls="demo-panel-authorize"
+                  tabindex="-1"
+                  data-demo-step="authorize"
+                >
+                  <span>04</span><strong data-i18n="demo.step.authorize">Authorize</strong>
+                </button>
+                <button
+                  id="demo-step-work"
+                  type="button"
+                  role="tab"
+                  aria-selected="false"
+                  aria-controls="demo-panel-work"
+                  tabindex="-1"
+                  data-demo-step="work"
+                >
+                  <span>05</span><strong data-i18n="demo.step.work">Agent works</strong>
+                </button>
+                <button
+                  id="demo-step-release"
+                  type="button"
+                  role="tab"
+                  aria-selected="true"
+                  aria-controls="demo-panel-release"
+                  data-demo-step="release"
+                >
+                  <span>06</span><strong data-i18n="demo.step.release">Release</strong>
+                </button>
               </div>
-              <pre><span class="terminal-muted">$</span> agent-browser <span class="terminal-accent">--provider panerelay</span> snapshot -i
-
-<span class="terminal-success">✓</span> <span data-i18n="visual.connected">Connected to authorized browser</span>
-<span class="terminal-muted">-</span> heading "Workspace" [ref=e1]
-<span class="terminal-muted">-</span> button "Continue" [ref=e2]</pre>
-            </div>
-
-            <div class="relay-path" aria-hidden="true">
-              <span></span>
             </div>
           </div>
         </div>
@@ -406,18 +727,20 @@
             <div>
               <span class="section-index" data-i18n="workflows.index"> 02 · AGENT × BROWSER </span>
               <h2 data-i18n-html="workflows.title">
-                Agent in Browser.<br /><em>Agent Use Browser.</em>
+                Work with an Agent beside the page.<br /><em>Connect your automation tools.</em>
               </h2>
             </div>
             <p data-i18n="workflows.lede">
-              Two directions, one local relay, and the same explicit boundary around every tab.
+              Two ways to connect, one local relay, and the same explicit boundary around every tab.
             </p>
           </div>
 
           <article class="workflow workflow-engines" data-engine-workflow data-reveal>
             <div class="engine-intro">
               <div>
-                <span class="workflow-label" data-i18n="workflow.cli.label">AGENT USE BROWSER</span>
+                <span class="workflow-label" data-i18n="workflow.cli.label"
+                  >AUTOMATION INTEGRATIONS</span
+                >
                 <h3 data-i18n-html="workflow.external.title">
                   Keep your automation engine.<br />Connect it to daily tabs.
                 </h3>
@@ -426,40 +749,37 @@
                 agent-browser and browser-use keep their own automation semantics. Panerelay gives
                 either one the same explicitly authorized existing-browser connection.
               </p>
-            </div>
-
-            <div
-              class="engine-tabs"
-              role="tablist"
-              aria-label="Choose an automation engine"
-              data-i18n-aria-label="workflow.engine.group"
-            >
-              <button
-                id="engine-tab-agent-browser"
-                type="button"
-                role="tab"
-                aria-selected="true"
-                aria-controls="engine-panel-agent-browser"
-                tabindex="0"
-                data-engine-tab="agent-browser"
-                data-engine-select="agent-browser"
+              <div
+                class="engine-tabs"
+                role="tablist"
+                aria-label="Choose an automation engine"
+                data-i18n-aria-label="workflow.engine.group"
               >
-                <span>agent-browser</span>
-                <small data-i18n="workflow.engine.explicit">Integration</small>
-              </button>
-              <button
-                id="engine-tab-browser-use"
-                type="button"
-                role="tab"
-                aria-selected="false"
-                aria-controls="engine-panel-browser-use"
-                tabindex="-1"
-                data-engine-tab="browser-use"
-                data-engine-select="browser-use"
-              >
-                <span>browser-use</span>
-                <small data-i18n="workflow.engine.explicit">Integration</small>
-              </button>
+                <button
+                  id="engine-tab-agent-browser"
+                  type="button"
+                  role="tab"
+                  aria-selected="true"
+                  aria-controls="engine-panel-agent-browser"
+                  tabindex="0"
+                  data-engine-tab="agent-browser"
+                  data-engine-select="agent-browser"
+                >
+                  <span>agent-browser</span>
+                </button>
+                <button
+                  id="engine-tab-browser-use"
+                  type="button"
+                  role="tab"
+                  aria-selected="false"
+                  aria-controls="engine-panel-browser-use"
+                  tabindex="-1"
+                  data-engine-tab="browser-use"
+                  data-engine-select="browser-use"
+                >
+                  <span>browser-use</span>
+                </button>
+              </div>
             </div>
 
             <div class="engine-panels">
@@ -476,7 +796,7 @@
                     >Explicit integration</span
                   >
                   <h4 data-i18n-html="workflow.cli.title">
-                    Bring agent-browser into your daily tabs.
+                    Connect agent-browser to your everyday tabs.
                   </h4>
                   <p data-i18n="workflow.cli.body">
                     Let CLI- or MCP-capable Agents use agent-browser on the tabs you explicitly
@@ -553,16 +873,16 @@
                     >Explicit integration</span
                   >
                   <h4 data-i18n-html="workflow.browserUse.title">
-                    Keep browser-use.<br />Reuse your signed-in Chrome.
+                    Connect browser-use<br />to your signed-in Chrome.
                   </h4>
                   <p data-i18n="workflow.browserUse.body">
-                    Continue with the browser-use CLI, its CLI MCP, and native helpers. Panerelay
-                    supplies an authorized existing-Chrome connection without remote debugging or
-                    exported login state.
+                    The browser-use CLI and CLI MCP keep their normal workflow. Panerelay routes
+                    Browser Harness to authorized tabs in your existing Chrome—without remote
+                    debugging or exported login state.
                   </p>
                   <ul class="check-list">
                     <li data-i18n="workflow.browserUse.point1">
-                      Setup-managed CLI, additive Skill, and CLI MCP
+                      Browser Harness-backed CLI, additive Skill, and CLI MCP
                     </li>
                     <li data-i18n="workflow.browserUse.point2">
                       Persistent private lane with visible release
@@ -597,17 +917,20 @@
                 <div
                   class="workflow-demo browser-use-demo"
                   role="img"
-                  aria-label="browser-use flow example"
+                  aria-label="browser-use CLI and Browser Harness flow example"
                   data-i18n-aria-label="workflow.browserUse.demo"
                 >
                   <div class="code-window">
-                    <div class="code-title"><span></span><span>browser-use</span></div>
-                    <pre><span class="code-comment" data-i18n="workflow.browserUse.comment1"># Keep using browser-use helpers</span>
-<span class="code-prompt">›</span> tabs = await browser.list_tabs()
+                    <div class="code-title">
+                      <span></span><span>browser-use CLI · Browser Harness</span>
+                    </div>
+                    <pre><span class="code-comment" data-i18n="workflow.browserUse.comment1"># Standard browser-use commands through Panerelay</span>
+<span class="code-prompt">$</span> panerelay-browser-use-cli run browser-use -- \
+  browser-use tab list
 <span class="code-output" data-i18n="workflow.browserUse.output1">→ Existing Chrome · authorized tabs</span>
 
-<span class="code-prompt">›</span> await browser.switch_tab(tabs[1])
-<span class="code-prompt">›</span> await browser.click_at_xy(640, 420)
+<span class="code-prompt">$</span> panerelay-browser-use-cli run browser-use -- \
+  browser-use state
 
 <span class="code-output" data-i18n="workflow.browserUse.output2">✓ Control visible · release stays available</span></pre>
                   </div>
@@ -621,8 +944,10 @@
 
           <article class="workflow workflow-panel" data-reveal>
             <div class="workflow-copy">
-              <span class="workflow-label" data-i18n="workflow.panel.label">AGENT IN BROWSER</span>
-              <h3 data-i18n-html="workflow.panel.title">Bring local Agents into the side panel.</h3>
+              <span class="workflow-label" data-i18n="workflow.panel.label">AGENT SIDE PANEL</span>
+              <h3 data-i18n-html="workflow.panel.title">
+                Work with local Agents<br />beside the page.
+              </h3>
               <p data-i18n="workflow.panel.body">
                 Open Panerelay beside the page and talk to installed local Agents without leaving
                 Chrome or Edge. Conversations, approvals, activity, interruption, and release live
@@ -719,15 +1044,15 @@
               </div>
             </li>
 
-            <li data-reveal>
+            <li class="setup-agent-step" data-reveal>
               <span class="step-index">02</span>
               <div class="step-content">
-                <span class="step-kicker" data-i18n="setup.bridge.label">AGENT-FIRST SETUP</span>
-                <h3 data-i18n="setup.bridge.title">Ask your Agent to connect the workflow.</h3>
+                <span class="step-kicker" data-i18n="setup.bridge.label">AGENT-GUIDED SETUP</span>
+                <h3 data-i18n="setup.bridge.title">Let your Agent handle the integration.</h3>
                 <p data-i18n="setup.bridge.body">
-                  Choose the tools you want to use, then paste the prompt into your Agent. It can
-                  inspect the environment, install what is missing, configure Panerelay, and verify
-                  the result.
+                  Choose the automation tools to connect, then send the prompt to your Agent. It
+                  will inspect the environment, install or update tools only when needed, configure
+                  Panerelay, and verify the result.
                 </p>
                 <div
                   class="agent-handoff-picker"
@@ -772,7 +1097,7 @@
                     data-handoff-select="both"
                     data-active="false"
                   >
-                    <span data-i18n="setup.agent.both">Use both</span>
+                    <span data-i18n="setup.agent.both">Both tools</span>
                   </button>
                 </div>
 
@@ -795,18 +1120,13 @@
                       data-i18n-aria-label="prompt.group.agentBrowser"
                     >
                       <p data-i18n="setup.agentPrompt.agentBrowser">
-                        Set up Panerelay so my Agent can use agent-browser with my existing Chrome
-                        or Edge browser. Inspect the local environment first. Install or update
-                        agent-browser from its official source only if needed, then use Panerelay's
-                        official setup tool to enable the agent-browser integration. Run the
-                        relevant Panerelay doctor check and verify that agent-browser can list only
-                        the tabs I authorize. Do not change unrelated Agent settings, and ask me to
-                        authorize a tab in the Panerelay extension when required.
+                        Fetch this guide with curl -fsSL and follow the agent-browser scenario:
+                        https://f-loat.github.io/panerelay/agent-setup.md
                       </p>
                       <button
                         class="copy-button agent-prompt-copy"
                         type="button"
-                        aria-label="Copy Agent setup prompt"
+                        aria-label="Copy Agent integration prompt"
                         data-i18n-aria-label="prompt.copy"
                         data-copy-text-key="setup.agentPrompt.agentBrowser"
                         data-copy-label-key="prompt.copyShort"
@@ -862,18 +1182,13 @@
                       data-i18n-aria-label="prompt.group.browserUse"
                     >
                       <p data-i18n="setup.agentPrompt.browserUse">
-                        Set up Panerelay so my Agent can use browser-use with my existing signed-in
-                        Chrome browser. Inspect the local environment first. Install or update
-                        browser-use from its official source only if needed, then use Panerelay's
-                        official setup tool to enable the browser-use integration. Run the relevant
-                        Panerelay doctor check and verify the Extension-backed connection. Preserve
-                        browser-use's native workflow, do not change unrelated Agent settings, and
-                        ask me to authorize a tab in the Panerelay extension when required.
+                        Fetch this guide with curl -fsSL and follow the browser-use scenario:
+                        https://f-loat.github.io/panerelay/agent-setup.md
                       </p>
                       <button
                         class="copy-button agent-prompt-copy"
                         type="button"
-                        aria-label="Copy Agent setup prompt"
+                        aria-label="Copy Agent integration prompt"
                         data-i18n-aria-label="prompt.copy"
                         data-copy-text-key="setup.agentPrompt.browserUse"
                         data-copy-label-key="prompt.copyShort"
@@ -929,17 +1244,13 @@
                       data-i18n-aria-label="prompt.group.both"
                     >
                       <p data-i18n="setup.agentPrompt.both">
-                        Set up Panerelay for both agent-browser and browser-use with my existing
-                        browser. Inspect the local environment first. Install or update each tool
-                        from its official source only if needed, then use Panerelay's official setup
-                        tool to enable both integrations together. Run the relevant doctor checks
-                        and verify each connection. Do not change unrelated Agent settings, and ask
-                        me to authorize a tab in the Panerelay extension when required.
+                        Fetch this guide with curl -fsSL and follow the combined agent-browser and
+                        browser-use scenario: https://f-loat.github.io/panerelay/agent-setup.md
                       </p>
                       <button
                         class="copy-button agent-prompt-copy"
                         type="button"
-                        aria-label="Copy Agent setup prompt"
+                        aria-label="Copy Agent integration prompt"
                         data-i18n-aria-label="prompt.copy"
                         data-copy-text-key="setup.agentPrompt.both"
                         data-copy-label-key="prompt.copyShort"
@@ -980,7 +1291,7 @@
 
                 <div class="manual-setup">
                   <strong data-i18n="setup.agent.manual"
-                    >Prefer to install Panerelay yourself?</strong
+                    >Prefer to run the selected integration command yourself?</strong
                   >
                   <div
                     class="command command-inline"
@@ -989,13 +1300,14 @@
                     data-i18n-aria-label="command.group.base"
                   >
                     <span class="command-prompt" aria-hidden="true">$</span>
-                    <code>npx --yes @panerelay/setup</code>
+                    <code data-handoff-command>npx --yes @panerelay/setup</code>
                     <button
                       class="copy-button"
                       type="button"
                       aria-label="Copy setup command"
                       data-i18n-aria-label="command.copy"
                       data-copy-command="npx --yes @panerelay/setup"
+                      data-handoff-command-copy
                       data-copied="false"
                     >
                       <svg class="copy-icon" viewBox="0 0 20 20" aria-hidden="true">
@@ -1079,7 +1391,7 @@
                 <div class="authorize-row active">
                   <span class="authorize-favicon second"></span>
                   <div>
-                    <b data-i18n="setup.authorization.project">Project board</b
+                    <b data-i18n="setup.authorization.otherTab">Another web tab</b
                     ><small data-i18n="setup.authorization.authorized">Authorized</small>
                   </div>
                   <i class="toggle"><b></b></i>
