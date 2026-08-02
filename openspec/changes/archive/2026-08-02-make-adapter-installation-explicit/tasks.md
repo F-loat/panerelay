@@ -16,15 +16,14 @@
 - [x] 2.8 Replace the missing-Host diagnostic sentence in the action card with an installation-oriented title matching the optional-tools section hierarchy.
 - [x] 2.9 Place the required local-integration action card before the optional automation-tool card and render its command on a conventional muted-gray code surface.
 
-## 3. Product guidance and durable records
+## 3. Extension guidance and durable records
 
-- [x] 3.1 Update English and Chinese root/package/Skill guidance so base setup, agent-browser, and Browser Use commands are concise and equally weighted.
-- [x] 3.2 Update the official website and its assertions to remove agent-browser default-adapter language and present both explicit setup choices.
-- [x] 3.3 Amend RFC-0001 and relevant compatibility/release documentation with the pre-release setup contract and unchanged compatibility classifications.
+- [x] 3.1 Update English and Chinese setup, Extension, and installed Skill guidance so base setup, agent-browser, and Browser Use commands are concise and equally weighted.
+- [x] 3.2 Amend RFC-0001 and relevant compatibility/release documentation with the pre-release setup contract and unchanged compatibility classifications.
 
 ## 4. Verification
 
-- [x] 4.1 Run focused setup, Bridge, Extension, website, and release tests for the four integration selections and missing-integration states.
+- [x] 4.1 Run focused setup, Bridge, Extension, and release tests for the four integration selections and missing-integration states.
 - [x] 4.2 Run `pnpm run check`, strict OpenSpec validation, and `git diff --check`.
 - [x] 4.3 Verify the base and explicit-adapter guidance in the daily-Chrome side panel without changing browser authorization, then clean up temporary verification state outside the repository.
 - [x] 4.4 Cover the fixed install-command mapping, long-running correlation, duplicate-click protection, localized install copy, default selection, and failure guidance; rerun focused and full validation.

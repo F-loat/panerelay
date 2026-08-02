@@ -33,6 +33,26 @@ test('doctor verifies the optional global default Provider', async () => {
   }
 });
 
+test('doctor rejects Provider scopes that omit the agent-browser selection', async () => {
+  const homeDirectory = await mkdtemp(join(tmpdir(), 'panerelay-doctor-scope-'));
+  try {
+    for (const scope of [{ globalProvider: true }, { project: true }]) {
+      const report = await doctorPanerelay({
+        ...scope,
+        homeDirectory,
+        platform: 'linux',
+      });
+      const check = report.checks.find(item => item.id === 'agent-browser-selection');
+      assert.equal(report.ok, false);
+      assert.equal(check?.status, 'fail');
+      assert.match(check?.detail ?? '', /require agentBrowser: true/);
+      assert.match(check?.hint ?? '', /doctor --agent-browser/);
+    }
+  } finally {
+    await rm(homeDirectory, { force: true, recursive: true });
+  }
+});
+
 test('doctor reports one minimum-version Browser Use compatibility check only when selected', async () => {
   const homeDirectory = await mkdtemp(join(tmpdir(), 'panerelay-browser-use-doctor-'));
   try {

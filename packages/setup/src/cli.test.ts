@@ -160,6 +160,39 @@ test('reports an incompatible selected Browser Use integration without installin
   }
 });
 
+test('reports an incompatible selected agent-browser version before failing setup', async () => {
+  const output: string[] = [];
+  const originalLog = console.log;
+  console.log = (...values: unknown[]) => output.push(values.join(' '));
+  try {
+    const code = await main(['--agent-browser', '--lang', 'zh-CN'], {
+      environment: {},
+      setup: async () => ({
+        agentBrowserInstallation: {
+          executable: '/tmp/agent-browser',
+          supported: false,
+          version: '0.32.9',
+        },
+        globalProvider: false,
+        host: {
+          extensionId: PANERELAY_EXTENSION_ID,
+          hostPath: '/tmp/host.mjs',
+          launchPath: '/tmp/host',
+          legacyHostPath: '/tmp/legacy-host',
+          manifestPaths: ['/tmp/manifest.json'],
+          runtimeConfigPath: '/tmp/runtime.json',
+        },
+      }),
+      systemLocale: 'en',
+    });
+    assert.equal(code, 1);
+    assert.match(output.join('\n'), /agent-browser 0\.32\.9 不受支持/);
+    assert.match(output.join('\n'), /0\.33\.0 或更高版本/);
+  } finally {
+    console.log = originalLog;
+  }
+});
+
 test('runs setup when the action is omitted', async () => {
   const output: string[] = [];
   const originalLog = console.log;
@@ -268,7 +301,10 @@ test('prints help in the explicit or detected system language', async () => {
   console.log = (...values: unknown[]) => output.push(values.join(' '));
   try {
     assert.equal(await main(['--help'], { environment: {}, systemLocale: 'zh-CN' }), 0);
-    assert.match(output.join('\n'), /用法：/);
+    const chineseHelp = output.join('\n');
+    assert.match(chineseHelp, /用法：/);
+    assert.match(chineseHelp, /--project-provider.*需要 --agent-browser/);
+    assert.match(chineseHelp, /--global-provider[\s\S]*需要 --agent-browser/);
     output.length = 0;
     assert.equal(
       await main(['--help', '--lang', 'en'], {
@@ -277,7 +313,10 @@ test('prints help in the explicit or detected system language', async () => {
       }),
       0,
     );
-    assert.match(output.join('\n'), /Usage:/);
+    const englishHelp = output.join('\n');
+    assert.match(englishHelp, /Usage:/);
+    assert.match(englishHelp, /--project-provider.*requires --agent-browser/);
+    assert.match(englishHelp, /--global-provider[\s\S]*requires --agent-browser/);
   } finally {
     console.log = originalLog;
   }

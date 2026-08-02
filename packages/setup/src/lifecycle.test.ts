@@ -157,26 +157,26 @@ test('base setup installs only the Native Host and skips both engine integration
   );
 
   assert.deepEqual(calls, ['install-host']);
+  assert.equal(result.agentBrowserInstallation, undefined);
   assert.equal(result.agentBrowserConfigPath, undefined);
   assert.equal(result.globalSkillPath, undefined);
   assert.equal(result.browserUseIntegration, undefined);
 });
 
 test('rejects Provider scopes before installing the Native Host without agent-browser', async () => {
-  let writes = 0;
-  await assert.rejects(
-    setupPanerelay(
-      { globalProvider: true },
-      {
+  for (const scope of [{ globalProvider: true }, { project: true }]) {
+    let writes = 0;
+    await assert.rejects(
+      setupPanerelay(scope, {
         installHost: async () => {
           writes += 1;
           return host;
         },
-      },
-    ),
-    /require agentBrowser: true/,
-  );
-  assert.equal(writes, 0);
+      }),
+      /require agentBrowser: true/,
+    );
+    assert.equal(writes, 0);
+  }
 });
 
 test('uninstall removes only Panerelay-owned integration through scoped operations', async () => {

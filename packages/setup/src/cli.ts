@@ -470,6 +470,12 @@ export async function main(
     }
     if (parsed.agentBrowser && !result.agentBrowserInstallation?.executable) {
       console.log(translate(locale, 'agentBrowserMissing'));
+    } else if (parsed.agentBrowser && result.agentBrowserInstallation?.supported !== true) {
+      console.log(
+        translate(locale, 'agentBrowserUnsupported', {
+          version: result.agentBrowserInstallation?.version ?? 'unknown',
+        }),
+      );
     }
     if (result.projectConfigPath) {
       console.log(translate(locale, 'projectProvider', { path: result.projectConfigPath }));

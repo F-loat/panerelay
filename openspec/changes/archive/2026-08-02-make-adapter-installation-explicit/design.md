@@ -2,7 +2,7 @@
 
 See [proposal.md](proposal.md) for motivation. Today the setup lifecycle always discovers agent-browser, writes both the Native Host's private agent-browser configuration and the user-level Panerelay Provider registration, installs the agent-browser Skill, and includes both agent-browser checks in ordinary doctor output. Codex, Claude Code, and Qoder consume the private configuration to inject a scoped `panerelay_browser` MCP server into side-panel conversations. Browser Use already uses an explicit option. The accepted RFC-0001 design currently mandates that injection and must be amended with the implementation.
 
-RFC-0001 defines the agent-browser Provider boundary and setup ownership; RFC-0005 defines shared Chrome and Edge Native Messaging installation. The change amends only integration selection and readiness presentation. The Verified agent-browser 0.33.0 and Browser Use 0.13.7 baselines, Forwarded Edge classifications, and Unsupported browser-process ownership groups remain unchanged.
+RFC-0001 defines the agent-browser Provider boundary and setup ownership; RFC-0005 defines shared Chrome and Edge Native Messaging installation. The change amends integration selection, readiness presentation, and side-panel Agent ownership of browser-tool configuration and session cleanup. The Verified agent-browser 0.33.0 and Browser Use 0.13.7 baselines, Forwarded Edge classifications, and Unsupported browser-process ownership groups remain unchanged.
 
 ## Goals / Non-Goals
 
@@ -71,8 +71,8 @@ No migration or cleanup pass is added for earlier development installations. Fre
 - [A settings click launches package installation from a browser surface] → Expose only a closed adapter enum, pin the setup package to the connected lockstep Extension version, resolve the package runner locally without a shell, bound time and output, and never accept Extension-supplied command material.
 - [Installation can take longer than ordinary settings reads] → Use a dedicated correlated request timeout and show a per-adapter installing state that prevents duplicate clicks.
 - [Conditional setup paths increase test combinations] → Cover all four flag combinations plus invalid default-scope combinations and selected doctor modes.
-- [Documentation can drift back toward a default engine] → Add English/Chinese and website assertions that name both explicit commands and reject the old default label.
+- [Guidance can drift back toward a default engine] → Add English/Chinese setup, Extension, installed Skill, and release assertions that name both explicit commands and reject the old default behavior.
 
 ## Migration Plan
 
-There is no compatibility migration for earlier development installations. Ship the setup CLI, package docs, website, RFC amendment, and release assertions in the same lockstep candidate. Rollback restores the prior package set and its prior setup contract.
+There is no compatibility migration for earlier development installations. Ship the setup CLI, Bridge, Extension, installed Skills, RFC amendment, and release assertions in the same lockstep candidate. README and project-website guidance remains a separate follow-up. Rollback restores the prior package set and its prior setup contract.

@@ -137,6 +137,14 @@ export class IntegrationService {
     this.#pickDirectory = options.pickDirectory ?? pickWorkspaceDirectory;
   }
 
+  async #requireAgentBrowserProvider(): Promise<void> {
+    if (!(await this.#readAgentBrowserProvider())) {
+      throw new Error(
+        'The Panerelay agent-browser integration is not available. Run npx --yes @panerelay/setup --agent-browser',
+      );
+    }
+  }
+
   async handle(message: IntegrationRequestMessage): Promise<void> {
     try {
       switch (message.request.method) {
@@ -192,12 +200,7 @@ export class IntegrationService {
           break;
         }
         case 'default-provider.set': {
-          const available = await this.#readAgentBrowserProvider();
-          if (!available) {
-            throw new Error(
-              'The Panerelay agent-browser integration is not available. Run npx --yes @panerelay/setup --agent-browser',
-            );
-          }
+          await this.#requireAgentBrowserProvider();
           const state = await this.#setDefaultProvider();
           this.#send({
             type: 'integration.response',
@@ -209,12 +212,7 @@ export class IntegrationService {
           break;
         }
         case 'default-provider.clear': {
-          const available = await this.#readAgentBrowserProvider();
-          if (!available) {
-            throw new Error(
-              'The Panerelay agent-browser integration is not available. Run npx --yes @panerelay/setup --agent-browser',
-            );
-          }
+          await this.#requireAgentBrowserProvider();
           const state = await this.#clearDefaultProvider();
           this.#send({
             type: 'integration.response',

@@ -148,6 +148,19 @@ export async function doctorPanerelay(options: DoctorOptions = {}): Promise<Doct
     platform,
   });
   const checks: DoctorCheck[] = [];
+  if (!options.agentBrowser && (options.globalProvider || options.project)) {
+    const scopes = [
+      ...(options.globalProvider ? ['globalProvider'] : []),
+      ...(options.project ? ['project'] : []),
+    ];
+    checks.push({
+      id: 'agent-browser-selection',
+      label: 'agent-browser Provider scope selection',
+      status: 'fail',
+      detail: `${scopes.join(' and ')} require agentBrowser: true`,
+      hint: `Run: ${SETUP_COMMAND} doctor --agent-browser${options.globalProvider ? ' --global-provider' : ''}${options.project ? ' --project-provider' : ''}`,
+    });
+  }
   const nodeMajor = Number.parseInt(process.versions.node.split('.')[0] || '0', 10);
   checks.push({
     id: 'node',

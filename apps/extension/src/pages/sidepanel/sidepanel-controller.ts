@@ -55,6 +55,30 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error || '');
 }
 
+function assertNeverIntegration(integration: never): never {
+  throw new Error(`Unsupported automation integration: ${String(integration)}`);
+}
+
+function integrationInstallPresentation(integration: AutomationIntegrationId): {
+  failureCopyKey: 'agentBrowserInstallFailed' | 'browserUseInstallFailed';
+  pendingKey: 'defaultProviderPending' | 'browserUseDefaultPending';
+} {
+  switch (integration) {
+    case 'agent-browser':
+      return {
+        failureCopyKey: 'agentBrowserInstallFailed',
+        pendingKey: 'defaultProviderPending',
+      };
+    case 'browser-use':
+      return {
+        failureCopyKey: 'browserUseInstallFailed',
+        pendingKey: 'browserUseDefaultPending',
+      };
+    default:
+      return assertNeverIntegration(integration);
+  }
+}
+
 export interface SidepanelController {
   state: SidepanelState;
   initialize(): Promise<void>;
@@ -583,8 +607,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
 
   const installIntegration = useCallback(
     async (integration: AutomationIntegrationId) => {
-      const pendingKey =
-        integration === 'agent-browser' ? 'defaultProviderPending' : 'browserUseDefaultPending';
+      const { failureCopyKey, pendingKey } = integrationInstallPresentation(integration);
       if (stateRef.current[pendingKey]) return;
       patch({ [pendingKey]: true, error: '' });
       try {
@@ -595,12 +618,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
         patch({ extensionStatus: response.status ?? stateRef.current.extensionStatus });
       } catch {
         patch({
-          error: translate(
-            stateRef.current.locale,
-            integration === 'agent-browser'
-              ? 'agentBrowserInstallFailed'
-              : 'browserUseInstallFailed',
-          ),
+          error: translate(stateRef.current.locale, failureCopyKey),
         });
       } finally {
         patch({ [pendingKey]: false });

@@ -4,6 +4,8 @@ export type SupportedLocale = 'en' | 'zh-CN';
 
 const englishMessages = {
   agentBrowserMissing: 'Warning: agent-browser was not found.',
+  agentBrowserUnsupported:
+    'Warning: agent-browser {version} is unsupported. Panerelay requires 0.33.0 or newer.',
   agentCommand: 'Agent command: agent-browser --provider panerelay tab list',
   agentSkill: 'Agent Skill: {path}',
   automationChoices:
@@ -64,9 +66,9 @@ Commands:
 Options:
   --agent-browser      Also install or diagnose the Panerelay agent-browser integration
   --browser-use        Also install or diagnose the Panerelay Browser Use integration
-  --project-provider   Also configure the current project to default to Panerelay
+  --project-provider   Also configure the current project to default to Panerelay (requires --agent-browser)
   --global-provider
-              Set Panerelay as the user-level default agent-browser provider
+              Set Panerelay as the user-level default agent-browser provider (requires --agent-browser)
   --extension-id
               Use a custom 32-character Chrome Extension ID for this installation
   --json      Print a machine-readable doctor report
@@ -90,6 +92,8 @@ type MessageKey = keyof typeof englishMessages;
 
 const chineseMessages: Record<MessageKey, string> = {
   agentBrowserMissing: '警告：未找到 agent-browser。',
+  agentBrowserUnsupported:
+    '警告：agent-browser {version} 不受支持。Panerelay 需要 0.33.0 或更高版本。',
   agentCommand: 'Agent 命令：agent-browser --provider panerelay tab list',
   agentSkill: 'Agent Skill：{path}',
   automationChoices: '可选自动化集成：使用 --agent-browser 和/或 --browser-use 重新运行安装命令。',
@@ -148,9 +152,9 @@ const chineseMessages: Record<MessageKey, string> = {
 选项：
   --agent-browser      同时安装或诊断 Panerelay agent-browser 集成
   --browser-use        同时安装或诊断 Panerelay Browser Use 集成
-  --project-provider   同时将当前项目的默认 Provider 配置为 Panerelay
+  --project-provider   同时将当前项目的默认 Provider 配置为 Panerelay（需要 --agent-browser）
   --global-provider
-              将 Panerelay 设为用户级默认 agent-browser Provider
+              将 Panerelay 设为用户级默认 agent-browser Provider（需要 --agent-browser）
   --extension-id
               为当前安装指定 32 位 Chrome 扩展 ID
   --json      输出机器可读的 doctor 报告

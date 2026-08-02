@@ -6,7 +6,7 @@
 - Authors: F-loat
 - Created: 2026-07-29
 - Updated: 2026-08-02
-- Amendment: `openspec/changes/make-adapter-installation-explicit`
+- Amendment: `openspec/changes/archive/2026-08-02-make-adapter-installation-explicit`
 - Amendment: `openspec/changes/archive/2026-08-01-add-browser-use-default-setting`
 - Amendment: `openspec/changes/archive/2026-08-01-improve-browser-authorization-controls`
 

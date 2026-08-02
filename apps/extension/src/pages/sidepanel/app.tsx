@@ -2,6 +2,7 @@ import type {
   AutomationActivityCategory,
   AutomationActivityLabel,
   AutomationActivityStatus,
+  AutomationIntegrationId,
   ConversationActivity,
   ConversationApproval,
   ConversationApprovalDecision,
@@ -48,7 +49,7 @@ import { browserSidepanelClient, type SidepanelClient } from './sidepanel-client
 import { isPanerelaySetupFailure } from './setup-guidance.js';
 
 const PANERELAY_SETUP_COMMAND = 'npx --yes @panerelay/setup';
-type SetupIntegration = 'agent-browser' | 'browser-use';
+type SetupIntegration = AutomationIntegrationId;
 type SetupIntegrationSelection = Record<SetupIntegration, boolean>;
 
 const SETUP_INTEGRATIONS: readonly SetupIntegration[] = ['agent-browser', 'browser-use'];
