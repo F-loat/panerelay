@@ -153,6 +153,8 @@ const english = {
   'workflow.engine.explicit': 'Integration',
   'workflow.engine.explicitIntegration': 'Explicit integration',
   'workflow.engine.compatibility': 'Compatibility evidence',
+  'workflow.engine.pause': 'Pause rotation',
+  'workflow.engine.resume': 'Resume rotation',
   'workflow.cli.title': 'Connect agent-browser<br>to your everyday tabs.',
   'workflow.cli.body':
     'Let CLI- or MCP-capable Agents use agent-browser on the tabs you explicitly authorize. Native snapshots, refs, screenshots, network tools, and diagnostics stay intact.',
@@ -214,7 +216,6 @@ const english = {
     'Fetch this guide with curl -fsSL and follow the browser-use scenario: https://f-loat.github.io/panerelay/agent-setup.md',
   'setup.agentPrompt.both':
     'Fetch this guide with curl -fsSL and follow the combined agent-browser and browser-use scenario: https://f-loat.github.io/panerelay/agent-setup.md',
-  'setup.engine.base': 'Panerelay local integration',
   'setup.bridge.browser': 'Browser',
   'setup.bridge.bridge': 'Bridge',
   'setup.bridge.agent': 'Agent',
@@ -250,7 +251,6 @@ const english = {
   'trust.compatibility.title': 'Compatibility, without hand-waving.',
   'trust.compatibility.body':
     'Exact evidence baselines: agent-browser 0.33.0 and browser-use 0.13.7 with Browser Harness 0.1.8. Edge remains <code>Forwarded</code> pending representative acceptance.',
-  'trust.compatibility.link': 'Inspect the compatibility record',
   'trust.compatibility.platforms': 'Chrome & Edge',
   'final.index': 'OPEN SOURCE · MIT LICENSE',
   'final.title': 'Keep your browser.<br><em>Invite better tools.</em>',
@@ -415,6 +415,8 @@ const simplifiedChinese: Record<TranslationKey, string> = {
   'workflow.engine.explicit': '集成',
   'workflow.engine.explicitIntegration': '显式集成',
   'workflow.engine.compatibility': '查看兼容性证据',
+  'workflow.engine.pause': '暂停轮播',
+  'workflow.engine.resume': '恢复轮播',
   'workflow.cli.title': '把 agent-browser<br>接入日常标签页。',
   'workflow.cli.body':
     '让支持 CLI 或 MCP 的 Agent 使用 agent-browser 操作你明确授权的日常标签页，保留 snapshot、ref、截图、网络和调试等原生工作流。',
@@ -475,7 +477,6 @@ const simplifiedChinese: Record<TranslationKey, string> = {
     '请用 curl -fsSL 读取此指南，并执行 browser-use 场景：https://f-loat.github.io/panerelay/agent-setup.md',
   'setup.agentPrompt.both':
     '请用 curl -fsSL 读取此指南，并执行 agent-browser 与 browser-use 组合场景：https://f-loat.github.io/panerelay/agent-setup.md',
-  'setup.engine.base': 'Panerelay 本地集成',
   'setup.bridge.browser': '浏览器',
   'setup.bridge.bridge': 'Bridge',
   'setup.bridge.agent': 'Agent',
@@ -511,7 +512,6 @@ const simplifiedChinese: Record<TranslationKey, string> = {
   'trust.compatibility.title': '兼容范围，全部有据可查。',
   'trust.compatibility.body':
     '精确实测基线为 agent-browser 0.33.0，以及 browser-use 0.13.7 + Browser Harness 0.1.8。Edge 在完成代表性验收前仍标记为 <code>Forwarded</code>。',
-  'trust.compatibility.link': '查看兼容性记录',
   'trust.compatibility.platforms': 'Chrome 与 Edge',
   'final.index': '开源 · MIT 许可证',
   'final.title': '浏览器不用换。<br><em>Agent 现在就能开始工作。</em>',

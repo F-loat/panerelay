@@ -8,7 +8,7 @@ This is an opt-in **automation tool integration** and a peer of agent-browser. I
 
 - Install the official [Panerelay Extension](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi) in Chrome.
 - Install Node.js 20 or newer.
-- Install browser-use 0.13.7 or newer with its complete CLI runtime by following the [upstream CLI instructions](https://docs.browser-use.com/open-source/browser-use-cli).
+- Install browser-use 0.13.7 or newer with Browser Harness 0.1.8 or newer by following the [upstream CLI instructions](https://docs.browser-use.com/open-source/browser-use-cli).
 
 Panerelay setup verifies browser-use but does not install, upgrade, downgrade, rewrite, or add it to `PATH`.
 

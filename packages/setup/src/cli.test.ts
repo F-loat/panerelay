@@ -129,6 +129,82 @@ test('passes independent engine selections without changing the base setup call'
   ]);
 });
 
+test('offers interactive integration and default selections only for the unflagged setup', async () => {
+  const selections: Array<Record<string, unknown>> = [];
+  const answers = [true, true, true, false];
+  const prompts: string[] = [];
+  const originalLog = console.log;
+  console.log = () => undefined;
+  try {
+    const code = await main([], {
+      environment: {},
+      interactive: () => true,
+      prompt: async message => {
+        prompts.push(message);
+        return answers.shift() ?? false;
+      },
+      setup: async options => {
+        selections.push({ ...options });
+        return {
+          browserUseReady: true,
+          globalProvider: options?.globalProvider === true,
+          host: {
+            extensionId: PANERELAY_EXTENSION_ID,
+            hostPath: '/tmp/host.mjs',
+            launchPath: '/tmp/host',
+            legacyHostPath: '/tmp/legacy-host',
+            manifestPaths: ['/tmp/manifest.json'],
+            runtimeConfigPath: '/tmp/runtime.json',
+          },
+        };
+      },
+      systemLocale: 'en',
+    });
+    assert.equal(code, 0);
+    assert.equal(selections.length, 1);
+    assert.equal(selections[0]?.agentBrowser, true);
+    assert.equal(selections[0]?.browserUse, true);
+    assert.equal(selections[0]?.globalProvider, true);
+    assert.equal(selections[0]?.browserUseDefault, 'direct');
+
+    await main(['--yes'], {
+      environment: {},
+      interactive: () => true,
+      prompt: async () => {
+        throw new Error('prompt should not run');
+      },
+      setup: async options => {
+        selections.push({ ...options });
+        return {
+          globalProvider: false,
+          host: {
+            extensionId: PANERELAY_EXTENSION_ID,
+            hostPath: '/tmp/host.mjs',
+            launchPath: '/tmp/host',
+            legacyHostPath: '/tmp/legacy-host',
+            manifestPaths: ['/tmp/manifest.json'],
+            runtimeConfigPath: '/tmp/runtime.json',
+          },
+        };
+      },
+      systemLocale: 'en',
+    });
+    assert.deepEqual(selections[1], {
+      agentBrowser: false,
+      browserUse: false,
+      environment: {},
+      extensionId: undefined,
+      globalProvider: false,
+      project: false,
+    });
+    assert.equal(prompts.length, 4);
+    assert.match(prompts[0]!, /agent-browser integration/);
+    assert.match(prompts[3]!, /default Browser Use connection/);
+  } finally {
+    console.log = originalLog;
+  }
+});
+
 test('reports an incompatible selected Browser Use integration without installing it silently', async () => {
   const output: string[] = [];
   const originalLog = console.log;

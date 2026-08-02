@@ -23,7 +23,7 @@ Panerelay 提供两种接入方式：
 
 ## 快速开始
 
-环境要求：macOS、Linux 或 Windows 上的 Chrome 或 Microsoft Edge，以及 Node.js 20 或更高版本。Panerelay 本身不依赖 agent-browser 或 browser-use。
+环境要求：macOS、Linux 或 Windows 上的 Chrome 或 Microsoft Edge，以及 Node.js 20 或更高版本。Panerelay 本身不依赖 agent-browser 或 browser-use；Browser Use 集成需要 browser-use 0.13.7+ 和 Browser Harness 0.1.8+。
 
 ### 1. 安装扩展
 
@@ -49,29 +49,19 @@ Panerelay 提供两种接入方式：
 请用 curl -fsSL 读取此指南，并执行 browser-use 场景：https://f-loat.github.io/panerelay/agent-setup.md
 ```
 
-**同时接入两种工具**
-
-```text
-请用 curl -fsSL 读取此指南，并执行 agent-browser 与 browser-use 组合场景：https://f-loat.github.io/panerelay/agent-setup.md
-```
-
 官网发布的指南由仓库中版本受控的 [Agent 接入说明](docs/agent-setup.md)生成。`@panerelay/setup` 只安装 Panerelay 自有文件，不会自行安装或修改 agent-browser 和 browser-use。
 
 #### 自己安装 Panerelay
-
-如果你只需要侧边栏，先运行这个不绑定任何自动化工具的基础命令：
 
 ```bash
 npx --yes @panerelay/setup
 ```
 
-它会安装侧边栏与 Panerelay 集成所需的 Native Host，不会选择自动化引擎，也不会授权任何标签页。
-
-如果还要安装自动化工具对应的 Panerelay 接入文件，可在命令后追加 `--agent-browser`、`--browser-use`，也可以同时添加两个参数。setup 仍不会安装工具本身。
+它会安装侧边栏与 Panerelay 集成所需的 Native Host，并且交互式选择是否接入自动化引擎。
 
 ### 3. 授权需要共享的标签页
 
-从浏览器工具栏打开 Panerelay，选择授权当前网页标签页或所有受支持的网页标签页。网站权限、标签页授权与当前控制权相互独立；安装和聚焦标签页本身都不会授予访问权限。
+从浏览器工具栏打开 Panerelay，选择授权当前网页标签页或所有受支持的网页标签页。
 
 ### 4. 开始使用
 

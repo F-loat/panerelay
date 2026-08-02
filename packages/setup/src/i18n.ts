@@ -3,15 +3,19 @@ import { execFileSync } from 'node:child_process';
 export type SupportedLocale = 'en' | 'zh-CN';
 
 const englishMessages = {
+  agentBrowserDefaultPrompt: 'Make Panerelay the default agent-browser Provider? [y/N] ',
+  agentBrowserPrompt: 'Install the agent-browser integration? [y/N] ',
   agentBrowserMissing: 'Warning: agent-browser was not found.',
   agentBrowserUnsupported:
     'Warning: agent-browser {version} is unsupported. Panerelay requires 0.33.0 or newer.',
   agentCommand: 'Agent command: agent-browser --provider panerelay tab list',
   agentSkill: 'Agent Skill: {path}',
   automationChoices:
-    'Optional automation integrations: rerun with --agent-browser and/or --browser-use.',
+    'Optional automation integrations: run setup in a terminal without flags to choose them interactively, or use --agent-browser and/or --browser-use.',
   browserUseIntegration: 'Browser Use integration: {path}',
+  browserUseDefaultPrompt: 'Use Panerelay as the default Browser Use connection? [y/N] ',
   browserUseMcp: 'Optional Browser Use CLI MCP command: {path}',
+  browserUsePrompt: 'Install the Browser Use integration? [y/N] ',
   browserUseMissing:
     'Warning: a complete Browser Use 0.13.7 or newer installation was not found. Install, repair, or upgrade Browser Use, then run setup again with --browser-use.',
   browserUseReady: 'Browser Use: {browserUse}',
@@ -91,14 +95,19 @@ Optional automation integrations:
 type MessageKey = keyof typeof englishMessages;
 
 const chineseMessages: Record<MessageKey, string> = {
+  agentBrowserDefaultPrompt: '将 Panerelay 设为 agent-browser 的默认 Provider 吗？[y/N] ',
+  agentBrowserPrompt: '需要接入 agent-browser 吗？[y/N] ',
   agentBrowserMissing: '警告：未找到 agent-browser。',
   agentBrowserUnsupported:
     '警告：agent-browser {version} 不受支持。Panerelay 需要 0.33.0 或更高版本。',
   agentCommand: 'Agent 命令：agent-browser --provider panerelay tab list',
   agentSkill: 'Agent Skill：{path}',
-  automationChoices: '可选自动化集成：使用 --agent-browser 和/或 --browser-use 重新运行安装命令。',
+  automationChoices:
+    '可选自动化集成：在终端中不带参数运行 setup 可交互选择，也可使用 --agent-browser 和/或 --browser-use。',
   browserUseIntegration: 'Browser Use 集成：{path}',
+  browserUseDefaultPrompt: '将 Panerelay 设为 Browser Use 的默认连接吗？[y/N] ',
   browserUseMcp: '可选 Browser Use CLI MCP 命令：{path}',
+  browserUsePrompt: '需要接入 Browser Use 吗？[y/N] ',
   browserUseMissing:
     '警告：未找到完整的 Browser Use 0.13.7 或更高版本。请安装、修复或升级 Browser Use 后，使用 --browser-use 重新运行 setup。',
   browserUseReady: 'Browser Use：{browserUse}',

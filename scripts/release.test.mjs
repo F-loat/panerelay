@@ -176,8 +176,8 @@ test('keeps official installation guidance Store-first and version-neutral', () 
   assert.match(rootReadmeZhCn, /在 Chrome 或 Edge 中将 `apps\/extension\/dist` 加载为未打包扩展/);
   assert.match(rootReadme, /Let Agents work with the browser you already use/);
   assert.match(rootReadmeZhCn, /让 Agent 在你常用的浏览器里工作/);
-  assert.match(rootReadme, /`--agent-browser`, `--browser-use`, or both flags/);
-  assert.match(rootReadmeZhCn, /`--agent-browser`、`--browser-use`，也可以同时添加两个参数/);
+  assert.match(rootReadme, /interactively asks whether to connect optional automation engines/);
+  assert.match(rootReadmeZhCn, /交互式选择是否接入自动化引擎/);
   assert.match(rootReadme, /panerelay-browser-use-cli run browser-use/);
   assert.match(rootReadmeZhCn, /panerelay-browser-use-cli run browser-use/);
   assert.match(rootReadme, /browser-use tab list/);

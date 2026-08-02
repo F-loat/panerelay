@@ -1859,6 +1859,16 @@ button[data-copied='true']::after {
   color: var(--green-soft);
 }
 
+.engine-rotation-toggle {
+  min-width: auto !important;
+  color: var(--muted) !important;
+  font-size: 11px;
+}
+
+.engine-rotation-toggle:hover {
+  color: var(--ink) !important;
+}
+
 .engine-tabs small,
 .agent-handoff-picker small {
   color: var(--muted);
@@ -1881,6 +1891,10 @@ button[data-copied='true']::after {
 .engine-panel[hidden],
 .agent-handoff-panel[hidden] {
   display: none;
+}
+
+html:not(.js) .engine-panel[hidden] {
+  display: grid;
 }
 
 .engine-status {

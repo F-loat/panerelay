@@ -43,35 +43,39 @@ function translation(key: TranslationKey): string {
   return translations[currentLocale][key];
 }
 
+function isTranslationKey(value: string | undefined): value is TranslationKey {
+  return value !== undefined && Object.hasOwn(translations.en, value);
+}
+
 function applyLocale(locale: Locale): void {
   currentLocale = locale;
   document.documentElement.lang = locale;
   document.documentElement.dataset.locale = locale;
 
   for (const element of document.querySelectorAll<HTMLElement>('[data-i18n]')) {
-    const key = element.dataset.i18n as TranslationKey | undefined;
-    if (key) {
+    const key = element.dataset.i18n;
+    if (isTranslationKey(key)) {
       element.textContent = translation(key);
     }
   }
 
   for (const element of document.querySelectorAll<HTMLElement>('[data-i18n-html]')) {
-    const key = element.dataset.i18nHtml as TranslationKey | undefined;
-    if (key) {
+    const key = element.dataset.i18nHtml;
+    if (isTranslationKey(key)) {
       element.innerHTML = translation(key);
     }
   }
 
   for (const element of document.querySelectorAll<HTMLElement>('[data-i18n-aria-label]')) {
-    const key = element.dataset.i18nAriaLabel as TranslationKey | undefined;
-    if (key) {
+    const key = element.dataset.i18nAriaLabel;
+    if (isTranslationKey(key)) {
       element.setAttribute('aria-label', translation(key));
     }
   }
 
   for (const element of document.querySelectorAll<HTMLMetaElement>('[data-i18n-content]')) {
-    const key = element.dataset.i18nContent as TranslationKey | undefined;
-    if (key) {
+    const key = element.dataset.i18nContent;
+    if (isTranslationKey(key)) {
       element.content = translation(key);
     }
   }
@@ -81,6 +85,7 @@ function applyLocale(locale: Locale): void {
   }
 
   setMenuOpen(navigation?.dataset.open === 'true');
+  updateEngineRotationToggle();
 }
 
 const navigation = document.querySelector<HTMLElement>('[data-navigation]');
@@ -139,6 +144,9 @@ const engineWorkflow = document.querySelector<HTMLElement>('[data-engine-workflo
 const engineSelectors = document.querySelectorAll<HTMLButtonElement>('[data-engine-select]');
 const engineTabs = document.querySelectorAll<HTMLButtonElement>('[data-engine-tab]');
 const enginePanels = document.querySelectorAll<HTMLElement>('[data-engine-panel]');
+const engineRotationToggle = document.querySelector<HTMLButtonElement>(
+  '[data-engine-rotation-toggle]',
+);
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const ENGINE_ROTATION_INTERVAL_MS = 6_000;
 let activeEngine: AutomationEngine = 'agent-browser';
@@ -146,6 +154,7 @@ let engineSelectionIsManual = false;
 let engineWorkflowHovered = false;
 let engineWorkflowFocused = false;
 let engineRotationTimer: number | undefined;
+let engineRotationPaused = false;
 
 function isAutomationEngine(value: string | undefined): value is AutomationEngine {
   return value === 'agent-browser' || value === 'browser-use';
@@ -165,6 +174,7 @@ function scheduleEngineRotation(): void {
     engineSelectionIsManual ||
     engineWorkflowHovered ||
     engineWorkflowFocused ||
+    engineRotationPaused ||
     reducedMotion.matches
   ) {
     return;
@@ -173,6 +183,15 @@ function scheduleEngineRotation(): void {
     setActiveEngine(activeEngine === 'agent-browser' ? 'browser-use' : 'agent-browser', false);
     scheduleEngineRotation();
   }, ENGINE_ROTATION_INTERVAL_MS);
+}
+
+function updateEngineRotationToggle(): void {
+  if (!engineRotationToggle) return;
+  engineRotationToggle.setAttribute('aria-pressed', String(engineRotationPaused));
+  const key = engineRotationPaused ? 'workflow.engine.resume' : 'workflow.engine.pause';
+  engineRotationToggle.setAttribute('aria-label', translation(key));
+  const label = engineRotationToggle.querySelector<HTMLElement>('[data-engine-rotation-label]');
+  if (label) label.textContent = translation(key);
 }
 
 function setActiveEngine(engine: AutomationEngine, manual: boolean): void {
@@ -206,12 +225,27 @@ for (const tab of engineTabs) {
     const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
     if (!keys.includes(event.key)) return;
     event.preventDefault();
-    const engine =
-      event.key === 'ArrowRight' || event.key === 'End' ? 'browser-use' : 'agent-browser';
+    const engines: AutomationEngine[] = ['agent-browser', 'browser-use'];
+    const currentIndex = engines.findIndex(engine => engine === tab.dataset.engineTab);
+    const nextIndex =
+      event.key === 'Home'
+        ? 0
+        : event.key === 'End'
+          ? engines.length - 1
+          : (currentIndex + (event.key === 'ArrowRight' ? 1 : -1) + engines.length) %
+            engines.length;
+    const engine = engines[nextIndex] ?? 'agent-browser';
     setActiveEngine(engine, true);
     [...engineTabs].find(candidate => candidate.dataset.engineTab === engine)?.focus();
   });
 }
+
+engineRotationToggle?.addEventListener('click', () => {
+  engineRotationPaused = !engineRotationPaused;
+  updateEngineRotationToggle();
+  if (engineRotationPaused) clearEngineRotation();
+  else scheduleEngineRotation();
+});
 
 engineWorkflow?.addEventListener('pointerenter', () => {
   engineWorkflowHovered = true;
@@ -312,8 +346,10 @@ const copyStatus = document.querySelector<HTMLElement>('[data-copy-status]');
 
 for (const button of copyButtons) {
   button.addEventListener('click', async () => {
-    const textKey = button.dataset.copyTextKey as TranslationKey | undefined;
-    const textToCopy = textKey ? translation(textKey) : button.dataset.copyCommand;
+    const textKey = button.dataset.copyTextKey;
+    const textToCopy = isTranslationKey(textKey)
+      ? translation(textKey)
+      : button.dataset.copyCommand;
     if (!textToCopy) {
       return;
     }
@@ -323,9 +359,10 @@ for (const button of copyButtons) {
       button.dataset.copiedLabel = translation('command.copied');
       button.dataset.copied = 'true';
       if (copyStatus) {
-        const successKey = (button.dataset.copySuccessKey ??
-          'command.copySuccess') as TranslationKey;
-        copyStatus.textContent = translation(successKey);
+        const successKey = button.dataset.copySuccessKey;
+        copyStatus.textContent = translation(
+          isTranslationKey(successKey) ? successKey : 'command.copySuccess',
+        );
       }
       window.setTimeout(() => {
         button.dataset.copied = 'false';

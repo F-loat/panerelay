@@ -23,7 +23,7 @@ Panerelay supports two ways to work:
 
 ## Quickstart
 
-Requirements: Chrome or Microsoft Edge on macOS, Linux, or Windows, plus Node.js 20 or newer. Panerelay itself does not require agent-browser or browser-use.
+Requirements: Chrome or Microsoft Edge on macOS, Linux, or Windows, plus Node.js 20 or newer. Panerelay itself does not require agent-browser or browser-use. Browser Use integration requires browser-use 0.13.7+ with Browser Harness 0.1.8+.
 
 ### 1. Install the Extension
 
@@ -49,29 +49,19 @@ Fetch this guide with curl -fsSL and follow the agent-browser scenario: https://
 Fetch this guide with curl -fsSL and follow the browser-use scenario: https://f-loat.github.io/panerelay/agent-setup.md
 ```
 
-**Both tools**
-
-```text
-Fetch this guide with curl -fsSL and follow the combined agent-browser and browser-use scenario: https://f-loat.github.io/panerelay/agent-setup.md
-```
-
 The published guide is generated from the version-controlled [Agent setup instructions](docs/agent-setup.md). `@panerelay/setup` installs Panerelay-owned files; it does not install or modify agent-browser or browser-use itself.
 
 #### Install Panerelay yourself
-
-If you only need the side panel, or prefer to configure automation separately, install the engine-neutral local integration:
 
 ```bash
 npx --yes @panerelay/setup
 ```
 
-This command installs the Native Host required by the side panel and Panerelay integrations. It does not select an automation engine or authorize a tab.
-
-To add Panerelay integration files for an automation tool, append `--agent-browser`, `--browser-use`, or both flags. Setup still does not install the upstream tools themselves.
+This command installs the Native Host required by the side panel and Panerelay integrations, then interactively asks whether to connect optional automation engines.
 
 ### 3. Authorize the tabs you want to share
 
-Open Panerelay from the browser toolbar and choose the current web tab or all supported web tabs. Site permission, tab authorization, and active control are separate decisions; installation and focus never grant access by themselves.
+Open Panerelay from the browser toolbar and choose the current web tab or all supported web tabs.
 
 ### 4. Start working
 

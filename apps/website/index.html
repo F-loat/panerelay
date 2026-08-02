@@ -779,6 +779,17 @@
                 >
                   <span>browser-use</span>
                 </button>
+                <button
+                  class="engine-rotation-toggle"
+                  type="button"
+                  aria-pressed="false"
+                  data-engine-rotation-toggle
+                  data-i18n-aria-label="workflow.engine.pause"
+                >
+                  <span data-engine-rotation-label data-i18n="workflow.engine.pause"
+                    >Pause rotation</span
+                  >
+                </button>
               </div>
             </div>
 
@@ -867,6 +878,7 @@
                 aria-labelledby="engine-tab-browser-use"
                 tabindex="0"
                 data-engine-panel="browser-use"
+                hidden
               >
                 <div class="workflow-copy">
                   <span class="engine-status" data-i18n="workflow.engine.explicitIntegration"

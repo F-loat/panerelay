@@ -64,6 +64,22 @@ test('source contains the complete product and installation journey', async () =
     8,
   );
   assert.equal((i18n.match(/curl -fsSL/g) ?? []).length, 8);
+
+  const englishCatalog = i18n.slice(
+    i18n.indexOf('const english ='),
+    i18n.indexOf('const chinese ='),
+  );
+  const chineseCatalog = i18n.slice(i18n.indexOf('const simplifiedChinese'));
+  const referencedKeys = [
+    ...html.matchAll(
+      /data-(?:i18n(?:-html|-aria-label|-content)?|copy-(?:text|label|success)-key)="([^"]+)"/g,
+    ),
+  ].map(match => match[1]);
+  for (const key of referencedKeys) {
+    const escapedKey = key.replaceAll('.', '\\.');
+    assert.match(englishCatalog, new RegExp(`['"]${escapedKey}['"]:`));
+    assert.match(chineseCatalog, new RegExp(`['"]${escapedKey}['"]:`));
+  }
 });
 
 test('source preserves semantic and accessible interactions', async () => {
@@ -107,8 +123,9 @@ test('source preserves semantic and accessible interactions', async () => {
   assert.doesNotMatch(styles, /min-inline-size: 18ch/);
   assert.match(script, /event\.key !== 'Escape'/);
   assert.match(script, /getAttribute\('aria-expanded'\) !== 'true'/);
-  assert.match(script, /ENGINE_ROTATION_INTERVAL_MS = 6_000/);
+  assert.match(script, /ENGINE_ROTATION_INTERVAL_MS\s*=\s*6_000/);
   assert.match(script, /engineSelectionIsManual/);
+  assert.match(script, /engineRotationPaused/);
   assert.match(script, /pointerenter/);
   assert.match(script, /pointerleave/);
   assert.match(script, /focusin/);
@@ -134,7 +151,7 @@ test('source preserves semantic and accessible interactions', async () => {
   assert.match(script, /productDemoTimeline\?\.kill/);
   assert.match(script, /demoMedia\.revert/);
   assert.doesNotMatch(script, /ScrollTrigger/);
-  assert.match(script, /'ArrowLeft', 'ArrowRight', 'Home', 'End'/);
+  assert.match(script, /ArrowLeft[\s\S]+ArrowRight[\s\S]+Home[\s\S]+End/);
   assert.match(script, /'agent-browser': 'npx --yes @panerelay\/setup --agent-browser'/);
   assert.match(script, /'browser-use': 'npx --yes @panerelay\/setup --browser-use'/);
   assert.match(script, /both: 'npx --yes @panerelay\/setup --agent-browser --browser-use'/);

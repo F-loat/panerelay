@@ -164,6 +164,16 @@ test('installs protected pinned bundles and preserves unrelated adapter registra
     assert.match(cli.stdout, /Panerelay CLI/);
 
     await setCliAdapterMode('browser-use', 'direct', { homeDirectory });
+    await installBrowserUseIntegrationArtifacts({
+      browserUseDefault: 'direct',
+      browserUseVersions: {
+        browserHarness: '0.1.9',
+        browserUse: '0.13.8',
+        browserUseExecutable,
+      },
+      homeDirectory,
+    });
+    assert.equal(await readCliAdapterMode('browser-use', { homeDirectory }), 'direct');
     const mcpLauncher = await readFile(installation.paths.mcpLauncherPath, 'utf8');
     assert.match(mcpLauncher, /run browser-use --/);
     assert.match(mcpLauncher, /panerelay-browser-use-mcp-runner\.mjs/);
