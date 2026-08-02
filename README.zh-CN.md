@@ -2,85 +2,124 @@
 
 中文版 ｜ [English](README.md)
 
-[官网](https://f-loat.github.io/panerelay/) · [Chrome 应用商店](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi) · [版本发布](https://github.com/F-loat/panerelay/releases)
+[官网](https://f-loat.github.io/panerelay/) · [Chrome 应用商店](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi) · [文档导航](docs/README.zh-CN.md) · [版本发布](https://github.com/F-loat/panerelay/releases)
 
-**让 AI Agent 直接在你正在使用的 Chromium 浏览器中工作。**
+**让 Agent 在你常用的浏览器里工作。**
 
-Panerelay 是连接 AI Agent 与用户现有 Chrome 或 Microsoft Edge 会话的开源本地桥梁。它在确保浏览器访问明确、可见且可撤销的前提下，解决两个问题：
+Panerelay 是连接 AI Agent 与现有 Chrome 或 Microsoft Edge 会话的开源本地桥梁。Agent 只在你明确授权的标签页中工作，浏览器 Profile、Cookie 和登录状态始终留在浏览器里。
 
-1. **让 Agent 直接控制你的 Chrome 或 Edge。** 任何能通过 CLI 或 MCP 调用 [agent-browser](https://github.com/vercel-labs/agent-browser) 的 Agent，都可以使用当前浏览器 Profile 和登录态控制你授权的标签页，无需启动独立浏览器、重复登录或导出 Cookie。
-2. **把本地 Agent 带进浏览器侧边栏。** 完成一次 Panerelay 安装后，扩展会自动发现 Codex、Claude Code 和 Qoder，并提供浏览器原生的对话、会话历史、审批、活动展示和立即释放控制。
+- **复用现有登录态。** 直接使用日常浏览器中已经打开的网站和账号，无需导出 Cookie，也不用重新登录。
+- **不打断当前操作。** Agent 选择标签页和在后台自动化时，不会切走你正在查看的页面。
+- **控制始终可见。** 标签页需要明确授权，受控状态清晰可见，并且随时可以释放。
 
-登录凭证始终留在浏览器中；Panerelay 只操作你明确授权的标签页。Agent 选择和操作后台标签页时，不会切走你当前正在浏览的 Chrome 或 Edge 标签页。
+Panerelay 提供两种接入方式：
+
+| 方向 | 适合场景 | 使用体验 |
+| --- | --- | --- |
+| **Agent 侧边栏** | 希望本地 Agent 就在当前页面旁工作 | 在侧边栏打开 Codex、Claude Code 或 Qoder，完成对话、审批、活动查看和项目关联会话 |
+| **自动化工具接入** | 希望其他应用或终端中的 Agent 操作浏览器 | 按需接入 [agent-browser](https://agent-browser.dev/) 或 [browser-use](https://docs.browser-use.com/open-source/browser-use-cli)，也可以同时接入两种工具；它们只能访问已授权标签页 |
 
 ![Panerelay](https://github.com/user-attachments/assets/a54dfbaa-1c9f-45a3-b3ab-aa2e6ec4a5f6)
+
+## 快速开始
+
+环境要求：macOS、Linux 或 Windows 上的 Chrome 或 Microsoft Edge，以及 Node.js 20 或更高版本。Panerelay 本身不依赖 agent-browser 或 browser-use；Browser Use 集成需要 browser-use 0.13.7+ 和 Browser Harness 0.1.8+。
+
+### 1. 安装扩展
+
+从 [Chrome 应用商店安装 Panerelay](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi)。Microsoft Edge 可能会先要求允许来自其他商店的扩展。
+
+### 2. 接入 Panerelay
+
+按照你希望的工作方式选择一条安装路径。
+
+#### 交给 Agent 接入自动化工具
+
+把对应提示发给你正在使用的 Agent。它会先检查环境，只在需要时通过官方来源安装或更新所选工具，然后安装 Panerelay 集成并运行诊断；需要你安装扩展或授权标签页时，会停下来提醒你。
+
+**agent-browser**
+
+```text
+请用 curl -fsSL 读取此指南，并执行 agent-browser 场景：https://f-loat.github.io/panerelay/agent-setup.md
+```
+
+**browser-use**
+
+```text
+请用 curl -fsSL 读取此指南，并执行 browser-use 场景：https://f-loat.github.io/panerelay/agent-setup.md
+```
+
+官网发布的指南由仓库中版本受控的 [Agent 接入说明](docs/agent-setup.md)生成。`@panerelay/setup` 只安装 Panerelay 自有文件，不会自行安装或修改 agent-browser 和 browser-use。
+
+#### 自己安装 Panerelay
+
+```bash
+npx --yes @panerelay/setup
+```
+
+它会安装侧边栏与 Panerelay 集成所需的 Native Host，并且交互式选择是否接入自动化引擎。
+
+### 3. 授权需要共享的标签页
+
+从浏览器工具栏打开 Panerelay，选择授权当前网页标签页或所有受支持的网页标签页。
+
+### 4. 开始使用
+
+- 使用 **Agent 侧边栏** 时，选择本机已安装并登录的 Codex、Claude Code 或 Qoder，可以按需选择项目目录，然后开始对话。
+- 使用 **agent-browser 或 browser-use** 时，照常运行相应工具；Panerelay 只负责提供经过授权的现有浏览器连接。
+
+agent-browser 最短的授权边界验证命令是：
+
+```bash
+agent-browser --provider panerelay tab list
+```
+
+它只能列出你已授权的标签页。空列表通常表示当前没有符合条件的已授权标签页，不一定代表安装失败。
+
+browser-use 则通过安装时输出的托管 CLI 执行标准的 `tab list` 命令。下面是使用默认路径的 macOS / Linux 示例：
+
+```bash
+~/.panerelay/bin/panerelay-browser-use-cli run browser-use -- browser-use tab list
+```
+
+结果同样只能包含你明确授权的标签页。Windows 或 browser-use 不在默认路径时，请使用 setup 输出的实际启动器和可执行文件路径。
+
+## 支持的工作流
+
+### Agent 侧边栏
+
+侧边栏支持本机已安装并登录的 Codex、Claude Code 和 Qoder。所选项目会作为 Agent 的实际工作目录。Panerelay 只提供经过限制的当前标签页 URL 和标题上下文；浏览器 MCP 与 Skill 仍由 Agent 自身配置提供。
+
+### 接入 agent-browser
+
+Panerelay 为已授权的现有浏览器标签页提供 agent-browser Provider，标准 CLI 和 MCP 命令保持原有语义。最低支持版本和最初经过 Chrome 验证的精确基线都是 agent-browser 0.33.0。详见[接入说明](packages/agent-browser/README.md)与[兼容性记录](docs/compatibility/agent-browser-0.33.0.md)。
+
+### 接入 browser-use
+
+Panerelay 支持安装托管的 browser-use CLI、附加 Skill 和 CLI MCP 启动器。Browser Harness 仍负责 browser-use 的自动化语义，Panerelay 只提供经过授权的 Chrome 连接。Panerelay 不会透明接管任意 browser-use Python SDK 构造，这类应用需要显式接入连接。
+
+最低支持版本为 browser-use 0.13.7；精确验证基线为 browser-use 0.13.7 + Browser Harness 0.1.8。详见[接入说明](packages/browser-use/README.md)与[兼容性记录](docs/compatibility/browser-use-0.13.7.md)。
+
+Microsoft Edge 能力组在完成有代表性的验收前仍归类为 `Forwarded`，详见[浏览器平台记录](docs/compatibility/browser-platforms.md)。
 
 ## 工作方式
 
 ```text
-任意 AI Agent → agent-browser CLI / MCP → Panerelay Bridge
-                                             ↕ Native Messaging
+外部 Agent ─┬─ agent-browser CLI / MCP ─┐
+            └─ browser-use CLI / MCP ───┤
+                                        ▼
+                                 Panerelay Bridge
+                                        ↕ Native Messaging
 本地 Agent ← 浏览器侧边栏 ← Panerelay 扩展 ↔ 已授权标签页
 ```
 
-- **agent-browser 继续负责浏览器自动化语义**，包括 snapshot、定位、输入、等待、标签页和截图。
-- **本地 Bridge 负责路由与策略**，连接 agent-browser、本地 Agent Runtime 与扩展。
-- **扩展负责用户授权和状态可见性**，不保存模型凭证，也不启动本地 Agent 进程。
-
-## 快速开始
-
-环境要求：macOS、Linux 或 Windows 上的 Chrome 或 Microsoft Edge、Node.js 20+ 和兼容的 agent-browser。
-
-Microsoft Edge 运行时能力目前归类为 `Forwarded`，仍需完成有代表性的完整验收；证据边界见[浏览器平台兼容性记录](docs/compatibility/browser-platforms.md)。
-
-1. 在 Chrome 或 Edge 中从 [Chrome 应用商店安装 Panerelay](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi)。Edge 可能会先要求允许来自其他商店的扩展。
-2. 安装本地集成：
-
-   ```bash
-   npx --yes @panerelay/setup
-   ```
-
-3. 从 Chrome 或 Edge 工具栏打开 Panerelay，授权当前网页标签页或所有受支持的网页标签页。
-4. 如果 Panerelay 同时连接了多个浏览器，在扩展设置中选择“默认浏览器”，或通过 CLI 明确选择：
-
-   ```bash
-   npx --yes @panerelay/cli browsers
-   npx --yes @panerelay/cli browser use edge
-   ```
-
-5. 验证任意 Agent 可以通过 agent-browser 访问所选的已授权浏览器：
-
-   ```bash
-   agent-browser --provider panerelay tab list
-   ```
-
-6. 如果希望直接在浏览器中工作，打开侧边栏并选择本机已安装的 Agent。Panerelay 会自动发现 Codex、Claude Code 和 Qoder；对应的 Agent CLI 仍需提前安装并登录。侧边栏 Agent 始终绑定到打开该侧边栏的浏览器，不受保存的默认浏览器影响。
-
-如需在后续命令中省略 `--provider panerelay`，可在扩展设置中将 Panerelay 设为用户级默认 Agent，或安装时加上 `--global-provider`；如果只想影响当前项目，请改用 `--project-provider`。默认 Agent 只改变路由，不会授予浏览器权限，也不会授权任何标签页。
-
-### 可选的 Browser Use 连接
-
-如果已安装 Browser Use `0.13.7` 或更高版本，可以显式启用 Panerelay adapter 和附加 Skill：
-
-```bash
-npx --yes @panerelay/setup --browser-use
-npx --yes @panerelay/setup doctor --browser-use
-```
-
-Setup 不安装或修改 Browser Use，也不改变 `PATH`。安装后的 Skill 继续使用 Browser Use 原生 helper；Panerelay 只为用户明确授权的标签页提供经过认证的虚拟 CDP 连接。Direct 与 Extension 模式支持 Panerelay 自有的持久默认值和单次覆盖。Browser Use 私有 daemon 会有意保持运行，并被顺序 Agent 命令共享，因此不提供 per-Agent 任务隔离。CLI、CLI MCP、生命周期、安全与不支持边界详见 [Browser Use 兼容性记录](docs/compatibility/browser-use-0.13.7.md)。
-
-## Panerelay 提供什么
-
-- 已授权标签页中的 agent-browser 工作流，包括页面交互、截图、导航、标签页与弹窗、诊断、网络检查和请求 Mock。
-- 本地 Agent 侧边栏，支持对话、会话历史、审批、中断、活动展示和标签页关联会话。
-- macOS、Linux 和 Windows 用户级 Native Messaging 安装。
-- Local-first 路由，不依赖 Panerelay 云服务。
-
-浏览器支持范围见[浏览器平台兼容性记录](docs/compatibility/browser-platforms.md)，Claude Code 的具体支持范围见 [Claude Code 兼容性记录](docs/compatibility/claude-code.md)，其他运行时范围见[兼容性记录](docs/compatibility)。
+- 自动化工具保留自己的命令、helper、等待和页面状态语义。
+- 本地 Bridge 在自动化工具、本地 Agent Runtime 与扩展之间负责路由并执行策略。
+- 扩展负责用户授权、受控状态展示和释放，不保存模型凭证，也不启动本地 Agent 进程。
 
 ## 管理安装
 
-省略 action 时会安装或更新本地集成：
+给人使用的命令只管理 Panerelay 本身：
 
 ```bash
 npx --yes @panerelay/setup
@@ -88,60 +127,45 @@ npx --yes @panerelay/setup doctor
 npx --yes @panerelay/setup uninstall
 ```
 
-扩展设置可以随时设为或取消 Panerelay 用户级默认 Agent，不会卸载任何集成。安装时也可以直接选择默认范围：
-
-```bash
-npx --yes @panerelay/setup --global-provider
-npx --yes @panerelay/setup --project-provider
-```
-
-agent-browser 从 `~/.agent-browser/config.json` 读取用户级默认值，当前项目的 `./agent-browser.json` 优先级更高。如需恢复其他默认 Agent，修改或删除对应配置中的 `provider` 字段即可。Panerelay 会继续保留，始终可以通过 `--provider panerelay` 使用。
-
-浏览器选择是另一项独立设置。Panerelay 依次使用显式的 `PANERELAY_BROWSER_ID` 或 `PANERELAY_BROWSER`、保存的默认浏览器、唯一在线且可用的浏览器。多个浏览器同时可用但没有明确选择时会直接报错，不会根据焦点或注册顺序猜测：
+如果同时连接了多个 Panerelay 浏览器，可以在扩展设置中选择默认浏览器，或使用可选管理 CLI：
 
 ```bash
 npx --yes @panerelay/cli browsers
-npx --yes @panerelay/cli browser use chrome
-# 也可以使用精确的注册 ID：
-# npx --yes @panerelay/cli browser use REGISTRATION_ID
-npx --yes @panerelay/cli browser clear
-PANERELAY_BROWSER=edge agent-browser --provider panerelay tab list
+npx --yes @panerelay/cli browser use edge
 ```
 
-如需频繁管理，可以全局安装 `@panerelay/cli`，之后使用相同的 `panerelay ...` 命令。setup 不会自动安装这个可选 CLI，也不会修改 shell 的 `PATH`。
-
-显式选择或保存的默认浏览器离线时不会自动切换到其他浏览器。每个 agent-browser 会话在关闭前始终固定到创建它的浏览器。
-
-官方构建使用扩展 ID `panplnkjlkoceaonlmpdekjphgmbggmi`。自行构建的扩展可以注册自己的 32 位 ID：
-
-```bash
-npx --yes @panerelay/setup --extension-id <32位扩展ID>
-```
-
-ID 必须由 32 个 `a` 到 `p` 的小写字母组成。
+已保存的浏览器不可用或存在多个候选但未选择时，Panerelay 会直接报错，不会根据焦点或注册顺序猜测。集成参数、默认 Provider、自定义扩展 ID、browser-use 模式和各平台路径见 [`@panerelay/setup` 技术参考](packages/setup/README.md)。
 
 ## 安全与运行边界
 
-- 浏览器网站权限、标签页授权与独占自动化控制租约相互独立。聚焦标签页不会授予权限；修改操作必须持有当前控制租约。
-- 复用登录态是指在已授权的现有标签页内工作。Panerelay 默认不会导出或记录 Cookie、凭证、Prompt、截图、页面内容或请求体。
-- Panerelay 无法接管隔离 Profile、启动期代理或关闭用户 Chrome 或 Edge 进程等 browser-process 能力。
-- `webNavigation` 只用于识别浏览器报告的关联标签页，以便继承会话上下文；它不会读取浏览历史，也不会授予网站访问权限。
-- 扩展、协议、Bridge、Provider、setup 包、浏览器注册库与可选管理 CLI 构成锁步兼容单元。
+- 复用登录态是指在已授权的现有标签页中工作。Panerelay 默认不会导出或记录 Cookie、凭证、Prompt、截图、页面内容或请求体。
+- 修改操作需要持有当前独占控制租约。释放控制不会暗中扩大或移除你选择的授权范围。
+- Panerelay 不接管隔离 Profile、启动期代理或关闭用户浏览器进程等 browser-process 能力。
+- `webNavigation` 只用于识别浏览器报告的关联标签页，以便共享会话上下文；它不会读取浏览历史，也不会授予网站访问权限。
+- 扩展、协议、Bridge、Provider 与 adapter、setup 包、浏览器注册库和可选管理 CLI 作为同一个锁步兼容单元发布。
+
+## 文档
+
+- [文档导航](docs/README.zh-CN.md)
+- [Agent 接入说明](docs/agent-setup.md)
+- [`@panerelay/setup` 技术参考](packages/setup/README.md)
+- [兼容性记录](docs/compatibility)
+- [架构 RFC](docs/rfcs)
 
 ## 开发与发布检查
 
-工作区开发需要 Node.js `20.19` 或更高版本和 pnpm：
+工作区开发需要 Node.js 20.19 或更高版本和 pnpm：
 
 ```bash
 pnpm install
 pnpm run check
 ```
 
-运行 `pnpm run dev`，然后在 Chrome 或 Edge 中将 `apps/extension/dist` 加载为未打包扩展。本地测试 Provider：
+运行 `pnpm run dev`，然后在 Chrome 或 Edge 中将 `apps/extension/dist` 加载为未打包扩展。本地测试 agent-browser Provider：
 
 ```bash
 pnpm build
-node packages/setup/dist/cli.js --project-provider
+node packages/setup/dist/cli.js --agent-browser --project-provider
 agent-browser --provider panerelay tab list
 ```
 
@@ -153,7 +177,7 @@ pnpm run release:check
 pnpm run release:pack
 ```
 
-这些命令只创建被忽略的本地产物，不会发布包、创建 tag 或上传文件。更多信息见 [发布清单](docs/releasing.md)和[架构 RFC](docs/rfcs)。
+这些命令只创建被忽略的本地产物，不会发布包、创建 tag 或上传文件。更多信息见[发布清单](docs/releasing.md)和[架构 RFC](docs/rfcs)。
 
 ## License
 

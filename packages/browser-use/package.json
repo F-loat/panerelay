@@ -1,7 +1,7 @@
 {
   "name": "@panerelay/browser-use",
   "version": "0.2.0",
-  "description": "Browser Use connection adapter for Panerelay.",
+  "description": "Use browser-use CLI, Skill, and CLI MCP with authorized existing Chrome tabs through Panerelay.",
   "type": "module",
   "license": "MIT",
   "repository": {

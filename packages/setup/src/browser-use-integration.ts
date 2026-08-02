@@ -47,6 +47,7 @@ export interface BrowserUseIntegrationPaths {
 
 export interface InstallBrowserUseIntegrationOptions extends BrowserUseIntegrationPathOptions {
   adapterBundlePath?: string;
+  browserUseDefault?: 'direct' | 'extension';
   browserUseVersions?: BrowserUseVersions;
   cliBundlePath?: string;
   nodePath?: string;
@@ -425,10 +426,10 @@ export async function installBrowserUseIntegrationArtifacts(
       0o600,
       platform,
     );
-    if (currentMode === null) {
+    if (options.browserUseDefault !== undefined || currentMode === null) {
       await (options.setAdapterMode ?? setCliAdapterMode)(
         'browser-use',
-        'extension',
+        options.browserUseDefault ?? 'extension',
         preferenceOptions,
       );
     }

@@ -205,6 +205,15 @@ async function broadcastStatus(): Promise<void> {
   await chrome.runtime.sendMessage(message).catch(() => undefined);
 }
 
+function handleDetachedNativeTaskError(
+  expectedPort: chrome.runtime.Port | null,
+  error: unknown,
+): void {
+  if (!expectedPort || nativePort !== expectedPort) return;
+  lastError = error instanceof Error ? error.message : String(error);
+  void broadcastStatus().catch(() => undefined);
+}
+
 async function broadcastWorkspaceForTab(
   tabId: number,
   workspace?: ConversationWorkspaceSnapshot,
@@ -313,7 +322,9 @@ function connectNativeHost(): void {
       try {
         for (const message of nativeTransferReceiver.push(frame)) {
           if (!isHostToExtensionMessage(message)) continue;
-          void handleHostMessage(message);
+          void handleHostMessage(message).catch(error =>
+            handleDetachedNativeTaskError(port, error),
+          );
         }
         scheduleNativeTransferCleanup();
       } catch (error) {
@@ -346,7 +357,9 @@ function connectNativeHost(): void {
       void broadcastStatus();
       scheduleReconnect();
     });
-    void registerBrowser().then(broadcastStatus);
+    void registerBrowser()
+      .then(broadcastStatus)
+      .catch(error => handleDetachedNativeTaskError(port, error));
   } catch (error) {
     nativePort = null;
     lastError = error instanceof Error ? error.message : String(error);
@@ -1013,14 +1026,19 @@ chrome.debugger.onEvent.addListener((source, method, params) => {
   if (typeof source.tabId !== 'number') return;
   const targetId = targetIdsByTabId.get(source.tabId);
   if (!targetId || !attachedTabs.has(targetId)) return;
-  sendNative({
-    type: 'cdp.event',
-    protocol: PANERELAY_PROTOCOL_VERSION,
-    targetId,
-    method,
-    params: (params || {}) as Record<string, unknown>,
-    ...(source.sessionId ? { sessionId: source.sessionId } : {}),
-  });
+  const port = nativePort;
+  try {
+    sendNative({
+      type: 'cdp.event',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      targetId,
+      method,
+      params: (params || {}) as Record<string, unknown>,
+      ...(source.sessionId ? { sessionId: source.sessionId } : {}),
+    });
+  } catch (error) {
+    handleDetachedNativeTaskError(port, error);
+  }
 });
 
 chrome.debugger.onDetach.addListener((source, reason) => {
@@ -1107,6 +1125,7 @@ function exposeRelatedTarget(sourceTabId: number, tabId: number): void {
 
 chrome.tabs.onRemoved.addListener(tabId => {
   targetExposure.remove(tabId);
+  const port = nativePort;
   void (async () => {
     await pageCommentService.resetIfDocumentEnded(tabId);
     const targetId = targetIdsByTabId.get(tabId);
@@ -1128,7 +1147,7 @@ chrome.tabs.onRemoved.addListener(tabId => {
     }
     if (targetId) forgetTarget(targetId);
     await broadcastStatus();
-  })();
+  })().catch(error => handleDetachedNativeTaskError(port, error));
 });
 chrome.tabs.onCreated.addListener(tab => {
   if (typeof tab.id !== 'number') return;

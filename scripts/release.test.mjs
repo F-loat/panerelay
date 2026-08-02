@@ -26,7 +26,16 @@ const prepareReleaseWorkflow = readFileSync(
 );
 const rootReadme = readFileSync(new URL('../README.md', import.meta.url), 'utf8');
 const rootReadmeZhCn = readFileSync(new URL('../README.zh-CN.md', import.meta.url), 'utf8');
+const documentationIndex = readFileSync(new URL('../docs/README.md', import.meta.url), 'utf8');
+const documentationIndexZhCn = readFileSync(
+  new URL('../docs/README.zh-CN.md', import.meta.url),
+  'utf8',
+);
 const setupReadme = readFileSync(new URL('../packages/setup/README.md', import.meta.url), 'utf8');
+const browserUseReadme = readFileSync(
+  new URL('../packages/browser-use/README.md', import.meta.url),
+  'utf8',
+);
 const rootLicense = readFileSync(new URL('../LICENSE', import.meta.url), 'utf8');
 const chromeWebStoreUrl =
   'https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi';
@@ -146,11 +155,11 @@ test('keeps release publication manual, protected, and channel-scoped', () => {
 test('keeps official installation guidance Store-first and version-neutral', () => {
   const englishQuickstart = rootReadme.slice(
     rootReadme.indexOf('## Quickstart'),
-    rootReadme.indexOf('## What Panerelay provides'),
+    rootReadme.indexOf('## Supported workflows'),
   );
   const chineseQuickstart = rootReadmeZhCn.slice(
     rootReadmeZhCn.indexOf('## 快速开始'),
-    rootReadmeZhCn.indexOf('## Panerelay 提供什么'),
+    rootReadmeZhCn.indexOf('## 支持的工作流'),
   );
 
   for (const guidance of [englishQuickstart, chineseQuickstart, setupReadme]) {
@@ -165,6 +174,25 @@ test('keeps official installation guidance Store-first and version-neutral', () 
     /load `apps\/extension\/dist` as an unpacked Extension in Chrome or Edge/,
   );
   assert.match(rootReadmeZhCn, /在 Chrome 或 Edge 中将 `apps\/extension\/dist` 加载为未打包扩展/);
+  assert.match(rootReadme, /Let Agents work with the browser you already use/);
+  assert.match(rootReadmeZhCn, /让 Agent 在你常用的浏览器里工作/);
+  assert.match(rootReadme, /interactively asks whether to connect optional automation engines/);
+  assert.match(rootReadmeZhCn, /交互式选择是否接入自动化引擎/);
+  assert.match(rootReadme, /panerelay-browser-use-cli run browser-use/);
+  assert.match(rootReadmeZhCn, /panerelay-browser-use-cli run browser-use/);
+  assert.match(rootReadme, /browser-use tab list/);
+  assert.match(rootReadmeZhCn, /browser-use tab list/);
+  assert.doesNotMatch(browserUseReadme, /browser-use --version/);
+  assert.match(rootReadme, /packages\/setup\/dist\/cli\.js --agent-browser --project-provider/);
+  assert.doesNotMatch(rootReadme, /packages\/setup\/dist\/cli\.js --project-provider/);
+});
+
+test('keeps localized README documentation navigation in the selected language', () => {
+  assert.match(rootReadme, /\[Documentation\]\(docs\/README\.md\)/);
+  assert.match(rootReadmeZhCn, /\[文档导航\]\(docs\/README\.zh-CN\.md\)/);
+  assert.doesNotMatch(rootReadmeZhCn, /\[文档导航\]\(docs\/README\.md\)/);
+  assert.match(documentationIndex, /\[简体中文\]\(README\.zh-CN\.md\)/);
+  assert.match(documentationIndexZhCn, /\[English\]\(README\.md\)/);
 });
 
 test('keeps selectable release preparation reviewable and non-publishing', () => {

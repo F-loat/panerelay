@@ -1,4 +1,5 @@
 import './styles.css';
+import { gsap } from 'gsap';
 import { translations, type Locale, type TranslationKey } from './i18n';
 
 document.documentElement.classList.add('js');
@@ -42,35 +43,39 @@ function translation(key: TranslationKey): string {
   return translations[currentLocale][key];
 }
 
+function isTranslationKey(value: string | undefined): value is TranslationKey {
+  return value !== undefined && Object.hasOwn(translations.en, value);
+}
+
 function applyLocale(locale: Locale): void {
   currentLocale = locale;
   document.documentElement.lang = locale;
   document.documentElement.dataset.locale = locale;
 
   for (const element of document.querySelectorAll<HTMLElement>('[data-i18n]')) {
-    const key = element.dataset.i18n as TranslationKey | undefined;
-    if (key) {
+    const key = element.dataset.i18n;
+    if (isTranslationKey(key)) {
       element.textContent = translation(key);
     }
   }
 
   for (const element of document.querySelectorAll<HTMLElement>('[data-i18n-html]')) {
-    const key = element.dataset.i18nHtml as TranslationKey | undefined;
-    if (key) {
+    const key = element.dataset.i18nHtml;
+    if (isTranslationKey(key)) {
       element.innerHTML = translation(key);
     }
   }
 
   for (const element of document.querySelectorAll<HTMLElement>('[data-i18n-aria-label]')) {
-    const key = element.dataset.i18nAriaLabel as TranslationKey | undefined;
-    if (key) {
+    const key = element.dataset.i18nAriaLabel;
+    if (isTranslationKey(key)) {
       element.setAttribute('aria-label', translation(key));
     }
   }
 
   for (const element of document.querySelectorAll<HTMLMetaElement>('[data-i18n-content]')) {
-    const key = element.dataset.i18nContent as TranslationKey | undefined;
-    if (key) {
+    const key = element.dataset.i18nContent;
+    if (isTranslationKey(key)) {
       element.content = translation(key);
     }
   }
@@ -80,6 +85,7 @@ function applyLocale(locale: Locale): void {
   }
 
   setMenuOpen(navigation?.dataset.open === 'true');
+  updateEngineRotationToggle();
 }
 
 const navigation = document.querySelector<HTMLElement>('[data-navigation]');
@@ -132,31 +138,234 @@ menuMedia.addEventListener('change', event => {
   }
 });
 
-const copyButtons = document.querySelectorAll<HTMLButtonElement>('[data-copy-command]');
+type AutomationEngine = 'agent-browser' | 'browser-use';
+
+const engineWorkflow = document.querySelector<HTMLElement>('[data-engine-workflow]');
+const engineSelectors = document.querySelectorAll<HTMLButtonElement>('[data-engine-select]');
+const engineTabs = document.querySelectorAll<HTMLButtonElement>('[data-engine-tab]');
+const enginePanels = document.querySelectorAll<HTMLElement>('[data-engine-panel]');
+const engineRotationToggle = document.querySelector<HTMLButtonElement>(
+  '[data-engine-rotation-toggle]',
+);
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+const ENGINE_ROTATION_INTERVAL_MS = 6_000;
+let activeEngine: AutomationEngine = 'agent-browser';
+let engineSelectionIsManual = false;
+let engineWorkflowHovered = false;
+let engineWorkflowFocused = false;
+let engineRotationTimer: number | undefined;
+let engineRotationPaused = false;
+
+function isAutomationEngine(value: string | undefined): value is AutomationEngine {
+  return value === 'agent-browser' || value === 'browser-use';
+}
+
+function clearEngineRotation(): void {
+  if (engineRotationTimer !== undefined) {
+    window.clearTimeout(engineRotationTimer);
+    engineRotationTimer = undefined;
+  }
+}
+
+function scheduleEngineRotation(): void {
+  clearEngineRotation();
+  if (
+    !engineWorkflow ||
+    engineSelectionIsManual ||
+    engineWorkflowHovered ||
+    engineWorkflowFocused ||
+    engineRotationPaused ||
+    reducedMotion.matches
+  ) {
+    return;
+  }
+  engineRotationTimer = window.setTimeout(() => {
+    setActiveEngine(activeEngine === 'agent-browser' ? 'browser-use' : 'agent-browser', false);
+    scheduleEngineRotation();
+  }, ENGINE_ROTATION_INTERVAL_MS);
+}
+
+function updateEngineRotationToggle(): void {
+  if (!engineRotationToggle) return;
+  engineRotationToggle.setAttribute('aria-pressed', String(engineRotationPaused));
+  const key = engineRotationPaused ? 'workflow.engine.resume' : 'workflow.engine.pause';
+  engineRotationToggle.setAttribute('aria-label', translation(key));
+  const label = engineRotationToggle.querySelector<HTMLElement>('[data-engine-rotation-label]');
+  if (label) label.textContent = translation(key);
+}
+
+function setActiveEngine(engine: AutomationEngine, manual: boolean): void {
+  activeEngine = engine;
+  if (manual) engineSelectionIsManual = true;
+
+  for (const selector of engineSelectors) {
+    const selected = selector.dataset.engineSelect === engine;
+    selector.dataset.active = String(selected);
+    if (selector.getAttribute('role') === 'tab') {
+      selector.setAttribute('aria-selected', String(selected));
+      selector.tabIndex = selected ? 0 : -1;
+    }
+  }
+  for (const panel of enginePanels) {
+    panel.hidden = panel.dataset.enginePanel !== engine;
+  }
+
+  if (manual) clearEngineRotation();
+}
+
+for (const selector of engineSelectors) {
+  selector.addEventListener('click', () => {
+    const engine = selector.dataset.engineSelect;
+    if (isAutomationEngine(engine)) setActiveEngine(engine, true);
+  });
+}
+
+for (const tab of engineTabs) {
+  tab.addEventListener('keydown', event => {
+    const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+    if (!keys.includes(event.key)) return;
+    event.preventDefault();
+    const engines: AutomationEngine[] = ['agent-browser', 'browser-use'];
+    const currentIndex = engines.findIndex(engine => engine === tab.dataset.engineTab);
+    const nextIndex =
+      event.key === 'Home'
+        ? 0
+        : event.key === 'End'
+          ? engines.length - 1
+          : (currentIndex + (event.key === 'ArrowRight' ? 1 : -1) + engines.length) %
+            engines.length;
+    const engine = engines[nextIndex] ?? 'agent-browser';
+    setActiveEngine(engine, true);
+    [...engineTabs].find(candidate => candidate.dataset.engineTab === engine)?.focus();
+  });
+}
+
+engineRotationToggle?.addEventListener('click', () => {
+  engineRotationPaused = !engineRotationPaused;
+  updateEngineRotationToggle();
+  if (engineRotationPaused) clearEngineRotation();
+  else scheduleEngineRotation();
+});
+
+engineWorkflow?.addEventListener('pointerenter', () => {
+  engineWorkflowHovered = true;
+  clearEngineRotation();
+});
+engineWorkflow?.addEventListener('pointerleave', () => {
+  engineWorkflowHovered = false;
+  scheduleEngineRotation();
+});
+engineWorkflow?.addEventListener('focusin', () => {
+  engineWorkflowFocused = true;
+  clearEngineRotation();
+});
+engineWorkflow?.addEventListener('focusout', event => {
+  if (engineWorkflow.contains(event.relatedTarget as Node | null)) return;
+  engineWorkflowFocused = false;
+  scheduleEngineRotation();
+});
+reducedMotion.addEventListener('change', event => {
+  if (event.matches) clearEngineRotation();
+  else scheduleEngineRotation();
+});
+
+setActiveEngine(activeEngine, false);
+scheduleEngineRotation();
+
+type HandoffChoice = AutomationEngine | 'both';
+
+const handoffSelectors = document.querySelectorAll<HTMLButtonElement>('[data-handoff-select]');
+const handoffTabs = document.querySelectorAll<HTMLButtonElement>('[data-handoff-tab]');
+const handoffPanels = document.querySelectorAll<HTMLElement>('[data-handoff-panel]');
+const handoffCommand = document.querySelector<HTMLElement>('[data-handoff-command]');
+const handoffCommandCopy = document.querySelector<HTMLButtonElement>('[data-handoff-command-copy]');
+const handoffCommands: Record<HandoffChoice, string> = {
+  'agent-browser': 'npx --yes @panerelay/setup --agent-browser',
+  'browser-use': 'npx --yes @panerelay/setup --browser-use',
+  both: 'npx --yes @panerelay/setup --agent-browser --browser-use',
+};
+
+function isHandoffChoice(value: string | undefined): value is HandoffChoice {
+  return isAutomationEngine(value) || value === 'both';
+}
+
+function setActiveHandoff(choice: HandoffChoice): void {
+  for (const selector of handoffSelectors) {
+    const selected = selector.dataset.handoffSelect === choice;
+    selector.dataset.active = String(selected);
+    selector.setAttribute('aria-selected', String(selected));
+    selector.tabIndex = selected ? 0 : -1;
+  }
+  for (const panel of handoffPanels) {
+    panel.hidden = panel.dataset.handoffPanel !== choice;
+  }
+  const command = handoffCommands[choice];
+  if (handoffCommand) handoffCommand.textContent = command;
+  if (handoffCommandCopy) {
+    handoffCommandCopy.dataset.copyCommand = command;
+    handoffCommandCopy.dataset.copied = 'false';
+    const label = handoffCommandCopy.querySelector<HTMLElement>('[data-copy-label]');
+    if (label) label.textContent = translation('command.copyShort');
+  }
+}
+
+for (const selector of handoffSelectors) {
+  selector.addEventListener('click', () => {
+    const choice = selector.dataset.handoffSelect;
+    if (isHandoffChoice(choice)) setActiveHandoff(choice);
+  });
+}
+
+for (const tab of handoffTabs) {
+  tab.addEventListener('keydown', event => {
+    const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+    if (!keys.includes(event.key)) return;
+    event.preventDefault();
+
+    const choices: HandoffChoice[] = ['agent-browser', 'browser-use', 'both'];
+    const currentIndex = choices.findIndex(choice => choice === tab.dataset.handoffTab);
+    const nextIndex =
+      event.key === 'Home'
+        ? 0
+        : event.key === 'End'
+          ? choices.length - 1
+          : (currentIndex + (event.key === 'ArrowRight' ? 1 : -1) + choices.length) %
+            choices.length;
+    const nextChoice = choices[nextIndex] ?? 'agent-browser';
+    setActiveHandoff(nextChoice);
+    [...handoffTabs].find(candidate => candidate.dataset.handoffTab === nextChoice)?.focus();
+  });
+}
+
+setActiveHandoff('agent-browser');
+
+const copyButtons = document.querySelectorAll<HTMLButtonElement>(
+  '[data-copy-command], [data-copy-text-key]',
+);
 const copyStatus = document.querySelector<HTMLElement>('[data-copy-status]');
 
 for (const button of copyButtons) {
   button.addEventListener('click', async () => {
-    const command = button.dataset.copyCommand;
-    if (!command) {
+    const textKey = button.dataset.copyTextKey;
+    const textToCopy = isTranslationKey(textKey)
+      ? translation(textKey)
+      : button.dataset.copyCommand;
+    if (!textToCopy) {
       return;
     }
 
     try {
-      await navigator.clipboard.writeText(command);
+      await navigator.clipboard.writeText(textToCopy);
+      button.dataset.copiedLabel = translation('command.copied');
       button.dataset.copied = 'true';
-      const label = button.querySelector<HTMLElement>('[data-copy-label]');
-      if (label) {
-        label.textContent = translation('command.copied');
-      }
       if (copyStatus) {
-        copyStatus.textContent = translation('command.copySuccess');
+        const successKey = button.dataset.copySuccessKey;
+        copyStatus.textContent = translation(
+          isTranslationKey(successKey) ? successKey : 'command.copySuccess',
+        );
       }
       window.setTimeout(() => {
         button.dataset.copied = 'false';
-        if (label) {
-          label.textContent = translation('command.copyShort');
-        }
       }, 1800);
     } catch {
       if (copyStatus) {
@@ -166,9 +375,273 @@ for (const button of copyButtons) {
   });
 }
 
+type DemoStage = 'install' | 'local' | 'tool' | 'authorize' | 'work' | 'release';
+
+const productDemo = document.querySelector<HTMLElement>('[data-product-demo]');
+const demoStatus = document.querySelector<HTMLElement>('[data-demo-status]');
+const demoToggle = document.querySelector<HTMLButtonElement>('[data-demo-toggle]');
+const demoToggleLabel = demoToggle?.querySelector<HTMLElement>('[data-demo-toggle-label]');
+const demoReplay = document.querySelector<HTMLButtonElement>('[data-demo-replay]');
+const demoSteps = document.querySelectorAll<HTMLButtonElement>('[data-demo-step]');
+const demoPanels = document.querySelectorAll<HTMLElement>('[data-demo-panel]');
+const demoStageOrder: DemoStage[] = ['install', 'local', 'tool', 'authorize', 'work', 'release'];
+let productDemoTimeline: gsap.core.Timeline | undefined;
+let demoManuallyPaused = false;
+let demoPausedForVisibility = false;
+let demoPausedForViewport = false;
+let demoPausedForHover = false;
+let demoPausedForFocus = false;
+let demoComplete = false;
+
+function isDemoStage(value: string | undefined): value is DemoStage {
+  return demoStageOrder.includes(value as DemoStage);
+}
+
+function setDemoAutoplay(active: boolean): void {
+  if (productDemo) productDemo.dataset.demoAutoplay = String(active);
+}
+
+function addDemoTimelineStage(
+  timeline: gsap.core.Timeline,
+  stage: DemoStage,
+  duration: number,
+): void {
+  const step = [...demoSteps].find(candidate => candidate.dataset.demoStep === stage);
+  timeline.addLabel(stage).call(() => setDemoStage(stage, true));
+  if (!step) {
+    timeline.to({}, { duration });
+    return;
+  }
+  timeline.fromTo(
+    step,
+    { '--demo-step-progress': 0 },
+    { '--demo-step-progress': 1, duration, ease: 'none' },
+  );
+}
+
+function setDemoStage(stage: DemoStage, animate = false): void {
+  if (!productDemo) return;
+  productDemo.dataset.demoState = stage;
+  for (const step of demoSteps) {
+    const selected = step.dataset.demoStep === stage;
+    step.dataset.active = String(selected);
+    step.setAttribute('aria-selected', String(selected));
+    step.tabIndex = selected ? 0 : -1;
+  }
+  for (const panel of demoPanels) {
+    gsap.killTweensOf(panel);
+    const selected = panel.dataset.demoPanel === stage;
+    panel.hidden = !selected;
+    panel.inert = !selected;
+    panel.setAttribute('aria-hidden', String(!selected));
+    if (selected && animate) {
+      gsap.fromTo(
+        panel,
+        { autoAlpha: 0, y: 12 },
+        { autoAlpha: 1, y: 0, duration: 0.32, ease: 'power2.out', clearProps: 'transform' },
+      );
+    } else if (selected) {
+      gsap.set(panel, { autoAlpha: 1, clearProps: 'transform' });
+    }
+  }
+  if (demoStatus) {
+    const statusKey = `demo.status.${stage}` as TranslationKey;
+    demoStatus.dataset.i18n = statusKey;
+    demoStatus.textContent = translation(statusKey);
+  }
+}
+
+function setDemoPaused(paused: boolean): void {
+  productDemoTimeline?.paused(paused);
+  if (!demoToggle || !demoToggleLabel) return;
+  const labelKey: TranslationKey = paused ? 'demo.resumeShort' : 'demo.pauseShort';
+  const ariaKey: TranslationKey = paused ? 'demo.resume' : 'demo.pause';
+  demoToggleLabel.dataset.i18n = labelKey;
+  demoToggleLabel.textContent = translation(labelKey);
+  demoToggle.dataset.i18nAriaLabel = ariaKey;
+  demoToggle.setAttribute('aria-label', translation(ariaKey));
+}
+
+function resumeDemoWhenAllowed(): void {
+  if (
+    !productDemoTimeline ||
+    demoComplete ||
+    demoManuallyPaused ||
+    demoPausedForVisibility ||
+    demoPausedForViewport ||
+    demoPausedForHover ||
+    demoPausedForFocus
+  ) {
+    return;
+  }
+  productDemoTimeline.resume();
+  setDemoPaused(false);
+}
+
+function createProductDemoTimeline(): gsap.core.Timeline {
+  setDemoStage('install');
+  setDemoAutoplay(true);
+  demoComplete = false;
+
+  const timeline = gsap.timeline({
+    paused: true,
+    defaults: { ease: 'none' },
+    onComplete: () => {
+      demoComplete = true;
+      demoToggle?.setAttribute('disabled', '');
+    },
+  });
+
+  addDemoTimelineStage(timeline, 'install', 2.2);
+  addDemoTimelineStage(timeline, 'local', 2.6);
+  addDemoTimelineStage(timeline, 'tool', 3);
+  addDemoTimelineStage(timeline, 'authorize', 2.5);
+  addDemoTimelineStage(timeline, 'work', 3.3);
+  addDemoTimelineStage(timeline, 'release', 1.8);
+
+  return timeline;
+}
+
+function initializeProductDemo(): void {
+  if (!productDemo) return;
+
+  setDemoStage('install');
+
+  for (const step of demoSteps) {
+    step.addEventListener('click', () => {
+      const stage = step.dataset.demoStep;
+      if (!isDemoStage(stage)) return;
+      demoManuallyPaused = true;
+      setDemoAutoplay(false);
+      demoComplete = false;
+      demoToggle?.removeAttribute('disabled');
+      productDemoTimeline?.pause().seek(stage, true);
+      setDemoStage(stage, true);
+      setDemoPaused(true);
+    });
+    step.addEventListener('keydown', event => {
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      const currentIndex = demoStageOrder.indexOf(step.dataset.demoStep as DemoStage);
+      const nextIndex =
+        event.key === 'Home'
+          ? 0
+          : event.key === 'End'
+            ? demoStageOrder.length - 1
+            : (currentIndex + (event.key === 'ArrowRight' ? 1 : -1) + demoStageOrder.length) %
+              demoStageOrder.length;
+      const nextStage = demoStageOrder[nextIndex] ?? 'install';
+      const nextStep = [...demoSteps].find(candidate => candidate.dataset.demoStep === nextStage);
+      nextStep?.click();
+      nextStep?.focus();
+    });
+  }
+
+  const demoMedia = gsap.matchMedia();
+  demoMedia.add(
+    {
+      autoPlay: '(min-width: 901px) and (prefers-reduced-motion: no-preference)',
+      staticMode: '(max-width: 900px), (prefers-reduced-motion: reduce)',
+    },
+    context => {
+      const autoPlay = Boolean(context.conditions?.autoPlay);
+      productDemo.dataset.reducedMotion = String(!autoPlay);
+      demoManuallyPaused = false;
+      demoComplete = false;
+      setDemoStage('install');
+
+      if (!autoPlay) {
+        setDemoAutoplay(false);
+        demoToggle?.setAttribute('disabled', '');
+        demoReplay?.setAttribute('disabled', '');
+        return;
+      }
+
+      demoToggle?.removeAttribute('disabled');
+      demoReplay?.removeAttribute('disabled');
+      demoPausedForVisibility = document.hidden;
+      productDemoTimeline = createProductDemoTimeline();
+      resumeDemoWhenAllowed();
+      return () => {
+        productDemoTimeline?.kill();
+        productDemoTimeline = undefined;
+      };
+    },
+  );
+
+  demoToggle?.addEventListener('click', () => {
+    if (!productDemoTimeline) return;
+    demoManuallyPaused = !productDemoTimeline.paused();
+    if (demoManuallyPaused) setDemoPaused(true);
+    else {
+      setDemoAutoplay(true);
+      resumeDemoWhenAllowed();
+    }
+  });
+
+  demoReplay?.addEventListener('click', () => {
+    if (!productDemoTimeline) return;
+    demoManuallyPaused = false;
+    setDemoAutoplay(true);
+    demoComplete = false;
+    demoToggle?.removeAttribute('disabled');
+    setDemoStage('install');
+    productDemoTimeline.restart(true);
+    setDemoPaused(false);
+  });
+
+  productDemo.addEventListener('pointerenter', () => {
+    demoPausedForHover = true;
+    productDemoTimeline?.pause();
+  });
+  productDemo.addEventListener('pointerleave', () => {
+    demoPausedForHover = false;
+    resumeDemoWhenAllowed();
+  });
+  productDemo.addEventListener('focusin', () => {
+    demoPausedForFocus = true;
+    productDemoTimeline?.pause();
+  });
+  productDemo.addEventListener('focusout', event => {
+    if (productDemo.contains(event.relatedTarget as Node | null)) return;
+    demoPausedForFocus = false;
+    resumeDemoWhenAllowed();
+  });
+
+  const demoObserver = new IntersectionObserver(
+    entries => {
+      const entry = entries[0];
+      if (!entry || !productDemoTimeline) return;
+      demoPausedForViewport = !entry.isIntersecting;
+      if (demoPausedForViewport) productDemoTimeline.pause();
+      else resumeDemoWhenAllowed();
+    },
+    { threshold: 0.08 },
+  );
+  demoObserver.observe(productDemo);
+
+  document.addEventListener('visibilitychange', () => {
+    if (!productDemoTimeline) return;
+    demoPausedForVisibility = document.hidden;
+    if (document.hidden) productDemoTimeline.pause();
+    else resumeDemoWhenAllowed();
+  });
+
+  window.addEventListener(
+    'pagehide',
+    () => {
+      demoObserver.disconnect();
+      productDemoTimeline?.kill();
+      demoMedia.revert();
+    },
+    { once: true },
+  );
+}
+
 const year = document.querySelector<HTMLElement>('[data-current-year]');
 if (year) {
   year.textContent = String(new Date().getFullYear());
 }
 
 applyLocale(detectLocale());
+initializeProductDemo();

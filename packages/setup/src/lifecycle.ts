@@ -35,6 +35,7 @@ import {
 export interface PanerelaySetupOptions {
   agentBrowser?: boolean;
   browserUse?: boolean;
+  browserUseDefault?: 'direct' | 'extension';
   environment?: NodeJS.ProcessEnv;
   extensionId?: string;
   globalProvider?: boolean;
@@ -137,6 +138,7 @@ export async function setupPanerelay(
     : false;
   const browserUseIntegration = options.browserUse
     ? await installBrowserUse({
+        browserUseDefault: options.browserUseDefault,
         browserUseVersions,
         homeDirectory: options.homeDirectory,
         platform: options.platform,

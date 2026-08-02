@@ -21,7 +21,7 @@ The CLI lists live Panerelay browser registrations and manages the saved routing
 
 Use [`@panerelay/setup`](https://www.npmjs.com/package/@panerelay/setup) for one-time installation, diagnostics, updates, and uninstall.
 
-Setup-managed connection adapters can also expose engine-neutral mode and run operations. The examples below use a globally installed `panerelay` command. The Browser Use Skill instead uses the private launcher path printed by `@panerelay/setup --browser-use` (normally `~/.panerelay/bin/panerelay-browser-use-cli`) with the same arguments:
+Setup-managed connection adapters can also expose engine-neutral mode and run operations. The examples below use a globally installed `panerelay` command. The browser-use Skill instead uses the private launcher path printed by `@panerelay/setup --browser-use` (normally `~/.panerelay/bin/panerelay-browser-use-cli`) with the same arguments:
 
 ```bash
 panerelay connection use browser-use extension
@@ -30,4 +30,4 @@ panerelay run browser-use --mode extension -- /absolute/path/to/browser-use
 panerelay run browser-use --mode direct -- /absolute/path/to/browser-use
 ```
 
-The CLI invokes only the exact child command after `--`, applies only the adapter's declared environment keys, and does not interpret Browser Use automation. One-run mode selection does not persist. Extension-mode Browser Use uses a user-scoped concurrency lane; sequential processes share the upstream daemon state, while overlapping runs wait briefly or fail explicitly as busy.
+The CLI invokes only the exact child command after `--`, applies only the adapter's declared environment keys, and does not interpret browser-use automation. One-run mode selection does not persist. Extension-mode browser-use uses a user-scoped concurrency lane; sequential processes share the upstream daemon state, while overlapping runs wait briefly or fail explicitly as busy.

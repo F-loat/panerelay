@@ -34,6 +34,8 @@ interface LanguageArguments {
   language?: SupportedLocale;
 }
 
+type SetupPrompt = (message: string) => Promise<boolean>;
+
 function languageValue(argv: string[]): string | undefined {
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
@@ -338,9 +340,45 @@ export interface CliDependencies {
   confirm?: () => Promise<boolean>;
   doctor?: typeof doctorPanerelay;
   environment?: NodeJS.ProcessEnv;
+  interactive?: () => boolean;
+  prompt?: SetupPrompt;
   setup?: typeof setupPanerelay;
   systemLocale?: string;
   uninstall?: typeof uninstallPanerelay;
+}
+
+function isInteractiveTerminal(): boolean {
+  return stdin.isTTY === true && stdout.isTTY === true;
+}
+
+async function promptYesNo(message: string): Promise<boolean> {
+  const input = createInterface({ input: stdin, output: stdout });
+  try {
+    const answer = (await input.question(message)).trim().toLowerCase();
+    return answer === 'y' || answer === 'yes';
+  } finally {
+    input.close();
+  }
+}
+
+async function selectOptionalIntegrations(
+  locale: SupportedLocale,
+  prompt: SetupPrompt,
+): Promise<
+  Pick<ParsedSetupArgs, 'agentBrowser' | 'browserUse' | 'globalProvider'> & {
+    browserUseDefault: 'direct' | 'extension';
+  }
+> {
+  const agentBrowser = await prompt(translate(locale, 'agentBrowserPrompt'));
+  const globalProvider = agentBrowser
+    ? await prompt(translate(locale, 'agentBrowserDefaultPrompt'))
+    : false;
+  const browserUse = await prompt(translate(locale, 'browserUsePrompt'));
+  const browserUseDefault =
+    browserUse && (await prompt(translate(locale, 'browserUseDefaultPrompt')))
+      ? 'extension'
+      : 'direct';
+  return { agentBrowser, browserUse, browserUseDefault, globalProvider };
 }
 
 function localizeArgumentError(error: unknown, locale: SupportedLocale): string {
@@ -443,14 +481,28 @@ export async function main(
       return 0;
     }
 
-    const result = await (dependencies.setup ?? setupPanerelay)({
+    let setupOptions = {
       agentBrowser: parsed.agentBrowser,
       browserUse: parsed.browserUse,
       environment: dependencies.environment,
       extensionId: parsed.extensionId,
       globalProvider: parsed.globalProvider,
       project: parsed.project,
-    });
+    };
+    if (
+      parsed.operation === 'setup' &&
+      !parsed.agentBrowser &&
+      !parsed.browserUse &&
+      !parsed.yes &&
+      (dependencies.interactive ?? isInteractiveTerminal)()
+    ) {
+      const selected = await selectOptionalIntegrations(
+        locale,
+        dependencies.prompt ?? (message => promptYesNo(message)),
+      );
+      setupOptions = { ...setupOptions, ...selected };
+    }
+    const result = await (dependencies.setup ?? setupPanerelay)(setupOptions);
     console.log(translate(locale, 'setupComplete'));
     console.log(translate(locale, 'nativeHost', { path: result.host.hostPath }));
     console.log(translate(locale, 'extensionIdentity', { id: result.host.extensionId }));

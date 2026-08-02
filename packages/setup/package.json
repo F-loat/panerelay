@@ -1,7 +1,7 @@
 {
   "name": "@panerelay/setup",
   "version": "0.2.0",
-  "description": "Installer, diagnostics, and Agent integration for Panerelay.",
+  "description": "Install and diagnose Panerelay's local integration and optional automation adapters.",
   "type": "module",
   "license": "MIT",
   "repository": {

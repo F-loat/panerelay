@@ -8,6 +8,36 @@ test('registers the actual Chrome runtime Extension ID', async () => {
   assert.match(source, /extensionId: chrome\.runtime\.id/);
 });
 
+test('contains Native Port disconnect races at detached background task boundaries', async () => {
+  const source = await readFile(join(process.cwd(), 'src/background/index.ts'), 'utf8');
+  const helper = source.slice(
+    source.indexOf('function handleDetachedNativeTaskError'),
+    source.indexOf('async function broadcastWorkspaceForTab'),
+  );
+  const connection = source.slice(
+    source.indexOf('function connectNativeHost'),
+    source.indexOf('async function handleHostMessage'),
+  );
+  const debuggerEvents = source.slice(
+    source.indexOf('chrome.debugger.onEvent.addListener'),
+    source.indexOf('chrome.debugger.onDetach.addListener'),
+  );
+  const tabRemoval = source.slice(
+    source.indexOf('chrome.tabs.onRemoved.addListener'),
+    source.indexOf('chrome.tabs.onCreated.addListener'),
+  );
+
+  assert.match(helper, /if \(!expectedPort \|\| nativePort !== expectedPort\) return/);
+  assert.match(helper, /void broadcastStatus\(\)\.catch\(\(\) => undefined\)/);
+  assert.match(connection, /handleHostMessage\(message\)\.catch/);
+  assert.match(connection, /registerBrowser\(\)[\s\S]*\.catch\(error =>/);
+  assert.match(debuggerEvents, /try \{[\s\S]*sendNative\([\s\S]*handleDetachedNativeTaskError/);
+  assert.match(
+    tabRemoval,
+    /\}\)\(\)\.catch\(error => handleDetachedNativeTaskError\(port, error\)\)/,
+  );
+});
+
 test('keeps target-scoped automation failures out of the global error banner', async () => {
   const source = await readFile(join(process.cwd(), 'src/background/index.ts'), 'utf8');
   const targetRequestHandler = source.slice(

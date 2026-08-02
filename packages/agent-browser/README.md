@@ -1,16 +1,78 @@
-# @panerelay/agent-browser
+# `@panerelay/agent-browser`
 
-Browser Provider adapter that lets agent-browser use explicitly authorized tabs in a running Chrome or Microsoft Edge profile through Panerelay.
+Use agent-browser with the Chrome or Microsoft Edge session you already use. Panerelay supplies an explicitly authorized existing-browser connection, while agent-browser keeps its normal CLI and MCP commands, waits, and page-state semantics.
 
-The adapter preserves standard agent-browser command semantics. Panerelay supplies the connection, authorization boundary, and exclusive control lease; it does not grant tab access by installing this package.
+This is an opt-in **automation tool integration**. It is a peer of the browser-use integration and is not installed by the engine-neutral Panerelay setup command.
 
-Install and register the Provider through `@panerelay/setup`. Use `agent-browser --provider panerelay ...` explicitly, or configure a project/user default with `npx --yes @panerelay/setup --project-provider` or `npx --yes @panerelay/setup --global-provider`. Provider selection does not authorize a browser tab.
+## Before you start
 
-When more than one Panerelay browser is connected, set the user browser default
-with `npx --yes @panerelay/cli browser use
-<registration-id|chrome|edge>` (or the globally installed `panerelay` command),
-or scope one invocation with `PANERELAY_BROWSER_ID` /
-`PANERELAY_BROWSER`. An unavailable default or ambiguous choice fails closed.
-Every launched session stays pinned to its selected browser, including cleanup.
+- Install the official [Panerelay Extension](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi) in Chrome or Microsoft Edge.
+- Install Node.js 20 or newer.
+- Install agent-browser 0.33.0 or newer by following the [upstream installation instructions](https://agent-browser.dev/installation).
 
-agent-browser 0.33.0 is the minimum supported version and initial Chrome-verified baseline. Edge uses the same Chromium Provider path but remains Forwarded until dedicated real-Edge evidence is recorded. Newer agent-browser versions satisfy the version floor but need their own compatibility evidence before being classified as verified.
+Panerelay setup verifies agent-browser but does not install, update, downgrade, or add it to `PATH`.
+
+## Set up with your Agent
+
+Copy this instruction into the Agent you already use:
+
+```text
+Fetch this guide with curl -fsSL and follow the agent-browser scenario: https://f-loat.github.io/panerelay/agent-setup.md
+```
+
+The version-controlled [Agent setup instructions](../../docs/agent-setup.md) define the inspection, official upstream installation, Panerelay integration, user authorization stop, and acceptance report.
+
+## Set up manually
+
+After `agent-browser --version` reports a supported version, install and diagnose the Panerelay integration:
+
+```bash
+npx --yes @panerelay/setup --agent-browser
+npx --yes @panerelay/setup doctor --agent-browser
+```
+
+Open Panerelay in the browser and authorize the current tab or all supported web tabs. Then verify the authorization boundary:
+
+```bash
+agent-browser --provider panerelay tab list
+```
+
+Success means the doctor checks pass and agent-browser lists only the tabs authorized in the selected Panerelay browser. Setup and Provider selection never grant site permission or authorize a tab.
+
+## What setup adds
+
+`@panerelay/setup --agent-browser` installs the Panerelay Provider and additive Skill, then registers the exact compatible integration. This package is a setup-managed runtime and is not intended to be invoked directly by Agents.
+
+## Daily use and defaults
+
+Use standard agent-browser commands with `--provider panerelay`. If you explicitly want Panerelay as a default, choose the narrowest scope:
+
+```bash
+# Current project only
+npx --yes @panerelay/setup --agent-browser --project-provider
+
+# Current user
+npx --yes @panerelay/setup --agent-browser --global-provider
+```
+
+Provider defaults change routing only. They do not grant browser permission, authorize a tab, or acquire the active control lease.
+
+When more than one Panerelay browser is connected, choose one in Extension settings or with the optional administration CLI:
+
+```bash
+npx --yes @panerelay/cli browsers
+npx --yes @panerelay/cli browser use chrome
+```
+
+An unavailable default or ambiguous browser choice fails closed. Every launched session remains pinned to the browser through which it was created, including cleanup.
+
+## Compatibility and limits
+
+agent-browser 0.33.0 is both the minimum supported version and the exact initial Chrome-verified baseline. Newer versions meet the version floor but require their own evidence before being classified as `Verified`. Microsoft Edge uses the same Chromium Provider path and remains `Forwarded` until representative evidence is recorded.
+
+Panerelay operates only authorized tabs. It does not own browser-process features such as isolated profiles, launch-time proxy changes, or closing the user's browser process.
+
+- [Upstream agent-browser documentation](https://agent-browser.dev/)
+- [Panerelay agent-browser 0.33.0 compatibility record](../../docs/compatibility/agent-browser-0.33.0.md)
+- [Browser platform compatibility record](../../docs/compatibility/browser-platforms.md)
+- [`@panerelay/setup` technical reference](../setup/README.md)
