@@ -14,7 +14,7 @@ import type { SidepanelClient, SidepanelRuntimeMessage } from './sidepanel-clien
 const readyStatus: ExtensionStatus = {
   bridgeConnected: true,
   nativeHostState: 'connected',
-  defaultProvider: { provider: null, isPanerelay: false },
+  defaultProvider: { available: true, provider: null, isPanerelay: false },
   browserUseDefault: { available: true, mode: 'direct', isPanerelay: false },
   browserDefault: {
     currentBrowser: {
@@ -86,6 +86,8 @@ class AppClient implements SidepanelClient {
   historyError = '';
   prepareError = '';
   statusError = '';
+  installError = '';
+  installPromise: Promise<void> | null = null;
   sendHandler:
     | ((message: Extract<SidePanelRequest, { type: 'panerelay.conversation.send' }>) => Promise<{
         success: true;
@@ -201,10 +203,33 @@ class AppClient implements SidepanelClient {
         return { success: true as const, status: this.status };
       case 'panerelay.native.retry':
         return { success: true as const, status: this.status };
+      case 'panerelay.integration.install':
+        if (this.installPromise) await this.installPromise;
+        if (this.installError) throw new Error(this.installError);
+        this.status = {
+          ...this.status,
+          ...(message.integration === 'agent-browser'
+            ? {
+                defaultProvider: {
+                  available: true,
+                  provider: 'panerelay',
+                  isPanerelay: true,
+                },
+              }
+            : {
+                browserUseDefault: {
+                  available: true,
+                  mode: 'extension' as const,
+                  isPanerelay: true,
+                },
+              }),
+        };
+        return { success: true as const, status: this.status };
       case 'panerelay.default-provider.set':
         this.status = {
           ...this.status,
           defaultProvider: {
+            available: true,
             provider: message.enabled ? 'panerelay' : null,
             isPanerelay: message.enabled,
           },
@@ -397,7 +422,7 @@ describe('React Side Panel', () => {
     const automationDefaults = screen.getByText('Set as default').closest('.settings-field');
     expect(automationDefaults).not.toBeNull();
     expect(screen.getByText('agent-browser')).toBeVisible();
-    expect(screen.getByText('Browser Use')).toBeVisible();
+    expect(screen.getByText('browser-use')).toBeVisible();
     expect(automationDefaults?.querySelectorAll('.settings-provider-indicator')).toHaveLength(0);
     expect(screen.getByText('Control by default')).toBeVisible();
     expect(document.querySelectorAll('.settings-provider-indicator')).toHaveLength(0);
@@ -415,7 +440,7 @@ describe('React Side Panel', () => {
     ).toHaveAttribute('aria-pressed', 'true');
 
     await user.click(
-      screen.getByRole('button', { name: 'Use Panerelay for Browser Use by default' }),
+      screen.getByRole('button', { name: 'Use Panerelay for browser-use by default' }),
     );
     expect(client.requests).toContainEqual({
       type: 'panerelay.browser-use-default.set',
@@ -423,7 +448,7 @@ describe('React Side Panel', () => {
     });
     expect(
       screen.getByRole('button', {
-        name: 'Stop using Panerelay for Browser Use by default',
+        name: 'Stop using Panerelay for browser-use by default',
       }),
     ).toHaveAttribute('aria-pressed', 'true');
     expect(
@@ -437,13 +462,13 @@ describe('React Side Panel', () => {
     });
     expect(
       screen.getByRole('button', {
-        name: 'Stop using Panerelay for Browser Use by default',
+        name: 'Stop using Panerelay for browser-use by default',
       }),
     ).toHaveAttribute('aria-pressed', 'true');
 
     await user.click(
       screen.getByRole('button', {
-        name: 'Stop using Panerelay for Browser Use by default',
+        name: 'Stop using Panerelay for browser-use by default',
       }),
     );
     expect(client.requests).toContainEqual({
@@ -494,7 +519,7 @@ describe('React Side Panel', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('disables the Browser Use default when its adapter is unavailable', async () => {
+  it('keeps browser-use clickable and installs it when its adapter is unavailable', async () => {
     const client = new AppClient();
     client.status = {
       ...readyStatus,
@@ -503,15 +528,85 @@ describe('React Side Panel', () => {
     const { user } = await renderReady(client);
 
     await user.click(screen.getByRole('button', { name: /Browser access:/ }));
-    expect(
-      screen.getByRole('button', { name: 'Use Panerelay for Browser Use by default' }),
-    ).toBeDisabled();
+    const button = screen.getByRole('button', { name: 'Install browser-use' });
+    expect(button).toBeEnabled();
+    expect(button).toHaveAttribute('data-install-label', 'Click to install');
+    expect(button).toHaveAttribute('data-installable', 'true');
     expect(
       screen.getByRole('button', { name: 'Set agent-browser as default Provider' }),
     ).toBeEnabled();
+    await user.click(button);
+    expect(client.requests).toContainEqual({
+      type: 'panerelay.integration.install',
+      integration: 'browser-use',
+    });
+    expect(
+      screen.getByRole('button', { name: 'Stop using Panerelay for browser-use by default' }),
+    ).toHaveAttribute('aria-pressed', 'true');
   });
 
-  it('guides a missing Native Host with setup and retry', async () => {
+  it('keeps agent-browser clickable and installs it when its Provider is unavailable', async () => {
+    const client = new AppClient();
+    client.status = {
+      ...readyStatus,
+      defaultProvider: { available: false, provider: null, isPanerelay: false },
+    };
+    const { user } = await renderReady(client);
+
+    await user.click(screen.getByRole('button', { name: /Browser access:/ }));
+    const button = screen.getByRole('button', {
+      name: 'Install agent-browser',
+    });
+    expect(button).toBeEnabled();
+    expect(button).toHaveAttribute('data-install-label', 'Click to install');
+    expect(button).toHaveAttribute('data-installable', 'true');
+    expect(
+      screen.getByRole('button', { name: 'Use Panerelay for browser-use by default' }),
+    ).toBeEnabled();
+    await user.click(button);
+    expect(client.requests).toContainEqual({
+      type: 'panerelay.integration.install',
+      integration: 'agent-browser',
+    });
+    expect(
+      screen.getByRole('button', { name: 'Clear agent-browser default Provider' }),
+    ).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  it('shows a per-adapter installing state and prevents duplicate clicks', async () => {
+    const client = new AppClient();
+    client.status = {
+      ...readyStatus,
+      browserUseDefault: { available: false, mode: null, isPanerelay: false },
+    };
+    let release: (() => void) | undefined;
+    client.installPromise = new Promise<void>(resolve => {
+      release = resolve;
+    });
+    const { user } = await renderReady(client);
+
+    await user.click(screen.getByRole('button', { name: /Browser access:/ }));
+    await user.click(screen.getByRole('button', { name: 'Install browser-use' }));
+    const installing = await screen.findByRole('button', { name: 'Installing…' });
+    expect(installing).toBeDisabled();
+    expect(installing).toHaveAttribute('aria-busy', 'true');
+    expect(installing).toHaveTextContent('Installing…');
+    await user.click(installing);
+    expect(
+      client.requests.filter(request => request.type === 'panerelay.integration.install'),
+    ).toHaveLength(1);
+
+    release?.();
+    await waitFor(() =>
+      expect(
+        screen.getByRole('button', {
+          name: 'Stop using Panerelay for browser-use by default',
+        }),
+      ).toHaveAttribute('aria-pressed', 'true'),
+    );
+  });
+
+  it('composes and copies optional integrations while guiding a missing Native Host', async () => {
     const client = new AppClient();
     client.status = {
       ...readyStatus,
@@ -523,11 +618,76 @@ describe('React Side Panel', () => {
     const user = userEvent.setup();
     render(<SidepanelApp client={client} />);
 
-    expect(await screen.findByText('Install the Panerelay integration')).toBeVisible();
-    expect(screen.getByText('npx --yes @panerelay/setup')).toBeVisible();
+    const guide = await screen.findByRole('region', {
+      name: 'Install the Panerelay integration',
+    });
+    const heading = screen.getByRole('heading', { name: 'Install the Panerelay integration' });
+    expect(guide).not.toContainElement(heading);
+    expect(
+      Array.from(guide.children).map(element => element.getAttribute('data-setup-card')),
+    ).toEqual(['benefits', 'action', 'integrations']);
+    expect(within(guide).getByText('Reuse your signed-in browser session')).toBeVisible();
+    expect(within(guide).getByText('Authorize only the tabs you choose')).toBeVisible();
+    expect(within(guide).getByText('Install the local integration')).toBeVisible();
+    expect(
+      within(guide).queryByText('The local Native Host was not found.'),
+    ).not.toBeInTheDocument();
+    expect(within(guide).getByText('npx --yes @panerelay/setup')).toBeVisible();
+    const agentBrowser = within(guide).getByRole('button', { name: /^agent-browser/ });
+    const browserUse = within(guide).getByRole('button', { name: /^browser-use/ });
+    expect(agentBrowser).toHaveClass('settings-provider-toggle', 'settings-default-toggle');
+    expect(browserUse).toHaveClass('settings-provider-toggle', 'settings-default-toggle');
+    expect(agentBrowser).toHaveTextContent(/^agent-browser$/);
+    expect(browserUse).toHaveTextContent(/^browser-use$/);
+    expect(within(guide).queryByText(/Provider and Skill/)).not.toBeInTheDocument();
+    expect(within(guide).queryByText(/Adapter and Skill/)).not.toBeInTheDocument();
+    expect(agentBrowser).toHaveAttribute('aria-pressed', 'false');
+    expect(browserUse).toHaveAttribute('aria-pressed', 'false');
+
+    await user.click(agentBrowser);
+    expect(within(guide).getByText('npx --yes @panerelay/setup --agent-browser')).toBeVisible();
+    await user.click(browserUse);
+    expect(
+      within(guide).getByText('npx --yes @panerelay/setup --agent-browser --browser-use'),
+    ).toBeVisible();
+    expect(agentBrowser).toHaveAttribute('aria-pressed', 'true');
+    expect(browserUse).toHaveAttribute('aria-pressed', 'true');
+
+    await user.click(within(guide).getByRole('button', { name: 'Copy setup command' }));
+    expect(await navigator.clipboard.readText()).toBe(
+      'npx --yes @panerelay/setup --agent-browser --browser-use',
+    );
+    expect(within(guide).getByRole('button', { name: 'Setup command copied' })).toBeVisible();
+    expect(within(guide).getByRole('status')).toHaveTextContent('Setup command copied');
+
+    await user.click(agentBrowser);
+    expect(within(guide).getByText('npx --yes @panerelay/setup --browser-use')).toBeVisible();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Retry connection' }));
+    await user.click(within(guide).getByRole('button', { name: 'Retry connection' }));
     expect(client.requests).toContainEqual({ type: 'panerelay.native.retry' });
+    expect(within(guide).getByText('npx --yes @panerelay/setup --browser-use')).toBeVisible();
+
+    const missingStatus = client.status;
+    client.status = readyStatus;
+    act(() => {
+      client.emit({ type: 'panerelay.status.changed', status: readyStatus });
+    });
+    expect(await screen.findByRole('heading', { name: 'What should Codex do?' })).toBeVisible();
+
+    client.status = missingStatus;
+    act(() => {
+      client.emit({ type: 'panerelay.status.changed', status: missingStatus });
+    });
+    const restoredGuide = await screen.findByRole('region', {
+      name: 'Install the Panerelay integration',
+    });
+    expect(
+      within(restoredGuide).getByText('npx --yes @panerelay/setup --browser-use'),
+    ).toBeVisible();
+    expect(within(restoredGuide).getByRole('button', { name: 'browser-use' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
   });
 
   it('surfaces authorization requests and controlled-tab actions', async () => {

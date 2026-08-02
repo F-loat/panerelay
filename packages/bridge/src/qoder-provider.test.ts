@@ -2,14 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as acp from '@agentclientprotocol/sdk';
 import type { ConversationEvent } from '@panerelay/protocol';
-import {
-  QoderProvider,
-  closeQoderBrowserSession,
-  qoderBrowserMcpServers,
-  type QoderBrowserSession,
-  type QoderProviderOptions,
-  type QoderRuntime,
-} from './qoder-provider.js';
+import { QoderProvider, type QoderProviderOptions, type QoderRuntime } from './qoder-provider.js';
 
 class FakeQoderRuntime implements QoderRuntime {
   readonly notifications: Array<{ method: string; params: unknown }> = [];
@@ -98,17 +91,10 @@ function harness(
   const events: ConversationEvent[] = [];
   const diagnostics: string[] = [];
   const runtimes: FakeQoderRuntime[] = [];
-  const browserSessionClosures: QoderBrowserSession[] = [];
   const provider = new QoderProvider({
-    closeBrowserSession: async session => {
-      browserSessionClosures.push(session);
-    },
     cwd: () => '/workspace',
-    environment: { PANERELAY_BROWSER_ID: 'sidepanel-browser-id' },
     onDiagnostic: message => diagnostics.push(message),
     runtimeConfig: async () => ({
-      agentBrowserConfigPath: 'C:\\Panerelay Data\\agent-browser.json',
-      agentBrowserPath: 'C:\\npm wrappers\\agent-browser.cmd',
       qoderPath: 'C:\\Qoder\\qodercli.cmd',
       qoderVersion: '1.1.2',
     }),
@@ -124,7 +110,7 @@ function harness(
     ...overrides,
   });
   provider.onEvent(event => events.push(event));
-  return { browserSessionClosures, diagnostics, events, provider, runtimes };
+  return { diagnostics, events, provider, runtimes };
 }
 
 async function flush(): Promise<void> {
@@ -134,7 +120,7 @@ async function flush(): Promise<void> {
 test('reports missing Qoder without blocking and exposes negotiated capabilities when ready', async () => {
   const unavailable = new QoderProvider({
     platform: 'win32',
-    runtimeConfig: async () => ({ agentBrowserConfigPath: '/config' }),
+    runtimeConfig: async () => ({}),
     resolveExecutable: async () => ({ error: 'Qoder CLI was not found' }),
   });
   const missing = await unavailable.getDescriptor();
@@ -183,7 +169,6 @@ test('deduplicates concurrent Qoder preparation and retries after startup failur
   });
   const provider = new QoderProvider({
     runtimeConfig: async () => ({
-      agentBrowserConfigPath: '/tmp/agent-browser.json',
       qoderPath: '/bin/qodercli',
     }),
     resolveExecutable: async () => ({ executable: '/bin/qodercli', version: '1.1.2' }),
@@ -215,8 +200,8 @@ test('deduplicates concurrent Qoder preparation and retries after startup failur
   assert.equal(starts, 2);
 });
 
-test('lists, starts, and loads Qoder sessions with isolated browser MCP definitions', async () => {
-  const { browserSessionClosures, provider, runtimes } = harness();
+test('lists, starts, and loads Qoder sessions without injecting browser MCP definitions', async () => {
+  const { provider, runtimes } = harness();
   const conversations = await provider.listConversations('/workspace/project');
   assert.equal(conversations[0]?.id, 'qoder-existing');
   assert.equal(conversations[0]?.providerId, 'qoder');
@@ -234,15 +219,7 @@ test('lists, starts, and loads Qoder sessions with isolated browser MCP definiti
     request => request.method === acp.methods.agent.session.new,
   );
   const newParams = newRequest?.params as acp.NewSessionRequest;
-  assert.equal(newParams.mcpServers.length, 1);
-  const mcp = newParams.mcpServers[0] as acp.McpServerStdio;
-  assert.equal(mcp.command, 'C:\\npm wrappers\\agent-browser.cmd');
-  assert.deepEqual(mcp.args, ['mcp', '--tools', 'core,tabs']);
-  assert.equal(mcp.env.find(entry => entry.name === 'AGENT_BROWSER_PROVIDER')?.value, 'panerelay');
-  assert.match(
-    mcp.env.find(entry => entry.name === 'AGENT_BROWSER_SESSION')?.value || '',
-    /^panerelay-qoder-/,
-  );
+  assert.deepEqual(newParams.mcpServers, []);
 
   const resumed = await provider.resumeConversation('qoder-existing');
   assert.deepEqual(
@@ -256,21 +233,10 @@ test('lists, starts, and loads Qoder sessions with isolated browser MCP definiti
     request => request.method === acp.methods.agent.session.load,
   );
   const loadParams = loadRequest?.params as acp.LoadSessionRequest;
-  const loadMcp = loadParams.mcpServers?.[0] as acp.McpServerStdio;
-  assert.notEqual(
-    loadMcp.env.find(entry => entry.name === 'AGENT_BROWSER_SESSION')?.value,
-    mcp.env.find(entry => entry.name === 'AGENT_BROWSER_SESSION')?.value,
-  );
+  assert.deepEqual(loadParams.mcpServers, []);
   await provider.close();
   assert.ok(
     runtimes[0]?.requests.some(request => request.method === acp.methods.agent.session.close),
-  );
-  assert.deepEqual(
-    browserSessionClosures.map(session => session.label).sort(),
-    [
-      loadMcp.env.find(entry => entry.name === 'AGENT_BROWSER_SESSION')?.value,
-      mcp.env.find(entry => entry.name === 'AGENT_BROWSER_SESSION')?.value,
-    ].sort(),
   );
 });
 
@@ -298,7 +264,10 @@ test('uses a validated project and prepends bounded page context only to the fir
   assert.match(firstText?.type === 'text' ? firstText.text : '', /Example app/);
   assert.match(firstText?.type === 'text' ? firstText.text : '', /Inspect this page/);
   assert.doesNotMatch(firstText?.type === 'text' ? firstText.text : '', /secret/);
-  assert.doesNotMatch(firstText?.type === 'text' ? firstText.text : '', /"tabId"/);
+  assert.doesNotMatch(
+    firstText?.type === 'text' ? firstText.text : '',
+    /"tabId"|panerelay_browser|browser tool|projectDirectory/i,
+  );
 
   await provider.sendMessage('qoder-new', 'Continue');
   await flush();
@@ -458,66 +427,6 @@ test('normalizes streaming, reasoning, plan, tools, usage, completion, and unkno
   assert.deepEqual(diagnostics, ['Ignored Qoder update: available_commands_update']);
 });
 
-test('closes the scoped browser session before completed, failed, and interrupted turns', async () => {
-  const timeline: string[] = [];
-  const { provider, runtimes } = harness(undefined, {
-    closeBrowserSession: async session => {
-      timeline.push(`cleanup:${session.label}`);
-    },
-  });
-  provider.onEvent(event => {
-    if (event.kind === 'turn.completed') timeline.push(`terminal:${event.status}`);
-  });
-  await provider.startConversation();
-  const newRequest = runtimes[0]?.requests.find(
-    request => request.method === acp.methods.agent.session.new,
-  );
-  const newParams = newRequest?.params as acp.NewSessionRequest;
-  const mcp = newParams.mcpServers[0] as acp.McpServerStdio;
-  const sessionLabel = mcp.env.find(entry => entry.name === 'AGENT_BROWSER_SESSION')?.value || '';
-
-  await provider.sendMessage('qoder-new', 'Complete normally');
-  await flush();
-  assert.deepEqual(timeline, [`cleanup:${sessionLabel}`, 'terminal:completed']);
-
-  runtimes[0]!.prompt = async () => {
-    throw new Error('Prompt failed');
-  };
-  await provider.sendMessage('qoder-new', 'Fail safely');
-  await flush();
-  assert.deepEqual(timeline.slice(-2), [`cleanup:${sessionLabel}`, 'terminal:failed']);
-
-  let finishPrompt!: (value: acp.PromptResponse) => void;
-  runtimes[0]!.prompt = async () =>
-    new Promise(resolve => {
-      finishPrompt = resolve;
-    });
-  const { turnId } = await provider.sendMessage('qoder-new', 'Interrupt safely');
-  await flush();
-  await provider.interrupt('qoder-new', turnId);
-  finishPrompt({ stopReason: 'cancelled' });
-  await flush();
-  assert.deepEqual(timeline.slice(-2), [`cleanup:${sessionLabel}`, 'terminal:interrupted']);
-
-  await provider.close();
-  assert.equal(timeline.at(-1), `cleanup:${sessionLabel}`);
-});
-
-test('keeps the Qoder turn result when browser cleanup fails and sanitizes diagnostics', async () => {
-  const { diagnostics, events, provider } = harness(undefined, {
-    closeBrowserSession: async () => {
-      throw new Error('sensitive local cleanup detail');
-    },
-  });
-  await provider.startConversation();
-  await provider.sendMessage('qoder-new', 'Complete despite cleanup failure');
-  await flush();
-  assert.ok(events.some(event => event.kind === 'turn.completed' && event.status === 'completed'));
-  assert.equal(diagnostics.length, 1);
-  assert.match(diagnostics[0] || '', /^Failed to close Qoder browser session panerelay-qoder-/);
-  assert.doesNotMatch(diagnostics[0] || '', /sensitive local cleanup detail/);
-});
-
 test('keeps ACP option IDs private and cancels pending permission on interruption', async () => {
   const { events, provider, runtimes } = harness();
   await provider.startConversation();
@@ -588,12 +497,12 @@ test('keeps ACP option IDs private and cancels pending permission on interruptio
   await provider.close();
 });
 
-test('fails unsupported capabilities and cleans browser sessions after an ACP process exit', async () => {
+test('fails unsupported capabilities and reports an ACP process exit', async () => {
   const initializeResponse: acp.InitializeResponse = {
     protocolVersion: acp.PROTOCOL_VERSION,
     agentCapabilities: { promptCapabilities: { image: false } },
   };
-  const { browserSessionClosures, events, provider, runtimes } = harness(initializeResponse);
+  const { events, provider, runtimes } = harness(initializeResponse);
   await assert.rejects(provider.listConversations(), /does not advertise ACP session listing/);
   await assert.rejects(
     provider.resumeConversation('missing'),
@@ -606,7 +515,6 @@ test('fails unsupported capabilities and cleans browser sessions after an ACP pr
   runtimes[0]!.handlers.onExit('Qoder ACP exited (code=1, signal=null)');
   await flush();
   assert.ok(events.some(event => event.kind === 'turn.completed' && event.status === 'failed'));
-  assert.equal(browserSessionClosures.length, 1);
   const descriptor = await provider.getDescriptor();
   assert.equal(descriptor.status, 'ready');
   assert.equal(runtimes.length, 1);
@@ -635,77 +543,4 @@ test('bounds prompt timeouts and leaves the provider reusable', async () => {
   await flush();
   assert.ok(events.some(event => event.kind === 'turn.completed' && event.status === 'completed'));
   await provider.close();
-});
-
-test('builds Windows MCP and cleanup commands without widening Provider scope', async () => {
-  const servers = qoderBrowserMcpServers(
-    {
-      agentBrowserConfigPath: 'C:\\Panerelay & Data\\agent-browser.json',
-      agentBrowserPath: 'C:\\npm wrappers\\agent-browser.cmd',
-    },
-    'qoder-session-1',
-    'sidepanel-browser-id',
-  );
-  assert.deepEqual(servers, [
-    {
-      name: 'panerelay_browser',
-      command: 'C:\\npm wrappers\\agent-browser.cmd',
-      args: ['mcp', '--tools', 'core,tabs'],
-      env: [
-        {
-          name: 'AGENT_BROWSER_CONFIG',
-          value: 'C:\\Panerelay & Data\\agent-browser.json',
-        },
-        { name: 'AGENT_BROWSER_PROVIDER', value: 'panerelay' },
-        { name: 'AGENT_BROWSER_SESSION', value: 'qoder-session-1' },
-        { name: 'PANERELAY_BROWSER_ID', value: 'sidepanel-browser-id' },
-      ],
-    },
-  ]);
-
-  let cleanup:
-    | {
-        args: string[];
-        command: string;
-        environment?: NodeJS.ProcessEnv;
-        timeoutMs?: number;
-        windowsVerbatimArguments?: boolean;
-      }
-    | undefined;
-  await closeQoderBrowserSession(
-    {
-      configPath: 'C:\\Panerelay & Data\\agent-browser.json',
-      executable: 'C:\\npm wrappers\\agent-browser.cmd',
-      label: 'qoder-session-1',
-    },
-    {
-      environment: { ComSpec: 'C:\\Windows\\System32\\cmd.exe' },
-      platform: 'win32',
-      runner: async (command, args, options) => {
-        cleanup = {
-          args,
-          command,
-          environment: options?.environment,
-          timeoutMs: options?.timeoutMs,
-          windowsVerbatimArguments: options?.windowsVerbatimArguments,
-        };
-        return { code: 0, stderr: '', stdout: '' };
-      },
-    },
-  );
-  assert.equal(cleanup?.command, 'C:\\Windows\\System32\\cmd.exe');
-  assert.deepEqual(cleanup?.args, [
-    '/d',
-    '/s',
-    '/c',
-    '"C:\\npm^ wrappers\\agent-browser.cmd ^"--session^" ^"qoder-session-1^" ^"--provider^" ^"panerelay^" ^"close^""',
-  ]);
-  assert.equal(
-    cleanup?.environment?.AGENT_BROWSER_CONFIG,
-    'C:\\Panerelay & Data\\agent-browser.json',
-  );
-  assert.equal(cleanup?.environment?.AGENT_BROWSER_PROVIDER, 'panerelay');
-  assert.equal(cleanup?.environment?.AGENT_BROWSER_SESSION, 'qoder-session-1');
-  assert.equal(cleanup?.timeoutMs, 5_000);
-  assert.equal(cleanup?.windowsVerbatimArguments, true);
 });

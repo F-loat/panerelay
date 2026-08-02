@@ -4,10 +4,6 @@ import type { NativeHostInstallationResult } from '@panerelay/bridge/install';
 import { setupPanerelay, uninstallPanerelay } from './lifecycle.js';
 
 const host: NativeHostInstallationResult = {
-  agentBrowserConfigPath: '/home/.panerelay/agent-browser.json',
-  agentBrowserPath: '/bin/agent-browser',
-  agentBrowserSupported: true,
-  agentBrowserVersion: '0.33.0',
   codexPath: '/bin/codex',
   extensionId: 'extension-test',
   hostPath: '/home/.panerelay/bin/panerelay-native-host.cjs',
@@ -22,6 +18,7 @@ test('setup can opt into global and project default providers', async () => {
   const extensionId = 'abcdefghijklmnopabcdefghijklmnop';
   const result = await setupPanerelay(
     {
+      agentBrowser: true,
       environment: { PANERELAY_EXTENSION_ID: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
       browserUse: true,
       extensionId,
@@ -31,6 +28,10 @@ test('setup can opt into global and project default providers', async () => {
       projectDirectory: '/project',
     },
     {
+      probeAgentBrowser: async () => {
+        calls.push('probe-agent-browser');
+        return { executable: '/bin/agent-browser', supported: true, version: '0.33.0' };
+      },
       configureGlobal: async () => {
         calls.push('configure-global');
         return '/home/.agent-browser/config.json';
@@ -114,6 +115,7 @@ test('setup can opt into global and project default providers', async () => {
   );
 
   assert.deepEqual(calls, [
+    'probe-agent-browser',
     'install-host',
     'register-provider',
     'configure-global',
@@ -127,6 +129,54 @@ test('setup can opt into global and project default providers', async () => {
   assert.equal(result.browserUseRequested, true);
   assert.equal(result.browserUseReady, true);
   assert.equal(result.projectConfigPath, '/project/agent-browser.json');
+});
+
+test('base setup installs only the Native Host and skips both engine integrations', async () => {
+  const calls: string[] = [];
+  const result = await setupPanerelay(
+    { homeDirectory: '/home' },
+    {
+      installHost: async options => {
+        calls.push('install-host');
+        assert.ok(options);
+        return host;
+      },
+      installBrowserUse: async () => {
+        calls.push('install-browser-use');
+        throw new Error('Browser Use should not be installed');
+      },
+      installSkill: async () => {
+        calls.push('install-agent-browser-skill');
+        throw new Error('agent-browser Skill should not be installed');
+      },
+      registerProvider: async () => {
+        calls.push('register-agent-browser-provider');
+        throw new Error('agent-browser Provider should not be registered');
+      },
+    },
+  );
+
+  assert.deepEqual(calls, ['install-host']);
+  assert.equal(result.agentBrowserConfigPath, undefined);
+  assert.equal(result.globalSkillPath, undefined);
+  assert.equal(result.browserUseIntegration, undefined);
+});
+
+test('rejects Provider scopes before installing the Native Host without agent-browser', async () => {
+  let writes = 0;
+  await assert.rejects(
+    setupPanerelay(
+      { globalProvider: true },
+      {
+        installHost: async () => {
+          writes += 1;
+          return host;
+        },
+      },
+    ),
+    /require agentBrowser: true/,
+  );
+  assert.equal(writes, 0);
 });
 
 test('uninstall removes only Panerelay-owned integration through scoped operations', async () => {

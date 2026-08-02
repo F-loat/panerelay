@@ -2,6 +2,7 @@ import {
   ConversationApproval,
   ConversationApprovalDecision,
   ConversationDetail,
+  type AutomationIntegrationId,
   type ConversationSummary,
 } from '@panerelay/protocol';
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef } from 'react';
@@ -67,6 +68,7 @@ export interface SidepanelController {
   setAuthorization(mode: AuthorizationMode): Promise<void>;
   releaseControl(): Promise<void>;
   retryNativeHost(): Promise<void>;
+  installIntegration(integration: AutomationIntegrationId): Promise<void>;
   setDefaultProvider(enabled: boolean): Promise<void>;
   setBrowserUseDefault(enabled: boolean): Promise<void>;
   setBrowserDefault(enabled: boolean): Promise<void>;
@@ -578,6 +580,34 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
       patch({ nativeRetryPending: false });
     }
   }, [client, patch]);
+
+  const installIntegration = useCallback(
+    async (integration: AutomationIntegrationId) => {
+      const pendingKey =
+        integration === 'agent-browser' ? 'defaultProviderPending' : 'browserUseDefaultPending';
+      if (stateRef.current[pendingKey]) return;
+      patch({ [pendingKey]: true, error: '' });
+      try {
+        const response = await client.request({
+          type: 'panerelay.integration.install',
+          integration,
+        });
+        patch({ extensionStatus: response.status ?? stateRef.current.extensionStatus });
+      } catch {
+        patch({
+          error: translate(
+            stateRef.current.locale,
+            integration === 'agent-browser'
+              ? 'agentBrowserInstallFailed'
+              : 'browserUseInstallFailed',
+          ),
+        });
+      } finally {
+        patch({ [pendingKey]: false });
+      }
+    },
+    [client, patch],
+  );
 
   const setDefaultProvider = useCallback(
     async (enabled: boolean) => {
@@ -1197,6 +1227,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
     setAuthorization,
     releaseControl,
     retryNativeHost,
+    installIntegration,
     setDefaultProvider,
     setBrowserUseDefault,
     setBrowserDefault,

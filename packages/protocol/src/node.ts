@@ -14,7 +14,3 @@ export function bridgeStatePath(): string {
 export function runtimeConfigPath(): string {
   return join(panerelayDataDirectory(), 'runtime.json');
 }
-
-export function agentBrowserConfigPath(): string {
-  return join(panerelayDataDirectory(), 'agent-browser.json');
-}

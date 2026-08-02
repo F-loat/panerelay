@@ -111,6 +111,8 @@ Rerunning the same workflow reuses its beta package version and safely resumes o
 npx --yes @panerelay/setup@beta
 ```
 
+That command installs the Native Host and side-panel prerequisites only. Add `--agent-browser`, `--browser-use`, or both when validating the corresponding explicit adapter artifacts.
+
 Beta Extension archives are developer downloads, not Chrome Web Store updates. Their numeric Chrome versions identify the workflow build but do not define Store upgrade order.
 
 ## Automated stable publication

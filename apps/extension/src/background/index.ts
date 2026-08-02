@@ -9,6 +9,7 @@ import {
   isNativeTransferEnvelope,
   type AgentRequest,
   type AgentResponseMessage,
+  type AutomationIntegrationId,
   type CdpCommandMessage,
   type CdpTargetInfo,
   type CdpTargetRequestMessage,
@@ -17,6 +18,7 @@ import {
   type IntegrationBrowserDefaultResult,
   type IntegrationBrowserUseDefaultResult,
   type IntegrationDefaultProviderResult,
+  type IntegrationInstallResult,
   type IntegrationResponseMessage,
   type IntegrationResult,
   type IntegrationWorkspaceDirectoryResult,
@@ -65,6 +67,7 @@ const ALL_TABS_AUTHORIZATION_KEY = 'panerelay.authorization.allTabs';
 const RECONNECT_DELAY_MS = 2_000;
 const AGENT_REQUEST_TIMEOUT_MS = 60_000;
 const INTEGRATION_REQUEST_TIMEOUT_MS = 5_000;
+const INTEGRATION_INSTALL_REQUEST_TIMEOUT_MS = 5 * 60_000 + 10_000;
 const browserRuntime = detectBrowserRuntime();
 
 let nativePort: chrome.runtime.Port | null = null;
@@ -144,6 +147,7 @@ const handleSidePanelRequest = createSidePanelRequestRouter({
   setBrowserDefault,
   setBrowserUseDefault,
   setDefaultProvider,
+  installIntegration,
   status,
   workspace: conversationWorkspaceService,
 });
@@ -438,6 +442,9 @@ function handleIntegrationResponse(message: IntegrationResponseMessage): void {
 }
 
 function requestIntegration(
+  request: Extract<IntegrationRequest, { method: 'integration.install' }>,
+): Promise<IntegrationInstallResult>;
+function requestIntegration(
   request: Extract<IntegrationRequest, { method: `default-provider.${string}` }>,
 ): Promise<IntegrationDefaultProviderResult>;
 function requestIntegration(
@@ -450,14 +457,20 @@ function requestIntegration(
   request: Extract<IntegrationRequest, { method: 'workspace.pick-directory' }>,
 ): Promise<IntegrationWorkspaceDirectoryResult>;
 function requestIntegration(request: IntegrationRequest): Promise<IntegrationResult> {
-  return pendingIntegrationRequests.request(request.method, requestId => {
-    sendNative({
-      type: 'integration.request',
-      protocol: PANERELAY_PROTOCOL_VERSION,
-      requestId,
-      request,
-    });
-  });
+  return pendingIntegrationRequests.request(
+    request.method,
+    requestId => {
+      sendNative({
+        type: 'integration.request',
+        protocol: PANERELAY_PROTOCOL_VERSION,
+        requestId,
+        request,
+      });
+    },
+    request.method === 'integration.install'
+      ? INTEGRATION_INSTALL_REQUEST_TIMEOUT_MS
+      : INTEGRATION_REQUEST_TIMEOUT_MS,
+  );
 }
 
 async function refreshDefaultProvider(): Promise<void> {
@@ -909,6 +922,16 @@ async function setBrowserUseDefault(enabled: boolean): Promise<ExtensionStatus> 
     method: enabled ? 'browser-use-default.set' : 'browser-use-default.clear',
   });
   await broadcastStatus();
+  return status();
+}
+
+async function installIntegration(integration: AutomationIntegrationId): Promise<ExtensionStatus> {
+  try {
+    await requestIntegration({ method: 'integration.install', integration });
+  } finally {
+    if (integration === 'agent-browser') await refreshDefaultProvider();
+    else await refreshBrowserUseDefault();
+  }
   return status();
 }
 

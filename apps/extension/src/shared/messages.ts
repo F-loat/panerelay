@@ -1,5 +1,6 @@
 import type {
   AgentProviderSummary,
+  AutomationIntegrationId,
   AutomationActivity,
   ConversationApprovalDecision,
   ConversationDetail,
@@ -9,6 +10,7 @@ import type {
   ControlSessionSummary,
   IntegrationBrowserDefaultResult,
   IntegrationBrowserUseDefaultResult,
+  IntegrationDefaultProviderResult,
 } from '@panerelay/protocol';
 import type {
   ConversationWorkspaceChangedMessage,
@@ -28,10 +30,7 @@ export type AuthorizationMode = 'none' | 'single-tab' | 'all-tabs';
 export type NativeHostState = 'connecting' | 'connected' | 'missing' | 'disconnected';
 export type AuthorizationRequest = 'all-tabs';
 
-export interface DefaultProviderState {
-  provider: string | null;
-  isPanerelay: boolean;
-}
+export type DefaultProviderState = IntegrationDefaultProviderResult;
 
 export type BrowserDefaultState = IntegrationBrowserDefaultResult;
 export type BrowserUseDefaultState = IntegrationBrowserUseDefaultResult;
@@ -63,6 +62,7 @@ export type SidePanelRequest =
     }
   | { type: 'panerelay.control.release' }
   | { type: 'panerelay.native.retry' }
+  | { type: 'panerelay.integration.install'; integration: AutomationIntegrationId }
   | { type: 'panerelay.default-provider.set'; enabled: boolean }
   | { type: 'panerelay.browser-use-default.set'; enabled: boolean }
   | { type: 'panerelay.browser-use-default.refresh' }

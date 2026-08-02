@@ -12,7 +12,6 @@ import type {
   ConversationStartOptions,
   ConversationSummary,
 } from '@panerelay/protocol';
-import { PANERELAY_BROWSER_ID_ENV } from '@panerelay/browser-registry';
 import type { AgentProvider } from './agent-provider.js';
 import {
   createConversationContextInstructions,
@@ -24,7 +23,6 @@ import {
   type ClaudeCliMessage,
   type ClaudeCliQuery,
   type ClaudeCliUserMessage,
-  type ClaudeMcpServer,
   type ClaudeSessionInfo,
   type ClaudeSessionMessage,
 } from './claude-cli.js';
@@ -36,23 +34,11 @@ import {
   type ClaudePermissionToolResult,
 } from './claude-permission-server.js';
 import { isClaudeCodeSupported } from './compatibility.js';
-import {
-  AGENT_BROWSER_MCP_NAME,
-  AGENT_BROWSER_SIDEPANEL_INSTRUCTIONS,
-  agentBrowserMcpArguments,
-  agentBrowserSessionEnvironment,
-  closeAgentBrowserSession,
-  createAgentBrowserSession,
-  type AgentBrowserSession,
-} from './agent-browser-session.js';
-import type { CommandRunner } from './platform.js';
 import { readRuntimeConfig, type PanerelayRuntimeConfig } from './runtime-config.js';
 
 const CLAUDE_PROVIDER_ID = 'claude';
 const MAX_TEXT_CHARS = 64 * 1024;
 const MAX_DETAIL_CHARS = 8 * 1024;
-
-type ClaudeBrowserSession = AgentBrowserSession;
 
 interface ClaudeSession {
   activeTurn?: ClaudeTurn;
@@ -65,7 +51,6 @@ interface ClaudeSession {
 interface ClaudeTurn {
   activities: Map<string, ConversationActivity>;
   assistantMessageId: string;
-  browserSession?: ClaudeBrowserSession;
   id: string;
   interrupted: boolean;
   permissionServer?: ClaudePermissionServer;
@@ -82,10 +67,8 @@ interface ClaudePermission {
 }
 
 export interface ClaudeProviderOptions {
-  closeBrowserSession?: (session: ClaudeBrowserSession) => Promise<void>;
   environment?: NodeJS.ProcessEnv;
   platform?: NodeJS.Platform;
-  runner?: CommandRunner;
   runtimeConfig?: () => Promise<PanerelayRuntimeConfig>;
   cli?: ClaudeCli;
   createPermissionServer?: (handler: ClaudePermissionHandler) => Promise<ClaudePermissionServer>;
@@ -225,23 +208,6 @@ function approvalFromTool(
       : {}),
     ...(typeof input.cwd === 'string' ? { cwd: bounded(input.cwd, 1024) } : {}),
     decisions: ['accept', 'decline', 'cancel'],
-  };
-}
-
-export function claudeBrowserMcpServers(
-  config: PanerelayRuntimeConfig,
-  sessionLabel: string,
-  browserId = process.env[PANERELAY_BROWSER_ID_ENV],
-): Record<string, ClaudeMcpServer> {
-  const browserSession = createAgentBrowserSession(config, sessionLabel);
-  if (!browserSession) return {};
-  return {
-    [AGENT_BROWSER_MCP_NAME]: {
-      type: 'stdio',
-      command: browserSession.executable,
-      args: agentBrowserMcpArguments(),
-      env: agentBrowserSessionEnvironment(browserSession, browserId),
-    },
   };
 }
 
@@ -400,14 +366,7 @@ export class ClaudeProvider implements AgentProvider {
     if (!config.claudePath) throw new Error('Claude Code is unavailable');
 
     const turnId = randomUUID();
-    const browserLabel = `panerelay-claude-${randomUUID()}`;
-    const browserSession = createAgentBrowserSession(config, browserLabel);
-    const systemInstructions = [
-      AGENT_BROWSER_SIDEPANEL_INSTRUCTIONS,
-      session.persisted ? '' : session.initialContext,
-    ]
-      .filter(Boolean)
-      .join('\n\n');
+    const systemInstructions = session.persisted ? '' : session.initialContext;
     const turnState: { current?: ClaudeTurn } = {};
     const permissionServer = await (
       this.options.createPermissionServer ?? createClaudePermissionServer
@@ -422,15 +381,10 @@ export class ClaudeProvider implements AgentProvider {
         cwd: session.cwd,
         prompt: promptInput(trimmed, images),
         mcpServers: {
-          ...claudeBrowserMcpServers(
-            config,
-            browserLabel,
-            (this.options.environment ?? process.env)[PANERELAY_BROWSER_ID_ENV],
-          ),
           panerelay_permission: permissionServer.mcpServer,
         },
         permissionPromptTool: permissionServer.toolName,
-        systemPrompt: systemInstructions,
+        ...(systemInstructions ? { systemPrompt: systemInstructions } : {}),
         ...(session.persisted ? { resume: conversationId } : { sessionId: conversationId }),
       });
     } catch (error) {
@@ -440,7 +394,6 @@ export class ClaudeProvider implements AgentProvider {
     const turn: ClaudeTurn = {
       activities: new Map(),
       assistantMessageId: `message-${turnId}`,
-      ...(browserSession ? { browserSession } : {}),
       id: turnId,
       interrupted: false,
       permissionServer,
@@ -719,21 +672,6 @@ export class ClaudeProvider implements AgentProvider {
     });
   }
 
-  private async cleanupBrowserTurn(turn: ClaudeTurn): Promise<void> {
-    const browserSession = turn.browserSession;
-    if (!browserSession) return;
-    delete turn.browserSession;
-    await (
-      this.options.closeBrowserSession ??
-      (session =>
-        closeAgentBrowserSession(session, {
-          environment: this.options.environment,
-          platform: this.options.platform,
-          runner: this.options.runner,
-        }))
-    )(browserSession);
-  }
-
   private async cleanupPermissionTurn(turn: ClaudeTurn): Promise<void> {
     const permissionServer = turn.permissionServer;
     if (!permissionServer) return;
@@ -794,15 +732,6 @@ export class ClaudeProvider implements AgentProvider {
           }`,
         });
       });
-      await this.cleanupBrowserTurn(turn).catch(error => {
-        this.emit({
-          kind: 'error',
-          conversationId: session.id,
-          message: `Browser session cleanup failed: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        });
-      });
       if (session.activeTurn === turn) delete session.activeTurn;
       this.emit({
         kind: 'turn.completed',
@@ -827,12 +756,7 @@ export class ClaudeProvider implements AgentProvider {
       }
     }
     for (const turn of turns) turn.query.close();
-    await Promise.all(
-      turns.flatMap(turn => [
-        this.cleanupPermissionTurn(turn).catch(() => {}),
-        this.cleanupBrowserTurn(turn).catch(() => {}),
-      ]),
-    );
+    await Promise.all(turns.map(turn => this.cleanupPermissionTurn(turn).catch(() => {})));
     this.sessions.clear();
     this.pendingPermissions.clear();
     this.config = null;

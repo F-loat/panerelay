@@ -222,7 +222,6 @@ class SpawnedClaudeQuery implements ClaudeCliQuery {
       parameters.permissionPromptTool,
       '--permission-mode',
       'default',
-      '--strict-mcp-config',
       '--settings',
       JSON.stringify({
         permissions: {
@@ -239,7 +238,6 @@ class SpawnedClaudeQuery implements ClaudeCliQuery {
             'Task',
             'WebFetch',
             'Write',
-            'mcp__panerelay_browser__*',
           ],
           disableBypassPermissionsMode: 'disable',
         },

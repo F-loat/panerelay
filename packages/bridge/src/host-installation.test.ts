@@ -47,6 +47,31 @@ test('validates and resolves Extension ID precedence', () => {
   );
 });
 
+test('Native Host setup remains automation-engine neutral', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'panerelay-base-host-'));
+  const homeDirectory = join(root, 'home');
+  const binDirectory = join(root, 'bin');
+  const bundledHostPath = join(root, 'native-host.bundle.cjs');
+  await mkdir(binDirectory, { recursive: true });
+  await writeFile(bundledHostPath, '#!/usr/bin/env node\n');
+  try {
+    const result = await installNativeHost({
+      bundledHostPath,
+      environment: { PATH: binDirectory },
+      homeDirectory,
+      platform: 'linux',
+    });
+    const runtime = JSON.parse(await readFile(result.runtimeConfigPath, 'utf8')) as Record<
+      string,
+      unknown
+    >;
+    assert.equal('agentBrowserPath' in runtime, false);
+    assert.equal('agentBrowserConfigPath' in runtime, false);
+  } finally {
+    await rm(root, { force: true, recursive: true });
+  }
+});
+
 test('installs and removes an isolated Native Messaging host', async () => {
   const root = await mkdtemp(join(tmpdir(), 'panerelay-host-'));
   const homeDirectory = join(root, 'home');
@@ -54,15 +79,11 @@ test('installs and removes an isolated Native Messaging host', async () => {
   const bundledHostPath = join(root, 'native-host.bundle.cjs');
   await mkdir(binDirectory, { recursive: true });
   await writeFile(bundledHostPath, '#!/usr/bin/env node\nprocess.stdout.write("ready");\n');
-  for (const executable of ['agent-browser', 'claude', 'codex']) {
+  for (const executable of ['claude', 'codex']) {
     const path = join(binDirectory, executable);
     await writeFile(
       path,
-      executable === 'agent-browser'
-        ? '#!/bin/sh\necho "agent-browser 0.33.0"\n'
-        : executable === 'claude'
-          ? '#!/bin/sh\necho "2.1.0 (Claude Code)"\n'
-          : '#!/bin/sh\nexit 0\n',
+      executable === 'claude' ? '#!/bin/sh\necho "2.1.0 (Claude Code)"\n' : '#!/bin/sh\nexit 0\n',
     );
     await chmod(path, 0o755);
   }
@@ -77,9 +98,6 @@ test('installs and removes an isolated Native Messaging host', async () => {
       platform: 'linux',
     });
 
-    assert.equal(result.agentBrowserPath, join(binDirectory, 'agent-browser'));
-    assert.equal(result.agentBrowserSupported, true);
-    assert.equal(result.agentBrowserVersion, '0.33.0');
     assert.equal(result.codexPath, join(binDirectory, 'codex'));
     assert.equal(result.claudePath, join(binDirectory, 'claude'));
     assert.equal(result.claudeVersion, '2.1.0');
@@ -88,9 +106,6 @@ test('installs and removes an isolated Native Messaging host', async () => {
     assert.equal((await stat(result.hostPath)).mode & 0o777, 0o755);
 
     const runtime = JSON.parse(await readFile(result.runtimeConfigPath, 'utf8')) as {
-      agentBrowserConfigPath: string;
-      agentBrowserPath: string;
-      agentBrowserVersion: string;
       codexPath: string;
       claudePath: string;
       claudeVersion: string;
@@ -98,18 +113,10 @@ test('installs and removes an isolated Native Messaging host', async () => {
     };
     assert.deepEqual(runtime, {
       extensionId: customExtensionId,
-      agentBrowserConfigPath: result.agentBrowserConfigPath,
-      agentBrowserPath: result.agentBrowserPath,
-      agentBrowserVersion: '0.33.0',
       codexPath: result.codexPath,
       claudePath: result.claudePath,
       claudeVersion: '2.1.0',
     });
-    const privateConfig = JSON.parse(await readFile(result.agentBrowserConfigPath, 'utf8')) as {
-      plugins: Array<{ command: string; name: string }>;
-    };
-    assert.equal(privateConfig.plugins[0]?.name, 'panerelay');
-    assert.equal(privateConfig.plugins[0]?.command, result.launchPath);
     assert.ok(
       result.manifestPaths.some(path =>
         path.includes(join('.config', 'microsoft-edge', 'NativeMessagingHosts')),
@@ -183,11 +190,9 @@ test('installs, updates, and repeatedly uninstalls isolated Windows artifacts', 
   const root = await mkdtemp(join(tmpdir(), 'panerelay windows & host-'));
   const dataDirectory = join(root, 'Panerelay Data');
   const bundledHostPath = join(root, 'native-host.bundle.cjs');
-  const agentBrowserPath = join(root, 'npm wrappers', 'agent-browser.cmd');
   const codexPath = join(root, 'npm wrappers', 'codex.cmd');
-  await mkdir(dirname(agentBrowserPath), { recursive: true });
+  await mkdir(dirname(codexPath), { recursive: true });
   await writeFile(bundledHostPath, '#!/usr/bin/env node\nprocess.stdout.write("ready");\n');
-  await writeFile(agentBrowserPath, '@exit /b 0\r\n');
   await writeFile(codexPath, '@exit /b 0\r\n');
   let deleteCount = 0;
   const registryCalls: Array<{ args: string[]; command: string }> = [];
@@ -205,22 +210,13 @@ test('installs, updates, and repeatedly uninstalls isolated Windows artifacts', 
       bundledHostPath,
       dataDirectory,
       environment: {
-        PANERELAY_AGENT_BROWSER_PATH: agentBrowserPath,
         PANERELAY_CODEX_PATH: codexPath,
       },
       extensionId: customExtensionId,
       nodePath: 'C:\\Program Files\\Node & Tools\\node.exe',
       platform: 'win32',
-      probeRunner: async () => ({
-        code: 0,
-        stderr: '',
-        stdout: 'agent-browser 0.34.0',
-      }),
       registryRunner,
     });
-    assert.equal(first.agentBrowserPath, agentBrowserPath);
-    assert.equal(first.agentBrowserSupported, true);
-    assert.equal(first.agentBrowserVersion, '0.34.0');
     assert.equal(first.codexPath, codexPath);
     assert.equal(first.launchPath, first.launcherPath);
     assert.match(await readFile(first.launchPath, 'utf8'), /^@echo off\r\n/);
@@ -230,25 +226,14 @@ test('installs, updates, and repeatedly uninstalls isolated Windows artifacts', 
     };
     assert.equal(manifest.path, first.launchPath);
     assert.deepEqual(manifest.allowed_origins, [`chrome-extension://${customExtensionId}/`]);
-    const privateConfig = JSON.parse(await readFile(first.agentBrowserConfigPath, 'utf8')) as {
-      plugins: Array<{ command: string }>;
-    };
-    assert.equal(privateConfig.plugins[0]?.command, first.launchPath);
-
     const updated = await installNativeHost({
       bundledHostPath,
       dataDirectory,
       environment: {
-        PANERELAY_AGENT_BROWSER_PATH: agentBrowserPath,
         PANERELAY_CODEX_PATH: codexPath,
       },
       nodePath: 'C:\\Program Files\\Node & Tools\\node.exe',
       platform: 'win32',
-      probeRunner: async () => ({
-        code: 0,
-        stderr: '',
-        stdout: 'agent-browser 0.34.0',
-      }),
       registryRunner,
     });
     assert.equal(updated.extensionId, customExtensionId);

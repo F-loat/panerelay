@@ -42,6 +42,10 @@ function router(overrides: Partial<SidePanelRequestRouterOptions> = {}) {
     closeControlledTab: async (tabId: number) => {
       calls.push(`close:${tabId}`);
     },
+    installIntegration: async integration => {
+      calls.push(`install:${integration}`);
+      return extensionStatus;
+    },
     pageComments: {
       clear: async () => calls.push('comments:clear'),
       edit: async (id: string) => calls.push(`comments:edit:${id}`),
@@ -96,6 +100,7 @@ test('routes status, browser settings, and controlled-tab requests', async () =>
   await handle({ type: 'panerelay.browser-default.refresh' });
   await handle({ type: 'panerelay.browser-use-default.refresh' });
   await handle({ type: 'panerelay.browser-use-default.set', enabled: true });
+  await handle({ type: 'panerelay.integration.install', integration: 'agent-browser' });
   assert.deepEqual(await handle({ type: 'panerelay.control.release' }), {
     success: true,
     status: extensionStatus,
@@ -106,6 +111,7 @@ test('routes status, browser settings, and controlled-tab requests', async () =>
     'browser:refresh',
     'browser-use:refresh',
     'browser-use:true',
+    'install:agent-browser',
     'control:release',
     'activate:7',
     'close:8',

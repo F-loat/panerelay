@@ -5,7 +5,8 @@
 - Status: Draft
 - Authors: F-loat
 - Created: 2026-07-29
-- Updated: 2026-07-30
+- Updated: 2026-08-02
+- OpenSpec amendment: `openspec/changes/show-control-engine-favicon`
 
 ## Summary
 
@@ -148,6 +149,8 @@ The side panel's browser-access settings panel adds an external-control section 
 
 The panel does not display raw CDP method names, params, results, page URLs, or captured content. Side-panel Codex conversation activity remains a separate stream until handoff is specified.
 
+Outside the panel, a controlled top-level document uses a compact engine-attributed favicon indicator. The Bridge attaches the closed `agent-browser` or `browser-use` engine identifier from the exact authenticated participant to each forwarded control command; the Extension renders that engine's mark with the shared green control dot. This indicator means only that the engine most recently sent a control-class command to the page. It does not grant authority, imply exclusive ownership, or follow focus, actor display names, or default settings. Passive observation does not change the page favicon, and detach or release restores the favicon captured before control began.
+
 ## Protocol and data model
 
 The shared protocol adds:
@@ -157,10 +160,13 @@ The shared protocol adds:
 - `control.session.changed`
 - `control.activity.snapshot`
 - `control.activity.updated`
+- `AutomationEngineId`, carried on participant-attributed target commands that can update the controlled-page indicator
 
 The Bridge sends these messages to the Extension over the existing chunked Native Messaging channel. The Extension side panel continues to use `chrome.runtime` messages and does not connect directly to the loopback Bridge.
 
 `RelaySessionActor` remains provider-neutral. `ControlSessionSummary.participantCount` reports the bounded live participant set, while each activity preserves its issuing participant actor. The first actor kind is `automation`; future RFCs may add conversation and human principals without reinterpreting existing IDs.
+
+Automation-engine identity remains separate from `RelaySessionActor`: actor names and session labels are bounded presentation data and may be customized, while the engine identifier is assigned by the governed integration path. agent-browser `/sessions` participants receive `agent-browser`; authenticated Browser Use bootstrap participants receive `browser-use`. Unknown engine identifiers fail protocol validation until their branding and compatibility boundary are deliberately added.
 
 Protocol identifiers remain opaque. Chrome tab IDs, debugger session IDs, and raw Provider credentials never appear in activity events.
 

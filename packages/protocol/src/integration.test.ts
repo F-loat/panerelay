@@ -20,6 +20,27 @@ test('accepts correlated integration requests from the Extension', () => {
   assert.equal(isExtensionToHostMessage(request), true);
 });
 
+test('accepts a bounded integration installation request and result', () => {
+  const request: IntegrationRequestMessage = {
+    type: 'integration.request',
+    protocol: PANERELAY_PROTOCOL_VERSION,
+    requestId: 'integration-install-1',
+    request: { method: 'integration.install', integration: 'browser-use' },
+  };
+  const response: IntegrationResponseMessage = {
+    type: 'integration.response',
+    protocol: PANERELAY_PROTOCOL_VERSION,
+    requestId: 'integration-install-1',
+    success: true,
+    result: { integration: 'browser-use', installed: true },
+  };
+
+  assert.equal(isExtensionToHostMessage(request), true);
+  assert.equal(isHostToExtensionMessage(response), true);
+  assert.deepEqual(response.result, { integration: 'browser-use', installed: true });
+  assert.equal(JSON.stringify(request).includes('command'), false);
+});
+
 test('accepts browser-default requests and bounded current-browser results', () => {
   const request: IntegrationRequestMessage = {
     type: 'integration.request',
@@ -171,6 +192,7 @@ test('accepts integration responses from the Native Host', () => {
     requestId: 'integration-1',
     success: true,
     result: {
+      available: true,
       provider: 'codex',
       isPanerelay: false,
     },

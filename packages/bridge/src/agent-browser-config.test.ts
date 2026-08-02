@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import test from 'node:test';
 import {
   clearPanerelayUserDefaultProvider,
+  readPanerelayProviderAvailable,
   readUserDefaultProvider,
   setPanerelayUserDefaultProvider,
   userAgentBrowserConfigPath,
@@ -74,4 +75,28 @@ test('reads an absent user default without creating configuration', async t => {
 
   assert.equal(result.provider, null);
   assert.equal(result.isPanerelay, false);
+  assert.equal(await readPanerelayProviderAvailable({ homeDirectory }), false);
+});
+
+test('recognizes only a complete Panerelay Provider registration', async t => {
+  const { homeDirectory, cleanup } = await fixture();
+  t.after(cleanup);
+  const path = userAgentBrowserConfigPath(homeDirectory);
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(
+    path,
+    `${JSON.stringify({
+      plugins: [
+        { name: 'incomplete', command: '/bin/other' },
+        {
+          name: 'panerelay',
+          command: '/bin/panerelay',
+          args: ['--agent-browser-plugin'],
+          capabilities: ['browser.provider'],
+        },
+      ],
+    })}\n`,
+  );
+
+  assert.equal(await readPanerelayProviderAvailable({ homeDirectory }), true);
 });
