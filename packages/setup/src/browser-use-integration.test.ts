@@ -15,6 +15,8 @@ import {
   readCliAdapterPreferences,
   readCliAdapterRegistry,
   registerCliAdapter,
+  PANERELAY_CLI_ADAPTER_PREFERENCES_PATH_ENV,
+  PANERELAY_CLI_ADAPTER_REGISTRY_PATH_ENV,
   setCliAdapterMode,
 } from '@panerelay/cli';
 import {
@@ -132,6 +134,16 @@ test('installs protected pinned bundles and preserves unrelated adapter registra
     assert.equal(installation.config.browserUseVersion, '0.13.8');
     assert.equal(installation.config.browserHarnessVersion, '0.1.9');
     assert.equal(installation.config.mcpLauncherPath, installation.paths.mcpLauncherPath);
+    const childEnvironment = {
+      ...process.env,
+      HOME: homeDirectory,
+      USERPROFILE: homeDirectory,
+      [PANERELAY_CLI_ADAPTER_PREFERENCES_PATH_ENV]: join(
+        dataDirectory,
+        'cli-adapter-preferences.json',
+      ),
+      [PANERELAY_CLI_ADAPTER_REGISTRY_PATH_ENV]: join(dataDirectory, 'cli-adapters.json'),
+    };
 
     const cliBeforeRollback = await readFile(installation.paths.cliArtifactPath);
     await assert.rejects(
@@ -182,6 +194,7 @@ test('installs protected pinned bundles and preserves unrelated adapter registra
 
     const cli = spawnSync(installation.paths.cliLauncherPath, ['--help', '--lang', 'en'], {
       encoding: 'utf8',
+      env: childEnvironment,
     });
     assert.equal(cli.status, 0, cli.stderr);
     assert.match(cli.stdout, /Panerelay CLI/);
@@ -199,6 +212,7 @@ test('installs protected pinned bundles and preserves unrelated adapter registra
     assert.equal(await readCliAdapterMode('browser-use', { homeDirectory }), 'direct');
     const shorthand = spawnSync(installation.paths.cliLauncherPath, [], {
       encoding: 'utf8',
+      env: childEnvironment,
       input: 'print(list_tabs())\n',
     });
     assert.equal(shorthand.status, 0, shorthand.stderr);
