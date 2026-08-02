@@ -513,7 +513,13 @@ export async function main(
         console.log(translate(locale, 'browserUseMissing'));
       }
     }
-    if (parsed.agentBrowser) console.log(translate(locale, 'agentCommand'));
+    if (
+      parsed.agentBrowser &&
+      result.agentBrowserInstallation?.executable &&
+      result.agentBrowserInstallation.supported === true
+    ) {
+      console.log(translate(locale, 'agentCommand'));
+    }
     if (!parsed.agentBrowser && !parsed.browserUse) {
       console.log(translate(locale, 'automationChoices'));
     }

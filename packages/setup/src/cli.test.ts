@@ -188,6 +188,7 @@ test('reports an incompatible selected agent-browser version before failing setu
     assert.equal(code, 1);
     assert.match(output.join('\n'), /agent-browser 0\.32\.9 不受支持/);
     assert.match(output.join('\n'), /0\.33\.0 或更高版本/);
+    assert.doesNotMatch(output.join('\n'), /Agent 命令/);
   } finally {
     console.log = originalLog;
   }
@@ -227,6 +228,7 @@ test('runs setup when the action is omitted', async () => {
     assert.equal(code, 0);
     assert.equal(receivedGlobalProvider, true);
     assert.match(output.join('\n'), /Panerelay setup complete/);
+    assert.match(output.join('\n'), /Agent command: agent-browser --provider panerelay tab list/);
     assert.match(output.join('\n'), new RegExp(chromeWebStoreUrl.replaceAll('.', '\\.')));
   } finally {
     console.log = originalLog;
