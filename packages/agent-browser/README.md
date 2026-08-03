@@ -45,14 +45,10 @@ Success means the doctor checks pass and agent-browser lists only the tabs autho
 
 ## Daily use and defaults
 
-Use standard agent-browser commands with `--provider panerelay`. If you explicitly want Panerelay as a default, choose the narrowest scope:
+Use standard agent-browser commands with `--provider panerelay`. If you explicitly want Panerelay as the user-level default:
 
 ```bash
-# Current project only
-npx --yes @panerelay/setup --agent-browser --project-provider
-
-# Current user
-npx --yes @panerelay/setup --agent-browser --global-provider
+npx --yes @panerelay/setup --agent-browser --global-default
 ```
 
 Provider defaults change routing only. They do not grant browser permission, authorize a tab, or acquire the active control lease.

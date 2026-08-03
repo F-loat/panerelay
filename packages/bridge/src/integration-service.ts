@@ -14,6 +14,7 @@ import {
   setCliAdapterMode,
   type CliAdapterRegistration,
 } from '@panerelay/cli/adapter-config';
+import { setBrowserUseEnvironmentMode } from '@panerelay/browser-use';
 import {
   clearBrowserDefault,
   listBrowserRegistrations,
@@ -42,6 +43,8 @@ export interface IntegrationServiceOptions {
   readDefaultProvider?: typeof readUserDefaultProvider;
   readAgentBrowserProvider?: typeof readPanerelayProviderAvailable;
   setBrowserDefault?: typeof setBrowserDefault;
+  setBrowserUseEnvironmentMode?: typeof setBrowserUseEnvironmentMode;
+  setCliAdapterMode?: typeof setCliAdapterMode;
   setBrowserUseMode?: (mode: 'direct' | 'extension') => Promise<void>;
   setDefaultProvider?: typeof setPanerelayUserDefaultProvider;
   pickDirectory?: typeof pickWorkspaceDirectory;
@@ -108,6 +111,8 @@ export class IntegrationService {
   readonly #readDefaultProvider: typeof readUserDefaultProvider;
   readonly #send: (message: HostToExtensionMessage) => void;
   readonly #setBrowserDefault: typeof setBrowserDefault;
+  readonly #setBrowserUseEnvironmentMode: typeof setBrowserUseEnvironmentMode;
+  readonly #setCliAdapterMode: typeof setCliAdapterMode;
   readonly #setBrowserUseMode: (mode: 'direct' | 'extension') => Promise<void>;
   readonly #setDefaultProvider: typeof setPanerelayUserDefaultProvider;
   readonly #pickDirectory: typeof pickWorkspaceDirectory;
@@ -131,8 +136,15 @@ export class IntegrationService {
     this.#readBrowserDefault = options.readBrowserDefault ?? readBrowserDefault;
     this.#readDefaultProvider = options.readDefaultProvider ?? readUserDefaultProvider;
     this.#setBrowserDefault = options.setBrowserDefault ?? setBrowserDefault;
+    this.#setBrowserUseEnvironmentMode =
+      options.setBrowserUseEnvironmentMode ?? setBrowserUseEnvironmentMode;
+    this.#setCliAdapterMode = options.setCliAdapterMode ?? setCliAdapterMode;
     this.#setBrowserUseMode =
-      options.setBrowserUseMode ?? (mode => setCliAdapterMode('browser-use', mode));
+      options.setBrowserUseMode ??
+      (async mode => {
+        await this.#setBrowserUseEnvironmentMode(mode);
+        await this.#setCliAdapterMode('browser-use', mode);
+      });
     this.#setDefaultProvider = options.setDefaultProvider ?? setPanerelayUserDefaultProvider;
     this.#pickDirectory = options.pickDirectory ?? pickWorkspaceDirectory;
   }

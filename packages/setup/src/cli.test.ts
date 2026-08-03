@@ -2,62 +2,60 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { PANERELAY_EXTENSION_ID } from '@panerelay/protocol';
 import { main, parseSetupArgs } from './cli.js';
+import type { BrowserUseIntegrationInstallation } from './browser-use-integration.js';
 import type { DoctorReport } from './doctor.js';
 
 const chromeWebStoreUrl =
   'https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi';
 
-test('parses setup aliases and Provider scope flags', () => {
+test('parses setup aliases and global default flags', () => {
   assert.deepEqual(parseSetupArgs([]), {
     agentBrowser: false,
     browserUse: false,
-    globalProvider: false,
+    globalDefault: false,
     help: false,
     json: false,
     language: undefined,
     operation: 'setup',
-    project: false,
     yes: false,
   });
   assert.deepEqual(
-    parseSetupArgs(['install', '--agent-browser', '--project-provider', '--global-provider']),
+    parseSetupArgs(['install', '--agent-browser', '--browser-use', '--global-default']),
     {
       agentBrowser: true,
-      browserUse: false,
-      globalProvider: true,
+      browserUse: true,
+      globalDefault: true,
       help: false,
       json: false,
       language: undefined,
       operation: 'setup',
-      project: true,
       yes: false,
     },
   );
-  assert.deepEqual(parseSetupArgs(['doctor', '--agent-browser', '--global-provider', '--json']), {
+  assert.deepEqual(parseSetupArgs(['doctor', '--agent-browser', '--global-default', '--json']), {
     agentBrowser: true,
     browserUse: false,
-    globalProvider: true,
+    globalDefault: true,
     help: false,
     json: true,
     language: undefined,
     operation: 'doctor',
-    project: false,
     yes: false,
   });
-  assert.throws(() => parseSetupArgs(['--project']), /Unknown option: --project/);
   assert.throws(
-    () => parseSetupArgs(['--global-provider']),
-    /--agent-browser is required with Provider scope options/,
+    () => parseSetupArgs(['--global-default']),
+    /--global-default requires --agent-browser or --browser-use/,
   );
   assert.throws(
     () => parseSetupArgs(['doctor', '--project-provider']),
-    /--agent-browser is required with Provider scope options/,
+    /Unknown option: --project-provider/,
   );
   assert.throws(
-    () => parseSetupArgs(['uninstall', '--global-provider']),
-    /--global-provider is not needed/,
+    () => parseSetupArgs(['uninstall', '--global-default']),
+    /--global-default is not needed/,
   );
   assert.equal(parseSetupArgs(['setup', '--browser-use']).browserUse, true);
+  assert.equal(parseSetupArgs(['setup', '--browser-use', '--global-default']).globalDefault, true);
   assert.equal(parseSetupArgs(['setup', '--agent-browser']).agentBrowser, true);
   assert.equal(parseSetupArgs(['doctor', '--browser-use']).browserUse, true);
   assert.throws(
@@ -90,7 +88,7 @@ test('passes independent engine selections without changing the base setup call'
           }
         : {}),
       ...(options?.browserUse ? { browserUseReady: true } : {}),
-      globalProvider: false,
+      globalDefault: false,
       host: {
         extensionId: PANERELAY_EXTENSION_ID,
         hostPath: '/tmp/host.mjs',
@@ -146,8 +144,13 @@ test('offers interactive integration and default selections only for the unflagg
       setup: async options => {
         selections.push({ ...options });
         return {
+          agentBrowserInstallation: {
+            executable: '/tmp/agent-browser',
+            supported: true,
+            version: '0.33.0',
+          },
           browserUseReady: true,
-          globalProvider: options?.globalProvider === true,
+          globalDefault: options?.globalDefault === true,
           host: {
             extensionId: PANERELAY_EXTENSION_ID,
             hostPath: '/tmp/host.mjs',
@@ -164,7 +167,7 @@ test('offers interactive integration and default selections only for the unflagg
     assert.equal(selections.length, 1);
     assert.equal(selections[0]?.agentBrowser, true);
     assert.equal(selections[0]?.browserUse, true);
-    assert.equal(selections[0]?.globalProvider, true);
+    assert.equal(selections[0]?.globalDefault, true);
     assert.equal(selections[0]?.browserUseDefault, 'direct');
 
     await main(['--yes'], {
@@ -176,7 +179,7 @@ test('offers interactive integration and default selections only for the unflagg
       setup: async options => {
         selections.push({ ...options });
         return {
-          globalProvider: false,
+          globalDefault: false,
           host: {
             extensionId: PANERELAY_EXTENSION_ID,
             hostPath: '/tmp/host.mjs',
@@ -194,8 +197,7 @@ test('offers interactive integration and default selections only for the unflagg
       browserUse: false,
       environment: {},
       extensionId: undefined,
-      globalProvider: false,
-      project: false,
+      globalDefault: false,
     });
     assert.equal(prompts.length, 4);
     assert.match(prompts[0]!, /agent-browser integration/);
@@ -215,7 +217,7 @@ test('reports an incompatible selected Browser Use integration without installin
       setup: async () => ({
         browserUseReady: false,
         browserUseVersions: { browserHarness: '0.1.7', browserUse: '0.13.6' },
-        globalProvider: false,
+        globalDefault: false,
         host: {
           extensionId: PANERELAY_EXTENSION_ID,
           hostPath: '/tmp/host.mjs',
@@ -249,7 +251,7 @@ test('reports an incompatible selected agent-browser version before failing setu
           supported: false,
           version: '0.32.9',
         },
-        globalProvider: false,
+        globalDefault: false,
         host: {
           extensionId: PANERELAY_EXTENSION_ID,
           hostPath: '/tmp/host.mjs',
@@ -273,13 +275,13 @@ test('reports an incompatible selected agent-browser version before failing setu
 test('runs setup when the action is omitted', async () => {
   const output: string[] = [];
   const originalLog = console.log;
-  let receivedGlobalProvider = false;
+  let receivedGlobalDefault = false;
   console.log = (...values: unknown[]) => output.push(values.join(' '));
   try {
-    const code = await main(['--agent-browser', '--global-provider'], {
+    const code = await main(['--agent-browser', '--global-default'], {
       environment: {},
       setup: async options => {
-        receivedGlobalProvider = options?.globalProvider === true;
+        receivedGlobalDefault = options?.globalDefault === true;
         return {
           agentBrowserInstallation: {
             executable: '/tmp/agent-browser',
@@ -287,7 +289,7 @@ test('runs setup when the action is omitted', async () => {
             version: '0.33.0',
           },
           agentBrowserConfigPath: '/tmp/agent-browser.json',
-          globalProvider: true,
+          globalDefault: true,
           globalSkillPath: '/tmp/panerelay-browser',
           host: {
             extensionId: PANERELAY_EXTENSION_ID,
@@ -302,10 +304,155 @@ test('runs setup when the action is omitted', async () => {
       systemLocale: 'en',
     });
     assert.equal(code, 0);
-    assert.equal(receivedGlobalProvider, true);
+    assert.equal(receivedGlobalDefault, true);
     assert.match(output.join('\n'), /Panerelay setup complete/);
-    assert.match(output.join('\n'), /Agent command: agent-browser --provider panerelay tab list/);
+    assert.match(output.join('\n'), /Agent command: agent-browser tab list/);
     assert.match(output.join('\n'), new RegExp(chromeWebStoreUrl.replaceAll('.', '\\.')));
+  } finally {
+    console.log = originalLog;
+  }
+});
+
+test('uses the Browser Use default selection as the global default', async () => {
+  let received: Record<string, unknown> | undefined;
+  const answers = [false, true, true];
+  const originalLog = console.log;
+  console.log = () => undefined;
+  try {
+    const code = await main([], {
+      environment: {},
+      interactive: () => true,
+      prompt: async () => answers.shift() ?? false,
+      setup: async options => {
+        received = { ...options };
+        return {
+          browserUseReady: true,
+          globalDefault: true,
+          host: {
+            extensionId: PANERELAY_EXTENSION_ID,
+            hostPath: '/tmp/host.mjs',
+            launchPath: '/tmp/host',
+            legacyHostPath: '/tmp/legacy-host',
+            manifestPaths: ['/tmp/manifest.json'],
+            runtimeConfigPath: '/tmp/runtime.json',
+          },
+        };
+      },
+      systemLocale: 'en',
+    });
+    assert.equal(code, 0);
+  } finally {
+    console.log = originalLog;
+  }
+  assert.equal(received?.agentBrowser, false);
+  assert.equal(received?.browserUse, true);
+  assert.equal(received?.globalDefault, true);
+  assert.equal(received?.browserUseDefault, 'extension');
+});
+
+test('renders explicit commands only for selected integrations', async () => {
+  const output: string[] = [];
+  const originalLog = console.log;
+  console.log = (...values: unknown[]) => output.push(values.join(' '));
+  try {
+    const browserUseIntegration: BrowserUseIntegrationInstallation = {
+      config: {
+        adapterId: 'browser-use',
+        adapterLauncherPath: '/tmp/panerelay-browser-use-adapter',
+        protocol: 'panerelay.browser-use-integration.v1',
+        runtimeDirectory: '/tmp/panerelay-browser-use/runtime',
+        runtimeName: 'panerelay',
+        version: '0.2.0',
+      },
+      paths: {
+        adapterArtifactPath: '/tmp/panerelay-browser-use-adapter.mjs',
+        adapterLauncherPath: '/tmp/panerelay-browser-use-adapter',
+        adapterPackagePath: '/tmp/panerelay-browser-use/package.json',
+        adapterStorageDirectory: '/tmp/panerelay-browser-use',
+        browserUseDirectory: '/tmp/panerelay-browser-use',
+        dataDirectory: '/tmp/panerelay',
+        integrationConfigPath: '/tmp/panerelay-browser-use/config.json',
+        runtimeDirectory: '/tmp/panerelay-browser-use/runtime',
+      },
+      registration: {
+        adapterId: 'browser-use',
+        version: '0.2.0',
+        executablePath: '/tmp/panerelay-browser-use-adapter',
+        protocol: 'panerelay.cli-adapter.v1',
+        capabilities: ['connection.resolve', 'adapter.doctor'],
+        modes: ['direct', 'extension'],
+        childEnvironmentKeys: [],
+      },
+      registry: {
+        protocol: 'panerelay.cli-adapter-registry.v1',
+        adapters: [],
+      },
+    };
+    const setup = async () => ({
+      agentBrowserInstallation: {
+        executable: '/tmp/agent-browser',
+        supported: true,
+        version: '0.33.0',
+      },
+      browserUseReady: true,
+      browserUseIntegration,
+      browserUseVersions: {
+        browserHarness: '0.1.8',
+        browserUse: '0.13.7',
+        browserUseExecutable: '/tmp/browser-use',
+      },
+      globalDefault: false,
+      host: {
+        extensionId: PANERELAY_EXTENSION_ID,
+        hostPath: '/tmp/host.mjs',
+        launchPath: '/tmp/host',
+        legacyHostPath: '/tmp/legacy-host',
+        manifestPaths: ['/tmp/manifest.json'],
+        runtimeConfigPath: '/tmp/runtime.json',
+      },
+    });
+
+    assert.equal(
+      await main(['--agent-browser', '--browser-use'], {
+        environment: { HOME: '/tmp/setup-home' },
+        setup,
+        systemLocale: 'en',
+      }),
+      0,
+    );
+    const explicit = output.join('\n');
+    assert.match(explicit, /Agent command: agent-browser --provider panerelay tab list/);
+    assert.match(
+      explicit,
+      /Browser Use command:\nBU_CDP_URL=http:\/\/127\.0\.0\.1:43827\/cdp\/browser-use browser-use/,
+    );
+    assert.match(explicit, /print\(list_tabs\(\)\)/);
+    assert.match(
+      explicit,
+      /Browser Harness environment — \/tmp\/setup-home\/\.config\/browser-harness\/agent-workspace\/\.env/,
+    );
+    assert.doesNotMatch(explicit, /User default:/);
+    output.length = 0;
+
+    assert.equal(
+      await main(['--browser-use', '--global-default'], {
+        environment: { HOME: '/tmp/setup-home' },
+        setup: async options => ({
+          ...(await setup()),
+          globalDefault: options?.globalDefault === true,
+        }),
+        systemLocale: 'en',
+      }),
+      0,
+    );
+    const defaults = output.join('\n');
+    assert.doesNotMatch(defaults, /Agent command:/);
+    assert.match(defaults, /Browser Use command:\nbrowser-use/);
+    assert.doesNotMatch(defaults, /BU_CDP_URL=/);
+    assert.match(
+      defaults,
+      /User default — \/tmp\/setup-home\/\.config\/browser-harness\/agent-workspace\/\.env/,
+    );
   } finally {
     console.log = originalLog;
   }
@@ -320,7 +467,7 @@ test('directs custom Extension IDs to their matching build instead of the Store'
     const code = await main(['--extension-id', extensionId, '--lang', 'zh-CN'], {
       environment: {},
       setup: async () => ({
-        globalProvider: false,
+        globalDefault: false,
         host: {
           extensionId,
           hostPath: '/tmp/host.mjs',
@@ -381,8 +528,8 @@ test('prints help in the explicit or detected system language', async () => {
     assert.equal(await main(['--help'], { environment: {}, systemLocale: 'zh-CN' }), 0);
     const chineseHelp = output.join('\n');
     assert.match(chineseHelp, /用法：/);
-    assert.match(chineseHelp, /--project-provider.*需要 --agent-browser/);
-    assert.match(chineseHelp, /--global-provider[\s\S]*需要 --agent-browser/);
+    assert.match(chineseHelp, /--global-default[\s\S]*用户级默认/);
+    assert.doesNotMatch(chineseHelp, /--project-provider|--global-provider/);
     output.length = 0;
     assert.equal(
       await main(['--help', '--lang', 'en'], {
@@ -393,8 +540,8 @@ test('prints help in the explicit or detected system language', async () => {
     );
     const englishHelp = output.join('\n');
     assert.match(englishHelp, /Usage:/);
-    assert.match(englishHelp, /--project-provider.*requires --agent-browser/);
-    assert.match(englishHelp, /--global-provider[\s\S]*requires --agent-browser/);
+    assert.match(englishHelp, /--global-default[\s\S]*user-level defaults/);
+    assert.doesNotMatch(englishHelp, /--project-provider|--global-provider/);
   } finally {
     console.log = originalLog;
   }

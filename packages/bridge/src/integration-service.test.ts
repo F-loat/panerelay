@@ -120,6 +120,34 @@ test('manages the Browser Use connection default independently from agent-browse
   );
 });
 
+test('writes the Browser Use environment before persisting its adapter mode', async () => {
+  const sent: HostToExtensionMessage[] = [];
+  const calls: string[] = [];
+  const service = new IntegrationService(message => sent.push(message), {
+    readBrowserUseAdapter: async () => browserUseAdapter,
+    setBrowserUseEnvironmentMode: async () => {
+      calls.push('environment');
+      throw new Error('environment write failed');
+    },
+    setCliAdapterMode: async () => {
+      calls.push('adapter');
+    },
+  });
+
+  await service.handle(request('browser-use-default.set'));
+
+  assert.deepEqual(calls, ['environment']);
+  assert.deepEqual(sent, [
+    {
+      type: 'integration.response',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      requestId: 'browser-use-default.set',
+      success: false,
+      error: 'environment write failed',
+    },
+  ]);
+});
+
 test('reports an unavailable agent-browser integration and rejects its mutation', async () => {
   const sent: HostToExtensionMessage[] = [];
   let writes = 0;

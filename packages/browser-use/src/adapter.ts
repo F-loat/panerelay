@@ -2,26 +2,16 @@ import { execFile } from 'node:child_process';
 import { constants } from 'node:fs';
 import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { homedir } from 'node:os';
 import { promisify } from 'node:util';
 import {
-  readLiveBrowserRegistration,
-  type BrowserRegistryOptions,
-} from '@panerelay/browser-registry';
-import {
   PANERELAY_CLI_ADAPTER_PROTOCOL_VERSION,
-  PANERELAY_PROTOCOL_VERSION,
-  isCdpBootstrapCreated,
-  type BridgeState,
-  type CdpBootstrapCreated,
-  type CdpBootstrapError,
   type CliAdapterDoctorResult,
-  type CliAdapterFailureResponse,
   type CliAdapterManifest,
   type CliAdapterRequest,
   type CliAdapterResponse,
   type CliAdapterSuccessResponse,
 } from '@panerelay/protocol';
+import { browserUseGatewayUrl } from './environment.js';
 
 export const BROWSER_USE_ADAPTER_ID = 'browser-use' as const;
 export const BROWSER_USE_MINIMUM_VERSION = '0.13.7' as const;
@@ -29,11 +19,7 @@ const BROWSER_HARNESS_MINIMUM_VERSION = '0.1.8' as const;
 export const BROWSER_USE_CHILD_ENVIRONMENT_KEYS = [
   'ANONYMIZED_TELEMETRY',
   'BH_RECORD',
-  'BH_RUNTIME_DIR',
-  'BH_RUNTIME_DIR_SHARED',
   'BH_TELEMETRY',
-  'BH_TMP_DIR',
-  'BH_TMP_DIR_SHARED',
   'BU_CDP_URL',
   'BU_NAME',
 ] as const;
@@ -96,11 +82,7 @@ export interface BrowserUseAdapterDependencies {
   environment?: NodeJS.ProcessEnv;
   platform?: NodeJS.Platform;
   probeVersions?: () => Promise<BrowserUseVersions>;
-  fetch?: typeof fetch;
   homeDirectory?: string;
-  readLiveBrowserRegistration?: typeof readLiveBrowserRegistration;
-  registryOptions?: BrowserRegistryOptions;
-  runtimeDirectory?: string;
 }
 
 function success(
@@ -113,21 +95,6 @@ function success(
     operation: request.operation,
     success: true,
     result,
-  };
-}
-
-function failure(
-  request: CliAdapterRequest,
-  code: CliAdapterFailureResponse['error']['code'],
-  message: string,
-  retryable = false,
-): CliAdapterFailureResponse {
-  return {
-    protocol: PANERELAY_CLI_ADAPTER_PROTOCOL_VERSION,
-    requestId: request.requestId,
-    operation: request.operation,
-    success: false,
-    error: { code, message: message.slice(0, 512), retryable },
   };
 }
 
@@ -295,157 +262,6 @@ async function doctor(
   };
 }
 
-async function readBoundedJson(response: Response): Promise<unknown> {
-  const maximum = 64 * 1024;
-  const declaredLength = Number(response.headers.get('content-length'));
-  if (Number.isFinite(declaredLength) && declaredLength > maximum) {
-    await response.body?.cancel();
-    throw new Error('Bridge response exceeded the adapter limit');
-  }
-  if (!response.body) return null;
-  const reader = response.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  while (true) {
-    const item = await reader.read();
-    if (item.done) break;
-    size += item.value.byteLength;
-    if (size > maximum) {
-      await reader.cancel();
-      throw new Error('Bridge response exceeded the adapter limit');
-    }
-    chunks.push(item.value);
-  }
-  const bytes = new Uint8Array(size);
-  let offset = 0;
-  for (const chunk of chunks) {
-    bytes.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  try {
-    return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
-  } catch {
-    return null;
-  }
-}
-
-function expectedBootstrapUrl(state: BridgeState, value: CdpBootstrapCreated): boolean {
-  try {
-    const url = new URL(value.cdpUrl);
-    return (
-      url.protocol === 'http:' &&
-      url.hostname === '127.0.0.1' &&
-      Number(url.port) === state.port &&
-      /^\/cdp\/bootstrap\/[A-Za-z0-9_-]{43}$/.test(url.pathname) &&
-      url.search === '' &&
-      url.hash === ''
-    );
-  } catch {
-    return false;
-  }
-}
-
-async function requestBootstrap(
-  request: Extract<CliAdapterRequest, { operation: 'connection.resolve' }>,
-  dependencies: BrowserUseAdapterDependencies,
-): Promise<CdpBootstrapCreated | CliAdapterFailureResponse> {
-  const selected = request.input.browser;
-  if (!selected) return failure(request, 'invalid-request', 'A selected browser is required');
-  const environment = dependencies.environment ?? process.env;
-  const state = await (dependencies.readLiveBrowserRegistration ?? readLiveBrowserRegistration)(
-    selected.browserId,
-    dependencies.registryOptions ?? { environment },
-  );
-  if (!state) {
-    return failure(
-      request,
-      'browser-unavailable',
-      'The selected Panerelay browser is unavailable',
-      true,
-    );
-  }
-  if (state.browserId !== selected.browserId || state.generation !== selected.generation) {
-    return failure(
-      request,
-      'generation-changed',
-      'The selected browser connection changed; run the command again',
-      true,
-    );
-  }
-  if (state.capabilities?.cdpRelay === false) {
-    return failure(request, 'not-ready', 'The selected browser cannot provide a CDP relay');
-  }
-  try {
-    const response = await (dependencies.fetch ?? fetch)(
-      `http://127.0.0.1:${state.port}/cdp/bootstrap`,
-      {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${state.token}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          protocol: PANERELAY_PROTOCOL_VERSION,
-          browser: {
-            browserId: state.browserId,
-            generation: state.generation,
-          },
-          actor: {
-            kind: 'automation',
-            name: request.input.actor.name,
-            ...(request.input.actor.sessionLabel
-              ? { sessionLabel: request.input.actor.sessionLabel }
-              : {}),
-          },
-          engine: BROWSER_USE_ADAPTER_ID,
-          laneKey: 'browser-use:panerelay',
-          connectionPolicy: 'single',
-        }),
-        signal: AbortSignal.timeout(5_000),
-      },
-    );
-    const body = await readBoundedJson(response);
-    if (
-      response.status === 201 &&
-      isCdpBootstrapCreated(body) &&
-      expectedBootstrapUrl(state, body)
-    ) {
-      return body;
-    }
-    const errorCode =
-      body && typeof body === 'object'
-        ? (body as Partial<CdpBootstrapError>).error?.code
-        : undefined;
-    if (errorCode === 'generation-changed') {
-      return failure(
-        request,
-        'generation-changed',
-        'The selected browser connection changed; run the command again',
-        true,
-      );
-    }
-    if (
-      response.status === 429 ||
-      errorCode === 'ticket-limit' ||
-      errorCode === 'participant-limit' ||
-      errorCode === 'lane-busy'
-    ) {
-      return failure(request, 'busy', 'The Panerelay Browser Use lane is busy', true);
-    }
-    if (response.status === 503 || errorCode === 'browser-unavailable') {
-      return failure(request, 'browser-unavailable', 'The selected browser is unavailable', true);
-    }
-    return failure(request, 'not-ready', 'Panerelay could not create a CDP bootstrap ticket', true);
-  } catch {
-    return failure(
-      request,
-      'browser-unavailable',
-      'The selected browser connection is unavailable',
-      true,
-    );
-  }
-}
-
 export async function handleBrowserUseAdapterRequest(
   request: CliAdapterRequest,
   dependencies: BrowserUseAdapterDependencies = {},
@@ -464,27 +280,17 @@ export async function handleBrowserUseAdapterRequest(
       environment: {},
     });
   }
-  const bootstrap = await requestBootstrap(request, dependencies);
-  if ('success' in bootstrap) return bootstrap;
-  const runtimeDirectory =
-    dependencies.runtimeDirectory ??
-    path.join(dependencies.homeDirectory ?? homedir(), '.panerelay', 'browser-use', 'runtime');
-  const temporaryDirectory = path.join(path.dirname(runtimeDirectory), 'tmp');
+  const gatewayUrl = browserUseGatewayUrl(request.input.browser);
   return success(request, {
     mode: 'extension',
-    connection: { kind: 'cdp-http', url: bootstrap.cdpUrl },
+    connection: { kind: 'cdp-http', url: gatewayUrl },
     environment: {
       ANONYMIZED_TELEMETRY: 'false',
       BH_RECORD: '0',
-      BH_RUNTIME_DIR: runtimeDirectory,
-      BH_RUNTIME_DIR_SHARED: '0',
       BH_TELEMETRY: '0',
-      BH_TMP_DIR: temporaryDirectory,
-      BH_TMP_DIR_SHARED: '0',
-      BU_CDP_URL: bootstrap.cdpUrl,
+      BU_CDP_URL: gatewayUrl,
       BU_NAME: 'panerelay',
     },
-    expiresAt: bootstrap.expiresAt,
     concurrencyKey: 'browser-use:panerelay',
   });
 }

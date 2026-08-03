@@ -1,6 +1,5 @@
 export {
   installBrowserUseIntegrationArtifacts,
-  browserUseMcpLauncherContent,
   PANERELAY_BROWSER_USE_CONFIG_PROTOCOL,
   PANERELAY_BROWSER_USE_INTEGRATION_VERSION,
   posixNodeLauncherContent,

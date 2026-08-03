@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import WebSocket from 'ws';
 import {
   BROWSER_USE_CHILD_ENVIRONMENT_KEYS,
   handleBrowserUseAdapterRequest,
 } from '@panerelay/browser-use';
+import { browserUseGatewayUrl } from '@panerelay/browser-use/environment';
 import { resolveCliConnection, type CliAdapterRegistration } from '@panerelay/cli';
 import type { BrowserSelection } from '@panerelay/browser-registry';
 import {
@@ -15,26 +15,7 @@ import {
 } from '@panerelay/protocol';
 import { BrowserRelay } from './browser-relay.js';
 
-function waitForOpen(client: WebSocket): Promise<void> {
-  return new Promise((resolve, reject) => {
-    client.once('open', resolve);
-    client.once('error', reject);
-  });
-}
-
-function closeClient(client: WebSocket): Promise<void> {
-  if (client.readyState === WebSocket.CLOSED) return Promise.resolve();
-  return new Promise(resolve => {
-    client.once('close', resolve);
-    client.close();
-  });
-}
-
-function delay(milliseconds: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, milliseconds));
-}
-
-test('CLI and adapter preserve lazy bootstrap allocation across a healthy daemon reuse contract', async () => {
+test('CLI and adapter resolve the stable Browser Use gateway without allocating a participant', async () => {
   const extensionMessages: HostToExtensionMessage[] = [];
   const relay = await BrowserRelay.listen({
     bootstrapMaxOutstandingTickets: 1,
@@ -43,7 +24,6 @@ test('CLI and adapter preserve lazy bootstrap allocation across a healthy daemon
     onBrowserRegistered: () => {},
     sendToExtension: message => extensionMessages.push(message),
   });
-  let client: WebSocket | null = null;
   try {
     await relay.handleExtensionMessage({
       type: 'browser.register',
@@ -89,10 +69,7 @@ test('CLI and adapter preserve lazy bootstrap allocation across a healthy daemon
             readAdapterRegistration: async () => registration,
             selectBrowserRegistration: async () => selection,
             invokeAdapter: async (_registration, request) =>
-              handleBrowserUseAdapterRequest(request, {
-                adapterVersion: '0.2.0',
-                readLiveBrowserRegistration: async () => state,
-              }),
+              handleBrowserUseAdapterRequest(request, { adapterVersion: '0.2.0' }),
           },
         },
       );
@@ -101,41 +78,19 @@ test('CLI and adapter preserve lazy bootstrap allocation across a healthy daemon
 
     const first = await resolve();
     assert.equal(first.connection.kind, 'cdp-http');
-    assert.equal(sessionMessages().length, 0, 'ticket issuance must allocate no participant');
-    const version = await fetch(`${first.connection.url}/json/version`);
-    assert.equal(version.status, 200);
-    const metadata = (await version.json()) as { webSocketDebuggerUrl: string };
-    assert.equal(sessionMessages().length, 1, 'version resolution allocates one participant');
-    assert.equal(sessionMessages()[0]?.session.participantCount, 1);
-
-    const repeatedVersion = await fetch(`${first.connection.url}/json/version`);
-    assert.equal(repeatedVersion.status, 200);
-    assert.equal(sessionMessages().length, 1, 'repeated version resolution is idempotent');
-
-    client = new WebSocket(metadata.webSocketDebuggerUrl);
-    await waitForOpen(client);
-    const afterConnectMessages = sessionMessages().length;
-    assert.ok(afterConnectMessages >= 1);
     assert.equal(
-      sessionMessages().every(message => message.session.participantCount === 1),
-      true,
+      first.connection.url,
+      browserUseGatewayUrl({
+        browserId: state.browserId,
+        generation: state.generation,
+      }),
     );
-
+    assert.equal(sessionMessages().length, 0, 'ticket issuance must allocate no participant');
     const ignoredByHealthyDaemon = await resolve();
     assert.equal(ignoredByHealthyDaemon.connection.kind, 'cdp-http');
-    assert.equal(sessionMessages().length, afterConnectMessages);
-    await delay(300);
-
-    const afterUnusedExpiry = await resolve();
-    assert.equal(afterUnusedExpiry.connection.kind, 'cdp-http');
-    assert.equal(sessionMessages().length, afterConnectMessages);
-    assert.equal(
-      sessionMessages().every(message => message.session.participantCount === 1),
-      true,
-      'unused ticket expiry must not consume participant capacity',
-    );
+    assert.equal(ignoredByHealthyDaemon.connection.url, first.connection.url);
+    assert.equal(sessionMessages().length, 0);
   } finally {
-    if (client) await closeClient(client);
     await relay.close();
   }
 });

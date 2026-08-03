@@ -7,6 +7,15 @@ import {
   serializeCliAdapterMessage,
 } from '@panerelay/protocol';
 import { handleBrowserUseAdapterRequest } from './adapter.js';
+export {
+  browserUseGatewayUrl,
+  parseBrowserUseGatewaySelection,
+  PANERELAY_BROWSER_USE_GATEWAY_PATH,
+  PANERELAY_BROWSER_USE_GATEWAY_URL,
+  browserUseEnvironmentPath,
+  setBrowserUseEnvironmentMode,
+  type BrowserUseGatewaySelection,
+} from './environment.js';
 
 async function adapterVersion(): Promise<string> {
   const value = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')) as {

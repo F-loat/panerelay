@@ -103,8 +103,6 @@ export const PACKAGE_DEFINITIONS = [
       'package/dist/index.d.ts',
       'package/dist/index.js',
       'package/dist/private/browser-use/panerelay-browser-use-adapter.mjs',
-      'package/dist/private/browser-use/panerelay-browser-use-mcp-runner.mjs',
-      'package/dist/private/browser-use/panerelay-cli.mjs',
       'package/package.json',
       'package/skills/panerelay-browser/SKILL.md',
       'package/skills/panerelay-browser/agents/openai.yaml',
@@ -721,24 +719,12 @@ export async function smokePackedSetup(tarballs) {
       cwd: consumerDirectory,
       env: environment,
     });
-    const setupArgs = [
-      '--agent-browser',
-      '--project-provider',
-      '--global-provider',
-      '--extension-id',
-      extensionId,
-    ];
+    const setupArgs = ['--agent-browser', '--global-default', '--extension-id', extensionId];
     await run(process.execPath, setupCliArguments(setupArgs), {
       cwd: consumerDirectory,
       env: environment,
     });
-    const doctorArgs = [
-      'doctor',
-      '--agent-browser',
-      '--project-provider',
-      '--global-provider',
-      '--json',
-    ];
+    const doctorArgs = ['doctor', '--agent-browser', '--global-default', '--json'];
     const firstDoctor = await packedDoctor(process.execPath, setupCliArguments(doctorArgs), {
       cwd: consumerDirectory,
       env: environment,
@@ -753,7 +739,7 @@ export async function smokePackedSetup(tarballs) {
     );
     await run(
       process.execPath,
-      setupCliArguments(['update', '--agent-browser', '--project-provider', '--global-provider']),
+      setupCliArguments(['update', '--agent-browser', '--global-default']),
       {
         cwd: consumerDirectory,
         env: environment,
@@ -771,17 +757,13 @@ export async function smokePackedSetup(tarballs) {
       ),
       'Packed setup update replaced the persisted custom Extension ID',
     );
-    await run(process.execPath, setupCliArguments(['uninstall', '--project-provider', '--yes']), {
+    await run(process.execPath, setupCliArguments(['uninstall', '--yes']), {
       cwd: consumerDirectory,
       env: environment,
     });
     await Promise.all([
       assertMissing(join(homeDirectory, '.panerelay/bin/panerelay-native-host.cjs'), 'Native Host'),
       assertMissing(join(homeDirectory, '.agents/skills/panerelay-browser'), 'Global Agent Skill'),
-      assertMissing(
-        join(consumerDirectory, '.agents/skills/panerelay-browser'),
-        'Project Agent Skill',
-      ),
     ]);
   } finally {
     await rm(smokeRoot, { force: true, recursive: true });

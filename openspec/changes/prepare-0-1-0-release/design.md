@@ -45,7 +45,7 @@ Alternative considered: keep a “What 0.1.0 includes” section in the README. 
 
 The quickstart will cover Extension loading, one setup command, explicit authorization, the agent-browser verification command, and opening the side panel with an installed supported provider. Optional update, diagnostics, uninstall, and custom-ID material stays below the primary path.
 
-The setup command keeps `--global-provider` so the default-routing behavior is explicit. The verification command keeps `--provider panerelay` so readers can test Panerelay without relying on ambient configuration.
+The setup command keeps `--global-default` so the default-routing behavior is explicit. The verification command keeps `--provider panerelay` so readers can test Panerelay without relying on ambient configuration.
 
 ### 4. Treat local validation and publication as separate states
 

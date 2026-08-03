@@ -76,15 +76,46 @@ agent-browser --provider panerelay tab list
 
 它只能列出你已授权的标签页。空列表通常表示当前没有符合条件的已授权标签页，不一定代表安装失败。
 
-browser-use 则通过安装时输出的托管 CLI 执行预置的 helper。下面是使用默认路径的 macOS / Linux 示例：
+browser-use 直接使用官方 CLI，并显式传入 Panerelay 的固定发现地址。这样不依赖是否已经把 Browser Use 设为默认连接：
 
 ```bash
-~/.panerelay/bin/panerelay-browser-use <<'PY'
+BU_CDP_URL=http://127.0.0.1:43827/cdp/browser-use browser-use <<'PY'
 print(list_tabs())
 PY
 ```
 
-结果同样只能包含你明确授权的标签页。Windows 或 browser-use 不在默认路径时，请使用 setup 输出的实际启动器和可执行文件路径。
+PowerShell：
+
+```powershell
+$env:BU_CDP_URL = 'http://127.0.0.1:43827/cdp/browser-use'
+@'
+print(list_tabs())
+'@ | browser-use
+```
+
+命令提示符：
+
+```bat
+set "BU_CDP_URL=http://127.0.0.1:43827/cdp/browser-use"
+echo print(list_tabs()) | browser-use
+```
+
+结果同样只能包含你明确授权的标签页。Windows 或 browser-use 不在 `PATH` 时，请使用 setup 报告的官方可执行文件路径；setup 不会替换它，也不会修改 `PATH`。
+
+Extension 模式下，Setup 管理的环境文件会包含固定的发现地址：
+
+```dotenv
+BU_CDP_URL=http://127.0.0.1:43827/cdp/browser-use
+```
+
+官方 `browser-use` 和 `browser-use --cli-mcp` 会直接读取这个变量。这个地址只是稳定的本机发现入口，不是可长期复用的 CDP 凭证；Panerelay 仍会在入口后面选择默认浏览器，并生成短期 CDP 凭证。使用以下任一命令切换持久化模式：
+
+```bash
+panerelay connection use browser-use extension
+panerelay connection use browser-use direct
+```
+
+保存为 Extension 模式后可以省略命令前的 `BU_CDP_URL=`，Direct 模式会移除 Panerelay 管理的配置，而单次进程显式传入的环境变量优先级更高。
 
 ## 支持的工作流
 
@@ -98,7 +129,7 @@ Panerelay 为已授权的现有浏览器标签页提供 agent-browser Provider�
 
 ### 接入 browser-use
 
-Panerelay 支持安装托管的 browser-use CLI、附加 Skill 和 CLI MCP 启动器。Browser Harness 仍负责 browser-use 的自动化语义，Panerelay 只提供经过授权的 Chrome 连接。Panerelay 不会透明接管任意 browser-use Python SDK 构造，这类应用需要显式接入连接。
+Panerelay 支持官方 browser-use CLI、附加 Skill 和 `browser-use --cli-mcp`。Browser Harness 仍负责 browser-use 的自动化语义，Panerelay 通过托管的 `BU_CDP_URL` 环境提供经过授权的 Chrome 连接。Panerelay 不会透明接管任意 browser-use Python SDK 构造，这类应用需要显式接入连接。
 
 最低支持版本为 browser-use 0.13.7；精确验证基线为 browser-use 0.13.7 + Browser Harness 0.1.8。详见[接入说明](packages/browser-use/README.md)与[兼容性记录](docs/compatibility/browser-use-0.13.7.md)。
 
@@ -167,7 +198,7 @@ pnpm run check
 
 ```bash
 pnpm build
-node packages/setup/dist/cli.js --agent-browser --project-provider
+node packages/setup/dist/cli.js --agent-browser --global-default
 agent-browser --provider panerelay tab list
 ```
 

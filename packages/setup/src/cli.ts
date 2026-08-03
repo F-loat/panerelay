@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 
 import { PANERELAY_EXTENSION_ID } from '@panerelay/protocol';
-import { isClaudeCodeSupported } from '@panerelay/bridge/compatibility';
+import {
+  PANERELAY_BROWSER_USE_GATEWAY_URL,
+  browserUseEnvironmentPath,
+} from '@panerelay/browser-use';
 import { realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { stdin, stdout } from 'node:process';
@@ -9,7 +12,7 @@ import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 import { doctorPanerelay, type DoctorReport } from './doctor.js';
 import { normalizeLocale, resolveLocale, translate, type SupportedLocale } from './i18n.js';
-import { setupPanerelay, uninstallPanerelay } from './lifecycle.js';
+import { setupPanerelay, uninstallPanerelay, type PanerelaySetupOptions } from './lifecycle.js';
 
 const PANERELAY_CHROME_WEB_STORE_URL =
   'https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi';
@@ -20,12 +23,11 @@ export interface ParsedSetupArgs {
   agentBrowser: boolean;
   browserUse: boolean;
   extensionId?: string;
-  globalProvider: boolean;
+  globalDefault: boolean;
   help: boolean;
   json: boolean;
   language?: SupportedLocale;
   operation: SetupOperation;
-  project: boolean;
   yes: boolean;
 }
 
@@ -73,12 +75,11 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
     return {
       agentBrowser: false,
       browserUse: false,
-      globalProvider: false,
+      globalDefault: false,
       help: true,
       json: false,
       language: localized.language,
       operation: 'setup',
-      project: false,
       yes: false,
     };
   }
@@ -95,8 +96,7 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
   if (!operation) throw new Error(`Unknown command: ${command}`);
   const optionStart = command === localized.argv[0] ? 1 : 0;
 
-  let project = false;
-  let globalProvider = false;
+  let globalDefault = false;
   let agentBrowser = false;
   let browserUse = false;
   let json = false;
@@ -104,8 +104,7 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
   let extensionId: string | undefined;
   for (let index = optionStart; index < localized.argv.length; index += 1) {
     const argument = localized.argv[index]!;
-    if (argument === '--project-provider') project = true;
-    else if (argument === '--global-provider') globalProvider = true;
+    if (argument === '--global-default') globalDefault = true;
     else if (argument === '--agent-browser') agentBrowser = true;
     else if (argument === '--browser-use') browserUse = true;
     else if (argument === '--json') json = true;
@@ -126,8 +125,8 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
   if (json && operation !== 'doctor') {
     throw new Error('--json is only available with doctor');
   }
-  if (globalProvider && operation === 'uninstall') {
-    throw new Error('--global-provider is not needed with uninstall');
+  if (globalDefault && operation === 'uninstall') {
+    throw new Error('--global-default is not needed with uninstall');
   }
   if (agentBrowser && operation === 'uninstall') {
     throw new Error('--agent-browser is not needed with uninstall');
@@ -138,25 +137,57 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
   if (extensionId && operation === 'uninstall') {
     throw new Error('--extension-id is not available with uninstall');
   }
-  if ((globalProvider || (project && operation !== 'uninstall')) && !agentBrowser) {
-    throw new Error('--agent-browser is required with Provider scope options');
+  if (globalDefault && !agentBrowser && !browserUse) {
+    throw new Error('--global-default requires --agent-browser or --browser-use');
   }
   return {
     agentBrowser,
     browserUse,
     ...(extensionId ? { extensionId } : {}),
-    globalProvider,
+    globalDefault,
     help: false,
     json,
     language: localized.language,
     operation,
-    project,
     yes,
   };
 }
 
 function printHelp(locale: SupportedLocale): void {
   console.log(translate(locale, 'help'));
+}
+
+type SetupCheckStatus = 'pass' | 'warn' | 'fail';
+
+function setupStatusMarker(status: SetupCheckStatus): string {
+  return status === 'pass' ? '✅' : status === 'warn' ? '⚠️' : '❌';
+}
+
+function printSetupCheck(status: SetupCheckStatus, label: string, detail: string): void {
+  console.log(`  ${setupStatusMarker(status)} ${label} — ${detail}`);
+}
+
+function printSetupSubline(label: string, detail: string): void {
+  console.log(`     ${label} — ${detail}`);
+}
+
+function printSetupCommand(label: string, command: string): void {
+  const [firstLine, ...remainingLines] = command.split('\n');
+  if (remainingLines.length === 0) {
+    console.log(`     ${label} ${firstLine ?? ''}`);
+    return;
+  }
+  console.log(`     ${label}`);
+  console.log(command);
+}
+
+function agentBrowserCommand(globalDefault: boolean): string {
+  return globalDefault ? 'agent-browser tab list' : 'agent-browser --provider panerelay tab list';
+}
+
+function browserUseCommand(globalDefault: boolean): string {
+  const environment = globalDefault ? '' : `BU_CDP_URL=${PANERELAY_BROWSER_USE_GATEWAY_URL} `;
+  return `${environment}browser-use <<'PY'\nprint(list_tabs())\nPY`;
 }
 
 const doctorLabels: Record<string, { en: string; 'zh-CN': string }> = {
@@ -166,7 +197,7 @@ const doctorLabels: Record<string, { en: string; 'zh-CN': string }> = {
   codex: { en: 'Codex', 'zh-CN': 'Codex' },
   extension: { en: 'Extension', 'zh-CN': '扩展' },
   'extension-id': { en: 'Effective Extension ID', 'zh-CN': '生效的扩展 ID' },
-  'global-provider': { en: 'User default', 'zh-CN': '用户级默认值' },
+  'global-default': { en: 'User default', 'zh-CN': '用户级默认值' },
   'native-host': { en: 'Native Host', 'zh-CN': 'Native Host' },
   'native-launcher': {
     en: 'Native Host launcher',
@@ -177,8 +208,7 @@ const doctorLabels: Record<string, { en: string; 'zh-CN': string }> = {
     'zh-CN': 'Native Messaging 清单',
   },
   node: { en: 'Node.js', 'zh-CN': 'Node.js' },
-  'project-provider': { en: 'Project default', 'zh-CN': '项目级默认值' },
-  'project-skill': { en: 'Project Agent Skill', 'zh-CN': '项目 Agent Skill' },
+  'browser-use-default': { en: 'Browser Use user default', 'zh-CN': 'Browser Use 用户级默认值' },
   provider: {
     en: 'agent-browser Provider',
     'zh-CN': 'agent-browser Provider',
@@ -218,7 +248,7 @@ const doctorGroups = [
     title: 'doctorGroupBrowser',
   },
   {
-    ids: ['global-provider', 'project-provider', 'project-skill'],
+    ids: ['global-default', 'browser-use-default'],
     title: 'doctorGroupDefaultProvider',
   },
 ] as const;
@@ -262,11 +292,11 @@ function doctorHint(id: string, hint: string, locale: SupportedLocale): string {
   }
   if (id === 'extension') return '请加载或重新加载扩展，然后打开侧边栏';
   if (id === 'extension-id') return '请使用仅包含 a 到 p 的 32 位 Chrome 扩展 ID';
-  if (id === 'global-provider') {
-    return '请运行：npx --yes @panerelay/setup --agent-browser --global-provider';
+  if (id === 'global-default') {
+    return '请运行：npx --yes @panerelay/setup --agent-browser --global-default';
   }
-  if (id === 'project-provider' || id === 'project-skill') {
-    return '请运行：npx --yes @panerelay/setup --agent-browser --project-provider';
+  if (id === 'browser-use-default') {
+    return '请运行：npx --yes @panerelay/setup --browser-use --global-default';
   }
   return '请运行：npx --yes @panerelay/setup';
 }
@@ -365,20 +395,20 @@ async function selectOptionalIntegrations(
   locale: SupportedLocale,
   prompt: SetupPrompt,
 ): Promise<
-  Pick<ParsedSetupArgs, 'agentBrowser' | 'browserUse' | 'globalProvider'> & {
+  Pick<ParsedSetupArgs, 'agentBrowser' | 'browserUse' | 'globalDefault'> & {
     browserUseDefault: 'direct' | 'extension';
   }
 > {
   const agentBrowser = await prompt(translate(locale, 'agentBrowserPrompt'));
-  const globalProvider = agentBrowser
+  const agentBrowserGlobalDefault = agentBrowser
     ? await prompt(translate(locale, 'agentBrowserDefaultPrompt'))
     : false;
   const browserUse = await prompt(translate(locale, 'browserUsePrompt'));
-  const browserUseDefault =
-    browserUse && (await prompt(translate(locale, 'browserUseDefaultPrompt')))
-      ? 'extension'
-      : 'direct';
-  return { agentBrowser, browserUse, browserUseDefault, globalProvider };
+  const browserUseGlobalDefault =
+    browserUse && (await prompt(translate(locale, 'browserUseDefaultPrompt')));
+  const browserUseDefault = browserUseGlobalDefault ? 'extension' : 'direct';
+  const globalDefault = agentBrowserGlobalDefault || browserUseGlobalDefault;
+  return { agentBrowser, browserUse, browserUseDefault, globalDefault };
 }
 
 function localizeArgumentError(error: unknown, locale: SupportedLocale): string {
@@ -405,14 +435,14 @@ function localizeArgumentError(error: unknown, locale: SupportedLocale): string 
   if (message === '--json is only available with doctor') {
     return translate(locale, 'errorJsonDoctorOnly');
   }
-  if (message === '--global-provider is not needed with uninstall') {
-    return translate(locale, 'errorGlobalProviderUninstall');
+  if (message === '--global-default is not needed with uninstall') {
+    return translate(locale, 'errorGlobalDefaultUninstall');
   }
   if (message === '--agent-browser is not needed with uninstall') {
     return translate(locale, 'errorAgentBrowserUninstall');
   }
-  if (message === '--agent-browser is required with Provider scope options') {
-    return translate(locale, 'errorAgentBrowserRequired');
+  if (message === '--global-default requires --agent-browser or --browser-use') {
+    return translate(locale, 'errorGlobalDefaultSelection');
   }
   if (message === '--browser-use is not needed with uninstall') {
     return translate(locale, 'errorBrowserUseUninstall');
@@ -453,8 +483,7 @@ export async function main(
         browserUse: parsed.browserUse,
         environment: dependencies.environment,
         extensionId: parsed.extensionId,
-        globalProvider: parsed.globalProvider,
-        project: parsed.project,
+        globalDefault: parsed.globalDefault,
       });
       if (parsed.json) console.log(JSON.stringify(report, null, 2));
       else printDoctor(report, locale);
@@ -471,9 +500,7 @@ export async function main(
         );
         return 2;
       }
-      const result = await (dependencies.uninstall ?? uninstallPanerelay)({
-        project: parsed.project,
-      });
+      const result = await (dependencies.uninstall ?? uninstallPanerelay)({});
       console.log(translate(locale, 'uninstallComplete'));
       if (result.browserUseIntegration.detachedDaemonMayRemain) {
         console.log(translate(locale, 'browserUseDetachedDaemon'));
@@ -481,13 +508,15 @@ export async function main(
       return 0;
     }
 
-    let setupOptions = {
+    let setupOptions: PanerelaySetupOptions = {
       agentBrowser: parsed.agentBrowser,
       browserUse: parsed.browserUse,
       environment: dependencies.environment,
       extensionId: parsed.extensionId,
-      globalProvider: parsed.globalProvider,
-      project: parsed.project,
+      globalDefault: parsed.globalDefault,
+      ...(parsed.browserUse && parsed.globalDefault
+        ? { browserUseDefault: 'extension' as const }
+        : {}),
     };
     if (
       parsed.operation === 'setup' &&
@@ -502,83 +531,135 @@ export async function main(
       );
       setupOptions = { ...setupOptions, ...selected };
     }
+    const selectedAgentBrowser = setupOptions.agentBrowser === true;
+    const selectedBrowserUse = setupOptions.browserUse === true;
+    const selectedGlobalDefault = setupOptions.globalDefault === true;
     const result = await (dependencies.setup ?? setupPanerelay)(setupOptions);
-    console.log(translate(locale, 'setupComplete'));
-    console.log(translate(locale, 'nativeHost', { path: result.host.hostPath }));
-    console.log(translate(locale, 'extensionIdentity', { id: result.host.extensionId }));
-    console.log(
+    console.log(translate(locale, 'setupTitle'));
+
+    console.log('');
+    console.log(translate(locale, 'setupGroupLocal'));
+    printSetupCheck('pass', translate(locale, 'setupNativeHost'), result.host.hostPath);
+    printSetupCheck('pass', translate(locale, 'setupExtensionId'), result.host.extensionId);
+    printSetupSubline(
+      translate(locale, 'setupNextStep'),
       result.host.extensionId === PANERELAY_EXTENSION_ID
         ? translate(locale, 'extensionStoreNextStep', {
             url: PANERELAY_CHROME_WEB_STORE_URL,
           })
         : translate(locale, 'extensionCustomNextStep', { id: result.host.extensionId }),
     );
-    if (result.globalSkillPath) {
-      console.log(translate(locale, 'agentSkill', { path: result.globalSkillPath }));
+
+    if (selectedAgentBrowser || selectedBrowserUse) {
+      console.log('');
+      console.log(translate(locale, 'setupGroupAutomation'));
     }
-    if (!result.host.codexPath) console.log(translate(locale, 'codexMissing'));
-    if (!result.host.claudePath || !isClaudeCodeSupported(result.host.claudeVersion)) {
-      console.log(translate(locale, 'claudeMissing'));
-    }
-    if (parsed.agentBrowser && !result.agentBrowserInstallation?.executable) {
-      console.log(translate(locale, 'agentBrowserMissing'));
-    } else if (parsed.agentBrowser && result.agentBrowserInstallation?.supported !== true) {
-      console.log(
-        translate(locale, 'agentBrowserUnsupported', {
-          version: result.agentBrowserInstallation?.version ?? 'unknown',
-        }),
+
+    const agentBrowserReady = result.agentBrowserInstallation?.supported === true;
+    if (selectedAgentBrowser) {
+      const agentBrowserVersion = result.agentBrowserInstallation?.version;
+      printSetupCheck(
+        agentBrowserReady ? 'pass' : 'fail',
+        translate(locale, 'setupAgentBrowser'),
+        result.agentBrowserInstallation?.executable
+          ? (agentBrowserVersion ?? 'unknown')
+          : translate(locale, 'setupNotFound'),
       );
-    }
-    if (result.projectConfigPath) {
-      console.log(translate(locale, 'projectProvider', { path: result.projectConfigPath }));
-    }
-    if (result.globalProvider && result.agentBrowserConfigPath) {
-      console.log(translate(locale, 'globalProvider', { path: result.agentBrowserConfigPath }));
-    }
-    if (parsed.browserUse) {
-      console.log(
-        translate(locale, 'browserUseIntegration', {
-          path: result.browserUseIntegration?.paths.cliLauncherPath ?? 'unavailable',
-        }),
-      );
-      if (result.browserUseSkillPath) {
-        console.log(
-          translate(locale, 'browserUseSkill', {
-            path: result.browserUseSkillPath,
-          }),
-        );
+      if (result.globalSkillPath) {
+        printSetupSubline(translate(locale, 'setupAgentSkill'), result.globalSkillPath);
       }
-      if (result.browserUseIntegration?.config.mcpLauncherPath) {
-        console.log(
-          translate(locale, 'browserUseMcp', {
-            path: result.browserUseIntegration.config.mcpLauncherPath,
-          }),
-        );
+      if (selectedGlobalDefault && result.agentBrowserConfigPath) {
+        printSetupSubline(translate(locale, 'setupUserDefault'), result.agentBrowserConfigPath);
       }
-      if (result.browserUseReady) {
-        console.log(
-          translate(locale, 'browserUseReady', {
-            browserUse: result.browserUseVersions?.browserUse ?? 'unknown',
-          }),
+      if (agentBrowserReady) {
+        printSetupCommand(
+          translate(locale, 'agentCommand'),
+          agentBrowserCommand(selectedGlobalDefault),
         );
       } else {
-        console.log(translate(locale, 'browserUseMissing'));
+        printSetupSubline(
+          translate(locale, 'setupFix'),
+          result.agentBrowserInstallation?.executable
+            ? translate(locale, 'agentBrowserUnsupported', {
+                version: agentBrowserVersion ?? 'unknown',
+              })
+            : translate(locale, 'agentBrowserMissing'),
+        );
       }
     }
-    if (
-      parsed.agentBrowser &&
-      result.agentBrowserInstallation?.executable &&
-      result.agentBrowserInstallation.supported === true
-    ) {
-      console.log(translate(locale, 'agentCommand'));
+
+    if (selectedBrowserUse) {
+      const browserUseReady = result.browserUseReady === true;
+      const browserUseVersion = result.browserUseVersions?.browserUse;
+      printSetupCheck(
+        browserUseReady ? 'pass' : 'fail',
+        translate(locale, 'setupBrowserUse'),
+        browserUseVersion ?? translate(locale, 'setupNotFound'),
+      );
+      if (result.browserUseIntegration) {
+        printSetupSubline(
+          translate(locale, 'setupBrowserHarnessEnvironment'),
+          browserUseEnvironmentPath(undefined, dependencies.environment),
+        );
+        if (selectedGlobalDefault) {
+          printSetupSubline(
+            translate(locale, 'setupUserDefault'),
+            browserUseEnvironmentPath(undefined, dependencies.environment),
+          );
+        }
+      }
+      if (result.browserUseSkillPath) {
+        printSetupSubline(translate(locale, 'setupBrowserUseSkill'), result.browserUseSkillPath);
+      }
+      if (browserUseReady) {
+        printSetupCommand(
+          translate(locale, 'setupBrowserUseCommand'),
+          browserUseCommand(selectedGlobalDefault),
+        );
+      } else {
+        printSetupSubline(translate(locale, 'setupFix'), translate(locale, 'browserUseMissing'));
+      }
     }
-    if (!parsed.agentBrowser && !parsed.browserUse) {
-      console.log(translate(locale, 'automationChoices'));
+
+    if (!selectedAgentBrowser && !selectedBrowserUse) {
+      console.log('');
+      console.log(`  ℹ️ ${translate(locale, 'automationChoices')}`);
     }
-    return (!parsed.agentBrowser || result.agentBrowserInstallation?.supported === true) &&
-      (!parsed.browserUse || result.browserUseReady)
-      ? 0
-      : 1;
+
+    const optionalChecks = [
+      result.host.codexPath
+        ? ({
+            label: translate(locale, 'setupCodex'),
+            detail: result.host.codexPath,
+            status: 'pass',
+          } as const)
+        : ({
+            label: translate(locale, 'setupCodex'),
+            detail: translate(locale, 'setupNotFound'),
+            status: 'warn',
+          } as const),
+    ];
+    if (optionalChecks.some(check => check.status !== 'pass')) {
+      console.log('');
+      console.log(translate(locale, 'setupGroupOptional'));
+      for (const check of optionalChecks) {
+        printSetupCheck(check.status, check.label, check.detail);
+      }
+      if (!result.host.codexPath)
+        printSetupSubline(translate(locale, 'setupFix'), translate(locale, 'codexMissing'));
+    }
+
+    const setupReady =
+      (!selectedAgentBrowser || agentBrowserReady) &&
+      (!selectedBrowserUse || result.browserUseReady === true);
+    console.log('');
+    console.log(
+      `${setupReady ? '✅' : '❌'} ${translate(
+        locale,
+        setupReady ? 'setupReady' : 'setupAttention',
+      )}`,
+    );
+    return setupReady ? 0 : 1;
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     return 1;

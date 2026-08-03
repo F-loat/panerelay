@@ -64,21 +64,21 @@ Panerelay SHALL localize CLI-owned help, argument errors, setup results, uninsta
 
 - **GIVEN** doctor has passing, warning, and failing checks
 - **WHEN** it prints a human-readable report
-- **THEN** checks are grouped by environment, local integration, browser connection, and default Provider with visual status markers, remediation beside affected checks, and a final summary
+- **THEN** checks are grouped by environment, local integration, browser connection, and default automation with visual status markers, remediation beside affected checks, and a final summary
 
-### Requirement: Default Provider flags use symmetric scope names
+### Requirement: Global default flag selects user-level automation defaults
 
-Panerelay SHALL expose `--project-provider` and `--global-provider` for project-level and user-level default Provider configuration, and SHALL NOT accept `--project` as an alias.
+Panerelay SHALL expose one generic `--global-default` flag for user-level defaults across the selected automation integrations. Project-level default configuration is not part of the setup CLI.
 
-#### Scenario: Project default Provider is requested
+#### Scenario: User default is requested for selected integrations
 
-- **GIVEN** the user invokes setup or doctor with `--project-provider`
+- **GIVEN** the user invokes setup or doctor with `--agent-browser` and/or `--browser-use` plus `--global-default`
 - **WHEN** the CLI parses the invocation
-- **THEN** it applies project-level Provider and Agent Skill behavior
+- **THEN** it applies the corresponding user-level default behavior for every selected integration
 
-#### Scenario: Removed project alias is supplied
+#### Scenario: Removed project scope is supplied
 
-- **GIVEN** the user invokes the CLI with `--project`
+- **GIVEN** the user invokes the CLI with `--project-provider` or `--project`
 - **WHEN** arguments are validated
 - **THEN** the CLI rejects the unknown option before changing installation state
 

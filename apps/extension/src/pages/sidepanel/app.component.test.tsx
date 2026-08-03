@@ -1192,7 +1192,7 @@ describe('React Side Panel', () => {
         text: [
           '**Fastest install:**',
           '',
-          '  ```bash npx --yes @panerelay/setup --global-provider ``` Install the Extension.',
+          '  ```bash npx --yes @panerelay/setup --global-default ``` Install the Extension.',
           '',
           '  ```bash',
           'agent-browser --provider panerelay tab list',
@@ -1211,7 +1211,7 @@ describe('React Side Panel', () => {
 
     const codeBlocks = Array.from(document.querySelectorAll('.rich-text pre code'));
     expect(codeBlocks).toHaveLength(2);
-    expect(codeBlocks[0]).toHaveTextContent('npx --yes @panerelay/setup --global-provider');
+    expect(codeBlocks[0]).toHaveTextContent('npx --yes @panerelay/setup --global-default');
     expect(codeBlocks[1]).toHaveTextContent('agent-browser --provider panerelay tab list');
     expect(document.querySelector('.rich-text p code')).toHaveTextContent('pnpm run check');
     expect(screen.queryByText(/```bash/)).not.toBeInTheDocument();

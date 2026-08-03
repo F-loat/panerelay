@@ -14,7 +14,7 @@ The CLI asks whether to install agent-browser, then whether to make it the user-
 
 ### Preserve existing explicit semantics
 
-`--agent-browser` continues to install without a user-level default unless `--global-provider` is supplied. `--browser-use` continues to use the existing installer behavior. Only answers collected by the new interactive path alter the derived lifecycle options.
+`--agent-browser` continues to install without a user-level default unless `--global-default` is supplied. `--browser-use` continues to use the existing installer behavior. Only answers collected by the new interactive path alter the derived lifecycle options.
 
 ### Make Browser Use mode explicit in lifecycle options
 

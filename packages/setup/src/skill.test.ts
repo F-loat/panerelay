@@ -42,39 +42,33 @@ test('installs and removes the bundled Skill in global and project scopes', asyn
   }
 });
 
-test('installs the additive Browser Use Skill with the exact private CLI path', async () => {
+test('installs the additive Browser Use Skill with official commands', async () => {
   const root = await mkdtemp(join(tmpdir(), 'panerelay-browser-use-skill-'));
   const homeDirectory = join(root, 'home with space');
   const officialSkillPath = join(homeDirectory, '.agents', 'skills', 'browser-use', 'SKILL.md');
-  const cliLauncherPath = join(homeDirectory, '.panerelay', 'bin', 'panerelay-browser-use');
-  const mcpLauncherPath = join(homeDirectory, '.panerelay', 'bin', 'panerelay-browser-use-mcp');
   try {
     await mkdir(join(officialSkillPath, '..'), { recursive: true });
     await writeFile(officialSkillPath, 'official-browser-use-skill\n');
     await assert.rejects(
-      installBrowserUseSkill(cliLauncherPath, {
+      installBrowserUseSkill({
         homeDirectory,
-        mcpLauncherPath,
-        platform: 'linux',
         setupVersion: '0.2.0-01',
       }),
       /setup version is invalid/i,
     );
-    const target = await installBrowserUseSkill(cliLauncherPath, {
+    const target = await installBrowserUseSkill({
       homeDirectory,
-      mcpLauncherPath,
-      platform: 'linux',
       setupVersion: '0.2.0+build.1',
     });
     const content = await readFile(join(target, 'SKILL.md'), 'utf8');
     assert.equal(target, globalBrowserUseSkillPath(homeDirectory));
     assert.equal(target.endsWith(PANERELAY_BROWSER_USE_SKILL_NAME), true);
     assert.match(content, /name: panerelay-browser-use/);
-    assert.match(content, /connection use browser-use extension/);
+    assert.match(content, /npx --yes @panerelay\/cli connection use browser-use extension/);
     assert.match(content, /Normal task completion does not close/);
     assert.match(content, /They are not task-isolated/);
-    assert.equal(content.includes(`'${cliLauncherPath}'`), true);
-    assert.equal(content.includes(`'${mcpLauncherPath}'`), true);
+    assert.match(content, /BU_CDP_URL=.*browser-use <<'PY'/);
+    assert.match(content, /browser-use --cli-mcp/);
     assert.match(content, /--cli-mcp/);
     assert.match(content, /legacy `browser-use --mcp`/);
     assert.match(content, /npx --yes @panerelay\/setup@0\.2\.0\+build\.1 doctor --browser-use/);
@@ -83,7 +77,7 @@ test('installs the additive Browser Use Skill with the exact private CLI path', 
     assert.match(content, /Retry only read-only, idempotent, or explicitly resumable invocations/);
     assert.match(content, /report the outcome as unknown/);
     assert.doesNotMatch(content, /For transport loss, retry once through the same run surface/);
-    assert.doesNotMatch(content, /Browser Harness|browser-harness/);
+    assert.match(content, /Browser Harness/);
     assert.doesNotMatch(content, /\{\{PANERELAY_BROWSER_USE_CLI\}\}/);
     assert.doesNotMatch(content, /\{\{PANERELAY_BROWSER_USE_MCP\}\}/);
     assert.doesNotMatch(content, /\{\{PANERELAY_SETUP_VERSION\}\}/);

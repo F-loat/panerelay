@@ -16,7 +16,7 @@ The `@panerelay/setup` package installs Panerelay's Native Host and the selected
 | --- | --- | --- |
 | Panerelay only | None | Native Host and side-panel prerequisites |
 | agent-browser | agent-browser 0.33.0+ | Provider and additive Skill |
-| browser-use | browser-use 0.13.7+ with its complete CLI runtime | Adapter, private CLI, additive Skill, and CLI MCP launcher |
+| browser-use | browser-use 0.13.7+ with its complete CLI runtime | Adapter, managed Browser Harness environment, and additive Skill |
 | Both | Both supported tools | Both explicit integrations |
 
 ## Safety and scope
@@ -24,7 +24,7 @@ The `@panerelay/setup` package installs Panerelay's Native Host and the selected
 - Do not modify unrelated Agent configuration, browser profiles, credentials, projects, shell startup files, or third-party packages.
 - Use an existing supported tool installation when available. Install or update an upstream tool only when it is missing or below Panerelay's supported minimum.
 - Follow the upstream project's current official installation method. Do not pipe a remote installer into a shell without first identifying the source and confirming that it belongs to the selected scenario.
-- Do not enable Panerelay as the project or user default agent-browser Provider unless the user explicitly asks for that additional change.
+- Do not enable Panerelay as the user default agent-browser Provider unless the user explicitly asks for that additional change.
 - Never infer permission from the active browser, focused tab, setup success, or tool selection.
 - Do not export cookies, credentials, or browser profile data as part of setup or verification.
 
@@ -106,7 +106,7 @@ agent-browser --provider panerelay tab list
 
 The result must contain only tabs the user explicitly authorized. An empty list is expected when no eligible tab is authorized and must not be reported as installation success or failure by itself.
 
-When browser-use is selected, require the browser-use compatibility and Extension-connection doctor checks to pass. Then use the exact setup-managed launcher and browser-use executable paths printed by setup to run its pre-imported `list_tabs()` helper and confirm that it returns only explicitly authorized tabs. Preserve the normal setup-managed CLI, additive Skill, and CLI MCP workflow; do not substitute an arbitrary Python SDK construction as the verification path.
+When browser-use is selected, require the browser-use compatibility and Extension-connection doctor checks to pass. Then invoke the official CLI with the fixed discovery URL and run its pre-imported `list_tabs()` helper to confirm that it returns only explicitly authorized tabs. On POSIX shells use `BU_CDP_URL=http://127.0.0.1:43827/cdp/browser-use browser-use <<'PY'`, followed by `print(list_tabs())` and `PY`. In PowerShell set `$env:BU_CDP_URL` and pipe a single-quoted here-string to `browser-use`; in Command Prompt run `set "BU_CDP_URL=http://127.0.0.1:43827/cdp/browser-use"` followed by `echo print(list_tabs()) | browser-use`. Setup manages the same `BU_CDP_URL` plus the stable daemon name and telemetry/recording safeguards; Browser Harness's runtime and temporary-directory defaults remain unchanged. After saving Extension mode, the explicit environment prefix may be omitted. `browser-use --cli-mcp` reads the same environment. Preserve the official CLI, additive Skill, and CLI MCP workflow; do not substitute an arbitrary Python SDK construction as the verification path.
 
 ## Acceptance report
 

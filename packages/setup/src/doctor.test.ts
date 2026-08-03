@@ -5,8 +5,10 @@ import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { installNativeHost } from '@panerelay/bridge/install';
 import { writeBrowserRegistration } from '@panerelay/browser-registry';
+import { setBrowserUseEnvironmentMode } from '@panerelay/browser-use/environment';
 import { PANERELAY_PROTOCOL_VERSION } from '@panerelay/protocol';
 import type { CommandRunner } from '@panerelay/bridge/platform';
+import { setCliAdapterMode } from '@panerelay/cli/adapter-config';
 import { configureGlobalProvider } from './config.js';
 import { doctorPanerelay } from './doctor.js';
 
@@ -21,11 +23,11 @@ test('doctor verifies the optional global default Provider', async () => {
         supported: true,
         version: '0.33.0',
       }),
-      globalProvider: true,
+      globalDefault: true,
       homeDirectory,
       platform: 'linux',
     });
-    const check = report.checks.find(item => item.id === 'global-provider');
+    const check = report.checks.find(item => item.id === 'global-default');
     assert.equal(check?.status, 'pass');
     assert.equal(check?.detail, 'panerelay');
   } finally {
@@ -33,20 +35,72 @@ test('doctor verifies the optional global default Provider', async () => {
   }
 });
 
-test('doctor rejects Provider scopes that omit the agent-browser selection', async () => {
+test('doctor verifies the Browser Use user-level default', async () => {
+  const homeDirectory = await mkdtemp(join(tmpdir(), 'panerelay-browser-use-default-'));
+  try {
+    await setCliAdapterMode('browser-use', 'extension', { homeDirectory });
+    await setBrowserUseEnvironmentMode('extension', { environment: {}, homeDirectory });
+    const report = await doctorPanerelay({
+      browserUse: true,
+      browserUseProbe: async () => ({
+        browserHarness: '0.1.9',
+        browserUse: '0.13.8',
+        browserUseExecutable: '/bin/browser-use',
+      }),
+      globalDefault: true,
+      browserUseGatewayProbe: async () => true,
+      homeDirectory,
+      environment: {},
+      platform: 'linux',
+    });
+    const check = report.checks.find(item => item.id === 'browser-use-default');
+    assert.equal(check?.status, 'pass');
+    assert.equal(check?.detail, 'extension');
+  } finally {
+    await rm(homeDirectory, { force: true, recursive: true });
+  }
+});
+
+test('doctor fails an Extension default with an invalid environment or gateway', async () => {
+  const homeDirectory = await mkdtemp(join(tmpdir(), 'panerelay-browser-use-invalid-default-'));
+  try {
+    await setCliAdapterMode('browser-use', 'extension', { homeDirectory });
+    const report = await doctorPanerelay({
+      browserUse: true,
+      browserUseProbe: async () => ({
+        browserHarness: '0.1.9',
+        browserUse: '0.13.8',
+        browserUseExecutable: '/bin/browser-use',
+      }),
+      browserUseGatewayProbe: async () => false,
+      globalDefault: true,
+      homeDirectory,
+      environment: {},
+      platform: 'linux',
+    });
+    assert.equal(report.ok, false);
+    assert.equal(report.checks.find(item => item.id === 'browser-use-default')?.status, 'fail');
+    assert.equal(report.checks.find(item => item.id === 'browser-use-environment')?.status, 'fail');
+    assert.equal(report.checks.find(item => item.id === 'browser-use-gateway')?.status, 'fail');
+  } finally {
+    await rm(homeDirectory, { force: true, recursive: true });
+  }
+});
+
+test('doctor rejects a global default that omits the selected integration', async () => {
   const homeDirectory = await mkdtemp(join(tmpdir(), 'panerelay-doctor-scope-'));
   try {
-    for (const scope of [{ globalProvider: true }, { project: true }]) {
+    for (const scope of [{ globalDefault: true }]) {
       const report = await doctorPanerelay({
         ...scope,
         homeDirectory,
         platform: 'linux',
       });
-      const check = report.checks.find(item => item.id === 'agent-browser-selection');
+      const check = report.checks.find(item => item.id === 'global-default-selection');
       assert.equal(report.ok, false);
       assert.equal(check?.status, 'fail');
-      assert.match(check?.detail ?? '', /require agentBrowser: true/);
-      assert.match(check?.hint ?? '', /doctor --agent-browser/);
+      assert.match(check?.detail ?? '', /requires agentBrowser or browserUse/);
+      assert.match(check?.hint ?? '', /global-default/);
     }
   } finally {
     await rm(homeDirectory, { force: true, recursive: true });

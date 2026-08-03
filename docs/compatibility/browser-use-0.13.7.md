@@ -7,7 +7,7 @@
 - agent-browser regression baseline: 0.33.0
 - Last verified: 2026-08-01
 
-This record covers the setup-managed Panerelay CLI connection adapter, the additive Panerelay Browser Use Skill, and the Browser Harness-backed Browser Use CLI MCP launcher. It does not claim transparent interception of arbitrary Browser Use Python SDK construction or the official Browser Use Skill.
+This record covers the setup-managed Panerelay connection adapter, the fixed Browser Harness environment default consumed by the official Browser Use CLI and CLI MCP, and the additive Panerelay Browser Use Skill. It does not claim transparent interception of arbitrary Browser Use Python SDK construction or the official Browser Use Skill.
 
 This is exact evidence for Browser Use 0.13.7 and its Browser Harness 0.1.8 runtime, not a claim about every later release. Panerelay's user-facing compatibility floor is Browser Use 0.13.7; setup and doctor also verify the completeness of its internal runtime, but present one Browser Use check. A newer stable installation that passes the minimum gate is eligible to run and is not automatically classified as Verified by this record.
 
@@ -24,9 +24,9 @@ This is exact evidence for Browser Use 0.13.7 and its Browser Harness 0.1.8 runt
 
 | Surface | Status | Evidence and boundary |
 | --- | --- | --- |
-| Setup-managed CLI | Verified | The installed private CLI invoked the registered adapter, authenticated `POST /cdp/bootstrap`, Browser Harness `/json/version`, and the single virtual-CDP WebSocket without Chrome Remote Debugging. |
-| Additive Panerelay Browser Use Skill | Verified | Setup installs and validates the Skill with the exact private CLI path while preserving the official Browser Use Skill; runtime commands below used that same launcher contract. |
-| Browser Use CLI MCP | Verified | Setup installs a deterministic launcher through the same CLI lane and warms the daemon before `browser-use --cli-mcp`. A standard MCP client initialized the server, observed exactly `browser_exec` and `browser_screenshot`, and completed a fixture read without warmup output contaminating JSON-RPC stdout. |
+| Official Browser Use CLI | Verified | The official executable read the setup-managed `BU_CDP_URL`, reached Browser Harness `/json/version`, and completed the single virtual-CDP WebSocket without Chrome Remote Debugging. |
+| Additive Panerelay Browser Use Skill | Verified | Setup installs and validates the Skill while preserving the official Browser Use Skill; its commands use the same official CLI and managed environment. |
+| Browser Use CLI MCP | Verified | The official `browser-use --cli-mcp` read the same managed environment. A standard MCP client initialized the server, observed exactly `browser_exec` and `browser_screenshot`, and completed a fixture read without warmup output contaminating JSON-RPC stdout. |
 | Direct one-run override | Automated | Adapter/CLI tests prove Direct mode creates no ticket and injects no Panerelay connection state. Direct Chrome behavior remains Browser Use-owned. |
 | Arbitrary Python SDK construction | Unsupported | Applications must explicitly pass connection material themselves; Panerelay does not monkeypatch or transparently intercept `BrowserSession`/`Agent` construction. |
 
@@ -57,9 +57,9 @@ This is exact evidence for Browser Use 0.13.7 and its Browser Harness 0.1.8 runt
 
 ## Privacy and local artifacts
 
-The adapter overrides Browser Harness and Browser Use telemetry for this lane with `BH_TELEMETRY=0` and `ANONYMIZED_TELEMETRY=false`, disables automatic recording with `BH_RECORD=0`, and isolates `BH_TMP_DIR` under protected Panerelay-owned storage. This is required because Browser Harness 0.1.8 otherwise writes the full one-time WebSocket URL and initial target metadata to its global daemon log. The WebSocket credential is consumed at the first successful handshake and cannot be reused; uninstall removes the Panerelay-owned temporary directory. Panerelay itself does not log Bridge bearers, tickets, WebSocket URLs, raw CDP bodies, page content, cookies, screenshots, prompts, or request bodies by default.
+The integration overrides Browser Harness and Browser Use telemetry for this lane with `BH_TELEMETRY=0` and `ANONYMIZED_TELEMETRY=false`, and disables automatic recording with `BH_RECORD=0`. It intentionally leaves Browser Harness's runtime and temporary-directory defaults unchanged because Browser Harness 0.1.8 initializes its client IPC paths before loading the workspace `.env`; overriding those paths from `.env` can make the client and daemon resolve different sockets. The WebSocket credential is consumed at the first successful handshake and cannot be reused. Panerelay itself does not log Bridge bearers, tickets, WebSocket URLs, raw CDP bodies, page content, cookies, screenshots, prompts, or request bodies by default.
 
-The final acceptance scan found real connection material only in Browser Harness's protected private daemon log and one pre-isolation legacy daemon log. No Bridge bearer, ticket, or WebSocket credential appeared in adapter, CLI, Bridge, setup/test output, or the repository. Scoped reload closed the participant before the logs, screenshots, temporary environment, and runtime paths were removed from their active locations.
+The final acceptance scan found real connection material only in Browser Harness's protected user-scoped daemon log and one pre-isolation legacy daemon log. No Bridge bearer, ticket, or WebSocket credential appeared in adapter, CLI, Bridge, setup/test output, or the repository. The WebSocket credential is consumed by the participant handshake; Panerelay does not remove Browser Harness's default runtime or log paths during uninstall.
 
 ## Regression boundary
 

@@ -21,12 +21,15 @@
   },
   "exports": {
     ".": {
-      "types": "./dist/adapter.d.ts",
-      "default": "./dist/adapter.js"
+      "types": "./dist/public.d.ts",
+      "import": "./dist/public.js",
+      "default": "./dist/public.js"
+    },
+    "./environment": {
+      "types": "./dist/environment.d.ts",
+      "import": "./dist/environment.js",
+      "default": "./dist/environment.js"
     }
-  },
-  "bin": {
-    "panerelay-browser-use": "./dist/index.js"
   },
   "files": [
     "dist",

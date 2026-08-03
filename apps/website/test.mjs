@@ -53,10 +53,10 @@ test('source contains the complete product and installation journey', async () =
   assert.match(html, /docs\/compatibility\/browser-platforms\.md/);
   assert.match(html, /docs\/compatibility\/browser-use-0\.13\.7\.md/);
   assert.match(html, /browser-use CLI · Browser Harness/);
-  assert.match(html, /panerelay-browser-use/);
+  assert.match(html, /browser-use CLI/);
   assert.match(
     html,
-    /~\/\.panerelay\/bin\/panerelay-browser-use &lt;&lt;'PY'[\s\S]+print\(list_tabs\(\)\)/,
+    /BU_CDP_URL=http:\/\/127\.0\.0\.1:43827\/cdp\/browser-use browser-use &lt;&lt;'PY'[\s\S]+print\(list_tabs\(\)\)/,
   );
   assert.doesNotMatch(html, /panerelay-browser-use-cli/);
   assert.doesNotMatch(html, /browser-use tab list/);
@@ -283,7 +283,11 @@ test('published Agent setup guide keeps upstream installation and user authoriza
   assert.match(guide, /npx --yes @panerelay\/setup --agent-browser --browser-use/);
   assert.match(guide, /doctor --agent-browser --browser-use/);
   assert.match(guide, /agent-browser --provider panerelay tab list/);
-  assert.match(guide, /run its pre-imported `list_tabs\(\)` helper and confirm/);
+  assert.match(
+    guide,
+    /invoke the official CLI with the fixed discovery URL[\s\S]+On POSIX shells use `BU_CDP_URL=http:\/\/127\.0\.0\.1:43827\/cdp\/browser-use browser-use/,
+  );
+  assert.match(guide, /BU_CDP_URL=http:\/\/127\.0\.0\.1:43827\/cdp\/browser-use/);
   assert.match(guide, /Browser Harness listed only explicitly authorized tabs/);
   assert.doesNotMatch(guide, /browser-use --version/);
   assert.match(guide, /Stop and ask the user to authorize/);

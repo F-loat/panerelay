@@ -76,15 +76,46 @@ agent-browser --provider panerelay tab list
 
 It must list only the tabs you authorized. An empty list means no eligible tab is currently authorized; it does not necessarily mean installation failed.
 
-For browser-use, run its pre-imported helpers through the setup-managed launcher printed during installation. This POSIX example uses the default launcher path:
+For browser-use, run the official CLI directly with the fixed Panerelay discovery URL. This does not depend on whether Browser Use has been saved as the default connection:
 
 ```bash
-~/.panerelay/bin/panerelay-browser-use <<'PY'
+BU_CDP_URL=http://127.0.0.1:43827/cdp/browser-use browser-use <<'PY'
 print(list_tabs())
 PY
 ```
 
-The result must likewise contain only explicitly authorized tabs. On Windows or when browser-use is installed at a nonstandard path, use the exact launcher and executable paths printed by setup.
+PowerShell:
+
+```powershell
+$env:BU_CDP_URL = 'http://127.0.0.1:43827/cdp/browser-use'
+@'
+print(list_tabs())
+'@ | browser-use
+```
+
+Command Prompt:
+
+```bat
+set "BU_CDP_URL=http://127.0.0.1:43827/cdp/browser-use"
+echo print(list_tabs()) | browser-use
+```
+
+The result must likewise contain only explicitly authorized tabs. On Windows or when browser-use is not on `PATH`, invoke the official executable path reported by setup; setup does not replace it or modify `PATH`.
+
+In Extension mode, the managed environment contains the fixed discovery URL:
+
+```dotenv
+BU_CDP_URL=http://127.0.0.1:43827/cdp/browser-use
+```
+
+`browser-use` and `browser-use --cli-mcp` read this variable directly. It is only a stable loopback discovery address; Panerelay selects the saved browser and creates a short-lived CDP connection behind it. Use one of these commands to change the durable mode:
+
+```bash
+panerelay connection use browser-use extension
+panerelay connection use browser-use direct
+```
+
+After saving Extension mode, the explicit `BU_CDP_URL=` prefix can be omitted. Direct mode removes Panerelay-managed keys, while an explicitly supplied process environment always takes precedence.
 
 ## Supported workflows
 
@@ -98,7 +129,7 @@ Panerelay provides an agent-browser Provider for authorized existing-browser tab
 
 ### browser-use integration
 
-Panerelay supports the setup-managed browser-use CLI, additive Skill, and CLI MCP launcher. Browser Harness continues to own browser-use automation semantics while Panerelay supplies the authorized Chrome connection. Arbitrary browser-use Python SDK construction is not transparently intercepted and needs an explicit connection integration.
+Panerelay supports the official browser-use CLI, additive Skill, and `browser-use --cli-mcp`. Browser Harness continues to own browser-use automation semantics while Panerelay supplies the authorized Chrome connection through the managed `BU_CDP_URL` environment. Arbitrary browser-use Python SDK construction is not transparently intercepted and needs an explicit connection integration.
 
 The supported minimum is browser-use 0.13.7. The exact verified baseline is browser-use 0.13.7 with Browser Harness 0.1.8. See the [integration guide](packages/browser-use/README.md) and [compatibility record](docs/compatibility/browser-use-0.13.7.md).
 
@@ -167,7 +198,7 @@ Run `pnpm run dev`, then load `apps/extension/dist` as an unpacked Extension in 
 
 ```bash
 pnpm build
-node packages/setup/dist/cli.js --agent-browser --project-provider
+node packages/setup/dist/cli.js --agent-browser --global-default
 agent-browser --provider panerelay tab list
 ```
 
