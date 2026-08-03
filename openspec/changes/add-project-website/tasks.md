@@ -48,3 +48,8 @@
 
 - [ ] 6.1 Commit and push the focused branch, integrate it into the default branch, enable GitHub Actions as the Pages source, deploy, and set the repository homepage URL.
 - [ ] 6.2 Verify the production Pages URL on desktop and mobile, confirm first-party functionality needs no backend or analytics, and remove temporary browser sessions, configuration, screenshots, and logs from the repository workspace.
+
+## 7. Flexible Authorization Positioning
+
+- [x] 7.1 Reframe the website, root and integration READMEs, Extension onboarding benefit, Extension public description, manifest metadata, and package descriptions around the user's choice between current-tab and all-supported-tabs authorization while keeping active control separately visible and releasable.
+- [x] 7.2 Extend bilingual source contracts for flexible scope language, run focused website and Extension tests, format the workspace, then run full checks, strict OpenSpec validation, and `git diff --check`.

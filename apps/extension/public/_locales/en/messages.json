@@ -3,7 +3,7 @@
     "message": "Panerelay"
   },
   "extensionDescription": {
-    "message": "Connect authorized browser tabs to local AI agents."
+    "message": "Connect local AI agents to one tab or all supported tabs in your existing browser."
   },
   "actionTitle": {
     "message": "Open Panerelay"

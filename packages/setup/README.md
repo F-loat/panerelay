@@ -35,7 +35,7 @@ Skill installation, scope, updates, and removal are owned by `npx skills`. Setup
 
 ### Authorize and verify
 
-Open Panerelay from the browser toolbar and authorize the current tab or all supported web tabs. Every path requires explicit tab authorization in the Extension. Setup, Provider defaults, browser-use mode, browser selection, and focus never grant access to a tab.
+Open Panerelay from the browser toolbar and choose the current tab for focused work or all supported web tabs for cross-page workflows. Every path requires an explicit scope choice in the Extension. Releasing active control preserves that choice; Setup, Provider defaults, browser-use mode, browser selection, and focus never grant access to a tab.
 
 Run the doctor command with the same integration flags used during setup. A healthy installation requires the selected checks to pass; an empty agent-browser tab list is expected until the user authorizes an eligible tab.
 

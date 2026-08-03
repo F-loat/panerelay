@@ -6,7 +6,7 @@
     <meta
       name="description"
       data-i18n-content="meta.description"
-      content="Panerelay connects AI agents to authorized Chrome or Edge tabs, reusing signed-in sessions while work stays in the background and control stays visible."
+      content="Panerelay connects AI agents to your existing Chrome or Edge. Choose one tab or all supported tabs, stay signed in, and release visible control anytime."
     />
     <meta name="theme-color" content="#080b0a" />
     <meta name="color-scheme" content="dark" />
@@ -15,7 +15,7 @@
     <meta property="og:title" content="Panerelay — Your browser. Agent-ready." />
     <meta
       property="og:description"
-      content="Reuse your signed-in browser. Let AI agents work in authorized tabs without stealing focus."
+      content="Reuse your signed-in browser. Authorize one tab or all supported tabs, with visible control you can release anytime."
     />
     <meta property="og:url" content="https://f-loat.github.io/panerelay/" />
     <meta property="og:image" content="https://f-loat.github.io/panerelay/social-card.png" />
@@ -26,7 +26,7 @@
     <meta name="twitter:title" content="Panerelay — Your browser. Agent-ready." />
     <meta
       name="twitter:description"
-      content="Reuse your signed-in browser. Let AI agents work in authorized tabs without stealing focus."
+      content="Reuse your signed-in browser. Authorize one tab or all supported tabs, with visible control you can release anytime."
     />
     <meta name="twitter:image" content="https://f-loat.github.io/panerelay/social-card.png" />
     <link rel="canonical" href="https://f-loat.github.io/panerelay/" />
@@ -143,7 +143,7 @@
             <div class="hero-lede">
               <p class="sr-only" data-i18n="hero.lede">
                 Connect agent-browser, Browser Use, or Playwright CLI to Chrome or Edge. Stay signed
-                in, choose the tabs, and keep browsing uninterrupted.
+                in, authorize one tab or all supported tabs, and keep browsing uninterrupted.
               </p>
               <p class="hero-lede-display" aria-hidden="true">
                 <span data-i18n="hero.lede.before">Connect</span>
@@ -159,8 +159,8 @@
                   <span class="hero-tool-static">agent-browser · Browser Use · Playwright CLI</span>
                 </span>
                 <span data-i18n="hero.lede.after"
-                  >to Chrome or Edge. Stay signed in, choose the tabs, and keep browsing
-                  uninterrupted.</span
+                  >to Chrome or Edge. Stay signed in, authorize one tab or all supported tabs, and
+                  keep browsing uninterrupted.</span
                 >
               </p>
             </div>
@@ -216,7 +216,7 @@
               aria-label="Key properties"
               data-i18n-aria-label="hero.properties"
             >
-              <li data-i18n="hero.explicitTabs">Reuse signed-in sessions</li>
+              <li data-i18n="hero.explicitTabs">One tab or all supported tabs</li>
               <li data-i18n="hero.visibleControl">No focus stealing</li>
               <li data-i18n="hero.instantRelease">Release anytime</li>
             </ul>
@@ -225,7 +225,7 @@
           <div
             class="hero-visual product-demo"
             role="group"
-            aria-label="A standard Panerelay external automation flow: request, explicit tab authorization, visible work, result, and release."
+            aria-label="Install Panerelay, connect an automation tool, choose current-tab or all-tabs authorization, watch the Agent work, and release control without clearing that scope."
             data-i18n-aria-label="demo.description"
             data-product-demo
             data-demo-state="release"
@@ -296,7 +296,8 @@
                         >
                         <strong>Panerelay</strong>
                         <p data-i18n="demo.store.description">
-                          Connect authorized browser tabs to local AI agents.
+                          Connect local AI agents to one tab or all supported tabs in your existing
+                          browser.
                         </p>
                       </div>
                       <span class="store-install-action" data-i18n="demo.store.action"
@@ -336,8 +337,8 @@
                           >Install the Panerelay Agent Skill</strong
                         >
                         <p data-i18n="demo.local.body">
-                          Work with local Agents beside this browser while keeping tab access under
-                          your control.
+                          Work with local Agents beside this browser and choose current-tab or
+                          all-supported-tabs access.
                         </p>
                       </div>
                       <div class="setup-benefits">
@@ -350,7 +351,7 @@
                         <span
                           ><i class="benefit-shield"></i
                           ><b data-i18n="demo.local.authorization"
-                            >Authorize only the tabs you choose</b
+                            >Choose one tab or all supported tabs</b
                           ></span
                         >
                       </div>
@@ -686,7 +687,7 @@
           <i></i>
           <span data-i18n="signal.agent">Any shell-capable Agent</span>
           <i></i>
-          <span data-i18n="signal.boundary">One explicit boundary</span>
+          <span data-i18n="signal.boundary">Flexible tab scope</span>
         </div>
       </section>
 
@@ -717,10 +718,10 @@
               <div class="value-icon target-icon" aria-hidden="true">
                 <span></span>
               </div>
-              <h3 data-i18n="why.target.title">Choose the target</h3>
+              <h3 data-i18n="why.target.title">Choose the scope</h3>
               <p data-i18n="why.target.body">
-                Site permission and tab authorization remain explicit decisions—not side effects of
-                focus.
+                Authorize the current tab for focused work or all supported tabs for cross-page
+                workflows. Focus never grants access.
               </p>
             </article>
             <article class="value-card" data-reveal>
@@ -747,7 +748,8 @@
               </h2>
             </div>
             <p data-i18n="workflows.lede">
-              Three tools, one local relay, and the same explicit boundary around every tab.
+              Three tools, one local relay, and the same choice between focused and cross-page
+              access.
             </p>
           </div>
 
@@ -763,7 +765,7 @@
               </div>
               <p data-i18n="workflow.external.body">
                 agent-browser, Browser Use, and Playwright CLI keep their own automation semantics.
-                Panerelay gives each one the same explicitly authorized existing-browser connection.
+                Panerelay gives each one the same user-selected scope in your existing browser.
               </p>
               <div
                 class="engine-tabs"
@@ -827,9 +829,9 @@
                     Connect agent-browser to your everyday tabs.
                   </h4>
                   <p data-i18n="workflow.cli.body">
-                    Let CLI- or MCP-capable Agents use agent-browser on the tabs you explicitly
-                    authorize. Native snapshots, refs, screenshots, network tools, and diagnostics
-                    stay intact.
+                    Let CLI- or MCP-capable Agents use agent-browser on the current tab or all
+                    supported tabs. Native snapshots, refs, screenshots, network tools, and
+                    diagnostics stay intact.
                   </p>
                   <ul class="check-list">
                     <li data-i18n="workflow.cli.point1">Works with shell-capable Agents</li>
@@ -906,8 +908,8 @@
                   </h4>
                   <p data-i18n="workflow.browserUse.body">
                     The browser-use CLI and CLI MCP keep their normal workflow. Panerelay routes
-                    Browser Harness to authorized tabs in your existing Chrome—without remote
-                    debugging or exported login state.
+                    Browser Harness to the tab scope you select in your existing Chrome—without
+                    remote debugging or exported login state.
                   </p>
                   <ul class="check-list">
                     <li data-i18n="workflow.browserUse.point1">
@@ -1120,7 +1122,7 @@ PY
           <div class="section-heading" data-reveal>
             <span class="section-index" data-i18n="setup.index">03 · SETUP</span>
             <h2 data-i18n-html="setup.title">
-              Two installation steps.<br /><em>Then authorize when needed.</em>
+              Two installation steps.<br /><em>Then choose the tab scope.</em>
             </h2>
           </div>
 
@@ -1513,11 +1515,11 @@ PY
                   AUTHORIZATION
                 </span>
                 <h3 data-i18n="setup.authorization.title">
-                  Choose the tabs. Keep the release switch.
+                  One tab or all supported tabs. Your choice.
                 </h3>
                 <p data-i18n="setup.authorization.body">
-                  Open Panerelay from the toolbar, authorize the current page or supported web tabs,
-                  and release active control whenever you want.
+                  Choose the current page for focused work or all supported web tabs for cross-page
+                  workflows. Release active control whenever you want without clearing that scope.
                 </p>
                 <a
                   class="text-link"
@@ -1543,7 +1545,7 @@ PY
                 <div class="authorize-row active">
                   <span class="authorize-favicon second"></span>
                   <div>
-                    <b data-i18n="setup.authorization.otherTab">Another web tab</b
+                    <b data-i18n="setup.authorization.otherTab">All supported tabs</b
                     ><small data-i18n="setup.authorization.authorized">Authorized</small>
                   </div>
                   <i class="toggle"><b></b></i>
@@ -1565,9 +1567,9 @@ PY
                 Access is not focus.<br /><em>Control is never invisible.</em>
               </h2>
               <p data-i18n="trust.lede">
-                Panerelay separates permission to see a site, authorization to include a tab, and
-                the live lease required for mutation. Unsupported or unauthorized actions fail
-                closed.
+                Panerelay separates site permission, your selected tab scope, and the live lease
+                required for mutation. Release ends active control without silently changing that
+                scope.
               </p>
               <a
                 class="button button-light"
@@ -1594,9 +1596,9 @@ PY
                 <span>02</span>
                 <div>
                   <strong data-i18n="trust.tab.title">Tab authorization</strong>
-                  <p data-i18n="trust.tab.body">Which eligible tabs an Agent may target.</p>
+                  <p data-i18n="trust.tab.body">One current tab or all supported web tabs.</p>
                 </div>
-                <i data-i18n="trust.tab.status">Explicit</i>
+                <i data-i18n="trust.tab.status">Flexible</i>
               </div>
               <div class="boundary-connector" aria-hidden="true"></div>
               <div class="boundary-item boundary-active">
@@ -1604,7 +1606,7 @@ PY
                 <div>
                   <strong data-i18n="trust.lease.title">Active control lease</strong>
                   <p data-i18n="trust.lease.body">
-                    Who may mutate right now—with immediate release.
+                    Who may mutate right now—with release that preserves your scope.
                   </p>
                 </div>
                 <i data-i18n="trust.lease.status">Visible</i>
@@ -1617,8 +1619,9 @@ PY
               <span class="fact-icon" aria-hidden="true">⌁</span>
               <h3 data-i18n="trust.credentials.title">Credentials stay in the browser.</h3>
               <p data-i18n="trust.credentials.body">
-                Panerelay reuses an authorized existing tab. It does not export cookies or log
-                credentials, prompts, screenshots, page content, or request bodies by default.
+                Panerelay reuses your existing browser under the scope you select. It does not
+                export cookies or log credentials, prompts, screenshots, page content, or request
+                bodies by default.
               </p>
             </article>
             <article data-reveal>
@@ -1689,8 +1692,8 @@ PY
             Keep your browser.<br /><em>Invite better tools.</em>
           </h2>
           <p data-i18n="final.body">
-            Install the Extension, connect the local Bridge, and decide exactly where Agents can
-            work.
+            Install the Extension, connect the local Bridge, and choose one tab or all supported
+            tabs. Active control stays visible and releasable.
           </p>
           <div class="final-actions">
             <a

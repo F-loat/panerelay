@@ -56,4 +56,12 @@ test('localizes Extension metadata in English and Simplified Chinese', async () 
     assert.ok(messages.extensionDescription?.message);
     assert.ok(messages.actionTitle?.message);
   }
+  assert.match(
+    english.extensionDescription?.message ?? '',
+    /one tab or all supported tabs in your existing browser/,
+  );
+  assert.match(
+    simplifiedChinese.extensionDescription?.message ?? '',
+    /授权当前标签页或全部受支持网页/,
+  );
 });

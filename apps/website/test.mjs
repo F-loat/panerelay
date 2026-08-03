@@ -17,6 +17,8 @@ test('source contains the complete product and installation journey', async () =
   for (const requiredText of [
     'Let Agents work with',
     'the browser you already use.',
+    'One tab or all supported tabs',
+    'Flexible tab scope',
     'Install the Agent Skill',
     'Work with an Agent beside the page.',
     'Connect your automation tools.',
@@ -75,7 +77,7 @@ test('source contains the complete product and installation journey', async () =
   assert.doesNotMatch(i18n, /agent-setup\.md|curl -fsSL/);
   assert.match(
     html,
-    /data-i18n="demo\.local\.body">\s*Work with local Agents beside this browser while keeping tab access under\s+your control\./,
+    /data-i18n="demo\.local\.body">\s*Work with local Agents beside this browser and choose current-tab or\s+all-supported-tabs access\./,
   );
   assert.match(
     html,
@@ -275,7 +277,10 @@ test('source provides complete English and Simplified Chinese language contracts
   assert.match(script, /const localeStorageKey = 'panerelay\.locale'/);
   assert.match(i18n, /让 Agent 在<span>你的日常浏览器里工作。<\/span>/);
   assert.match(i18n, /复用 Chrome \/ Edge 的现有登录态/);
-  assert.match(i18n, /只在明确授权的标签页后台工作，不抢占焦点/);
+  assert.match(i18n, /可授权当前标签页或全部受支持网页/);
+  assert.match(i18n, /授权当前页还是全部受支持网页，由你决定/);
+  assert.match(i18n, /授权范围由你选择/);
+  assert.match(i18n, /释放控制不会暗中改变授权范围/);
   assert.match(i18n, /后台工作，不抢焦点/);
   assert.match(i18n, /已找出 2 个影响发布的问题/);
   assert.match(i18n, /使用 panerelay-browser Skill，完成 agent-browser 接入并运行 doctor/);
@@ -303,6 +308,38 @@ test('source provides complete English and Simplified Chinese language contracts
     assert.match(english, keyPattern, `missing English translation for ${key}`);
     assert.match(simplifiedChinese, keyPattern, `missing Chinese translation for ${key}`);
   }
+});
+
+test('public copy keeps flexible authorization and active control distinct', async () => {
+  const html = await read('index.html');
+  const i18n = await read('src/i18n.ts');
+  const manifest = await read('public/site.webmanifest');
+  const socialCard = await read('public/social-card.svg');
+  const rootReadme = await read('../../README.md');
+  const chineseReadme = await read('../../README.zh-CN.md');
+  const extensionI18n = await read('../extension/src/pages/sidepanel/i18n.ts');
+  const extensionEnglish = await read('../extension/public/_locales/en/messages.json');
+  const extensionChinese = await read('../extension/public/_locales/zh_CN/messages.json');
+
+  assert.match(html, /authorize one tab or all supported tabs/);
+  assert.match(html, /Release ends active control without silently changing that\s+scope/);
+  assert.match(i18n, /One current tab or all supported web tabs/);
+  assert.match(i18n, /当前标签页或全部受支持网页/);
+  assert.match(i18n, /释放控制时保留已选授权范围/);
+  assert.match(rootReadme, /one tab or all supported tabs, your choice/);
+  assert.match(
+    rootReadme,
+    /Release ends active control without clearing the selected authorization scope/,
+  );
+  assert.match(chineseReadme, /授权当前页还是全部受支持网页，由你决定/);
+  assert.match(chineseReadme, /释放会结束当前控制，但保留已选授权范围/);
+  assert.match(extensionI18n, /Choose the current tab or all supported tabs/);
+  assert.match(extensionI18n, /授权当前标签页或全部受支持网页/);
+  assert.match(extensionI18n, /persists until you clear it/);
+  assert.match(extensionEnglish, /one tab or all supported tabs in your existing browser/);
+  assert.match(extensionChinese, /授权当前标签页或全部受支持网页/);
+  assert.match(manifest, /one tab or all supported tabs/);
+  assert.match(socialCard, /One tab or all supported tabs · visible control · local-first/);
 });
 
 test('unified Agent Skill keeps upstream installation and user authorization explicit', async () => {

@@ -1,6 +1,6 @@
 # `@panerelay/browser-use`
 
-Use the browser-use CLI, CLI MCP, and native helpers with your existing signed-in Chrome session. Browser Harness keeps its automation semantics; Panerelay supplies an Extension-backed connection to explicitly authorized tabs without enabling Chrome Remote Debugging or exporting login state.
+Use the browser-use CLI, CLI MCP, and native helpers with your existing signed-in Chrome session. Choose the current tab for focused work or all supported web tabs for cross-page workflows; Panerelay keeps active control separately visible and releasable without enabling Chrome Remote Debugging or exporting login state.
 
 This is an opt-in **automation tool integration** and a peer of agent-browser. It does not replace or modify browser-use.
 
@@ -31,7 +31,7 @@ npx --yes @panerelay/setup --browser-use
 npx --yes @panerelay/setup doctor --browser-use
 ```
 
-Open Panerelay in Chrome and authorize the current tab or all supported web tabs. Re-run the doctor command and require the browser-use compatibility and Extension-connection checks to pass.
+Open Panerelay in Chrome and choose current-tab or all-supported-tabs authorization for the task. Re-run the doctor command and require the browser-use compatibility and Extension-connection checks to pass.
 
 Then use the official Browser Use CLI with the fixed Panerelay discovery URL. This works even when Extension mode is not saved as the default:
 
@@ -101,7 +101,7 @@ The official `browser-use` executable remains the user-installed command. This p
 
 ## Runtime boundary
 
-Extension mode exposes only explicitly authorized tabs. Unsupported browser-wide, whole-profile, isolated-context, and top-level containment operations fail explicitly.
+Extension mode exposes the scope selected in Panerelay: the current tab or all supported web tabs. Unsupported browser-wide, whole-profile, isolated-context, and top-level containment operations fail explicitly.
 
 A private browser-use daemon persists across sequential commands and shares its current-page state; it is not per-Agent task isolation. Simultaneous canonical runs are serialized or fail busy. User release, authorization loss, Extension or Native Host disconnection, and WebSocket loss remove browser authority even if the detached upstream process remains alive.
 

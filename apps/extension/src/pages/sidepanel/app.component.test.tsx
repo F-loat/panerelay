@@ -627,7 +627,7 @@ describe('React Side Panel', () => {
       Array.from(guide.children).map(element => element.getAttribute('data-setup-card')),
     ).toEqual(['benefits', 'action', 'integrations']);
     expect(within(guide).getByText('Reuse your signed-in browser session')).toBeVisible();
-    expect(within(guide).getByText('Authorize only the tabs you choose')).toBeVisible();
+    expect(within(guide).getByText('Choose the current tab or all supported tabs')).toBeVisible();
     expect(within(guide).getByText('Install the local integration')).toBeVisible();
     expect(
       within(guide).queryByText('The local Native Host was not found.'),

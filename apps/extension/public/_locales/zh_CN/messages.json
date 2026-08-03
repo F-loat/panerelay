@@ -3,7 +3,7 @@
     "message": "Panerelay"
   },
   "extensionDescription": {
-    "message": "将已授权的浏览器标签页连接到本地 AI Agent。"
+    "message": "把本地 AI Agent 接入现有浏览器，授权当前标签页或全部受支持网页。"
   },
   "actionTitle": {
     "message": "打开 Panerelay"

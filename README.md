@@ -4,13 +4,14 @@ English ｜ [简体中文](README.zh-CN.md)
 
 [Website](https://f-loat.github.io/panerelay/) · [Chrome Web Store](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi) · [Documentation](docs/README.md) · [Releases](https://github.com/F-loat/panerelay/releases)
 
-**Let Agents work with the browser you already use.**
+**Let Agents use your everyday browser—one tab or all supported tabs, your choice.**
 
-Panerelay is an open-source local bridge between AI Agents and your existing Chrome or Microsoft Edge session. It lets Agents work with the tabs you explicitly authorize while your browser profile, cookies, and signed-in state stay in the browser.
+Panerelay is an open-source local bridge between AI Agents and your existing Chrome or Microsoft Edge session. Authorize the current tab for focused work or all supported web tabs for cross-page workflows; your browser profile, cookies, and signed-in state stay in the browser.
 
+- **Choose the authorization scope.** Keep an Agent on the current tab or let it work across all supported web tabs.
 - **Reuse signed-in sessions.** Work in the sites and accounts already open in your daily browser—without exporting cookies or logging in again.
 - **Stay in your flow.** Agent tab selection and background automation do not switch the tab you are viewing.
-- **Keep authority visible.** Authorization is explicit, active control is visible, and release is always available.
+- **Keep authority visible.** Active control stays visible and can be released without silently changing the authorization scope you selected.
 
 Panerelay supports two ways to work:
 
@@ -85,7 +86,7 @@ Setup continues to probe the selected programs and manage Panerelay-owned Provid
 
 ### Authorize and verify tabs
 
-Open Panerelay from the browser toolbar and authorize the current web tab or all supported web tabs. Focus never grants authorization.
+Open Panerelay from the browser toolbar and choose the current web tab for focused work or all supported web tabs for cross-page work. Release ends active control without clearing the selected authorization scope; select that scope again when you want to clear authorization. Focus never grants authorization.
 
 For agent-browser, the shortest boundary check is:
 

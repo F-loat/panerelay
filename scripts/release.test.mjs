@@ -245,8 +245,11 @@ test('keeps official installation guidance Store-first and version-neutral', () 
     /load `apps\/extension\/dist` as an unpacked Extension in Chrome or Edge/,
   );
   assert.match(rootReadmeZhCn, /在 Chrome 或 Edge 中将 `apps\/extension\/dist` 加载为未打包扩展/);
-  assert.match(rootReadme, /Let Agents work with the browser you already use/);
-  assert.match(rootReadmeZhCn, /让 Agent 在你常用的浏览器里工作/);
+  assert.match(
+    rootReadme,
+    /Let Agents use your everyday browser—one tab or all supported tabs, your choice/,
+  );
+  assert.match(rootReadmeZhCn, /授权当前页还是全部受支持网页，由你决定/);
   assert.match(rootReadme, /presents one keyboard multiselect/);
   assert.match(rootReadme, /asks at most once whether/);
   assert.match(rootReadmeZhCn, /只会先用一次多选/);

@@ -1,6 +1,6 @@
 # `@panerelay/agent-browser`
 
-Use agent-browser with the Chrome or Microsoft Edge session you already use. Panerelay supplies an explicitly authorized existing-browser connection, while agent-browser keeps its normal CLI and MCP commands, waits, and page-state semantics.
+Use agent-browser with the Chrome or Microsoft Edge session you already use. Choose the current tab for focused work or all supported web tabs for cross-page workflows; Panerelay keeps active control separately visible and releasable while agent-browser retains its normal CLI and MCP commands, waits, and page-state semantics.
 
 This is an opt-in **automation tool integration**. It is a peer of the browser-use integration and is not installed by the engine-neutral Panerelay setup command.
 
@@ -31,7 +31,7 @@ npx --yes @panerelay/setup --agent-browser
 npx --yes @panerelay/setup doctor --agent-browser
 ```
 
-Open Panerelay in the browser and authorize the current tab or all supported web tabs. Then verify the authorization boundary:
+Open Panerelay in the browser and choose current-tab or all-supported-tabs authorization for the task. Then verify the selected authorization boundary:
 
 ```bash
 agent-browser --provider panerelay tab list

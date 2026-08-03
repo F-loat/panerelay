@@ -2,7 +2,7 @@
 
 See `proposal.md` for the motivation. Panerelay now has a vanilla Vite website implementation and GitHub Pages workflow awaiting production deployment, but its public narrative still starts from individual integrations instead of the product outcomes. The refreshed journey must explain Panerelay first through the Agent side panel and Automation tool integrations, then explain all three supported automation integrations without changing the durable authorization, ownership, or compatibility decisions in RFC-0001 through RFC-0007 and the version-specific records under `docs/compatibility/`.
 
-The two reference sites establish a useful developer-tool pattern: a restrained dark palette, a single strong value statement, code as product proof, and a short sequence of capability sections. Panerelay needs its own visual identity and a more prominent trust model because it operates in a user's daily browser.
+The two reference sites establish a useful developer-tool pattern: a restrained dark palette, a single strong value statement, code as product proof, and a short sequence of capability sections. Panerelay needs its own visual identity and a more prominent authorization model because it operates in a user's daily browser. That model should be presented as flexible rather than merely restrictive: the user chooses one current tab or all supported web tabs, while active control remains a separate, visible, revocable lease.
 
 ## Goals / Non-Goals
 
@@ -13,7 +13,7 @@ The two reference sites establish a useful developer-tool pattern: a restrained 
 - Keep the complete first screen inside a 375 CSS-pixel viewport with balanced mobile gutters instead of masking horizontal overflow at the document root.
 - Make repository entry documentation answer “which outcome do I want, how do I install Panerelay, and what should I ask my Agent to configure?” before explaining internals.
 - Keep the initial page fully useful as static HTML, with JavaScript limited to progressive enhancement.
-- Make the permission model, revocation behavior, credential boundary, and browser-ownership limits visible rather than hiding them in secondary documentation.
+- Make the current-tab/all-supported-tabs scope choice, permission model, revocation behavior, credential boundary, and browser-ownership limits visible rather than hiding them in secondary documentation.
 - Present the complete product narrative in English and Simplified Chinese without introducing a localization service or client-rendered application shell.
 - Produce deterministic static assets that work at the GitHub Pages repository subpath.
 - Integrate website build and validation into the existing workspace without adding an independent dependency stack.
@@ -47,6 +47,14 @@ The page will contain:
 
 This keeps discovery fast while giving security-conscious visitors enough context before installation. A multi-page site was considered, but would duplicate existing repository documentation and make claim drift more likely.
 
+### Lead with flexible, governed authorization
+
+Public copy will describe tab authorization as a user-selected scope rather than only as a least-privilege restriction. Current-tab authorization serves focused work on one existing page. All-tabs authorization makes supported web tabs eligible for cross-page workflows after Chrome permission is granted. Neither scope grants mutation by itself: active control still requires the current lease, stays visible, and can be released without silently clearing or widening the selected authorization scope.
+
+The hero, positioning strip, Why section, setup authorization step, trust model, final call to action, root READMEs, Extension onboarding benefits, and public Extension description will use consistent language around this choice. Concise surfaces may say “one tab or all supported tabs”; detailed surfaces will preserve the distinctions among site permission, tab authorization, and active control. Marketing copy will not imply that all-tabs authorization gives permanent control, includes unsupported browser pages, or survives beyond the persistence behavior accepted in RFC-0001.
+
+Alternative considered: continue leading with “only the tabs you choose.” That remains technically safe but frames Panerelay only as a restriction layer and hides the convenience of persistent all-tabs eligibility for cross-page Agent work.
+
 ### Establish an original Panerelay visual system
 
 The site will reuse the existing Panerelay mark and pair it with a near-black surface, one quiet emerald ambient glow, confident sans-serif headings, thin structural borders, and monospace product evidence. Green is reserved for installation readiness, authorization, active control, and success so it retains semantic meaning. The first screen allocates roughly forty percent of desktop width to positioning and actions and sixty percent to the product stage. Its descriptive sentence embeds a clipped one-line tool viewport whose monospace track advances agent-browser, Browser Use, and Playwright CLI vertically without changing the sentence's surrounding geometry. A subtle border, restrained emerald tint, and monospace label provide the requested special treatment without adding a leading marker or turning the tools into three competing calls to action. The reel is decorative enhancement around a static accessible sentence; reduced-motion and no-animation presentations show all three names without movement.
@@ -57,14 +65,14 @@ The design borrows the reference sites' clarity and developer-tool density, not 
 
 ### Demonstrate the standard workflow on the first screen
 
-The hero leads with “Let Agents work with the browser you already use” / “让 Agent 在你的日常浏览器里工作”. Its dominant action installs the Extension. A separate “Set up with your Agent” / “交给 Agent 接入” action copies the concise repository-Skill-backed handoff, while documentation remains a lower-emphasis link. `Agent side panel · Automation integrations` stays as an eyebrow and the broader model is explained later rather than carrying the primary promise. The button remains intrinsically sized by its original label; copied feedback is overlaid at its center while the original content stays in layout.
+The hero leads with “Let Agents work with the browser you already use” / “让 Agent 在你的日常浏览器里工作”, followed immediately by the choice to authorize one current tab or all supported web tabs. Its dominant action installs the Extension. A separate “Set up with your Agent” / “交给 Agent 接入” action copies the concise repository-Skill-backed handoff, while documentation remains a lower-emphasis link. `Agent side panel · Automation integrations` stays as an eyebrow and the broader model is explained later rather than carrying the primary promise. The button remains intrinsically sized by its original label; copied feedback is overlaid at its center while the original content stays in layout.
 
 The hero's right side is one stable browser/desktop stage rather than a decorative mockup or a stack of simultaneous surfaces. A compact six-step rail directly selects these complete states:
 
 1. **Install Extension** — a representative Chrome Web Store product surface using the real Panerelay name and description, one highlighted Add to Chrome action, and the toolbar icon appearing after installation;
 2. **Install Skill** — the unified `panerelay-browser` Skill benefits, gray `npx skills add F-loat/panerelay --skill panerelay-browser` command surface, copy action, ready state, and installed result;
 3. **Connect Tool** — a neutral Agent conversation with peer agent-browser, browser-use, and combined choices, followed by the installed Skill's environment inspection, upstream version detection, selected Panerelay integration, and doctor without implying that Panerelay setup installs the upstream tool;
-4. **Authorize Tab** — the Extension-derived Browser Access card, current-tab/all-tabs buttons, real help and target text, and the Release action after authorization; no target title is visible to the Agent before this state;
+4. **Choose Scope** — the Extension-derived Browser Access card presents current-tab and all-tabs as peer user choices, selects current-tab for the focused example, retains real help and target text, and shows the Release action after authorization; no target title is visible to the Agent before this state;
 5. **Agent Works** — an authorized tab list and observation followed by a control-class action, at which point the engine favicon gains its green dot, the action badge appears, External Control becomes active, and sanitized activity metadata is visible while the task result returns to the Agent;
 6. **Release Anytime** — the real Release action clears active control indicators and changes External Control to released while leaving the selected authorization scope and target intact.
 
@@ -122,7 +130,7 @@ Alternative considered: a `gh-pages` branch would add generated commits and long
 
 Node tests will assert essential source and build contracts, including calls to action, three peer engine tabs and panels, absence of the standalone Playwright strip, the hero tool reel and static equivalent, compatibility language, bilingual dictionary completeness, preference behavior, and relative output assets. Workspace checks will cover formatting, lint, tests, and build. Browser validation will exercise desktop and 375-pixel layouts, assert that first-screen `scrollWidth` never exceeds `clientWidth`, compare left and right mobile gutters, inspect the three-engine reel and panel selection, verify language switching and reload persistence, keyboard focus, copy behavior, console errors, accessibility checks, and the final production URL.
 
-Walkthrough tests will additionally assert the six stage panels and real product vocabulary, direct keyboard-operable step selection, the labeled GSAP timeline, one-pass behavior, pause/restart control, hover/focus/intersection/visibility pausing, reduced-motion and mobile static behavior, absence of ScrollTrigger/plugins, no horizontal overflow, and stable content without JavaScript. Behavioral contracts cover fail-closed target visibility, observation-versus-control presentation, sanitized activity content, and release preserving authorization. Bundle inspection confirms the animation remains local and adds no analytics or remote runtime dependency.
+Walkthrough tests will additionally assert the six stage panels and real product vocabulary, direct keyboard-operable step selection, the labeled GSAP timeline, one-pass behavior, pause/restart control, hover/focus/intersection/visibility pausing, reduced-motion and mobile static behavior, absence of ScrollTrigger/plugins, no horizontal overflow, and stable content without JavaScript. Behavioral contracts cover both current-tab and all-supported-tabs scope language, fail-closed target visibility, observation-versus-control presentation, sanitized activity content, and release preserving authorization. Bundle inspection confirms the animation remains local and adds no analytics or remote runtime dependency.
 
 The website will state agent-browser 0.33.0, Browser Use 0.13.7 with Browser Harness 0.1.8, and Playwright CLI 0.1.17 as pinned evidence baselines. Chrome claims will link to their recorded classifications; Edge will remain `Forwarded`. `Verified`, `Forwarded`, `Partial`, and `Unsupported` keep their meanings from the existing compatibility records and are not redefined by this site.
 
@@ -138,6 +146,7 @@ The website will state agent-browser 0.33.0, Browser Use 0.13.7 with Browser Har
 - [Peer presentation can overstate Browser Use coverage] → Label it optional, link its exact compatibility record, and keep the CLI/Skill/CLI MCP and Python SDK boundaries in visible copy.
 - [An automatic first-screen walkthrough can distract or consume work while hidden] → Run one restrained pass only, provide direct steps and pause/restart controls, expose one stable accessible description, stop automatic motion on mobile and under reduced-motion, and pause when hovered, focused, outside the viewport, or hidden.
 - [An animation dependency can outweigh a static project site] → Import GSAP core only, avoid plugins and ScrollTrigger, inspect production output, and keep every narrative state useful before enhancement.
+- [Concise all-tabs marketing language can be mistaken for permanent whole-browser control] → Say “all supported web tabs,” keep eligibility separate from the active control lease, and show that Release preserves the selected scope without preserving control.
 
 ## Migration Plan
 

@@ -1,7 +1,7 @@
 {
   "name": "@panerelay/playwright",
   "version": "0.5.0",
-  "description": "Panerelay CDP connection adapter for Playwright CLI.",
+  "description": "Connect Playwright CLI to current-tab or all-supported-tabs authorization through Panerelay.",
   "type": "module",
   "license": "MIT",
   "repository": {

@@ -4,13 +4,14 @@
 
 [官网](https://f-loat.github.io/panerelay/) · [Chrome 应用商店](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi) · [文档导航](docs/README.zh-CN.md) · [版本发布](https://github.com/F-loat/panerelay/releases)
 
-**让 Agent 在你常用的浏览器里工作。**
+**让 Agent 使用你常用的浏览器——授权当前页还是全部受支持网页，由你决定。**
 
-Panerelay 是连接 AI Agent 与现有 Chrome 或 Microsoft Edge 会话的开源本地桥梁。Agent 只在你明确授权的标签页中工作，浏览器 Profile、Cookie 和登录状态始终留在浏览器里。
+Panerelay 是连接 AI Agent 与现有 Chrome 或 Microsoft Edge 会话的开源本地桥梁。专注单页任务时授权当前标签页，跨页面工作时授权全部受支持网页；浏览器 Profile、Cookie 和登录状态始终留在浏览器里。
 
+- **授权范围由你选择。** 可以把 Agent 限定在当前标签页，也可以让它跨全部受支持网页工作。
 - **复用现有登录态。** 直接使用日常浏览器中已经打开的网站和账号，无需导出 Cookie，也不用重新登录。
 - **不打断当前操作。** Agent 选择标签页和在后台自动化时，不会切走你正在查看的页面。
-- **控制始终可见。** 标签页需要明确授权，受控状态清晰可见，并且随时可以释放。
+- **控制始终可见。** 当前控制状态清晰可见，并且可以随时释放，不会暗中改变你选择的授权范围。
 
 Panerelay 提供两种接入方式：
 
@@ -85,7 +86,7 @@ setup 仍负责探测所选程序，并管理 Panerelay 自有的 Provider/adapt
 
 ### 授权并验证标签页
 
-从浏览器工具栏打开 Panerelay，授权当前网页标签页或所有受支持的网页标签页。页面获得焦点不代表获得授权。
+从浏览器工具栏打开 Panerelay：专注单页任务时授权当前网页标签页，跨页面工作时授权所有受支持的网页标签页。释放会结束当前控制，但保留已选授权范围；需要取消授权时，再次点击已选范围。页面获得焦点不代表获得授权。
 
 agent-browser 最短的边界验证命令是：
 

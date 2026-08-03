@@ -1,7 +1,7 @@
 {
   "name": "Panerelay",
   "short_name": "Panerelay",
-  "description": "Let AI agents work in the browser you already use.",
+  "description": "Connect AI agents to one tab or all supported tabs in the browser you already use.",
   "start_url": "./",
   "scope": "./",
   "icons": [

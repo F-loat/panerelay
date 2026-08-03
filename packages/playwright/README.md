@@ -1,6 +1,6 @@
 # `@panerelay/playwright`
 
-Optional connection adapter for attaching the upstream Playwright CLI to explicitly authorized tabs in an existing Chrome or Microsoft Edge session through Panerelay. Chrome is the verified baseline; Edge remains `Forwarded` pending its complete command matrix.
+Optional connection adapter for attaching the upstream Playwright CLI to an existing Chrome or Microsoft Edge session through Panerelay. Choose the current tab for focused work or all supported web tabs for cross-page workflows; active control remains separately visible and releasable. Chrome is the verified baseline; Edge remains `Forwarded` pending its complete command matrix.
 
 ## Setup and use
 
@@ -22,7 +22,7 @@ The setup package verifies the upstream executable and installs only Panerelay-o
 
 For explicit user-managed configuration, set `PLAYWRIGHT_MCP_CDP_ENDPOINT=http://127.0.0.1:43827/cdp/playwright` or configure `browser.cdpEndpoint` in `.playwright/cli.config.json`.
 
-The connection exposes only authorized existing Chromium tabs. Isolated BrowserContexts, browser launch options, proxy ownership, and whole-browser close are unsupported and fail explicitly.
+The connection exposes the authorization scope selected in Panerelay: the current tab or all supported existing Chromium tabs. Isolated BrowserContexts, browser launch options, proxy ownership, and whole-browser close are unsupported and fail explicitly.
 
 - [Playwright CLI 0.1.17 compatibility record](../../docs/compatibility/playwright-cli-0.1.17.md)
 - [`@panerelay/setup` reference](../setup/README.md)

@@ -6,7 +6,7 @@ Define a public, trustworthy entry point that explains Panerelay, guides visitor
 
 ### Requirement: Focused product narrative
 
-The website SHALL explain Panerelay through two clearly named paths: **Agent side panel**, where a local Agent works beside the page, and **Automation tool integrations**, where agent-browser, Browser Use, or Playwright CLI operates explicitly authorized tabs in an existing Chrome or Microsoft Edge session. It SHALL present all three integrations as peer automation-engine choices within Automation tool integrations rather than as separate product modes or a primary pair plus a subordinate compatibility note.
+The website SHALL explain Panerelay through two clearly named paths: **Agent side panel**, where a local Agent works beside the page, and **Automation tool integrations**, where agent-browser, Browser Use, or Playwright CLI operates an existing Chrome or Microsoft Edge session under a tab scope the user chooses. It SHALL lead with the flexible choice between the current tab for focused work and all supported web tabs for cross-page workflows, while keeping active control separate, visible, and releasable. It SHALL present all three integrations as peer automation-engine choices within Automation tool integrations rather than as separate product modes or a primary pair plus a subordinate compatibility note.
 
 #### Scenario: Visitor understands the product from the landing page
 
@@ -20,9 +20,15 @@ The website SHALL explain Panerelay through two clearly named paths: **Agent sid
 - **WHEN** the engine comparison is rendered
 - **THEN** agent-browser, Browser Use, and Playwright CLI are identified as peer, explicitly selected integrations, and every choice retains the same explicit-authorization and visible-revocation boundary
 
+#### Scenario: Visitor understands flexible authorization
+
+- **GIVEN** a visitor is deciding how much browser access an Agent needs
+- **WHEN** the primary positioning, authorization guidance, or trust content is rendered
+- **THEN** the visitor can tell that Panerelay supports both current-tab authorization and all-supported-tabs authorization, and that either scope remains distinct from the temporary active-control lease
+
 ### Requirement: First-screen standard workflow walkthrough
 
-The website SHALL demonstrate the representative zero-to-first-control automation-tool journey on the first screen through six separate, product-accurate interface states: installing the Extension, installing the repository-level `panerelay-browser` Skill, asking an Agent to use that Skill with a supported automation integration, authorizing a tab in the Extension, observing and controlling that authorized tab, and releasing control while preserving the selected authorization scope. The first screen SHALL lead with a primary Extension installation action and a separate copyable Skill-backed Agent-setup action; documentation SHALL remain available at lower visual emphasis. Its descriptive sentence SHALL place agent-browser, Browser Use, and Playwright CLI in one compact vertically advancing tool reel with a visually distinctive monospace treatment and a complete static accessible equivalent.
+The website SHALL demonstrate the representative zero-to-first-control automation-tool journey on the first screen through six separate, product-accurate interface states: installing the Extension, installing the repository-level `panerelay-browser` Skill, asking an Agent to use that Skill with a supported automation integration, choosing between current-tab and all-supported-tabs authorization in the Extension, observing and controlling an authorized tab, and releasing control while preserving the selected authorization scope. The focused example MAY select current-tab authorization, but SHALL present both scopes as available user choices rather than implying that one-tab authorization is the only supported model. The first screen SHALL lead with a primary Extension installation action and a separate copyable Skill-backed Agent-setup action; documentation SHALL remain available at lower visual emphasis. Its descriptive sentence SHALL place agent-browser, Browser Use, and Playwright CLI in one compact vertically advancing tool reel with a visually distinctive monospace treatment and a complete static accessible equivalent.
 
 At wide desktop widths, the hero and its positioning strip SHALL fit within one dynamic viewport, with shorter desktop heights tightening internal spacing instead of clipping content. Intermediate and mobile layouts SHALL expand naturally when a side-by-side composition is no longer readable. Localized headline text SHALL remain inside the copy column without painting beneath the product stage. At a 375 CSS-pixel viewport, every first-screen copy, action, trust item, and walkthrough surface SHALL remain within the same balanced left and right inset and SHALL NOT increase the document's horizontal scroll width.
 
@@ -71,6 +77,12 @@ JavaScript enhancement SHALL coordinate one restrained pass through the six stat
 - **GIVEN** the selected Agent is actively controlling an authorized current tab
 - **WHEN** the walkthrough's user activates the Extension-derived Release action
 - **THEN** the controlled favicon and action badge clear, External Control becomes released, and the current-tab authorization remains visibly selected
+
+#### Scenario: Authorization scope remains a user choice
+
+- **GIVEN** the walkthrough reaches the Extension authorization state
+- **WHEN** the Browser Access card is rendered
+- **THEN** current-tab and all-tabs controls are both visible as deliberate scope choices, current-tab may be selected for the example, and neither choice is described as active control by itself
 
 #### Scenario: Visitor controls playback
 
@@ -174,13 +186,13 @@ The website SHALL expose the agent-browser, Browser Use, and Playwright CLI comp
 
 ### Requirement: Honest safety and compatibility claims
 
-The website SHALL state that site permission, tab authorization, and active control are separate; that access is visible and revocable; and that Panerelay does not own browser-process features. It SHALL identify agent-browser 0.33.0, Browser Use 0.13.7 with Browser Harness 0.1.8, and Playwright CLI 0.1.17 as pinned evidence baselines, distinguish an accepted minimum from an exact verified baseline, and SHALL NOT describe Edge capability groups as `Verified` while the checked-in compatibility record classifies them as `Forwarded`. Browser Use claims SHALL cover its Browser Harness-backed CLI and CLI MCP surfaces in the unified Skill and SHALL NOT imply transparent interception of arbitrary Python SDK construction.
+The website SHALL state that site permission, tab authorization, and active control are separate; that the user may authorize the current tab or all supported web tabs; that access is visible and revocable; that releasing active control does not silently clear or widen the selected authorization scope; and that Panerelay does not own browser-process features. It SHALL identify agent-browser 0.33.0, Browser Use 0.13.7 with Browser Harness 0.1.8, and Playwright CLI 0.1.17 as pinned evidence baselines, distinguish an accepted minimum from an exact verified baseline, and SHALL NOT describe Edge capability groups as `Verified` while the checked-in compatibility record classifies them as `Forwarded`. Browser Use claims SHALL cover its Browser Harness-backed CLI and CLI MCP surfaces in the unified Skill and SHALL NOT imply transparent interception of arbitrary Python SDK construction.
 
 #### Scenario: Visitor reviews the trust boundary
 
 - **GIVEN** a visitor is evaluating whether to grant browser access
 - **WHEN** the visitor reads the website's safety content
-- **THEN** the website describes explicit authorization, visible control, revocation, local credential retention, and browser-process ownership limitations
+- **THEN** the website describes the current-tab/all-supported-tabs scope choice, visible control, separate authorization and release behavior, local credential retention, and browser-process ownership limitations
 
 #### Scenario: Compatibility claim follows project evidence
 
@@ -190,7 +202,7 @@ The website SHALL state that site permission, tab authorization, and active cont
 
 ### Requirement: Coherent repository onboarding
 
-The root English and Simplified Chinese READMEs SHALL lead with Agent side panel and Automation tool integrations, present Extension installation plus the repository Skill as the complete normal onboarding path, and end the quickstart with a concise instruction for asking the Agent to use the Skill. They SHALL group optional setup flags, manual verification, Skill lifecycle commands, and Panerelay installation management into one default-collapsed advanced section after the architecture overview. They SHALL omit redundant supported-workflow and documentation sections while preserving top navigation and targeted inline links. Integration READMEs SHALL lead with the supported user outcome, prerequisites, Agent-guided setup, success criteria, upstream documentation, and compatibility record before internal adapter terminology, while technical CLI reference remains discoverable. Repository guidance SHALL use consistent labels for the two product paths, peer automation integrations, accepted minimums, and exact verified baselines.
+The root English and Simplified Chinese READMEs SHALL lead with Agent side panel, Automation tool integrations, and the user's choice between current-tab and all-supported-tabs authorization; present Extension installation plus the repository Skill as the complete normal onboarding path; and end the quickstart with a concise instruction for asking the Agent to use the Skill. They SHALL group optional setup flags, manual verification, Skill lifecycle commands, and Panerelay installation management into one default-collapsed advanced section after the architecture overview. They SHALL omit redundant supported-workflow and documentation sections while preserving top navigation and targeted inline links. Integration READMEs SHALL lead with the supported user outcome, flexible authorization scopes, prerequisites, Agent-guided setup, success criteria, upstream documentation, and compatibility record before internal adapter terminology, while technical CLI reference remains discoverable. Repository guidance SHALL use consistent labels for the two product paths, peer automation integrations, current-tab/all-supported-tabs authorization, accepted minimums, and exact verified baselines.
 
 #### Scenario: New user chooses a setup path
 

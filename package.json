@@ -2,7 +2,7 @@
   "name": "panerelay",
   "version": "0.5.0",
   "private": true,
-  "description": "Let AI Agents use authorized tabs in your existing browser, or run local Agents beside the page.",
+  "description": "Connect AI Agents to one tab or all supported tabs in your existing browser with visible, releasable control.",
   "license": "MIT",
   "repository": {
     "type": "git",

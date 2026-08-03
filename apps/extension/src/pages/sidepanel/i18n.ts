@@ -37,7 +37,7 @@ export const copy = {
       'Connect local agents to your existing browser session while keeping tab access explicitly under your control.',
     nativeHostInstallTitle: 'Install the local integration',
     nativeHostFeatureSession: 'Reuse your signed-in browser session',
-    nativeHostFeatureAuthorization: 'Authorize only the tabs you choose',
+    nativeHostFeatureAuthorization: 'Choose the current tab or all supported tabs',
     setupIntegrationsTitle: 'Connect automation tools (optional)',
     setupIntegrationsBody:
       'Select tools already installed on this computer. Setup adds their Panerelay integration; it does not install the tools themselves.',
@@ -103,7 +103,7 @@ export const copy = {
     scopeHelpSingle:
       'Only this tab and its current site are eligible for the next control session.',
     scopeHelpAll:
-      'All web tabs are eligible after Chrome approval; this choice persists until released.',
+      'All supported web tabs are eligible after Chrome approval; this choice persists until you clear it.',
     composerPlaceholder: 'Ask {agent} to browse or work…',
     selectProject: 'Select project',
     clearProject: 'Clear project',
@@ -232,7 +232,7 @@ export const copy = {
       '将本地 Agent 接入你正在使用的浏览器，同时始终由你明确决定可访问的标签页。',
     nativeHostInstallTitle: '安装本地集成',
     nativeHostFeatureSession: '复用浏览器中的现有登录状态',
-    nativeHostFeatureAuthorization: '只授权你选择的标签页',
+    nativeHostFeatureAuthorization: '授权当前标签页或全部受支持网页',
     setupIntegrationsTitle: '接入自动化工具（可选）',
     setupIntegrationsBody:
       '选择本机已经安装的工具。安装命令只添加 Panerelay 接入，不会安装工具本身。',
@@ -296,7 +296,7 @@ export const copy = {
     allTabs: '所有标签页',
     scopeHelpNone: '授权一个范围后，所选 Agent 才能使用 agent-browser。',
     scopeHelpSingle: '下一次控制会话只能选择当前标签页及其当前站点。',
-    scopeHelpAll: '经 Chrome 确认后可选择所有网页标签页；授权保持到手动释放。',
+    scopeHelpAll: '经 Chrome 确认后可选择全部受支持网页；授权保持到你主动取消。',
     composerPlaceholder: '让 {agent} 浏览页面或执行任务…',
     selectProject: '选择项目',
     clearProject: '清除项目',
