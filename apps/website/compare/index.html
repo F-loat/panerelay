@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Compare Panerelay with managed browsers, raw Chrome CDP, and the Playwright Chrome Extension for connecting AI agents to an existing logged-in browser."
+    />
+    <meta name="theme-color" content="#080b0a" />
+    <link rel="canonical" href="https://f-loat.github.io/panerelay/compare/" />
+    <link rel="alternate" hreflang="en" href="https://f-loat.github.io/panerelay/compare/" />
+    <link
+      rel="alternate"
+      hreflang="zh-CN"
+      href="https://f-loat.github.io/panerelay/zh-CN/compare/"
+    />
+    <link rel="alternate" hreflang="x-default" href="https://f-loat.github.io/panerelay/compare/" />
+    <link rel="icon" href="../panerelay-icon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Panerelay" />
+    <meta property="og:title" content="Compare ways to connect AI agents to a browser" />
+    <meta
+      property="og:description"
+      content="Existing session or isolated browser? One tab or every eligible tab? Compare the tradeoffs without a winner-takes-all pitch."
+    />
+    <meta property="og:url" content="https://f-loat.github.io/panerelay/compare/" />
+    <meta property="og:image" content="https://f-loat.github.io/panerelay/social-card.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fontsapi.zeoseven.com" crossorigin />
+    <link rel="stylesheet" href="https://fontsapi.zeoseven.com/292/main/result.css" />
+    <link rel="stylesheet" href="../src/styles.css" />
+    <link rel="stylesheet" href="../src/compare.css" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Panerelay",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "macOS, Linux, Windows",
+        "url": "https://f-loat.github.io/panerelay/",
+        "codeRepository": "https://github.com/F-loat/panerelay",
+        "license": "https://github.com/F-loat/panerelay/blob/main/LICENSE"
+      }
+    </script>
+    <title>Panerelay vs CDP, managed browsers, and Playwright Extension</title>
+  </head>
+  <body class="compare-page">
+    <a class="skip-link" href="#main-content">Skip to content</a>
+
+    <header class="site-header">
+      <div class="shell compare-header-inner">
+        <a class="brand" href="../" aria-label="Panerelay home">
+          <img src="../panerelay-icon.svg" width="32" height="32" alt="" />
+          <span>Panerelay</span>
+        </a>
+        <button
+          class="compare-menu-button"
+          type="button"
+          aria-expanded="false"
+          aria-controls="compare-navigation"
+          aria-label="Open navigation"
+          data-compare-menu-button
+        >
+          <span></span><span></span>
+        </button>
+        <nav
+          class="compare-navigation"
+          id="compare-navigation"
+          aria-label="Comparison navigation"
+          data-compare-navigation
+          data-open="false"
+        >
+          <a href="#matrix">Comparison</a>
+          <a href="#permission-model">Authorization model</a>
+          <a href="#sources">Sources</a>
+          <a class="locale-link" href="../zh-CN/compare/" lang="zh-CN">中文</a>
+          <a
+            class="button button-small button-solid"
+            href="https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi"
+            target="_blank"
+            rel="noreferrer"
+            >Install</a
+          >
+        </nav>
+      </div>
+    </header>
+
+    <main id="main-content">
+      <section class="compare-hero shell">
+        <p class="compare-eyebrow">Existing-browser automation · honest comparison</p>
+        <h1>Connect an AI Agent to the browser you already use: compare your options</h1>
+        <p class="compare-lede">
+          The right approach depends on whether you need an existing login, a clean isolated
+          environment, raw debugging control, or user-facing tab scope. Panerelay is built for the
+          case where the everyday browser should stay yours while an Agent works inside an explicit,
+          visible boundary.
+        </p>
+        <div class="compare-actions">
+          <a class="button button-solid" href="#matrix">Compare approaches</a>
+          <a class="button button-ghost" href="https://github.com/F-loat/panerelay">View source</a>
+        </div>
+        <p class="review-note">Claims and source links reviewed 4 August 2026.</p>
+      </section>
+
+      <section class="compare-section shell" aria-labelledby="quick-heading">
+        <div class="compare-heading">
+          <p class="section-index">01 · QUICK DECISION</p>
+          <h2 id="quick-heading">Four useful approaches, for four different jobs.</h2>
+        </div>
+        <div class="decision-grid">
+          <article class="decision-card decision-card-featured">
+            <span>Panerelay</span>
+            <h3>Use your daily browser with flexible tab scope.</h3>
+            <p>
+              Best when an Agent should reuse an existing signed-in Chrome or Edge session and the
+              user needs to authorize the current tab or all supported tabs, with active control
+              visible and releasable.
+            </p>
+          </article>
+          <article class="decision-card">
+            <span>Managed or isolated browser</span>
+            <h3>Own a clean, repeatable environment.</h3>
+            <p>
+              Best for isolated profiles, launch-time proxies, remote execution, test repeatability,
+              or scale—especially when reusing the user’s everyday browser is not the goal.
+            </p>
+          </article>
+          <article class="decision-card">
+            <span>Raw Chrome CDP</span>
+            <h3>Own the debugging configuration.</h3>
+            <p>
+              Best for custom integrations that can deliberately expose and secure a debugging
+              endpoint. It is a protocol connection, not a user-facing tab authorization manager.
+            </p>
+          </article>
+          <article class="decision-card">
+            <span>Playwright Chrome Extension</span>
+            <h3>Bring a selected tab to Playwright MCP.</h3>
+            <p>
+              Best when Playwright MCP is the chosen tool and its native extension flow for
+              selecting a browser tab and approving connections fits the workflow.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="compare-section shell" id="matrix" aria-labelledby="matrix-heading">
+        <div class="compare-heading">
+          <p class="section-index">02 · COMPARISON MATRIX</p>
+          <h2 id="matrix-heading">Compare the boundary, not just the connection.</h2>
+          <p>
+            “Can it connect?” is only the first question. Scope, approval, visible control, and
+            browser ownership determine whether an approach fits everyday use.
+          </p>
+        </div>
+        <div class="comparison-table-wrap" tabindex="0" aria-label="Scrollable comparison table">
+          <table class="comparison-table">
+            <thead>
+              <tr>
+                <th scope="col">Approach</th>
+                <th scope="col">Existing logged-in browser</th>
+                <th scope="col">User-facing scope</th>
+                <th scope="col">Connection approval</th>
+                <th scope="col">Visible active control</th>
+                <th scope="col">Browser ownership</th>
+                <th scope="col">Best fit</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Panerelay</th>
+                <td data-label="Existing browser">Yes—reuses the current Chrome or Edge session</td>
+                <td data-label="User-facing scope">Current tab or all supported tabs</td>
+                <td data-label="Connection approval">
+                  Local setup, then explicit browser and tab scope
+                </td>
+                <td data-label="Visible active control">Dedicated controlled state with Release</td>
+                <td data-label="Browser ownership">Does not own or close the browser process</td>
+                <td data-label="Best fit">
+                  Daily-browser work across supported automation engines
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">Managed / isolated</th>
+                <td data-label="Existing browser">Usually a separate or supplied profile</td>
+                <td data-label="User-facing scope">Browser context, profile, or remote session</td>
+                <td data-label="Connection approval">
+                  Tool-specific; not existing-tab authorization
+                </td>
+                <td data-label="Visible active control">Depends on the tool’s UI</td>
+                <td data-label="Browser ownership">Owns the launched or remote environment</td>
+                <td data-label="Best fit">Clean environments, proxies, repeatability, and scale</td>
+              </tr>
+              <tr>
+                <th scope="row">Raw Chrome CDP</th>
+                <td data-label="Existing browser">
+                  Only when intentionally launched or made discoverable
+                </td>
+                <td data-label="User-facing scope">Endpoint and discoverable targets</td>
+                <td data-label="Connection approval">No built-in end-user tab approval layer</td>
+                <td data-label="Visible active control">
+                  Must be supplied by the integrating tool
+                </td>
+                <td data-label="Browser ownership">
+                  You own debugging setup and endpoint security
+                </td>
+                <td data-label="Best fit">Debugging and custom low-level integration</td>
+              </tr>
+              <tr>
+                <th scope="row">Playwright Extension</th>
+                <td data-label="Existing browser">Yes—uses the existing browser state</td>
+                <td data-label="User-facing scope">A user-selected tab at initial interaction</td>
+                <td data-label="Connection approval">
+                  Approval by default; optional token for repeat access
+                </td>
+                <td data-label="Visible active control">Playwright connection/session state</td>
+                <td data-label="Browser ownership">Does not own the browser process</td>
+                <td data-label="Best fit">Playwright MCP with its native selected-tab flow</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="matrix-note">
+          “Managed / isolated” covers a category, so exact behavior varies by provider. Raw CDP rows
+          describe protocol-level behavior; tools layered on CDP may add their own policy and UI.
+        </p>
+      </section>
+
+      <section class="compare-section shell" id="permission-model" aria-labelledby="model-heading">
+        <div class="compare-heading">
+          <p class="section-index">03 · PANERELAY MODEL</p>
+          <h2 id="model-heading">Authorization and active control are separate decisions.</h2>
+        </div>
+        <div class="model-grid">
+          <article>
+            <strong>1 · Site permission</strong>
+            <p>Which origins the Extension is eligible to access.</p>
+          </article>
+          <article>
+            <strong>2 · Tab authorization</strong>
+            <p>Choose the current tab or all supported tabs. Focus alone grants nothing.</p>
+          </article>
+          <article>
+            <strong>3 · Control lease</strong>
+            <p>A mutating Agent needs current control, and that controlled state stays visible.</p>
+          </article>
+          <article>
+            <strong>4 · Release</strong>
+            <p>
+              End active control without silently changing the authorization scope you selected.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="compare-section shell" aria-labelledby="other-heading">
+        <div class="compare-heading">
+          <p class="section-index">04 · WHEN NOT TO CHOOSE PANERELAY</p>
+          <h2 id="other-heading">Choose another approach when browser ownership is the feature.</h2>
+        </div>
+        <div class="honesty-panel">
+          <ul>
+            <li>You need isolated BrowserContexts or a disposable clean profile for every run.</li>
+            <li>
+              You must configure executable flags, extensions, or proxies when launching a browser.
+            </li>
+            <li>
+              You need whole-profile cookie export, whole-browser close, or remote browser fleets.
+            </li>
+            <li>You only use Playwright MCP and prefer its native extension approval workflow.</li>
+          </ul>
+          <p>
+            Panerelay deliberately does not pretend an Extension-backed connection owns the browser
+            process. Its job is the local routing and policy boundary for explicitly authorized
+            tabs.
+          </p>
+        </div>
+      </section>
+
+      <section class="compare-section shell" id="sources" aria-labelledby="sources-heading">
+        <div class="compare-heading">
+          <p class="section-index">05 · SOURCES</p>
+          <h2 id="sources-heading">Primary references behind the comparison.</h2>
+        </div>
+        <ul class="source-list">
+          <li>
+            <a href="https://developer.chrome.com/blog/remote-debugging-port"
+              >Chrome remote debugging changes</a
+            >
+          </li>
+          <li>
+            <a href="https://github.com/microsoft/playwright/blob/main/packages/extension/README.md"
+              >Playwright Chrome Extension README</a
+            >
+          </li>
+          <li><a href="https://github.com/microsoft/playwright-mcp">Playwright MCP</a></li>
+          <li>
+            <a href="https://docs.browser-use.com/open-source/browser-use-cli"
+              >Browser Use CLI browser modes</a
+            >
+          </li>
+          <li>
+            <a href="https://agent-browser.dev/configuration"
+              >agent-browser provider configuration</a
+            >
+          </li>
+          <li>
+            <a href="https://github.com/F-loat/panerelay/tree/main/docs/rfcs">Panerelay RFCs</a>
+          </li>
+          <li>
+            <a href="https://github.com/F-loat/panerelay/tree/main/docs/compatibility"
+              >Panerelay compatibility evidence</a
+            >
+          </li>
+        </ul>
+      </section>
+
+      <section class="compare-cta shell" aria-labelledby="cta-heading">
+        <p class="section-index">OPEN SOURCE · MIT</p>
+        <h2 id="cta-heading">Keep your browser. Choose the scope. See who has control.</h2>
+        <div class="compare-actions">
+          <a
+            class="button button-solid"
+            href="https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi"
+            target="_blank"
+            rel="noreferrer"
+            >Add to Chrome</a
+          >
+          <a class="button button-ghost" href="https://github.com/F-loat/panerelay#quickstart"
+            >Read the quickstart</a
+          >
+        </div>
+      </section>
+    </main>
+
+    <footer class="compare-footer">
+      <div class="shell">
+        <a class="brand" href="../"
+          ><img src="../panerelay-icon.svg" width="28" height="28" alt="" /><span
+            >Panerelay</span
+          ></a
+        >
+        <p>Open browser relay for people, browsers, and AI Agents.</p>
+        <a href="https://github.com/F-loat/panerelay">GitHub</a>
+      </div>
+    </footer>
+    <script type="module" src="../src/compare.ts"></script>
+  </body>
+</html>

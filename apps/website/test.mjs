@@ -342,6 +342,56 @@ test('public copy keeps flexible authorization and active control distinct', asy
   assert.match(socialCard, /One tab or all supported tabs · visible control · local-first/);
 });
 
+test('comparison pages provide bilingual, sourced, and responsive decision support', async () => {
+  const english = await read('compare/index.html');
+  const chinese = await read('zh-CN/compare/index.html');
+  const styles = await read('src/compare.css');
+  const script = await read('src/compare.ts');
+  const sitemap = await read('public/sitemap.xml');
+  const viteConfig = await read('vite.config.ts');
+
+  for (const [html, locale] of [
+    [english, 'en'],
+    [chinese, 'zh-CN'],
+  ]) {
+    assert.match(html, new RegExp(`<html lang="${locale}">`));
+    assert.match(html, /<link rel="canonical"/);
+    assert.match(html, /hreflang="en"/);
+    assert.match(html, /hreflang="zh-CN"/);
+    assert.match(html, /hreflang="x-default"/);
+    assert.match(html, /application\/ld\+json/);
+    assert.match(html, /"@type": "SoftwareApplication"/);
+    assert.match(html, /class="comparison-table"/);
+    assert.equal((html.match(/data-label=/g) ?? []).length, 24);
+    assert.match(html, /developer\.chrome\.com\/blog\/remote-debugging-port/);
+    assert.match(html, /packages\/extension\/README\.md/);
+    assert.match(html, /docs\.browser-use\.com\/open-source\/browser-use-cli/);
+    assert.match(html, /agent-browser\.dev\/configuration/);
+    assert.doesNotMatch(html, /google-analytics|googletagmanager|segment\.com|plausible\.io/i);
+    assert.doesNotMatch(html, /<script[^>]+src="https?:\/\//i);
+  }
+
+  assert.match(english, /current tab or all supported tabs/i);
+  assert.match(english, /Authorization and active control are separate decisions/);
+  assert.match(english, /Choose another approach when browser ownership is the feature/);
+  assert.match(chinese, /当前标签页或全部受支持标签页/);
+  assert.match(chinese, /获得授权，与获得当前控制权，是两件不同的事/);
+  assert.match(chinese, /如果“拥有浏览器进程”本身就是需求/);
+  assert.doesNotMatch(english, /CDP always prompts|Playwright can only use one tab|safest/i);
+  assert.doesNotMatch(chinese, /CDP 每次都|Playwright 只能|最安全/);
+  assert.match(styles, /@media \(max-width: 760px\)/);
+  assert.match(styles, /\.comparison-table td::before/);
+  assert.match(styles, /content: attr\(data-label\)/);
+  assert.match(styles, /\.js \.compare-navigation\[data-open='true'\]/);
+  assert.doesNotMatch(styles, /overflow-x:\s*hidden/);
+  assert.match(script, /document\.documentElement\.classList\.add\('js'\)/);
+  assert.match(script, /event\.key !== 'Escape'/);
+  assert.match(sitemap, /https:\/\/f-loat\.github\.io\/panerelay\/compare\//);
+  assert.match(sitemap, /https:\/\/f-loat\.github\.io\/panerelay\/zh-CN\/compare\//);
+  assert.match(viteConfig, /compare: resolve\(websiteRoot, 'compare\/index\.html'\)/);
+  assert.match(viteConfig, /compareZhCn: resolve\(websiteRoot, 'zh-CN\/compare\/index\.html'\)/);
+});
+
 test('unified Agent Skill keeps upstream installation and user authorization explicit', async () => {
   const skill = await read('../../skills/panerelay-browser/SKILL.md');
   const packageJson = JSON.parse(await read('package.json'));
@@ -400,6 +450,8 @@ test('illustration labels keep content separate from decorative affordances', as
 
 test('production output uses relative project-path assets', async () => {
   const html = await read('dist/index.html');
+  const comparison = await read('dist/compare/index.html');
+  const chineseComparison = await read('dist/zh-CN/compare/index.html');
   const manifest = await read('dist/site.webmanifest');
   const robots = await read('dist/robots.txt');
   const workflow = await read('../../.github/workflows/pages.yml');
@@ -408,6 +460,12 @@ test('production output uses relative project-path assets', async () => {
   assert.match(html, /(?:src|href)="\.\/assets\//);
   assert.doesNotMatch(html, /(?:src|href)="\/assets\//);
   assert.match(html, /href="\.\/panerelay-icon\.svg"/);
+  assert.match(comparison, /(?:src|href)="\.\.\/assets\//);
+  assert.match(comparison, /href="\.\.\/panerelay-icon\.svg"/);
+  assert.match(chineseComparison, /(?:src|href)="\.\.\/\.\.\/assets\//);
+  assert.match(chineseComparison, /href="\.\.\/\.\.\/panerelay-icon\.svg"/);
+  assert.match(comparison, /https:\/\/f-loat\.github\.io\/panerelay\/compare\//);
+  assert.match(chineseComparison, /https:\/\/f-loat\.github\.io\/panerelay\/zh-CN\/compare\//);
   assert.match(html, /https:\/\/f-loat\.github\.io\/panerelay\/social-card\.png/);
   assert.match(manifest, /"\.\/panerelay-icon\.svg"/);
   assert.match(manifest, /"start_url":\s*"\.\/"/);

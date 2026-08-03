@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="对比 Panerelay、托管或隔离浏览器、Chrome 原生 CDP 与 Playwright Chrome Extension：AI Agent 如何复用已登录浏览器，以及各自的授权与控制边界。"
+    />
+    <meta name="theme-color" content="#080b0a" />
+    <link rel="canonical" href="https://f-loat.github.io/panerelay/zh-CN/compare/" />
+    <link rel="alternate" hreflang="en" href="https://f-loat.github.io/panerelay/compare/" />
+    <link
+      rel="alternate"
+      hreflang="zh-CN"
+      href="https://f-loat.github.io/panerelay/zh-CN/compare/"
+    />
+    <link rel="alternate" hreflang="x-default" href="https://f-loat.github.io/panerelay/compare/" />
+    <link rel="icon" href="../../panerelay-icon.svg" type="image/svg+xml" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Panerelay" />
+    <meta property="og:title" content="对比 AI Agent 接入现有浏览器的不同方式" />
+    <meta
+      property="og:description"
+      content="复用现有登录态还是启动隔离浏览器？授权单个标签页还是整个调试端点？从真实边界出发对比。"
+    />
+    <meta property="og:url" content="https://f-loat.github.io/panerelay/zh-CN/compare/" />
+    <meta property="og:image" content="https://f-loat.github.io/panerelay/social-card.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fontsapi.zeoseven.com" crossorigin />
+    <link rel="stylesheet" href="https://fontsapi.zeoseven.com/292/main/result.css" />
+    <link rel="stylesheet" href="../../src/styles.css" />
+    <link rel="stylesheet" href="../../src/compare.css" />
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "Panerelay",
+        "applicationCategory": "DeveloperApplication",
+        "operatingSystem": "macOS, Linux, Windows",
+        "url": "https://f-loat.github.io/panerelay/",
+        "codeRepository": "https://github.com/F-loat/panerelay",
+        "license": "https://github.com/F-loat/panerelay/blob/main/LICENSE"
+      }
+    </script>
+    <title>Panerelay 与 CDP、托管浏览器、Playwright Extension 对比</title>
+  </head>
+  <body class="compare-page">
+    <a class="skip-link" href="#main-content">跳到主要内容</a>
+
+    <header class="site-header">
+      <div class="shell compare-header-inner">
+        <a class="brand" href="../../" aria-label="Panerelay 首页">
+          <img src="../../panerelay-icon.svg" width="32" height="32" alt="" />
+          <span>Panerelay</span>
+        </a>
+        <button
+          class="compare-menu-button"
+          type="button"
+          aria-expanded="false"
+          aria-controls="compare-navigation"
+          aria-label="打开导航"
+          data-compare-menu-button
+        >
+          <span></span><span></span>
+        </button>
+        <nav
+          class="compare-navigation"
+          id="compare-navigation"
+          aria-label="方案对比导航"
+          data-compare-navigation
+          data-open="false"
+        >
+          <a href="#matrix">方案对比</a>
+          <a href="#permission-model">授权模型</a>
+          <a href="#sources">参考来源</a>
+          <a class="locale-link" href="../../compare/" lang="en">EN</a>
+          <a
+            class="button button-small button-solid"
+            href="https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi"
+            target="_blank"
+            rel="noreferrer"
+            >安装扩展</a
+          >
+        </nav>
+      </div>
+    </header>
+
+    <main id="main-content">
+      <section class="compare-hero shell">
+        <p class="compare-eyebrow">复用现有浏览器 · 基于真实边界的对比</p>
+        <h1>让 AI Agent 接入你正在使用的浏览器，有哪些选择？</h1>
+        <p class="compare-lede">
+          该选哪种方案，取决于你需要的是现有登录态、干净的隔离环境、底层调试控制，还是面向用户的标签页授权。Panerelay
+          面向的是这样一种场景：日常浏览器仍属于用户，Agent 只在明确、可见的边界内工作。
+        </p>
+        <div class="compare-actions">
+          <a class="button button-solid" href="#matrix">查看完整对比</a>
+          <a class="button button-ghost" href="https://github.com/F-loat/panerelay">查看源码</a>
+        </div>
+        <p class="review-note">事实与来源链接最后核对于 2026 年 8 月 4 日。</p>
+      </section>
+
+      <section class="compare-section shell" aria-labelledby="quick-heading">
+        <div class="compare-heading">
+          <p class="section-index">01 · 快速选择</p>
+          <h2 id="quick-heading">四种有价值的方案，解决四类不同问题。</h2>
+        </div>
+        <div class="decision-grid">
+          <article class="decision-card decision-card-featured">
+            <span>Panerelay</span>
+            <h3>在日常浏览器里灵活选择标签页范围。</h3>
+            <p>
+              适合让 Agent 复用 Chrome 或 Edge
+              的现有登录态；用户可以授权当前标签页或全部受支持标签页，当前控制状态始终可见，也随时可以释放。
+            </p>
+          </article>
+          <article class="decision-card">
+            <span>托管或隔离浏览器</span>
+            <h3>拥有干净、可重复的执行环境。</h3>
+            <p>
+              适合需要隔离配置文件、启动时代理、远程运行、测试可重复性或规模化执行的场景，尤其是不需要复用用户日常浏览器时。
+            </p>
+          </article>
+          <article class="decision-card">
+            <span>Chrome 原生 CDP</span>
+            <h3>自行管理调试配置与端点。</h3>
+            <p>
+              适合能主动暴露并保护调试端点的自定义集成。CDP
+              提供的是协议连接，本身并不是面向终端用户的标签页授权管理器。
+            </p>
+          </article>
+          <article class="decision-card">
+            <span>Playwright Chrome Extension</span>
+            <h3>把所选标签页交给 Playwright MCP。</h3>
+            <p>
+              适合已经选择 Playwright
+              MCP，并且认可其原生“选择一个浏览器标签页、审批连接”工作流的场景。
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section class="compare-section shell" id="matrix" aria-labelledby="matrix-heading">
+        <div class="compare-heading">
+          <p class="section-index">02 · 对比矩阵</p>
+          <h2 id="matrix-heading">不要只比较“能否连接”，还要比较连接边界。</h2>
+          <p>
+            授权范围、连接审批、当前控制是否可见、谁拥有浏览器进程，才决定一套方案是否适合日常使用。
+          </p>
+        </div>
+        <div class="comparison-table-wrap" tabindex="0" aria-label="可横向滚动的方案对比表">
+          <table class="comparison-table">
+            <thead>
+              <tr>
+                <th scope="col">方案</th>
+                <th scope="col">复用已登录浏览器</th>
+                <th scope="col">用户可见范围</th>
+                <th scope="col">连接审批</th>
+                <th scope="col">当前控制状态</th>
+                <th scope="col">浏览器归属</th>
+                <th scope="col">适合场景</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Panerelay</th>
+                <td data-label="现有浏览器">是，复用当前 Chrome 或 Edge 会话</td>
+                <td data-label="授权范围">当前标签页或全部受支持标签页</td>
+                <td data-label="连接审批">完成本地接入后，再明确选择浏览器与标签页范围</td>
+                <td data-label="控制状态">专门的受控状态与“释放控制”入口</td>
+                <td data-label="浏览器归属">不拥有、也不关闭浏览器进程</td>
+                <td data-label="适合场景">多种自动化引擎接入日常浏览器</td>
+              </tr>
+              <tr>
+                <th scope="row">托管 / 隔离浏览器</th>
+                <td data-label="现有浏览器">通常使用独立或额外提供的配置文件</td>
+                <td data-label="授权范围">浏览器上下文、配置文件或远程会话</td>
+                <td data-label="连接审批">因工具而异，并非现有标签页授权</td>
+                <td data-label="控制状态">取决于具体工具界面</td>
+                <td data-label="浏览器归属">拥有启动或远程运行的环境</td>
+                <td data-label="适合场景">干净环境、代理、可重复性与规模化</td>
+              </tr>
+              <tr>
+                <th scope="row">Chrome 原生 CDP</th>
+                <td data-label="现有浏览器">仅限被主动启动或设为可发现的浏览器</td>
+                <td data-label="授权范围">调试端点及其可发现目标</td>
+                <td data-label="连接审批">没有内建的终端用户标签页审批层</td>
+                <td data-label="控制状态">需要由上层集成自行提供</td>
+                <td data-label="浏览器归属">接入方负责调试配置和端点安全</td>
+                <td data-label="适合场景">调试与底层自定义集成</td>
+              </tr>
+              <tr>
+                <th scope="row">Playwright Extension</th>
+                <td data-label="现有浏览器">是，复用浏览器现有状态</td>
+                <td data-label="授权范围">首次交互时由用户选择一个标签页</td>
+                <td data-label="连接审批">默认审批；可配置 token 便于重复连接</td>
+                <td data-label="控制状态">Playwright 连接 / 会话状态</td>
+                <td data-label="浏览器归属">不拥有浏览器进程</td>
+                <td data-label="适合场景">Playwright MCP 的原生单标签页流程</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="matrix-note">
+          “托管 / 隔离浏览器”是一类方案，具体行为随供应商而不同。CDP 行描述的是协议本身；基于 CDP
+          的上层工具可以额外加入策略和界面。
+        </p>
+      </section>
+
+      <section class="compare-section shell" id="permission-model" aria-labelledby="model-heading">
+        <div class="compare-heading">
+          <p class="section-index">03 · PANERELAY 模型</p>
+          <h2 id="model-heading">获得授权，与获得当前控制权，是两件不同的事。</h2>
+        </div>
+        <div class="model-grid">
+          <article>
+            <strong>1 · 站点权限</strong>
+            <p>扩展可以在哪些来源上工作。</p>
+          </article>
+          <article>
+            <strong>2 · 标签页授权</strong>
+            <p>选择当前标签页或全部受支持标签页；焦点永远不会自动授予权限。</p>
+          </article>
+          <article>
+            <strong>3 · 控制租约</strong>
+            <p>会修改页面的 Agent 必须拥有当前控制权，而且受控状态持续可见。</p>
+          </article>
+          <article>
+            <strong>4 · 释放控制</strong>
+            <p>结束当前控制时，不会暗中改变用户已经选择的授权范围。</p>
+          </article>
+        </div>
+      </section>
+
+      <section class="compare-section shell" aria-labelledby="other-heading">
+        <div class="compare-heading">
+          <p class="section-index">04 · 不适合 PANERELAY 的情况</p>
+          <h2 id="other-heading">如果“拥有浏览器进程”本身就是需求，请选择其他方案。</h2>
+        </div>
+        <div class="honesty-panel">
+          <ul>
+            <li>每次运行都需要隔离 BrowserContext 或一次性干净配置文件。</li>
+            <li>必须在启动浏览器时配置可执行文件参数、扩展或代理。</li>
+            <li>需要导出整个配置文件的 Cookie、关闭整个浏览器或管理远程浏览器集群。</li>
+            <li>只使用 Playwright MCP，并且更喜欢它原生的扩展连接审批流程。</li>
+          </ul>
+          <p>
+            Panerelay
+            不会假装扩展连接拥有浏览器进程。它负责的是本地路由与策略边界，并且只暴露用户明确授权的标签页。
+          </p>
+        </div>
+      </section>
+
+      <section class="compare-section shell" id="sources" aria-labelledby="sources-heading">
+        <div class="compare-heading">
+          <p class="section-index">05 · 参考来源</p>
+          <h2 id="sources-heading">这份对比所依据的一手资料。</h2>
+        </div>
+        <ul class="source-list">
+          <li>
+            <a href="https://developer.chrome.com/blog/remote-debugging-port"
+              >Chrome 远程调试变更说明</a
+            >
+          </li>
+          <li>
+            <a href="https://github.com/microsoft/playwright/blob/main/packages/extension/README.md"
+              >Playwright Chrome Extension README</a
+            >
+          </li>
+          <li><a href="https://github.com/microsoft/playwright-mcp">Playwright MCP</a></li>
+          <li>
+            <a href="https://docs.browser-use.com/open-source/browser-use-cli"
+              >Browser Use CLI 浏览器模式</a
+            >
+          </li>
+          <li><a href="https://agent-browser.dev/configuration">agent-browser Provider 配置</a></li>
+          <li>
+            <a href="https://github.com/F-loat/panerelay/tree/main/docs/rfcs">Panerelay RFC</a>
+          </li>
+          <li>
+            <a href="https://github.com/F-loat/panerelay/tree/main/docs/compatibility"
+              >Panerelay 兼容性证据</a
+            >
+          </li>
+        </ul>
+      </section>
+
+      <section class="compare-cta shell" aria-labelledby="cta-heading">
+        <p class="section-index">开源 · MIT</p>
+        <h2 id="cta-heading">保留你的浏览器，选择授权范围，看清谁拥有控制权。</h2>
+        <div class="compare-actions">
+          <a
+            class="button button-solid"
+            href="https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi"
+            target="_blank"
+            rel="noreferrer"
+            >安装 Chrome 扩展</a
+          >
+          <a
+            class="button button-ghost"
+            href="https://github.com/F-loat/panerelay/blob/main/README.zh-CN.md#快速开始"
+            >查看快速上手</a
+          >
+        </div>
+      </section>
+    </main>
+
+    <footer class="compare-footer">
+      <div class="shell">
+        <a class="brand" href="../../"
+          ><img src="../../panerelay-icon.svg" width="28" height="28" alt="" /><span
+            >Panerelay</span
+          ></a
+        >
+        <p>让用户、浏览器和 AI Agent 在同一条链路上协作的开放中继。</p>
+        <a href="https://github.com/F-loat/panerelay">GitHub</a>
+      </div>
+    </footer>
+    <script type="module" src="../../src/compare.ts"></script>
+  </body>
+</html>

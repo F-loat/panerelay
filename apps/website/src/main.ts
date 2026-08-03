@@ -84,6 +84,10 @@ function applyLocale(locale: Locale): void {
     button.setAttribute('aria-pressed', String(button.dataset.languageOption === locale));
   }
 
+  for (const link of document.querySelectorAll<HTMLAnchorElement>('[data-compare-link]')) {
+    link.href = locale === 'zh-CN' ? './zh-CN/compare/' : './compare/';
+  }
+
   setMenuOpen(navigation?.dataset.open === 'true');
 }
 
