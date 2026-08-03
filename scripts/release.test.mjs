@@ -202,7 +202,7 @@ test('keeps localized README documentation navigation in the selected language',
   assert.match(documentationIndexZhCn, /\[English\]\(README\.md\)/);
 });
 
-test('keeps selectable release preparation validated and auto-squashed', () => {
+test('keeps selectable release preparation validated, auto-squashed, and dispatched', () => {
   assert.match(prepareReleaseWorkflow, /^name: Prepare Release$/m);
   assert.match(prepareReleaseWorkflow, /workflow_dispatch:/);
   assert.match(
@@ -215,6 +215,7 @@ test('keeps selectable release preparation validated and auto-squashed', () => {
   );
   assert.match(prepareReleaseWorkflow, /contents: write/);
   assert.match(prepareReleaseWorkflow, /pull-requests: write/);
+  assert.match(prepareReleaseWorkflow, /actions: write/);
   assert.match(
     prepareReleaseWorkflow,
     /pnpm run release:prepare -- --increment "\$RELEASE_INCREMENT"/,
@@ -269,6 +270,18 @@ test('keeps selectable release preparation validated and auto-squashed', () => {
   assert.match(prepareReleaseWorkflow, /--delete-branch/);
   assert.match(prepareReleaseWorkflow, /--match-head-commit "\$PREPARE_SHA"/);
   assert.doesNotMatch(prepareReleaseWorkflow, /--admin/);
+  assert.match(prepareReleaseWorkflow, /MERGE_DISCOVERY_ATTEMPTS: 60/);
+  assert.match(
+    prepareReleaseWorkflow,
+    /gh api[\s\S]+git\/ref\/heads\/\$DEFAULT_BRANCH[\s\S]+\.object\.sha/,
+  );
+  const dispatchStepStart = prepareReleaseWorkflow.indexOf('      - name: Dispatch stable release');
+  assert.ok(dispatchStepStart > mergeStepStart);
+  const dispatchStep = prepareReleaseWorkflow.slice(dispatchStepStart);
+  assert.match(dispatchStep, /gh workflow run release\.yml/);
+  assert.match(dispatchStep, /--ref "\$DEFAULT_BRANCH"/);
+  assert.match(dispatchStep, /--field channel=stable/);
+  assert.doesNotMatch(prepareReleaseWorkflow, /run \*\*Release\*\* from/);
   assert.doesNotMatch(
     prepareReleaseWorkflow,
     /id-token: write|npm publish|publish-release\.mjs|gh release create|git tag|Chrome Web Store/,

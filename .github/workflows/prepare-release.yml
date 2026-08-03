@@ -20,6 +20,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
+  actions: write
   contents: write
   pull-requests: write
 
@@ -235,7 +236,7 @@ jobs:
             echo "- Target version: \`$TARGET_VERSION\`"
             echo "- Full workspace and retained-candidate checks passed before this commit."
             echo
-            echo "After this workflow's check gate and squash merge, run **Release** from \`$DEFAULT_BRANCH\` with channel \`stable\`."
+            echo "After this workflow's check gate and squash merge, it dispatches **Release** from \`$DEFAULT_BRANCH\` with channel \`stable\`."
           } >"$body"
           pr_url="$(
             gh pr create \
@@ -330,3 +331,43 @@ jobs:
             --delete-branch \
             --match-head-commit "$PREPARE_SHA" \
             --subject "chore(release): prepare $TARGET_VERSION"
+
+      - name: Wait for merged version on default branch
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ github.token }}
+          MERGE_DISCOVERY_ATTEMPTS: 60
+          PR_URL: ${{ steps.pr.outputs.url }}
+        run: |
+          for ((attempt = 1; attempt <= MERGE_DISCOVERY_ATTEMPTS; attempt++)); do
+            merged_sha="$(
+              gh pr view "$PR_URL" \
+                --repo "$GITHUB_REPOSITORY" \
+                --json state,mergeCommit \
+                --jq 'select(.state == "MERGED") | .mergeCommit.oid // ""'
+            )"
+            main_sha="$(
+              gh api \
+                "repos/$GITHUB_REPOSITORY/git/ref/heads/$DEFAULT_BRANCH" \
+                --jq '.object.sha'
+            )"
+            if [[ -n "$merged_sha" && "$main_sha" == "$merged_sha" ]]; then
+              echo "Merged preparation commit $merged_sha is visible on $DEFAULT_BRANCH."
+              exit 0
+            fi
+            echo "Waiting for the merged preparation commit to reach $DEFAULT_BRANCH (attempt $attempt/$MERGE_DISCOVERY_ATTEMPTS)."
+            sleep 2
+          done
+          echo "The merged preparation commit did not reach $DEFAULT_BRANCH before the timeout." >&2
+          exit 1
+
+      - name: Dispatch stable release
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run release.yml \
+            --repo "$GITHUB_REPOSITORY" \
+            --ref "$DEFAULT_BRANCH" \
+            --field channel=stable
+          echo "Dispatched Release stable from $DEFAULT_BRANCH."

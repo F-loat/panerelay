@@ -2,12 +2,13 @@
 
 - [x] 1.1 Expose the exact preparation commit SHA from the branch commit step and the generated pull-request URL from the PR creation step.
 - [x] 1.2 Add a bounded check-discovery and check-watch gate that waits for pull-request checks, fails on failed/cancelled/timeout states, and leaves the PR open when validation does not pass.
-- [x] 1.3 Add a non-admin `gh pr merge --squash --delete-branch` step pinned with `--match-head-commit`, while preserving the existing scoped workflow permissions and separate stable publication gate.
+- [x] 1.3 Add a non-admin `gh pr merge --squash --delete-branch` step pinned with `--match-head-commit`, while preserving the separate stable publication boundary.
+- [x] 1.4 Wait for the exact squash merge to reach the default branch and dispatch `Release` with channel `stable` using the workflow token.
 
 ## 2. Contract and operator guidance
 
 - [x] 2.1 Update `scripts/release.test.mjs` to assert check waiting, exact-head protection, squash merge, branch cleanup, and the absence of administrator bypass.
-- [x] 2.2 Update `docs/releasing.md` to describe the automatic PR check gate, squash merge result, failure recovery, and the unchanged manual `Release → stable` publication step.
+- [x] 2.2 Update `docs/releasing.md` to describe the automatic PR check gate, squash merge result, automatic stable dispatch, and failure recovery.
 - [x] 2.3 Validate the OpenSpec change and keep the main release specification delta aligned with the implemented workflow behavior.
 
 ## 3. Verification and handoff

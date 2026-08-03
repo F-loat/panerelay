@@ -1,8 +1,8 @@
 ## MODIFIED Requirements
 
-### Requirement: Stable version preparation is reviewable
+### Requirement: Stable version preparation is reviewable and dispatches publication
 
-Panerelay SHALL expose a manually triggered Prepare Release workflow that derives the next major, minor, or patch stable version from the currently released repository version, defaults to a minor increment, updates every lockstep package and Extension identity, validates the result, opens a pull request, waits for its reported checks, and squash-merges that pull request into the default branch only after all validation passes. The workflow SHALL NOT publish packages, create a tag or GitHub Release, submit to the Chrome Web Store, or bypass repository merge protections.
+Panerelay SHALL expose a manually triggered Prepare Release workflow that derives the next major, minor, or patch stable version from the currently released repository version, defaults to a minor increment, updates every lockstep package and Extension identity, validates the result, opens a pull request, waits for its reported checks, squash-merges that pull request into the default branch only after all validation passes, waits for the merge to be visible, and dispatches the Release workflow with channel `stable`. Prepare Release SHALL NOT directly publish packages, create a tag or GitHub Release, submit to the Chrome Web Store, or bypass repository merge protections.
 
 #### Scenario: Maintainer selects the release increment
 
@@ -36,8 +36,16 @@ Panerelay SHALL expose a manually triggered Prepare Release workflow that derive
 - **WHEN** Prepare Release reaches its merge step
 - **THEN** it squash-merges exactly the generated preparation commit into the default branch
 - **AND** it removes the temporary preparation branch after the merge
-- **AND** stable publication still requires a later explicit `stable` selection in the Release workflow
+- **AND** it waits until the squash merge is visible on the default branch
+- **AND** it dispatches the Release workflow with channel `stable`
 - **AND** it does not publish npm packages, create a release tag, create a GitHub Release, or submit to Chrome Web Store
+
+#### Scenario: Stable dispatch is rejected or merge propagation times out
+
+- **GIVEN** the pull request was squash-merged but the merged commit is not visible on the default branch before the bounded wait expires, or the workflow dispatch request is rejected
+- **WHEN** Prepare Release reaches its post-merge handoff
+- **THEN** Prepare Release fails without publishing packages or creating a release tag
+- **AND** the merged version remains available for deliberate manual recovery through Release
 
 #### Scenario: Pull-request validation fails or does not become available
 
