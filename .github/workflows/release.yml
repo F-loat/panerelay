@@ -13,6 +13,10 @@ on:
         options:
           - beta
           - stable
+      source_sha:
+        description: Full commit SHA to release
+        required: true
+        type: string
 
 concurrency:
   group: panerelay-release
@@ -32,6 +36,7 @@ jobs:
       channel: ${{ steps.prepare.outputs.channel }}
       extension_artifact: panerelay-extension-${{ steps.prepare.outputs.version }}
       release_tag: ${{ steps.prepare.outputs.release_tag }}
+      source_sha: ${{ steps.source.outputs.source_sha }}
       version: ${{ steps.prepare.outputs.version }}
 
     steps:
@@ -40,6 +45,24 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+          ref: ${{ inputs.source_sha }}
+
+      - name: Validate release source
+        id: source
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          checked_out_sha="$(git rev-parse HEAD)"
+          if [[ "$checked_out_sha" != "$SOURCE_SHA" ]]; then
+            echo "Checked out $checked_out_sha, expected $SOURCE_SHA." >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$checked_out_sha" "origin/$DEFAULT_BRANCH"; then
+            echo "Release source $checked_out_sha is not reachable from $DEFAULT_BRANCH." >&2
+            exit 1
+          fi
+          echo "source_sha=$checked_out_sha" >>"$GITHUB_OUTPUT"
 
       - name: Preflight stable release target
         if: inputs.channel == 'stable'
@@ -210,14 +233,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
+          RELEASE_SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
           RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           gh release create "$RELEASE_TAG" \
             release-assets/panerelay-extension-"$RELEASE_VERSION".zip \
             release-assets/SHA256SUMS \
             --repo "$GITHUB_REPOSITORY" \
-            --target "$GITHUB_SHA" \
+            --target "$RELEASE_SOURCE_SHA" \
             --title "Panerelay $RELEASE_VERSION" \
-            --notes "Includes Codex, Claude Code, and Qoder side-panel Agents. Requires agent-browser 0.33.0 or newer." \
             --generate-notes \
             --latest

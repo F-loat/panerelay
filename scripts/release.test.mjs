@@ -127,12 +127,27 @@ test('normalizes Windows command output before validating archive entries', () =
 test('keeps release publication manual, protected, and channel-scoped', () => {
   assert.match(releaseWorkflow, /workflow_dispatch:/);
   assert.match(releaseWorkflow, /options:\n\s+- beta\n\s+- stable/);
+  assert.match(
+    releaseWorkflow,
+    /source_sha:\n\s+description: Full commit SHA to release\n\s+required: true\n\s+type: string/,
+  );
   assert.match(releaseWorkflow, /group: panerelay-release\n\s+cancel-in-progress: false/);
   assert.match(releaseWorkflow, /environment: release/);
   assert.match(releaseWorkflow, /id-token: write/);
   assert.match(releaseWorkflow, /actions\/upload-artifact@v7/g);
   assert.match(releaseWorkflow, /actions\/download-artifact@v8/g);
   assert.match(releaseWorkflow, /node scripts\/publish-release\.mjs/);
+  assert.match(releaseWorkflow, /ref: \$\{\{ inputs\.source_sha \}\}/);
+  assert.match(releaseWorkflow, /git rev-parse HEAD/);
+  assert.match(
+    releaseWorkflow,
+    /if \[\[ "\$checked_out_sha" != "\$SOURCE_SHA" \]\]; then[\s\S]+exit 1/,
+  );
+  assert.match(
+    releaseWorkflow,
+    /git merge-base --is-ancestor "\$checked_out_sha" "origin\/\$DEFAULT_BRANCH"/,
+  );
+  assert.match(releaseWorkflow, /source_sha=\$checked_out_sha/);
   assert.match(releaseWorkflow, /if: needs\.prepare\.outputs\.channel == 'stable'/);
   assert.match(releaseWorkflow, /gh release create "\$RELEASE_TAG"/);
   const stableReleaseOffset = releaseWorkflow.indexOf('\n  stable-release:');
@@ -148,7 +163,13 @@ test('keeps release publication manual, protected, and channel-scoped', () => {
   assert.match(stableRelease, /test "\$\(wc -l < release-assets\/SHA256SUMS\.public\)" -eq 1/);
   assert.match(stableRelease, /release-assets\/panerelay-extension-"\$RELEASE_VERSION"\.zip/);
   assert.match(stableRelease, /release-assets\/SHA256SUMS/);
+  assert.match(
+    stableRelease,
+    /RELEASE_SOURCE_SHA: \$\{\{ needs\.prepare\.outputs\.source_sha \}\}/,
+  );
+  assert.match(stableRelease, /--target "\$RELEASE_SOURCE_SHA"/);
   assert.doesNotMatch(stableRelease, /release-assets\/inventory\.json/);
+  assert.doesNotMatch(stableRelease, /Includes Codex, Claude Code, and Qoder side-panel Agents\./);
   assert.doesNotMatch(releaseWorkflow, /NPM_TOKEN|git push|git tag/);
 });
 
@@ -201,7 +222,7 @@ test('keeps localized README documentation navigation in the selected language',
   assert.match(documentationIndexZhCn, /\[English\]\(README\.md\)/);
 });
 
-test('keeps selectable release preparation validated and auto-squashed', () => {
+test('keeps selectable release preparation validated, auto-squashed, and dispatched', () => {
   assert.match(prepareReleaseWorkflow, /^name: Prepare Release$/m);
   assert.match(prepareReleaseWorkflow, /workflow_dispatch:/);
   assert.match(
@@ -214,6 +235,7 @@ test('keeps selectable release preparation validated and auto-squashed', () => {
   );
   assert.match(prepareReleaseWorkflow, /contents: write/);
   assert.match(prepareReleaseWorkflow, /pull-requests: write/);
+  assert.match(prepareReleaseWorkflow, /actions: write/);
   assert.match(
     prepareReleaseWorkflow,
     /pnpm run release:prepare -- --increment "\$RELEASE_INCREMENT"/,
@@ -268,6 +290,26 @@ test('keeps selectable release preparation validated and auto-squashed', () => {
   assert.match(prepareReleaseWorkflow, /--delete-branch/);
   assert.match(prepareReleaseWorkflow, /--match-head-commit "\$PREPARE_SHA"/);
   assert.doesNotMatch(prepareReleaseWorkflow, /--admin/);
+  assert.match(prepareReleaseWorkflow, /MERGE_DISCOVERY_ATTEMPTS: 60/);
+  assert.match(
+    prepareReleaseWorkflow,
+    /gh api[\s\S]+compare\/\$merged_sha\.\.\.\$DEFAULT_BRANCH[\s\S]+\.status/,
+  );
+  const mergeDiscoveryStepStart = prepareReleaseWorkflow.indexOf(
+    '      - name: Wait for merged version on default branch',
+  );
+  assert.ok(mergeDiscoveryStepStart > mergeStepStart);
+  const mergeDiscoveryStep = prepareReleaseWorkflow.slice(mergeDiscoveryStepStart);
+  assert.match(mergeDiscoveryStep, /id: merge/);
+  assert.match(mergeDiscoveryStep, /echo "merged_sha=\$merged_sha"/);
+  const dispatchStepStart = prepareReleaseWorkflow.indexOf('      - name: Dispatch stable release');
+  assert.ok(dispatchStepStart > mergeDiscoveryStepStart);
+  const dispatchStep = prepareReleaseWorkflow.slice(dispatchStepStart);
+  assert.match(dispatchStep, /gh workflow run release\.yml/);
+  assert.match(dispatchStep, /--ref "\$DEFAULT_BRANCH"/);
+  assert.match(dispatchStep, /--field channel=stable/);
+  assert.match(dispatchStep, /--field source_sha="\$MERGED_SHA"/);
+  assert.doesNotMatch(prepareReleaseWorkflow, /run \*\*Release\*\* from/);
   assert.doesNotMatch(
     prepareReleaseWorkflow,
     /id-token: write|npm publish|publish-release\.mjs|gh release create|git tag|Chrome Web Store/,
