@@ -46,8 +46,8 @@
 
 ## 6. Deployment and Cleanup
 
-- [ ] 6.1 Commit and push the focused branch, integrate it into the default branch, enable GitHub Actions as the Pages source, deploy, and set the repository homepage URL.
-- [ ] 6.2 Verify the production Pages URL on desktop and mobile, confirm first-party functionality needs no backend or analytics, and remove temporary browser sessions, configuration, screenshots, and logs from the repository workspace.
+- [x] 6.1 Commit and push the focused branch, integrate it into the default branch, enable GitHub Actions as the Pages source, deploy, and set the repository homepage URL.
+- [x] 6.2 Verify the production Pages URL on desktop and mobile, confirm first-party functionality needs no backend or analytics, and remove temporary browser sessions, configuration, screenshots, and logs from the repository workspace.
 
 ## 7. Flexible Authorization Positioning
 
