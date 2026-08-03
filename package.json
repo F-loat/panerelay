@@ -1,6 +1,6 @@
 {
   "name": "panerelay",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Let AI Agents use authorized tabs in your existing browser, or run local Agents beside the page.",
   "license": "MIT",
