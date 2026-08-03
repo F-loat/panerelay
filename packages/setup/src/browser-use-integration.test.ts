@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import { browserUseGatewayStatePath } from '@panerelay/bridge/browser-use-gateway';
 import {
   browserUseEnvironmentPath,
   BROWSER_USE_CHILD_ENVIRONMENT_KEYS,
@@ -88,21 +89,67 @@ test('installs the official Browser Use integration without private CLI or MCP l
     assert.doesNotMatch(env, /BH_RUNTIME_DIR=/);
     assert.doesNotMatch(env, /BH_TMP_DIR=/);
 
-    const files = await import('node:fs/promises').then(({ readdir }) =>
-      readdir(join(paths.dataDirectory, 'bin')),
-    );
+    const files = await readdir(join(paths.dataDirectory, 'bin'));
     assert.deepEqual(files, ['panerelay-browser-use-adapter']);
     await assert.rejects(readFile(join(paths.dataDirectory, 'bin', 'panerelay-browser-use')), {
       code: 'ENOENT',
     });
     const removed = await uninstallBrowserUseIntegrationArtifacts({ homeDirectory });
     assert.equal(removed.runtimeStateRemoved, false);
+    assert.equal(removed.gatewayStop, 'absent');
     await assert.rejects(readFile(paths.adapterLauncherPath), { code: 'ENOENT' });
     await assert.rejects(readFile(browserUseEnvironmentPath(homeDirectory)), { code: 'ENOENT' });
     assert.deepEqual(
       (await readCliAdapterRegistry({ dataDirectory: paths.dataDirectory, homeDirectory }))
         .adapters,
       [],
+    );
+  } finally {
+    await rm(root, { force: true, recursive: true });
+  }
+});
+
+test('stops the owned Browser Use gateway before removing its integration state', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'panerelay-browser-use-gateway-uninstall-'));
+  const homeDirectory = join(root, 'home');
+  let stoppedFor: string | undefined;
+  try {
+    const statePath = browserUseGatewayStatePath(homeDirectory);
+    await mkdir(join(statePath, '..'), { recursive: true, mode: 0o700 });
+    await writeFile(statePath, '{}');
+    const removed = await uninstallBrowserUseIntegrationArtifacts({
+      homeDirectory,
+      stopGateway: async ({ homeDirectory: selectedHome } = {}) => {
+        stoppedFor = selectedHome;
+        return 'stopped';
+      },
+    });
+    assert.equal(stoppedFor, homeDirectory);
+    assert.equal(removed.gatewayStop, 'stopped');
+  } finally {
+    await rm(root, { force: true, recursive: true });
+  }
+});
+
+test('treats malformed previous integration config as absent during setup', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'panerelay-browser-use-malformed-config-'));
+  const homeDirectory = join(root, 'home');
+  const browserUseExecutable = join(root, 'browser-use');
+  const adapterBundlePath = join(root, 'adapter.mjs');
+  const paths = resolveBrowserUseIntegrationPaths({ homeDirectory });
+  try {
+    await mkdir(join(paths.integrationConfigPath, '..'), { recursive: true, mode: 0o700 });
+    await writeFile(paths.integrationConfigPath, '{not-json');
+    await writeFile(browserUseExecutable, '#!/bin/sh\n', { mode: 0o700 });
+    await writeFile(adapterBundlePath, 'adapter bundle\n');
+    const installation = await installBrowserUseIntegrationArtifacts({
+      adapterBundlePath,
+      browserUseVersions: { browserUseExecutable },
+      homeDirectory,
+    });
+    assert.deepEqual(
+      JSON.parse(await readFile(paths.integrationConfigPath, 'utf8')),
+      installation.config,
     );
   } finally {
     await rm(root, { force: true, recursive: true });

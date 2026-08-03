@@ -11,7 +11,7 @@ import {
   type CliAdapterResponse,
   type CliAdapterSuccessResponse,
 } from '@panerelay/protocol';
-import { PANERELAY_BROWSER_USE_GATEWAY_URL } from './environment.js';
+import { browserUseGatewayUrl } from './environment.js';
 
 export const BROWSER_USE_ADAPTER_ID = 'browser-use' as const;
 export const BROWSER_USE_MINIMUM_VERSION = '0.13.7' as const;
@@ -280,14 +280,15 @@ export async function handleBrowserUseAdapterRequest(
       environment: {},
     });
   }
+  const gatewayUrl = browserUseGatewayUrl(request.input.browser);
   return success(request, {
     mode: 'extension',
-    connection: { kind: 'cdp-http', url: PANERELAY_BROWSER_USE_GATEWAY_URL },
+    connection: { kind: 'cdp-http', url: gatewayUrl },
     environment: {
       ANONYMIZED_TELEMETRY: 'false',
       BH_RECORD: '0',
       BH_TELEMETRY: '0',
-      BU_CDP_URL: PANERELAY_BROWSER_USE_GATEWAY_URL,
+      BU_CDP_URL: gatewayUrl,
       BU_NAME: 'panerelay',
     },
     concurrencyKey: 'browser-use:panerelay',

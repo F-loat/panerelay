@@ -141,8 +141,10 @@ export async function setupPanerelay(
     : false;
   const browserUseIntegration = options.browserUse
     ? await installBrowserUse({
-        browserUseDefault: options.browserUseDefault,
+        browserUseDefault:
+          options.browserUseDefault ?? (options.globalDefault ? 'extension' : undefined),
         browserUseVersions,
+        environment: options.environment,
         homeDirectory: options.homeDirectory,
         platform: options.platform,
       })
@@ -222,6 +224,7 @@ export async function uninstallPanerelay(
     homeDirectory: options.homeDirectory,
   });
   const browserUseIntegration = await uninstallSelectedBrowserUse({
+    environment: options.environment,
     homeDirectory: options.homeDirectory,
     platform: options.platform,
   });

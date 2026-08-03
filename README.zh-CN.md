@@ -84,6 +84,22 @@ print(list_tabs())
 PY
 ```
 
+PowerShell：
+
+```powershell
+$env:BU_CDP_URL = 'http://127.0.0.1:43827/cdp/browser-use'
+@'
+print(list_tabs())
+'@ | browser-use
+```
+
+命令提示符：
+
+```bat
+set "BU_CDP_URL=http://127.0.0.1:43827/cdp/browser-use"
+echo print(list_tabs()) | browser-use
+```
+
 结果同样只能包含你明确授权的标签页。Windows 或 browser-use 不在 `PATH` 时，请使用 setup 报告的官方可执行文件路径；setup 不会替换它，也不会修改 `PATH`。
 
 Extension 模式下，Setup 管理的环境文件会包含固定的发现地址：
@@ -92,7 +108,14 @@ Extension 模式下，Setup 管理的环境文件会包含固定的发现地址�
 BU_CDP_URL=http://127.0.0.1:43827/cdp/browser-use
 ```
 
-官方 `browser-use` 和 `browser-use --cli-mcp` 会直接读取这个变量。这个地址只是稳定的本机发现入口，不是可长期复用的 CDP 凭证；Panerelay 仍会在入口后面选择默认浏览器，并生成短期 CDP 凭证。使用 `panerelay connection use browser-use extension|direct` 切换持久化模式；保存为 Extension 模式后可以省略命令前的 `BU_CDP_URL=`，Direct 模式会移除 Panerelay 管理的配置，而单次进程显式传入的环境变量优先级更高。
+官方 `browser-use` 和 `browser-use --cli-mcp` 会直接读取这个变量。这个地址只是稳定的本机发现入口，不是可长期复用的 CDP 凭证；Panerelay 仍会在入口后面选择默认浏览器，并生成短期 CDP 凭证。使用以下任一命令切换持久化模式：
+
+```bash
+panerelay connection use browser-use extension
+panerelay connection use browser-use direct
+```
+
+保存为 Extension 模式后可以省略命令前的 `BU_CDP_URL=`，Direct 模式会移除 Panerelay 管理的配置，而单次进程显式传入的环境变量优先级更高。
 
 ## 支持的工作流
 

@@ -4,11 +4,15 @@ import { homedir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  browserUseAdapterManifest,
+  browserUseGatewayStatePath,
+  stopBrowserUseGateway,
+  type BrowserUseGatewayStopResult,
+} from '@panerelay/bridge/browser-use-gateway';
+import { browserUseAdapterManifest, type BrowserUseVersions } from '@panerelay/browser-use';
+import {
   browserUseEnvironmentPath,
   setBrowserUseEnvironmentMode,
-  type BrowserUseVersions,
-} from '@panerelay/browser-use';
+} from '@panerelay/browser-use/environment';
 import {
   readCliAdapterMode,
   readCliAdapterRegistration,
@@ -26,6 +30,7 @@ export const PANERELAY_BROWSER_USE_CONFIG_PROTOCOL =
 
 export interface BrowserUseIntegrationPathOptions {
   dataDirectory?: string;
+  environment?: NodeJS.ProcessEnv;
   homeDirectory?: string;
   platform?: NodeJS.Platform;
 }
@@ -49,6 +54,7 @@ export interface InstallBrowserUseIntegrationOptions extends BrowserUseIntegrati
   readAdapterMode?: typeof readCliAdapterMode;
   registerAdapter?: typeof registerCliAdapter;
   removeAdapter?: typeof removeCliAdapterRegistration;
+  setEnvironmentMode?: typeof setBrowserUseEnvironmentMode;
   setAdapterMode?: typeof setCliAdapterMode;
 }
 
@@ -74,10 +80,13 @@ export interface BrowserUseIntegrationInstallation {
 export interface UninstallBrowserUseIntegrationOptions extends BrowserUseIntegrationPathOptions {
   removeAdapter?: typeof removeCliAdapterRegistration;
   removeAdapterMode?: typeof removeCliAdapterMode;
+  stopGateway?: typeof stopBrowserUseGateway;
+  setEnvironmentMode?: typeof setBrowserUseEnvironmentMode;
 }
 
 export interface BrowserUseIntegrationUninstallResult {
   detachedDaemonMayRemain: boolean;
+  gatewayStop: BrowserUseGatewayStopResult;
   paths: BrowserUseIntegrationPaths;
   registry: CliAdapterRegistry;
   runtimeStateRemoved: boolean;
@@ -87,13 +96,22 @@ function pathImplementation(platform: NodeJS.Platform): typeof path.posix | type
   return platform === 'win32' ? path.win32 : path.posix;
 }
 
+function resolveHomeDirectory(options: BrowserUseIntegrationPathOptions): string {
+  return (
+    options.homeDirectory ??
+    options.environment?.HOME ??
+    options.environment?.USERPROFILE ??
+    homedir()
+  );
+}
+
 export function resolveBrowserUseIntegrationPaths(
   options: BrowserUseIntegrationPathOptions = {},
 ): BrowserUseIntegrationPaths {
   const platform = options.platform ?? process.platform;
   const paths = pathImplementation(platform);
-  const dataDirectory =
-    options.dataDirectory ?? paths.join(options.homeDirectory ?? homedir(), '.panerelay');
+  const homeDirectory = resolveHomeDirectory(options);
+  const dataDirectory = options.dataDirectory ?? paths.join(homeDirectory, '.panerelay');
   const adapterStorageDirectory = paths.join(dataDirectory, 'adapters', 'browser-use');
   const browserUseDirectory = paths.join(dataDirectory, 'browser-use');
   const adapterVersionDirectory = paths.join(
@@ -250,11 +268,17 @@ function adapterRegistration(executablePath: string): CliAdapterRegistration {
 }
 
 async function readPreviousConfig(filePath: string): Promise<BrowserUseIntegrationConfig | null> {
+  let content: string;
   try {
-    return JSON.parse(await readFile(filePath, 'utf8')) as BrowserUseIntegrationConfig;
+    content = await readFile(filePath, 'utf8');
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
     throw error;
+  }
+  try {
+    return JSON.parse(content) as BrowserUseIntegrationConfig;
+  } catch {
+    return null;
   }
 }
 
@@ -269,10 +293,10 @@ export async function installBrowserUseIntegrationArtifacts(
   const nodePath = options.nodePath ?? process.execPath;
   const registryOptions = {
     dataDirectory: paths.dataDirectory,
-    homeDirectory: options.homeDirectory,
+    homeDirectory: resolveHomeDirectory(options),
     platform,
   };
-  const preferenceOptions = { homeDirectory: options.homeDirectory };
+  const preferenceOptions = { homeDirectory: resolveHomeDirectory(options) };
   const previousRegistration = await readCliAdapterRegistration('browser-use', registryOptions);
   const previousConfig = await readPreviousConfig(paths.integrationConfigPath);
   if (options.browserUseVersions && !options.browserUseVersions.browserUseExecutable) {
@@ -296,7 +320,7 @@ export async function installBrowserUseIntegrationArtifacts(
     paths.adapterPackagePath,
     paths.adapterLauncherPath,
     paths.integrationConfigPath,
-    browserUseEnvironmentPath(options.homeDirectory),
+    browserUseEnvironmentPath(options.homeDirectory, options.environment),
   ];
   const snapshots = new Map(
     await Promise.all(
@@ -363,16 +387,18 @@ export async function installBrowserUseIntegrationArtifacts(
       0o600,
       platform,
     );
+    const effectiveMode = options.browserUseDefault ?? currentMode ?? 'extension';
+    await (options.setEnvironmentMode ?? setBrowserUseEnvironmentMode)(effectiveMode, {
+      environment: options.environment,
+      homeDirectory: options.homeDirectory,
+    });
     if (options.browserUseDefault !== undefined || currentMode === null) {
       await (options.setAdapterMode ?? setCliAdapterMode)(
         'browser-use',
-        options.browserUseDefault ?? 'extension',
+        effectiveMode,
         preferenceOptions,
       );
     }
-    await setBrowserUseEnvironmentMode(options.browserUseDefault ?? currentMode ?? 'extension', {
-      homeDirectory: options.homeDirectory,
-    });
     return { config, paths, registration, registry };
   } catch (error) {
     try {
@@ -417,22 +443,31 @@ export async function uninstallBrowserUseIntegrationArtifacts(
   const platform = options.platform ?? process.platform;
   const paths = resolveBrowserUseIntegrationPaths(options);
   const runtimeStateRemoved = await pathExists(paths.runtimeDirectory);
+  const homeDirectory = resolveHomeDirectory(options);
+  const gatewayStatePresent = await pathExists(browserUseGatewayStatePath(homeDirectory));
+  const gatewayStop = gatewayStatePresent
+    ? await (options.stopGateway ?? stopBrowserUseGateway)({ homeDirectory })
+    : 'absent';
   const registry = await (options.removeAdapter ?? removeCliAdapterRegistration)('browser-use', {
     dataDirectory: paths.dataDirectory,
-    homeDirectory: options.homeDirectory,
+    homeDirectory,
     platform,
   });
   await (options.removeAdapterMode ?? removeCliAdapterMode)('browser-use', {
+    homeDirectory,
+  });
+  await (options.setEnvironmentMode ?? setBrowserUseEnvironmentMode)('direct', {
+    environment: options.environment,
     homeDirectory: options.homeDirectory,
   });
-  await setBrowserUseEnvironmentMode('direct', { homeDirectory: options.homeDirectory });
   await Promise.all([
     rm(paths.adapterLauncherPath, { force: true }),
     rm(paths.adapterStorageDirectory, { force: true, recursive: true }),
     rm(paths.browserUseDirectory, { force: true, recursive: true }),
   ]);
   return {
-    detachedDaemonMayRemain: runtimeStateRemoved,
+    detachedDaemonMayRemain: runtimeStateRemoved || gatewayStop === 'remaining',
+    gatewayStop,
     paths,
     registry,
     runtimeStateRemoved,

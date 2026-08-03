@@ -15,6 +15,7 @@ const host: NativeHostInstallationResult = {
 
 test('setup can opt into global and project default providers', async () => {
   const calls: string[] = [];
+  let browserUseDefault: 'direct' | 'extension' | undefined;
   const extensionId = 'abcdefghijklmnopabcdefghijklmnop';
   const result = await setupPanerelay(
     {
@@ -50,8 +51,9 @@ test('setup can opt into global and project default providers', async () => {
         );
         return host;
       },
-      installBrowserUse: async () => {
+      installBrowserUse: async options => {
         calls.push('install-browser-use');
+        browserUseDefault = options?.browserUseDefault;
         return {
           config: {
             adapterId: 'browser-use',
@@ -119,6 +121,7 @@ test('setup can opt into global and project default providers', async () => {
     'install-skill:project',
   ]);
   assert.equal(result.globalDefault, true);
+  assert.equal(browserUseDefault, 'extension');
   assert.equal(result.browserUseRequested, true);
   assert.equal(result.browserUseReady, true);
   assert.equal(result.projectConfigPath, '/project/agent-browser.json');
@@ -189,6 +192,7 @@ test('uninstall removes only Panerelay-owned integration through scoped operatio
         calls.push('uninstall-browser-use');
         return {
           detachedDaemonMayRemain: false,
+          gatewayStop: 'absent',
           paths: {
             adapterArtifactPath: '/home/.panerelay/adapter.mjs',
             adapterLauncherPath: '/home/.panerelay/adapter',

@@ -2,12 +2,17 @@
 
 ### Requirement: Browser Use adapter resolves an authorized connection
 
-The Browser Use integration SHALL resolve an Extension-mode connection to the fixed setup-managed Browser Use gateway URL rather than returning a per-invocation ticket URL. The gateway SHALL perform dynamic browser selection, ticket creation, participant allocation, and WebSocket routing. Direct mode SHALL remain an explicit configuration that removes the Panerelay Browser Harness environment override.
+The Browser Use integration SHALL resolve an Extension-mode connection to the fixed setup-managed Browser Use gateway URL rather than returning a per-invocation ticket URL. When a one-run browser selection is supplied, it SHALL return a scoped URL on that gateway which binds the request to the selected browser ID and generation. The gateway SHALL perform ticket creation, participant allocation, and WebSocket routing. Direct mode SHALL remain an explicit configuration that removes the Panerelay Browser Harness environment override.
 
 #### Scenario: Resolve Extension mode
 
 - **WHEN** the Browser Use integration is configured for Extension mode and a live eligible browser exists
 - **THEN** the effective Browser Use environment SHALL contain the fixed gateway `BU_CDP_URL` and SHALL not contain a Bridge bearer or raw per-invocation ticket
+
+#### Scenario: Resolve Extension mode for an explicit browser
+
+- **WHEN** the Browser Use integration is configured for Extension mode and a one-run browser selection is supplied
+- **THEN** the effective Browser Use environment SHALL contain a scoped gateway `BU_CDP_URL` bound to that browser ID and generation, and SHALL not contain a Bridge bearer or raw per-invocation ticket
 
 #### Scenario: Resolve Direct mode
 

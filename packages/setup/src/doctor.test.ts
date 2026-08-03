@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { installNativeHost } from '@panerelay/bridge/install';
 import { writeBrowserRegistration } from '@panerelay/browser-registry';
+import { setBrowserUseEnvironmentMode } from '@panerelay/browser-use/environment';
 import { PANERELAY_PROTOCOL_VERSION } from '@panerelay/protocol';
 import type { CommandRunner } from '@panerelay/bridge/platform';
 import { setCliAdapterMode } from '@panerelay/cli/adapter-config';
@@ -38,6 +39,7 @@ test('doctor verifies the Browser Use user-level default', async () => {
   const homeDirectory = await mkdtemp(join(tmpdir(), 'panerelay-browser-use-default-'));
   try {
     await setCliAdapterMode('browser-use', 'extension', { homeDirectory });
+    await setBrowserUseEnvironmentMode('extension', { homeDirectory });
     const report = await doctorPanerelay({
       browserUse: true,
       browserUseProbe: async () => ({
@@ -46,12 +48,38 @@ test('doctor verifies the Browser Use user-level default', async () => {
         browserUseExecutable: '/bin/browser-use',
       }),
       globalDefault: true,
+      browserUseGatewayProbe: async () => true,
       homeDirectory,
       platform: 'linux',
     });
     const check = report.checks.find(item => item.id === 'browser-use-default');
     assert.equal(check?.status, 'pass');
     assert.equal(check?.detail, 'extension');
+  } finally {
+    await rm(homeDirectory, { force: true, recursive: true });
+  }
+});
+
+test('doctor fails an Extension default with an invalid environment or gateway', async () => {
+  const homeDirectory = await mkdtemp(join(tmpdir(), 'panerelay-browser-use-invalid-default-'));
+  try {
+    await setCliAdapterMode('browser-use', 'extension', { homeDirectory });
+    const report = await doctorPanerelay({
+      browserUse: true,
+      browserUseProbe: async () => ({
+        browserHarness: '0.1.9',
+        browserUse: '0.13.8',
+        browserUseExecutable: '/bin/browser-use',
+      }),
+      browserUseGatewayProbe: async () => false,
+      globalDefault: true,
+      homeDirectory,
+      platform: 'linux',
+    });
+    assert.equal(report.ok, false);
+    assert.equal(report.checks.find(item => item.id === 'browser-use-default')?.status, 'fail');
+    assert.equal(report.checks.find(item => item.id === 'browser-use-environment')?.status, 'fail');
+    assert.equal(report.checks.find(item => item.id === 'browser-use-gateway')?.status, 'fail');
   } finally {
     await rm(homeDirectory, { force: true, recursive: true });
   }

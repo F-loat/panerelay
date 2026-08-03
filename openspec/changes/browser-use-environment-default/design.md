@@ -37,7 +37,7 @@ Alternatives rejected:
 
 ### 2. Keep the dynamic ticket and WebSocket credential behind the stable endpoint
 
-For `GET /cdp/browser-use/json/version`, the gateway selects a live registration using the same protected browser-default algorithm as agent-browser. It then performs the equivalent authenticated bootstrap request to the selected Browser Relay, fetches that ticket's `/json/version`, and returns the version metadata to Browser Harness. The returned WebSocket URL remains the Relay's participant-specific URL and retains its short-lived connection credential.
+For `GET /cdp/browser-use/json/version`, the gateway selects a live registration using the same protected browser-default algorithm as agent-browser. A one-run adapter resolution can instead use `GET /cdp/browser-use/browser/<opaque-selection>/json/version`; the gateway decodes only the bounded browser ID and generation, validates that the live registration still has that generation, and does not consult an inherited `PANERELAY_BROWSER_ID`. In both cases it performs the equivalent authenticated bootstrap request to the selected Browser Relay, fetches that ticket's `/json/version`, and returns the version metadata to Browser Harness. The returned WebSocket URL remains the Relay's participant-specific URL and retains its short-lived connection credential.
 
 The fixed URL is therefore only a discovery and routing address. It is not a permanent CDP authorization token. The gateway never returns Bridge bearer tokens or ticket URLs, and it does not log the returned WebSocket URL.
 
@@ -59,14 +59,14 @@ The adapter protocol remains available for health/diagnostic and integration ins
 
 ### 5. Gateway lifecycle and revocation
 
-The gateway owns no Browser participant. It forwards the dynamic WebSocket URL to Browser Harness, while the selected Browser Relay owns the participant and invalidates it on authorization loss, generation change, transport loss, heartbeat expiry, or Native Host shutdown. A later `/json/version` request must select a current registration and mint a new participant when the old one is invalid.
+The gateway owns no Browser participant. It forwards the dynamic WebSocket URL to Browser Harness, while the selected Browser Relay owns the participant and invalidates it on authorization loss, generation change, transport loss, heartbeat expiry, or Native Host shutdown. A later `/json/version` request must select a current registration and mint a new participant when the old one is invalid. Uninstall verifies the gateway's protected state against its loopback health PID and asks that owned gateway to exit; an unavailable or mismatched process is reported as remaining rather than being killed by a broad process match.
 
 When the gateway cannot find a valid default, it fails closed. It never falls back to Direct mode or another browser after an explicit/default selection failure.
 
 ## Risks / Trade-offs
 
 - **[Same-user loopback access]** A same-user local process can call the fixed discovery endpoint without a per-request secret → bind loopback only, use protected gateway state, keep the dynamic WebSocket credential, document the same-user trust boundary, and do not claim cross-user isolation.
-- **[Gateway process lifecycle]** A Native Host may exit while the gateway remains → use a protected PID/lock record, health checks, stale-owner recovery, and uninstall cleanup; the endpoint returns unavailable when no Browser Relay is eligible.
+- **[Gateway process lifecycle]** A Native Host may exit while the gateway remains → use a protected PID/lock record, health checks, stale-owner recovery, and uninstall cleanup; the endpoint returns unavailable when no Browser Relay is eligible, and uninstall reports a gateway that cannot be verified or stopped.
 - **[Browser Harness daemon reuse]** A healthy daemon ignores changed connection environment, and Browser Harness 0.1.8 loads workspace environment after initializing IPC paths → use the stable gateway URL and `BU_NAME` lane while leaving runtime/temp directory defaults untouched, and explicitly test reload, stale participant invalidation, and browser-default changes.
 - **[Configuration ownership]** Browser Harness `.env` is upstream-owned input → merge only bounded Panerelay keys atomically, preserve unrelated entries, and remove only exact managed keys on uninstall.
 - **[Multiple browsers]** A fixed endpoint must select among independent Native Hosts → read the protected shared browser registry at every discovery request and use the existing saved-default/ambiguous-selection rules.

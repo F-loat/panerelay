@@ -10,7 +10,7 @@ import {
   setBrowserDefault,
 } from '@panerelay/browser-registry';
 import { realpathSync } from 'node:fs';
-import { setBrowserUseEnvironmentMode } from '@panerelay/browser-use';
+import { setBrowserUseEnvironmentMode } from '@panerelay/browser-use/environment';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { normalizeLocale, resolveLocale, translate, type SupportedLocale } from './i18n.js';

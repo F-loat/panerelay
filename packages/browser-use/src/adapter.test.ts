@@ -19,6 +19,7 @@ import {
   isStableVersionAtLeast,
   probeBrowserUseVersions,
 } from './adapter.js';
+import { browserUseGatewayUrl } from './environment.js';
 
 function request(operation: CliAdapterRequest['operation']): CliAdapterRequest {
   return {
@@ -196,14 +197,18 @@ test('resolves the stable Browser Use gateway independently from actor labels', 
   );
   assert.equal(response.success, true);
   if (!response.success) assert.fail('resolution failed');
+  const gatewayUrl = browserUseGatewayUrl({
+    browserId: state.browserId,
+    generation: state.generation,
+  });
   assert.deepEqual(response.result, {
     mode: 'extension',
-    connection: { kind: 'cdp-http', url: 'http://127.0.0.1:43827/cdp/browser-use' },
+    connection: { kind: 'cdp-http', url: gatewayUrl },
     environment: {
       ANONYMIZED_TELEMETRY: 'false',
       BH_RECORD: '0',
       BH_TELEMETRY: '0',
-      BU_CDP_URL: 'http://127.0.0.1:43827/cdp/browser-use',
+      BU_CDP_URL: gatewayUrl,
       BU_NAME: 'panerelay',
     },
     concurrencyKey: 'browser-use:panerelay',

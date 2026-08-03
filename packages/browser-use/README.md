@@ -41,6 +41,22 @@ print(list_tabs())
 PY
 ```
 
+PowerShell:
+
+```powershell
+$env:BU_CDP_URL = 'http://127.0.0.1:43827/cdp/browser-use'
+@'
+print(list_tabs())
+'@ | browser-use
+```
+
+Command Prompt:
+
+```bat
+set "BU_CDP_URL=http://127.0.0.1:43827/cdp/browser-use"
+echo print(list_tabs()) | browser-use
+```
+
 Success means the command lists only tabs authorized in Panerelay.
 
 ### Browser Harness environment
@@ -68,7 +84,7 @@ The managed environment file is the default for new Browser Use processes. An ex
 
 Setup adds only Panerelay-owned integration files:
 
-- a protected Browser Use adapter registration and launcher;
+- a protected Browser Use adapter registration and internal adapter launcher (it does not replace the official `browser-use` command);
 - an additive `panerelay-browser-use` Skill without replacing the official browser-use Skill;
 - a saved Direct or Extension connection preference and managed Browser Harness environment file.
 

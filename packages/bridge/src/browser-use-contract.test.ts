@@ -4,6 +4,7 @@ import {
   BROWSER_USE_CHILD_ENVIRONMENT_KEYS,
   handleBrowserUseAdapterRequest,
 } from '@panerelay/browser-use';
+import { browserUseGatewayUrl } from '@panerelay/browser-use/environment';
 import { resolveCliConnection, type CliAdapterRegistration } from '@panerelay/cli';
 import type { BrowserSelection } from '@panerelay/browser-registry';
 import {
@@ -77,7 +78,13 @@ test('CLI and adapter resolve the stable Browser Use gateway without allocating 
 
     const first = await resolve();
     assert.equal(first.connection.kind, 'cdp-http');
-    assert.equal(first.connection.url, 'http://127.0.0.1:43827/cdp/browser-use');
+    assert.equal(
+      first.connection.url,
+      browserUseGatewayUrl({
+        browserId: state.browserId,
+        generation: state.generation,
+      }),
+    );
     assert.equal(sessionMessages().length, 0, 'ticket issuance must allocate no participant');
     const ignoredByHealthyDaemon = await resolve();
     assert.equal(ignoredByHealthyDaemon.connection.kind, 'cdp-http');

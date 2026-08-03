@@ -400,14 +400,14 @@ async function selectOptionalIntegrations(
   }
 > {
   const agentBrowser = await prompt(translate(locale, 'agentBrowserPrompt'));
-  const globalDefault = agentBrowser
+  const agentBrowserGlobalDefault = agentBrowser
     ? await prompt(translate(locale, 'agentBrowserDefaultPrompt'))
     : false;
   const browserUse = await prompt(translate(locale, 'browserUsePrompt'));
-  const browserUseDefault =
-    browserUse && (await prompt(translate(locale, 'browserUseDefaultPrompt')))
-      ? 'extension'
-      : 'direct';
+  const browserUseGlobalDefault =
+    browserUse && (await prompt(translate(locale, 'browserUseDefaultPrompt')));
+  const browserUseDefault = browserUseGlobalDefault ? 'extension' : 'direct';
+  const globalDefault = agentBrowserGlobalDefault || browserUseGlobalDefault;
   return { agentBrowser, browserUse, browserUseDefault, globalDefault };
 }
 
@@ -599,10 +599,13 @@ export async function main(
       if (result.browserUseIntegration) {
         printSetupSubline(
           translate(locale, 'setupBrowserHarnessEnvironment'),
-          browserUseEnvironmentPath(),
+          browserUseEnvironmentPath(undefined, dependencies.environment),
         );
         if (selectedGlobalDefault) {
-          printSetupSubline(translate(locale, 'setupUserDefault'), browserUseEnvironmentPath());
+          printSetupSubline(
+            translate(locale, 'setupUserDefault'),
+            browserUseEnvironmentPath(undefined, dependencies.environment),
+          );
         }
       }
       if (result.browserUseSkillPath) {

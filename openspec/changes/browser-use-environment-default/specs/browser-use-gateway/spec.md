@@ -6,12 +6,17 @@ Provide a stable local Browser Use CDP discovery URL while preserving dynamic au
 
 ### Requirement: Stable Browser Use discovery endpoint
 
-The integration SHALL expose a fixed user-scoped loopback HTTP URL whose `/json/version` discovery request can be used directly as `BU_CDP_URL` by Browser Harness. The URL SHALL remain stable across Browser Relay restarts and SHALL be recorded in protected setup state.
+The integration SHALL expose a fixed user-scoped loopback HTTP URL whose `/json/version` discovery request can be used directly as `BU_CDP_URL` by Browser Harness. The URL SHALL remain stable across Browser Relay restarts and SHALL be recorded in protected setup state. A one-run adapter resolution MAY use a scoped loopback URL that carries an opaque browser selection; that route SHALL remain on the same gateway and SHALL not expose a Bridge bearer or bootstrap ticket.
 
 #### Scenario: Official Browser Use discovers Panerelay
 
 - **WHEN** Browser Harness requests the fixed endpoint's `/json/version` path
 - **THEN** the gateway SHALL resolve the saved Browser default, create or reuse the appropriate Browser Use participant through the selected Browser Relay, and return valid CDP version metadata with a usable WebSocket URL
+
+#### Scenario: One-run Browser Use selection
+
+- **WHEN** a one-run adapter resolution supplies a browser ID and Browser Relay generation
+- **THEN** the gateway SHALL bind discovery to that browser and generation, rather than rereading a stale inherited browser selector or the saved default
 
 #### Scenario: No browser is available
 
@@ -25,7 +30,7 @@ The integration SHALL expose a fixed user-scoped loopback HTTP URL whose `/json/
 
 ### Requirement: Dynamic participant security behind the fixed URL
 
-The gateway SHALL keep participant allocation and WebSocket credentials dynamic even though the discovery URL is fixed. Each discovery request SHALL be bound to the selected browser generation and the Browser Use lane, and stale, revoked, occupied, or disconnected state SHALL fail closed.
+The gateway SHALL keep participant allocation and WebSocket credentials dynamic even though the discovery URL is fixed or scoped. Each discovery request SHALL be bound to the selected browser generation and the Browser Use lane, and stale, revoked, occupied, or disconnected state SHALL fail closed.
 
 #### Scenario: Browser generation changes
 

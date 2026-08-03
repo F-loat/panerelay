@@ -84,6 +84,22 @@ print(list_tabs())
 PY
 ```
 
+PowerShell:
+
+```powershell
+$env:BU_CDP_URL = 'http://127.0.0.1:43827/cdp/browser-use'
+@'
+print(list_tabs())
+'@ | browser-use
+```
+
+Command Prompt:
+
+```bat
+set "BU_CDP_URL=http://127.0.0.1:43827/cdp/browser-use"
+echo print(list_tabs()) | browser-use
+```
+
 The result must likewise contain only explicitly authorized tabs. On Windows or when browser-use is not on `PATH`, invoke the official executable path reported by setup; setup does not replace it or modify `PATH`.
 
 In Extension mode, the managed environment contains the fixed discovery URL:
@@ -92,7 +108,14 @@ In Extension mode, the managed environment contains the fixed discovery URL:
 BU_CDP_URL=http://127.0.0.1:43827/cdp/browser-use
 ```
 
-`browser-use` and `browser-use --cli-mcp` read this variable directly. It is only a stable loopback discovery address; Panerelay selects the saved browser and creates a short-lived CDP connection behind it. Use `panerelay connection use browser-use extension|direct` to change the durable mode; after saving Extension mode, the explicit `BU_CDP_URL=` prefix can be omitted. Direct mode removes Panerelay-managed keys, while an explicitly supplied process environment always takes precedence.
+`browser-use` and `browser-use --cli-mcp` read this variable directly. It is only a stable loopback discovery address; Panerelay selects the saved browser and creates a short-lived CDP connection behind it. Use one of these commands to change the durable mode:
+
+```bash
+panerelay connection use browser-use extension
+panerelay connection use browser-use direct
+```
+
+After saving Extension mode, the explicit `BU_CDP_URL=` prefix can be omitted. Direct mode removes Panerelay-managed keys, while an explicitly supplied process environment always takes precedence.
 
 ## Supported workflows
 

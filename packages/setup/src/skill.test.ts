@@ -64,7 +64,7 @@ test('installs the additive Browser Use Skill with official commands', async () 
     assert.equal(target, globalBrowserUseSkillPath(homeDirectory));
     assert.equal(target.endsWith(PANERELAY_BROWSER_USE_SKILL_NAME), true);
     assert.match(content, /name: panerelay-browser-use/);
-    assert.match(content, /connection use browser-use extension/);
+    assert.match(content, /npx --yes @panerelay\/cli connection use browser-use extension/);
     assert.match(content, /Normal task completion does not close/);
     assert.match(content, /They are not task-isolated/);
     assert.match(content, /BU_CDP_URL=.*browser-use <<'PY'/);

@@ -35,6 +35,10 @@
     "./agent-browser-config": {
       "types": "./dist/agent-browser-config.d.ts",
       "import": "./dist/agent-browser-config.js"
+    },
+    "./browser-use-gateway": {
+      "types": "./dist/browser-use-gateway.d.ts",
+      "import": "./dist/browser-use-gateway.js"
     }
   },
   "bin": {

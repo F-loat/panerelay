@@ -179,9 +179,14 @@ test('keeps official installation guidance Store-first and version-neutral', () 
   assert.match(rootReadme, /interactively asks whether to connect optional automation engines/);
   assert.match(rootReadmeZhCn, /交互式选择是否接入自动化引擎/);
   for (const readme of [rootReadme, rootReadmeZhCn]) {
-    assert.match(readme, /browser-use[\s\S]+print\(list_tabs\(\)\)/);
+    assert.match(
+      readme,
+      /BU_CDP_URL=http:\/\/127\.0\.0\.1:43827\/cdp\/browser-use browser-use[\s\S]+print\(list_tabs\(\)\)/,
+    );
     assert.doesNotMatch(readme, /panerelay-browser-use-cli/);
     assert.doesNotMatch(readme, /browser-use tab list/);
+    assert.match(readme, /packages\/setup\/dist\/cli\.js --agent-browser --global-default/);
+    assert.doesNotMatch(readme, /--project-provider|--global-provider/);
   }
   assert.doesNotMatch(browserUseReadme, /browser-use --version/);
   assert.match(rootReadme, /packages\/setup\/dist\/cli\.js --agent-browser --global-default/);

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { PANERELAY_EXTENSION_ID } from '@panerelay/protocol';
 import { main, parseSetupArgs } from './cli.js';
+import type { BrowserUseIntegrationInstallation } from './browser-use-integration.js';
 import type { DoctorReport } from './doctor.js';
 
 const chromeWebStoreUrl =
@@ -312,11 +313,81 @@ test('runs setup when the action is omitted', async () => {
   }
 });
 
+test('uses the Browser Use default selection as the global default', async () => {
+  let received: Record<string, unknown> | undefined;
+  const answers = [false, true, true];
+  const originalLog = console.log;
+  console.log = () => undefined;
+  try {
+    const code = await main([], {
+      environment: {},
+      interactive: () => true,
+      prompt: async () => answers.shift() ?? false,
+      setup: async options => {
+        received = { ...options };
+        return {
+          browserUseReady: true,
+          globalDefault: true,
+          host: {
+            extensionId: PANERELAY_EXTENSION_ID,
+            hostPath: '/tmp/host.mjs',
+            launchPath: '/tmp/host',
+            legacyHostPath: '/tmp/legacy-host',
+            manifestPaths: ['/tmp/manifest.json'],
+            runtimeConfigPath: '/tmp/runtime.json',
+          },
+        };
+      },
+      systemLocale: 'en',
+    });
+    assert.equal(code, 0);
+  } finally {
+    console.log = originalLog;
+  }
+  assert.equal(received?.agentBrowser, false);
+  assert.equal(received?.browserUse, true);
+  assert.equal(received?.globalDefault, true);
+  assert.equal(received?.browserUseDefault, 'extension');
+});
+
 test('renders explicit commands only for selected integrations', async () => {
   const output: string[] = [];
   const originalLog = console.log;
   console.log = (...values: unknown[]) => output.push(values.join(' '));
   try {
+    const browserUseIntegration: BrowserUseIntegrationInstallation = {
+      config: {
+        adapterId: 'browser-use',
+        adapterLauncherPath: '/tmp/panerelay-browser-use-adapter',
+        protocol: 'panerelay.browser-use-integration.v1',
+        runtimeDirectory: '/tmp/panerelay-browser-use/runtime',
+        runtimeName: 'panerelay',
+        version: '0.2.0',
+      },
+      paths: {
+        adapterArtifactPath: '/tmp/panerelay-browser-use-adapter.mjs',
+        adapterLauncherPath: '/tmp/panerelay-browser-use-adapter',
+        adapterPackagePath: '/tmp/panerelay-browser-use/package.json',
+        adapterStorageDirectory: '/tmp/panerelay-browser-use',
+        browserUseDirectory: '/tmp/panerelay-browser-use',
+        dataDirectory: '/tmp/panerelay',
+        integrationConfigPath: '/tmp/panerelay-browser-use/config.json',
+        runtimeDirectory: '/tmp/panerelay-browser-use/runtime',
+      },
+      registration: {
+        adapterId: 'browser-use',
+        version: '0.2.0',
+        executablePath: '/tmp/panerelay-browser-use-adapter',
+        protocol: 'panerelay.cli-adapter.v1',
+        capabilities: ['connection.resolve', 'adapter.doctor'],
+        modes: ['direct', 'extension'],
+        childEnvironmentKeys: [],
+      },
+      registry: {
+        protocol: 'panerelay.cli-adapter-registry.v1',
+        adapters: [],
+      },
+    };
     const setup = async () => ({
       agentBrowserInstallation: {
         executable: '/tmp/agent-browser',
@@ -324,6 +395,7 @@ test('renders explicit commands only for selected integrations', async () => {
         version: '0.33.0',
       },
       browserUseReady: true,
+      browserUseIntegration,
       browserUseVersions: {
         browserHarness: '0.1.8',
         browserUse: '0.13.7',
@@ -342,7 +414,7 @@ test('renders explicit commands only for selected integrations', async () => {
 
     assert.equal(
       await main(['--agent-browser', '--browser-use'], {
-        environment: {},
+        environment: { HOME: '/tmp/setup-home' },
         setup,
         systemLocale: 'en',
       }),
@@ -355,11 +427,16 @@ test('renders explicit commands only for selected integrations', async () => {
       /Browser Use command:\nBU_CDP_URL=http:\/\/127\.0\.0\.1:43827\/cdp\/browser-use browser-use/,
     );
     assert.match(explicit, /print\(list_tabs\(\)\)/);
+    assert.match(
+      explicit,
+      /Browser Harness environment — \/tmp\/setup-home\/\.config\/browser-harness\/agent-workspace\/\.env/,
+    );
+    assert.doesNotMatch(explicit, /User default:/);
     output.length = 0;
 
     assert.equal(
       await main(['--browser-use', '--global-default'], {
-        environment: {},
+        environment: { HOME: '/tmp/setup-home' },
         setup: async options => ({
           ...(await setup()),
           globalDefault: options?.globalDefault === true,
@@ -372,6 +449,10 @@ test('renders explicit commands only for selected integrations', async () => {
     assert.doesNotMatch(defaults, /Agent command:/);
     assert.match(defaults, /Browser Use command:\nbrowser-use/);
     assert.doesNotMatch(defaults, /BU_CDP_URL=/);
+    assert.match(
+      defaults,
+      /User default — \/tmp\/setup-home\/\.config\/browser-harness\/agent-workspace\/\.env/,
+    );
   } finally {
     console.log = originalLog;
   }
