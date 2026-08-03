@@ -1212,6 +1212,9 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
       }
     }
     const targetId = targetIdsByTabId.get(tabId);
+    if (targetId && (changeInfo.status === 'loading' || changeInfo.url)) {
+      controlledFaviconEngines.delete(targetId);
+    }
     if (targetId && attachedTabs.has(targetId)) {
       if (!summary || !(await isTabEligible(summary))) {
         if (authorizationModeAtUpdate === 'single-tab') {

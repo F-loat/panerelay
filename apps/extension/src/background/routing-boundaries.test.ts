@@ -93,6 +93,10 @@ test('marks the current document asynchronously without blocking the routed CDP 
   assert.doesNotMatch(attachHandler, /controlledTabs\.set/);
   assert.doesNotMatch(attachHandler, /applyControlledFavicon/);
   assert.doesNotMatch(tabUpdatedHandler, /applyControlledFavicon/);
+  assert.match(
+    tabUpdatedHandler,
+    /changeInfo\.status === 'loading' \|\| changeInfo\.url[\s\S]*controlledFaviconEngines\.delete\(targetId\)/,
+  );
 });
 
 test('releases the single-tab lease when navigation leaves its authorized origin', async () => {
