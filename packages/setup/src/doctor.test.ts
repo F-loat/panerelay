@@ -50,6 +50,7 @@ test('doctor verifies the Browser Use user-level default', async () => {
       globalDefault: true,
       browserUseGatewayProbe: async () => true,
       homeDirectory,
+      environment: {},
       platform: 'linux',
     });
     const check = report.checks.find(item => item.id === 'browser-use-default');
@@ -74,6 +75,7 @@ test('doctor fails an Extension default with an invalid environment or gateway',
       browserUseGatewayProbe: async () => false,
       globalDefault: true,
       homeDirectory,
+      environment: {},
       platform: 'linux',
     });
     assert.equal(report.ok, false);
