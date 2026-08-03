@@ -39,7 +39,7 @@ test('doctor verifies the Browser Use user-level default', async () => {
   const homeDirectory = await mkdtemp(join(tmpdir(), 'panerelay-browser-use-default-'));
   try {
     await setCliAdapterMode('browser-use', 'extension', { homeDirectory });
-    await setBrowserUseEnvironmentMode('extension', { homeDirectory });
+    await setBrowserUseEnvironmentMode('extension', { environment: {}, homeDirectory });
     const report = await doctorPanerelay({
       browserUse: true,
       browserUseProbe: async () => ({
