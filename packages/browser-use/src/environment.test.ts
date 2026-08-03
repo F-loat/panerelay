@@ -29,9 +29,10 @@ test('encodes and validates one-run Browser Use gateway selections', () => {
 test('writes the fixed Browser Use gateway and preserves unrelated environment keys', async () => {
   const root = await mkdtemp(join(tmpdir(), 'panerelay-browser-use-environment-'));
   const homeDirectory = join(root, 'home');
-  const path = browserUseEnvironmentPath(homeDirectory);
+  const environment = {};
+  const path = browserUseEnvironmentPath(homeDirectory, environment);
   try {
-    await setBrowserUseEnvironmentMode('extension', { homeDirectory });
+    await setBrowserUseEnvironmentMode('extension', { environment, homeDirectory });
     let content = await readFile(path, 'utf8');
     assert.match(content, new RegExp(`BU_CDP_URL="${PANERELAY_BROWSER_USE_GATEWAY_URL}"`));
     assert.match(content, /BH_TELEMETRY="0"/);
@@ -43,12 +44,12 @@ test('writes the fixed Browser Use gateway and preserves unrelated environment k
       path,
       `${content}BH_RUNTIME_DIR="/legacy/runtime"\nBH_TMP_DIR="/legacy/tmp"\nCUSTOM_BROWSER_FLAG="keep-me"\n`,
     );
-    await setBrowserUseEnvironmentMode('extension', { homeDirectory });
+    await setBrowserUseEnvironmentMode('extension', { environment, homeDirectory });
     content = await readFile(path, 'utf8');
     assert.doesNotMatch(content, /BH_RUNTIME_DIR=/);
     assert.doesNotMatch(content, /BH_TMP_DIR=/);
 
-    await setBrowserUseEnvironmentMode('direct', { homeDirectory });
+    await setBrowserUseEnvironmentMode('direct', { environment, homeDirectory });
     content = await readFile(path, 'utf8');
     assert.match(content, /CUSTOM_BROWSER_FLAG="keep-me"/);
     assert.doesNotMatch(content, /BU_CDP_URL=/);
@@ -62,10 +63,11 @@ test('writes the fixed Browser Use gateway and preserves unrelated environment k
 test('removes an environment file when direct mode has no unrelated settings', async () => {
   const root = await mkdtemp(join(tmpdir(), 'panerelay-browser-use-environment-empty-'));
   const homeDirectory = join(root, 'home');
-  const path = browserUseEnvironmentPath(homeDirectory);
+  const environment = {};
+  const path = browserUseEnvironmentPath(homeDirectory, environment);
   try {
-    await setBrowserUseEnvironmentMode('extension', { homeDirectory });
-    await setBrowserUseEnvironmentMode('direct', { homeDirectory });
+    await setBrowserUseEnvironmentMode('extension', { environment, homeDirectory });
+    await setBrowserUseEnvironmentMode('direct', { environment, homeDirectory });
     await assert.rejects(readFile(path), { code: 'ENOENT' });
   } finally {
     await rm(root, { force: true, recursive: true });
