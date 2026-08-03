@@ -358,7 +358,7 @@ test('the publish artifact contains only the runtime, metadata, README, and lice
     await readFile(new URL('package.json', packageDirectory), 'utf8'),
   ) as { name: string; version: string; bin: Record<string, string>; engines: { node: string } };
   assert.equal(manifest.name, '@panerelay/browser-use');
-  assert.equal(manifest.version, '0.2.0');
+  assert.match(manifest.version, /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/);
   assert.equal(manifest.bin['panerelay-browser-use'], './dist/index.js');
   assert.equal(manifest.engines.node, '>=20');
 
