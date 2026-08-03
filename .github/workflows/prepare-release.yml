@@ -333,6 +333,7 @@ jobs:
             --subject "chore(release): prepare $TARGET_VERSION"
 
       - name: Wait for merged version on default branch
+        id: merge
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ github.token }}
@@ -346,14 +347,17 @@ jobs:
                 --json state,mergeCommit \
                 --jq 'select(.state == "MERGED") | .mergeCommit.oid // ""'
             )"
-            main_sha="$(
-              gh api \
-                "repos/$GITHUB_REPOSITORY/git/ref/heads/$DEFAULT_BRANCH" \
-                --jq '.object.sha'
-            )"
-            if [[ -n "$merged_sha" && "$main_sha" == "$merged_sha" ]]; then
-              echo "Merged preparation commit $merged_sha is visible on $DEFAULT_BRANCH."
-              exit 0
+            if [[ -n "$merged_sha" ]]; then
+              ancestry_status="$(
+                gh api \
+                  "repos/$GITHUB_REPOSITORY/compare/$merged_sha...$DEFAULT_BRANCH" \
+                  --jq '.status'
+              )"
+              if [[ "$ancestry_status" == "ahead" || "$ancestry_status" == "identical" ]]; then
+                echo "merged_sha=$merged_sha" >>"$GITHUB_OUTPUT"
+                echo "Merged preparation commit $merged_sha is reachable from $DEFAULT_BRANCH."
+                exit 0
+              fi
             fi
             echo "Waiting for the merged preparation commit to reach $DEFAULT_BRANCH (attempt $attempt/$MERGE_DISCOVERY_ATTEMPTS)."
             sleep 2
@@ -365,9 +369,11 @@ jobs:
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           GH_TOKEN: ${{ github.token }}
+          MERGED_SHA: ${{ steps.merge.outputs.merged_sha }}
         run: |
           gh workflow run release.yml \
             --repo "$GITHUB_REPOSITORY" \
             --ref "$DEFAULT_BRANCH" \
-            --field channel=stable
-          echo "Dispatched Release stable from $DEFAULT_BRANCH."
+            --field channel=stable \
+            --field source_sha="$MERGED_SHA"
+          echo "Dispatched Release stable for $MERGED_SHA from $DEFAULT_BRANCH."

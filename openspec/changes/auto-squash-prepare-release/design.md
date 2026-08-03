@@ -1,6 +1,6 @@
 ## Context
 
-See `proposal.md` and the `release-automation` delta spec for the motivation and observable behavior. The current Prepare Release job performs the full workspace and release-candidate checks before committing metadata, then creates a pull request, waits for its checks, merges it, and hands off to the stable publication workflow. It requests `actions: write`, `contents: write`, and `pull-requests: write`, while the repository currently allows squash merges and has no protection configured on `main`.
+See `proposal.md` and the `release-automation` delta spec for the motivation and observable behavior. The current Prepare Release job performs the full workspace and release-candidate checks before committing metadata, then creates a pull request, waits for its checks, merges it, and hands off the exact squash-merge SHA to the stable publication workflow. It requests `actions: write`, `contents: write`, and `pull-requests: write`, while the repository currently allows squash merges and has no protection configured on `main`.
 
 The generated branch is a same-repository branch created by the workflow. The existing `CI` workflow runs on its pull request and the latest real preparation PR completed its Linux and Windows matrix checks successfully.
 
@@ -11,7 +11,8 @@ The generated branch is a same-repository branch created by the workflow. The ex
 - Keep the version change reviewable as a pull request and retain its CI result as a second merge gate.
 - Wait for check runs to appear and finish before attempting the merge.
 - Merge only the exact commit pushed by the current workflow invocation, using squash semantics.
-- Dispatch stable publication only after the exact squash merge is visible on the default branch.
+- Dispatch stable publication only after the exact squash merge is reachable from the default branch, carrying that merge SHA through the handoff.
+- Make Release check out and target the carried merge SHA even if the default branch advances after dispatch.
 - Let GitHub branch rules and merge conflicts reject the merge normally.
 
 **Non-Goals:**
@@ -36,7 +37,7 @@ The workflow deliberately waits for checks before invoking the merge rather than
 
 ### Dispatch the stable publication gate after the merge
 
-The squash merge only changes the lockstep version metadata on `main`. Prepare Release waits until the merge commit is visible on the default branch, then uses `workflow_dispatch` to start `Release` with `stable`. It does not grant npm OIDC permission, enter the `release` environment, publish tarballs, create a tag, or create a GitHub Release itself; those remain inside the separate Release workflow.
+The squash merge only changes the lockstep version metadata on `main`. Prepare Release polls the GitHub compare API until the merge commit is reachable from the default branch, writes that SHA to a step output, and uses `workflow_dispatch` to start `Release` with `stable` and the required `source_sha` input. Release checks out that SHA, validates the checkout, and uses it as the GitHub Release target. It does not grant npm OIDC permission, enter the `release` environment, publish tarballs, create a tag, or create a GitHub Release itself; those remain inside the separate Release workflow.
 
 ## Risks / Trade-offs
 
@@ -46,11 +47,12 @@ The squash merge only changes the lockstep version metadata on `main`. Prepare R
 - **Automatic merge removes a maintainer's final review opportunity** → Keep the generated PR, visible check wait, exact metadata allowlist, and fail-closed merge policy; GitHub's approval gate for workflow-created PR checks remains available, and an optional `release` environment reviewer can provide a second gate.
 - **GitHub repository settings do not allow the token to merge** → The merge step fails with no administrator fallback. The repository must retain `contents: write` and `pull-requests: write` for this feature.
 - **The merged commit is not visible before dispatch** → Poll the default branch for the exact merge commit and fail closed without dispatching Release if propagation times out.
-- **Workflow dispatch is rejected** → Request `actions: write` for the Prepare workflow and leave the already-merged version for deliberate manual recovery through Release.
+- **The default branch advances between merge discovery and publication** → Carry `merged_sha` as the required `source_sha` input, check out that SHA in Release, and use it as the GitHub Release target.
+- **Workflow dispatch is rejected or the source checkout is invalid** → Request `actions: write` for the Prepare workflow, fail before publication, and leave the already-merged version for deliberate manual recovery through Release with the same `source_sha`.
 
 ## Migration Plan
 
 1. Merge the workflow, test, documentation, and OpenSpec changes into `main`.
 2. Run Prepare Release once with a disposable patch/minor target only after confirming the current release preconditions; observe that the PR CI checks finish and the resulting `main` commit is a single squash commit.
-3. Confirm that npm packages and stable GitHub Release state remain unchanged until Prepare Release dispatches the separate `Release` workflow after the merge.
-4. Roll back by removing the post-merge dispatch and check-wait/merge steps; any already-created version PR can be reviewed and merged manually.
+3. Confirm that npm packages and stable GitHub Release state remain unchanged until Prepare Release dispatches the separate `Release` workflow after the merge, and that the candidate and GitHub Release target use the squash-merge SHA.
+4. Roll back by removing the post-merge dispatch and source-SHA handoff together with the check-wait/merge steps; any already-created version PR can be reviewed and merged manually.

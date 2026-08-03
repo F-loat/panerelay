@@ -15,7 +15,7 @@ The Chrome numeric identity appends `.0` to the selected semantic version. Prepa
 1. Confirm the current repository version already has its matching stable tag and GitHub Release.
 2. In GitHub Actions, open **Prepare Release**, choose **Run workflow** from the default branch, and select `major`, `minor`, or `patch`.
 3. The workflow creates the version-only pull request, waits for its reported checks, and squash-merges it into the default branch when every check passes. If GitHub asks for approval before checks on the workflow-created pull request can run, approve those workflows; if a check fails, is cancelled, or never starts before the workflow timeout, the workflow fails and leaves the pull request open for inspection or deliberate manual recovery.
-4. After the squash merge is visible on the default branch, Prepare Release dispatches **Release** with channel `stable`. Do not run Prepare Release again until that release has completed.
+4. After the squash merge is visible on the default branch, Prepare Release dispatches **Release** with channel `stable` and the exact squash-merge SHA. Do not run Prepare Release again until that release has completed.
 
 The Prepare Release job itself does not publish packages, create a tag or GitHub Release, submit to the Chrome Web Store, or bypass repository merge protections; it only dispatches the separate Release workflow after the guarded merge. Prepare Release requires repository **Settings → Actions → General → Workflow permissions → Allow GitHub Actions to create and approve pull requests** and requests `actions: write`, `contents: write`, and `pull-requests: write`. npm trusted-publishing permission remains isolated to the Release workflow. Repository branch protection, required reviews, required checks, merge queues, and conflicts can still reject the automatic merge.
 
@@ -83,7 +83,7 @@ candidate_directory=".artifacts/panerelay-$release_version"
 
 ## One-time publication setup
 
-The manual [Release workflow](../.github/workflows/release.yml) publishes through [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/), so it does not use a long-lived `NPM_TOKEN`.
+The manual [Release workflow](../.github/workflows/release.yml) publishes through [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/), so it does not use a long-lived `NPM_TOKEN`. Every run requires the full `source_sha` commit to release; automatic stable dispatch supplies the squash-merge SHA, while a manual beta run should use the selected source branch's commit SHA.
 
 1. In GitHub repository settings, create an environment named `release`. Add required reviewers when a second human approval gate is desired; otherwise stable publication proceeds automatically after Prepare Release dispatches it.
 2. In GitHub repository Actions settings, allow `GITHUB_TOKEN` workflows to create pull requests so Prepare Release can open its version branch for checks and squash merge.
@@ -99,7 +99,7 @@ The workflow grants `id-token: write` only to the protected npm publication job.
 
 ## Automated beta publication
 
-From GitHub Actions, open **Release**, choose **Run workflow**, and select the source branch and `beta`. Approve the `release` environment if it has an approval rule.
+From GitHub Actions, open **Release**, choose **Run workflow**, select the source branch and `beta`, and enter that branch's full commit SHA as `source_sha`. Approve the `release` environment if it has an approval rule.
 
 - The workflow derives `<repository-version>-beta.<run-number>` without committing or pushing the temporary version.
 - npm receives the seven exact verified tarballs under the `beta` distribution tag.
@@ -128,13 +128,15 @@ Before running Prepare Release:
 - [ ] Confirm the matching remote tag and GitHub Release do not exist.
 - [ ] Confirm all seven npm packages have the trusted publisher configuration above.
 
-After the validated preparation merge, Prepare Release dispatches **Release** from the default branch with channel `stable`. Approve the `release` environment only if it has an approval rule. The Release workflow:
+After the validated preparation merge, Prepare Release dispatches **Release** from the default branch with channel `stable` and the exact squash-merge `source_sha`. Approve the `release` environment only if it has an approval rule. The Release workflow:
 
 1. runs the full workspace check and prepares the verified candidate;
 2. uploads the downloadable Extension artifact;
 3. publishes the exact tarballs under npm tag `latest`;
 4. creates `v<version>` and a GitHub Release for the selected commit; and
 5. attaches the Extension zip and its checksum to the Release.
+
+If merge propagation times out or the stable dispatch fails after the merge, do not rerun Prepare Release. Verify that the merged version has no stable tag or GitHub Release, inspect existing Release workflow runs, and manually dispatch **Release** from the default branch with channel `stable` and `source_sha` set to the squash-merge SHA if it has not already started.
 
 The complete Actions artifact remains the audit and recovery source for `inventory.json` and full candidate checksums. The [Chrome Web Store listing](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi) is the default end-user installation channel for Chrome and Edge; the GitHub Release zip is retained for manual and offline verification.
 

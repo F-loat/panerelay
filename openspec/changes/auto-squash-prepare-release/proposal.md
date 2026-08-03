@@ -8,7 +8,8 @@
 - Fail closed when a pull-request check fails, is cancelled, or does not finish before the preparation job times out.
 - Squash merge the generated pull request into the repository default branch only after the workflow's local release gates and pull-request checks pass.
 - Pin the merge to the exact preparation commit and delete the temporary remote branch after a successful merge.
-- Wait until the squash merge is visible on the default branch, then dispatch `Release` with channel `stable`.
+- Wait until the squash merge is visible on the default branch, preserve its exact commit SHA, then dispatch `Release` with channel `stable` and that required source SHA.
+- Make `Release` check out and target the supplied source SHA so a later default-branch commit cannot change the release contents.
 - Update release documentation and automated workflow assertions to describe the new merge behavior.
 
 Non-goals:
@@ -32,4 +33,4 @@ None.
 - Affected workflow: `.github/workflows/prepare-release.yml`.
 - Affected release tests and operator guidance: `scripts/release.test.mjs` and `docs/releasing.md`.
 - GitHub repository settings must continue to grant the workflow `actions: write`, `contents: write`, and `pull-requests: write`; all normal branch-protection and merge-queue rules remain authoritative.
-- Stable publication remains a separate workflow job dispatched automatically after the merge and still uses the `release` environment and npm trusted publishing configuration.
+- Stable publication remains a separate workflow job dispatched automatically after the merge, checks out the exact source SHA, and still uses the `release` environment and npm trusted publishing configuration.
