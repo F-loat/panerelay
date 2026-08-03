@@ -140,10 +140,30 @@
               Let Agents work with
               <span>the browser you already use.</span>
             </h1>
-            <p class="hero-lede" data-i18n="hero.lede">
-              Connect agent-browser or browser-use to Chrome or Edge, reuse signed-in sessions, and
-              run automation only in authorized tabs—without stealing focus.
-            </p>
+            <div class="hero-lede">
+              <p class="sr-only" data-i18n="hero.lede">
+                Connect agent-browser, Browser Use, or Playwright CLI to Chrome or Edge. Stay signed
+                in, choose the tabs, and keep browsing uninterrupted.
+              </p>
+              <p class="hero-lede-display" aria-hidden="true">
+                <span data-i18n="hero.lede.before">Connect</span>
+                <span class="hero-tool-reel">
+                  <span class="hero-tool-viewport">
+                    <span class="hero-tool-track">
+                      <span class="hero-tool-item">agent-browser</span>
+                      <span class="hero-tool-item">Browser Use</span>
+                      <span class="hero-tool-item">Playwright CLI</span>
+                      <span class="hero-tool-item">agent-browser</span>
+                    </span>
+                  </span>
+                  <span class="hero-tool-static">agent-browser · Browser Use · Playwright CLI</span>
+                </span>
+                <span data-i18n="hero.lede.after"
+                  >to Chrome or Edge. Stay signed in, choose the tabs, and keep browsing
+                  uninterrupted.</span
+                >
+              </p>
+            </div>
 
             <div class="hero-actions">
               <a
@@ -374,7 +394,7 @@
                     <div class="tool-options" aria-label="Automation tool example">
                       <span data-selected="true">agent-browser</span>
                       <span>browser-use</span>
-                      <span data-i18n="demo.tool.both">Both tools</span>
+                      <span>Playwright CLI</span>
                     </div>
                     <div class="agent-message" data-i18n="demo.tool.prompt">
                       Use the panerelay-browser Skill. Set up agent-browser, run doctor, and stop
@@ -727,7 +747,7 @@
               </h2>
             </div>
             <p data-i18n="workflows.lede">
-              Two ways to connect, one local relay, and the same explicit boundary around every tab.
+              Three tools, one local relay, and the same explicit boundary around every tab.
             </p>
           </div>
 
@@ -742,8 +762,8 @@
                 </h3>
               </div>
               <p data-i18n="workflow.external.body">
-                agent-browser and browser-use keep their own automation semantics. Panerelay gives
-                either one the same explicitly authorized existing-browser connection.
+                agent-browser, Browser Use, and Playwright CLI keep their own automation semantics.
+                Panerelay gives each one the same explicitly authorized existing-browser connection.
               </p>
               <div
                 class="engine-tabs"
@@ -774,6 +794,18 @@
                   data-engine-select="browser-use"
                 >
                   <span>browser-use</span>
+                </button>
+                <button
+                  id="engine-tab-playwright"
+                  type="button"
+                  role="tab"
+                  aria-selected="false"
+                  aria-controls="engine-panel-playwright"
+                  tabindex="-1"
+                  data-engine-tab="playwright"
+                  data-engine-select="playwright"
+                >
+                  <span>Playwright CLI</span>
                 </button>
               </div>
             </div>
@@ -938,73 +970,87 @@ PY
                   </div>
                 </div>
               </section>
-            </div>
 
-            <aside class="playwright-compat" aria-labelledby="playwright-compat-title">
-              <span class="playwright-compat-icon" aria-hidden="true">
-                <svg viewBox="0 0 128 128">
-                  <g stroke="#142631" stroke-width="2.4" stroke-linejoin="round">
-                    <path
-                      d="M20 45c8 3 19 4 31 0l21-9c-2 16-8 34-18 43-10 9-25 8-33-1-6-7-8-19-8-33Z"
-                      fill="#E85A51"
-                    />
-                    <path
-                      d="M31 58c8 3 15 2 22-1-2 8-7 12-14 12-4 0-7-4-8-11Z"
-                      fill="#142631"
-                      stroke="none"
-                    />
-                    <path d="M44 78c5-7 12-10 20-9-3 7-8 11-15 13Z" fill="#142631" stroke="none" />
-                    <path
-                      d="M57 14c10 10 23 18 38 22 10 3 20 4 29 2 1 19-4 42-17 55-13 14-35 14-49 3-12-10-18-27-17-45 1-17 6-30 16-37Z"
-                      fill="#2EAD33"
-                    />
-                    <path
-                      d="M63 43c8-2 14 1 19 8-7 0-13 1-19 5-1-5-1-9 0-13Z"
-                      fill="#142631"
-                      stroke="none"
-                    />
-                    <path
-                      d="M89 55c8-2 14 1 19 7-7 0-13 2-19 5-1-4-1-8 0-12Z"
-                      fill="#142631"
-                      stroke="none"
-                    />
-                    <path
-                      d="M67 72c11 5 22 8 34 9-5 10-15 14-25 11-7-2-11-8-9-20Z"
-                      fill="#142631"
-                    />
-                  </g>
-                  <circle
-                    cx="104"
-                    cy="104"
-                    r="21"
-                    fill="#16A34A"
-                    stroke="#FFFFFF"
-                    stroke-width="6"
-                  />
-                </svg>
-              </span>
-              <div class="playwright-compat-copy">
-                <span data-i18n="workflow.playwright.label">OPTIONAL PLAYWRIGHT CLI</span>
-                <strong id="playwright-compat-title" data-i18n="workflow.playwright.title"
-                  >Playwright CLI can connect too.</strong
-                >
-                <p data-i18n-html="workflow.playwright.body">
-                  Use the upstream CLI with an explicit Panerelay CDP endpoint for
-                  <code>attach</code>, <code>tab-list</code>, <code>tab-select</code>, snapshots,
-                  and page evaluation. Panerelay does not replace <code>playwright-cli</code> or set
-                  it as a default.
-                </p>
-              </div>
-              <a
-                class="text-link"
-                href="https://github.com/F-loat/panerelay/blob/main/packages/playwright/README.md"
-                target="_blank"
-                rel="noreferrer"
+              <section
+                class="engine-panel"
+                id="engine-panel-playwright"
+                role="tabpanel"
+                aria-labelledby="engine-tab-playwright"
+                tabindex="0"
+                data-engine-panel="playwright"
+                hidden
               >
-                <span data-i18n="workflow.playwright.link">Connection notes</span>
-                <span aria-hidden="true">↗</span>
-              </a>
-            </aside>
+                <div class="workflow-copy">
+                  <span class="engine-status" data-i18n="workflow.engine.explicitIntegration"
+                    >Explicit integration</span
+                  >
+                  <h4 data-i18n-html="workflow.playwright.title">
+                    Connect Playwright CLI<br />to your everyday tabs.
+                  </h4>
+                  <p data-i18n="workflow.playwright.body">
+                    Keep the upstream CLI and point it explicitly at Panerelay's Playwright CDP
+                    endpoint. Attach, tab selection, snapshots, and page evaluation stay in the
+                    normal Playwright CLI workflow.
+                  </p>
+                  <ul class="check-list">
+                    <li data-i18n="workflow.playwright.point1">
+                      Upstream attach, tab-list, tab-select, snapshot, and evaluation commands
+                    </li>
+                    <li data-i18n="workflow.playwright.point2">
+                      Explicit Playwright endpoint with visible release
+                    </li>
+                    <li data-i18n="workflow.playwright.point3">
+                      Panerelay does not replace the CLI or set a default connection
+                    </li>
+                  </ul>
+                  <div class="engine-links">
+                    <a
+                      class="text-link"
+                      href="https://github.com/F-loat/panerelay/blob/main/packages/playwright/README.md"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <span data-i18n="workflow.playwright.link">Read the connection notes</span>
+                      <span aria-hidden="true">↗</span>
+                    </a>
+                    <a
+                      class="text-link"
+                      href="https://github.com/F-loat/panerelay/blob/main/docs/compatibility/playwright-cli-0.1.17.md"
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <span data-i18n="workflow.engine.compatibility">Compatibility evidence</span>
+                      <span aria-hidden="true">↗</span>
+                    </a>
+                  </div>
+                </div>
+                <div
+                  class="workflow-demo playwright-demo"
+                  role="img"
+                  aria-label="Playwright CLI flow example"
+                  data-i18n-aria-label="workflow.playwright.demo"
+                >
+                  <div class="code-window">
+                    <div class="code-title"><span></span><span>Playwright CLI</span></div>
+                    <pre><span class="code-comment" data-i18n="workflow.playwright.comment1"># Attach the upstream CLI explicitly</span>
+<span class="code-prompt">$</span> playwright-cli attach --cdp \
+  <span class="code-green">http://127.0.0.1:43827/cdp/playwright</span>
+<span class="code-output" data-i18n="workflow.playwright.output1">✓ Connected · authorized tabs only</span>
+
+<span class="code-prompt">$</span> playwright-cli tab-list
+<span class="code-output" data-i18n="workflow.playwright.output2">→ t1  Project board</span>
+<span class="code-prompt">$</span> playwright-cli tab-select t1
+
+<span class="code-comment" data-i18n="workflow.playwright.comment2"># Inspect the selected tab</span>
+<span class="code-prompt">$</span> playwright-cli snapshot</pre>
+                  </div>
+                  <div class="flow-labels" aria-hidden="true">
+                    <span>Agent</span><i></i><span>Playwright CLI</span><i></i
+                    ><span>Panerelay</span>
+                  </div>
+                </div>
+              </section>
+            </div>
           </article>
 
           <article class="workflow workflow-panel" data-reveal>
@@ -1168,6 +1214,282 @@ PY
                     </button>
                   </div>
                 </div>
+
+                <div class="agent-handoff">
+                  <strong data-i18n="setup.agent.handoff"
+                    >Then tell your Agent what to configure.</strong
+                  >
+                  <div
+                    class="agent-handoff-picker"
+                    role="tablist"
+                    aria-label="Choose what your Agent should configure"
+                    data-i18n-aria-label="setup.agent.group"
+                  >
+                    <button
+                      id="handoff-tab-agent-browser"
+                      type="button"
+                      role="tab"
+                      aria-selected="true"
+                      aria-controls="handoff-panel-agent-browser"
+                      tabindex="0"
+                      data-handoff-tab="agent-browser"
+                      data-handoff-select="agent-browser"
+                      data-active="true"
+                    >
+                      agent-browser
+                    </button>
+                    <button
+                      id="handoff-tab-browser-use"
+                      type="button"
+                      role="tab"
+                      aria-selected="false"
+                      aria-controls="handoff-panel-browser-use"
+                      tabindex="-1"
+                      data-handoff-tab="browser-use"
+                      data-handoff-select="browser-use"
+                      data-active="false"
+                    >
+                      Browser Use
+                    </button>
+                    <button
+                      id="handoff-tab-playwright"
+                      type="button"
+                      role="tab"
+                      aria-selected="false"
+                      aria-controls="handoff-panel-playwright"
+                      tabindex="-1"
+                      data-handoff-tab="playwright"
+                      data-handoff-select="playwright"
+                      data-active="false"
+                    >
+                      Playwright CLI
+                    </button>
+                    <button
+                      id="handoff-tab-all"
+                      type="button"
+                      role="tab"
+                      aria-selected="false"
+                      aria-controls="handoff-panel-all"
+                      tabindex="-1"
+                      data-handoff-tab="all"
+                      data-handoff-select="all"
+                      data-active="false"
+                      data-i18n="setup.agent.all"
+                    >
+                      All three
+                    </button>
+                  </div>
+
+                  <div class="agent-handoff-panels">
+                    <section
+                      class="agent-handoff-panel"
+                      id="handoff-panel-agent-browser"
+                      role="tabpanel"
+                      aria-labelledby="handoff-tab-agent-browser"
+                      tabindex="0"
+                      data-handoff-panel="agent-browser"
+                    >
+                      <div
+                        class="agent-prompt"
+                        role="group"
+                        aria-label="Agent prompt for agent-browser setup"
+                        data-i18n-aria-label="prompt.group.agentBrowser"
+                      >
+                        <p data-i18n="setup.agentPrompt.agentBrowser">
+                          Use the installed panerelay-browser Skill to set up and verify
+                          agent-browser. Stop when I need to authorize a browser tab.
+                        </p>
+                        <button
+                          class="copy-button agent-prompt-copy"
+                          type="button"
+                          aria-label="Copy Agent setup prompt"
+                          data-i18n-aria-label="prompt.copy"
+                          data-copy-text-key="setup.agentPrompt.agentBrowser"
+                          data-copy-success-key="prompt.copySuccess"
+                          data-copied="false"
+                        >
+                          <svg class="copy-icon" viewBox="0 0 20 20" aria-hidden="true">
+                            <rect x="6.5" y="6.5" width="9" height="9" rx="1.5" />
+                            <path
+                              d="M4.5 12.5h-1a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1"
+                            />
+                          </svg>
+                          <svg class="check-icon" viewBox="0 0 20 20" aria-hidden="true">
+                            <path d="m4 10 4 4 8-9" />
+                          </svg>
+                          <span class="copy-label" data-copy-label data-i18n="prompt.copyShort"
+                            >Copy prompt</span
+                          >
+                        </button>
+                      </div>
+                    </section>
+
+                    <section
+                      class="agent-handoff-panel"
+                      id="handoff-panel-browser-use"
+                      role="tabpanel"
+                      aria-labelledby="handoff-tab-browser-use"
+                      tabindex="0"
+                      data-handoff-panel="browser-use"
+                    >
+                      <div
+                        class="agent-prompt"
+                        role="group"
+                        aria-label="Agent prompt for Browser Use setup"
+                        data-i18n-aria-label="prompt.group.browserUse"
+                      >
+                        <p data-i18n="setup.agentPrompt.browserUse">
+                          Use the installed panerelay-browser Skill to set up and verify Browser
+                          Use. Stop when I need to authorize a browser tab.
+                        </p>
+                        <button
+                          class="copy-button agent-prompt-copy"
+                          type="button"
+                          aria-label="Copy Agent setup prompt"
+                          data-i18n-aria-label="prompt.copy"
+                          data-copy-text-key="setup.agentPrompt.browserUse"
+                          data-copy-success-key="prompt.copySuccess"
+                          data-copied="false"
+                        >
+                          <svg class="copy-icon" viewBox="0 0 20 20" aria-hidden="true">
+                            <rect x="6.5" y="6.5" width="9" height="9" rx="1.5" />
+                            <path
+                              d="M4.5 12.5h-1a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1"
+                            />
+                          </svg>
+                          <svg class="check-icon" viewBox="0 0 20 20" aria-hidden="true">
+                            <path d="m4 10 4 4 8-9" />
+                          </svg>
+                          <span class="copy-label" data-copy-label data-i18n="prompt.copyShort"
+                            >Copy prompt</span
+                          >
+                        </button>
+                      </div>
+                    </section>
+
+                    <section
+                      class="agent-handoff-panel"
+                      id="handoff-panel-playwright"
+                      role="tabpanel"
+                      aria-labelledby="handoff-tab-playwright"
+                      tabindex="0"
+                      data-handoff-panel="playwright"
+                    >
+                      <div
+                        class="agent-prompt"
+                        role="group"
+                        aria-label="Agent prompt for Playwright CLI setup"
+                        data-i18n-aria-label="prompt.group.playwright"
+                      >
+                        <p data-i18n="setup.agentPrompt.playwright">
+                          Use the installed panerelay-browser Skill to set up and verify Playwright
+                          CLI. Stop when I need to authorize a browser tab.
+                        </p>
+                        <button
+                          class="copy-button agent-prompt-copy"
+                          type="button"
+                          aria-label="Copy Agent setup prompt"
+                          data-i18n-aria-label="prompt.copy"
+                          data-copy-text-key="setup.agentPrompt.playwright"
+                          data-copy-success-key="prompt.copySuccess"
+                          data-copied="false"
+                        >
+                          <svg class="copy-icon" viewBox="0 0 20 20" aria-hidden="true">
+                            <rect x="6.5" y="6.5" width="9" height="9" rx="1.5" />
+                            <path
+                              d="M4.5 12.5h-1a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1"
+                            />
+                          </svg>
+                          <svg class="check-icon" viewBox="0 0 20 20" aria-hidden="true">
+                            <path d="m4 10 4 4 8-9" />
+                          </svg>
+                          <span class="copy-label" data-copy-label data-i18n="prompt.copyShort"
+                            >Copy prompt</span
+                          >
+                        </button>
+                      </div>
+                    </section>
+
+                    <section
+                      class="agent-handoff-panel"
+                      id="handoff-panel-all"
+                      role="tabpanel"
+                      aria-labelledby="handoff-tab-all"
+                      tabindex="0"
+                      data-handoff-panel="all"
+                    >
+                      <div
+                        class="agent-prompt"
+                        role="group"
+                        aria-label="Agent prompt for all supported integrations"
+                        data-i18n-aria-label="prompt.group.all"
+                      >
+                        <p data-i18n="setup.agentPrompt.all">
+                          Use the installed panerelay-browser Skill to set up and verify
+                          agent-browser, Browser Use, and Playwright CLI. Stop when I need to
+                          authorize browser tabs.
+                        </p>
+                        <button
+                          class="copy-button agent-prompt-copy"
+                          type="button"
+                          aria-label="Copy Agent setup prompt"
+                          data-i18n-aria-label="prompt.copy"
+                          data-copy-text-key="setup.agentPrompt.all"
+                          data-copy-success-key="prompt.copySuccess"
+                          data-copied="false"
+                        >
+                          <svg class="copy-icon" viewBox="0 0 20 20" aria-hidden="true">
+                            <rect x="6.5" y="6.5" width="9" height="9" rx="1.5" />
+                            <path
+                              d="M4.5 12.5h-1a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1"
+                            />
+                          </svg>
+                          <svg class="check-icon" viewBox="0 0 20 20" aria-hidden="true">
+                            <path d="m4 10 4 4 8-9" />
+                          </svg>
+                          <span class="copy-label" data-copy-label data-i18n="prompt.copyShort"
+                            >Copy prompt</span
+                          >
+                        </button>
+                      </div>
+                    </section>
+                  </div>
+
+                  <div class="integration-command">
+                    <strong data-i18n="setup.agent.command"
+                      >Advanced: run the matching integration command yourself.</strong
+                    >
+                    <div
+                      class="command command-inline"
+                      role="group"
+                      aria-label="Selected Panerelay integration command"
+                      data-i18n-aria-label="command.group.integration"
+                    >
+                      <span class="command-prompt" aria-hidden="true">$</span>
+                      <code data-handoff-command>npx --yes @panerelay/setup --agent-browser</code>
+                      <button
+                        class="copy-button"
+                        type="button"
+                        aria-label="Copy selected integration command"
+                        data-i18n-aria-label="command.copyIntegration"
+                        data-copy-command="npx --yes @panerelay/setup --agent-browser"
+                        data-handoff-command-copy
+                        data-copied="false"
+                      >
+                        <svg class="copy-icon" viewBox="0 0 20 20" aria-hidden="true">
+                          <rect x="6.5" y="6.5" width="9" height="9" rx="1.5" />
+                          <path d="M4.5 12.5h-1a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" />
+                        </svg>
+                        <svg class="check-icon" viewBox="0 0 20 20" aria-hidden="true">
+                          <path d="m4 10 4 4 8-9" />
+                        </svg>
+                        <span class="copy-label" data-copy-label data-i18n="command.copyShort"
+                          >Copy</span
+                        >
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div class="step-visual bridge-visual" aria-hidden="true">
                 <div class="bridge-node">
@@ -1311,9 +1633,9 @@ PY
               <span class="fact-icon fact-icon-status" aria-hidden="true"></span>
               <h3 data-i18n="trust.compatibility.title">Compatibility, without hand-waving.</h3>
               <p data-i18n-html="trust.compatibility.body">
-                Exact evidence baselines: agent-browser 0.33.0 and browser-use 0.13.7 with Browser
-                Harness 0.1.8. Edge remains <code>Forwarded</code> pending representative
-                acceptance.
+                Exact evidence baselines: agent-browser 0.33.0, browser-use 0.13.7 with Browser
+                Harness 0.1.8, and Playwright CLI 0.1.17. Edge remains <code>Forwarded</code>
+                pending representative acceptance.
               </p>
               <div class="compatibility-links">
                 <a
@@ -1341,6 +1663,15 @@ PY
                   rel="noreferrer"
                 >
                   <span>browser-use 0.13.7</span>
+                  <span aria-hidden="true">↗</span>
+                </a>
+                <a
+                  class="text-link"
+                  href="https://github.com/F-loat/panerelay/blob/main/docs/compatibility/playwright-cli-0.1.17.md"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <span>Playwright CLI 0.1.17</span>
                   <span aria-hidden="true">↗</span>
                 </a>
               </div>

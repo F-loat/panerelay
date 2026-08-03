@@ -137,7 +137,9 @@ menuMedia.addEventListener('change', event => {
   }
 });
 
-type AutomationEngine = 'agent-browser' | 'browser-use';
+type AutomationEngine = 'agent-browser' | 'browser-use' | 'playwright';
+
+const automationEngines: AutomationEngine[] = ['agent-browser', 'browser-use', 'playwright'];
 
 const engineWorkflow = document.querySelector<HTMLElement>('[data-engine-workflow]');
 const engineSelectors = document.querySelectorAll<HTMLButtonElement>('[data-engine-select]');
@@ -152,7 +154,7 @@ let engineWorkflowFocused = false;
 let engineRotationTimer: number | undefined;
 
 function isAutomationEngine(value: string | undefined): value is AutomationEngine {
-  return value === 'agent-browser' || value === 'browser-use';
+  return automationEngines.some(engine => engine === value);
 }
 
 function clearEngineRotation(): void {
@@ -174,7 +176,9 @@ function scheduleEngineRotation(): void {
     return;
   }
   engineRotationTimer = window.setTimeout(() => {
-    setActiveEngine(activeEngine === 'agent-browser' ? 'browser-use' : 'agent-browser', false);
+    const currentIndex = automationEngines.indexOf(activeEngine);
+    const nextEngine = automationEngines[(currentIndex + 1) % automationEngines.length];
+    setActiveEngine(nextEngine ?? 'agent-browser', false);
     scheduleEngineRotation();
   }, ENGINE_ROTATION_INTERVAL_MS);
 }
@@ -210,16 +214,15 @@ for (const tab of engineTabs) {
     const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
     if (!keys.includes(event.key)) return;
     event.preventDefault();
-    const engines: AutomationEngine[] = ['agent-browser', 'browser-use'];
-    const currentIndex = engines.findIndex(engine => engine === tab.dataset.engineTab);
+    const currentIndex = automationEngines.findIndex(engine => engine === tab.dataset.engineTab);
     const nextIndex =
       event.key === 'Home'
         ? 0
         : event.key === 'End'
-          ? engines.length - 1
-          : (currentIndex + (event.key === 'ArrowRight' ? 1 : -1) + engines.length) %
-            engines.length;
-    const engine = engines[nextIndex] ?? 'agent-browser';
+          ? automationEngines.length - 1
+          : (currentIndex + (event.key === 'ArrowRight' ? 1 : -1) + automationEngines.length) %
+            automationEngines.length;
+    const engine = automationEngines[nextIndex] ?? 'agent-browser';
     setActiveEngine(engine, true);
     [...engineTabs].find(candidate => candidate.dataset.engineTab === engine)?.focus();
   });
@@ -249,6 +252,73 @@ reducedMotion.addEventListener('change', event => {
 
 setActiveEngine(activeEngine, false);
 scheduleEngineRotation();
+
+type HandoffChoice = AutomationEngine | 'all';
+
+const handoffChoices: HandoffChoice[] = ['agent-browser', 'browser-use', 'playwright', 'all'];
+const handoffSelectors = document.querySelectorAll<HTMLButtonElement>('[data-handoff-select]');
+const handoffTabs = document.querySelectorAll<HTMLButtonElement>('[data-handoff-tab]');
+const handoffPanels = document.querySelectorAll<HTMLElement>('[data-handoff-panel]');
+const handoffCommand = document.querySelector<HTMLElement>('[data-handoff-command]');
+const handoffCommandCopy = document.querySelector<HTMLButtonElement>('[data-handoff-command-copy]');
+const handoffCommands: Record<HandoffChoice, string> = {
+  'agent-browser': 'npx --yes @panerelay/setup --agent-browser',
+  'browser-use': 'npx --yes @panerelay/setup --browser-use',
+  playwright: 'npx --yes @panerelay/setup --playwright',
+  all: 'npx --yes @panerelay/setup --agent-browser --browser-use --playwright',
+};
+
+function isHandoffChoice(value: string | undefined): value is HandoffChoice {
+  return isAutomationEngine(value) || value === 'all';
+}
+
+function setActiveHandoff(choice: HandoffChoice): void {
+  for (const selector of handoffSelectors) {
+    const selected = selector.dataset.handoffSelect === choice;
+    selector.dataset.active = String(selected);
+    selector.setAttribute('aria-selected', String(selected));
+    selector.tabIndex = selected ? 0 : -1;
+  }
+  for (const panel of handoffPanels) {
+    panel.hidden = panel.dataset.handoffPanel !== choice;
+  }
+
+  const command = handoffCommands[choice];
+  if (handoffCommand) handoffCommand.textContent = command;
+  if (handoffCommandCopy) {
+    handoffCommandCopy.dataset.copyCommand = command;
+    handoffCommandCopy.dataset.copied = 'false';
+  }
+}
+
+for (const selector of handoffSelectors) {
+  selector.addEventListener('click', () => {
+    const choice = selector.dataset.handoffSelect;
+    if (isHandoffChoice(choice)) setActiveHandoff(choice);
+  });
+}
+
+for (const tab of handoffTabs) {
+  tab.addEventListener('keydown', event => {
+    const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+    if (!keys.includes(event.key)) return;
+    event.preventDefault();
+
+    const currentIndex = handoffChoices.findIndex(choice => choice === tab.dataset.handoffTab);
+    const nextIndex =
+      event.key === 'Home'
+        ? 0
+        : event.key === 'End'
+          ? handoffChoices.length - 1
+          : (currentIndex + (event.key === 'ArrowRight' ? 1 : -1) + handoffChoices.length) %
+            handoffChoices.length;
+    const nextChoice = handoffChoices[nextIndex] ?? 'agent-browser';
+    setActiveHandoff(nextChoice);
+    [...handoffTabs].find(candidate => candidate.dataset.handoffTab === nextChoice)?.focus();
+  });
+}
+
+setActiveHandoff('agent-browser');
 
 const copyButtons = document.querySelectorAll<HTMLButtonElement>(
   '[data-copy-command], [data-copy-text-key]',
@@ -318,7 +388,7 @@ function addDemoTimelineStage(
   duration: number,
 ): void {
   const step = [...demoSteps].find(candidate => candidate.dataset.demoStep === stage);
-  timeline.addLabel(stage).call(() => setDemoStage(stage, true));
+  timeline.addLabel(stage).call(() => setDemoStage(stage));
   if (!step) {
     timeline.to({}, { duration });
     return;
@@ -330,7 +400,7 @@ function addDemoTimelineStage(
   );
 }
 
-function setDemoStage(stage: DemoStage, animate = false): void {
+function setDemoStage(stage: DemoStage): void {
   if (!productDemo) return;
   productDemo.dataset.demoState = stage;
   for (const step of demoSteps) {
@@ -340,20 +410,10 @@ function setDemoStage(stage: DemoStage, animate = false): void {
     step.tabIndex = selected ? 0 : -1;
   }
   for (const panel of demoPanels) {
-    gsap.killTweensOf(panel);
     const selected = panel.dataset.demoPanel === stage;
     panel.hidden = !selected;
     panel.inert = !selected;
     panel.setAttribute('aria-hidden', String(!selected));
-    if (selected && animate) {
-      gsap.fromTo(
-        panel,
-        { autoAlpha: 0, y: 12 },
-        { autoAlpha: 1, y: 0, duration: 0.32, ease: 'power2.out', clearProps: 'transform' },
-      );
-    } else if (selected) {
-      gsap.set(panel, { autoAlpha: 1, clearProps: 'transform' });
-    }
   }
   if (demoStatus) {
     const statusKey = `demo.status.${stage}` as TranslationKey;
@@ -427,7 +487,7 @@ function initializeProductDemo(): void {
       demoComplete = false;
       demoToggle?.removeAttribute('disabled');
       productDemoTimeline?.pause().seek(stage, true);
-      setDemoStage(stage, true);
+      setDemoStage(stage);
       setDemoPaused(true);
     });
     step.addEventListener('keydown', event => {

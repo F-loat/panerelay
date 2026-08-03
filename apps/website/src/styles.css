@@ -35,7 +35,6 @@ html {
 body {
   min-width: 320px;
   margin: 0;
-  overflow-x: hidden;
   background:
     radial-gradient(circle at 82% 8%, rgb(32 230 143 / 7%), transparent 28%), var(--background);
   color: var(--ink);
@@ -1882,73 +1881,6 @@ html:not(.js) .engine-panel[hidden] {
   display: grid;
 }
 
-.playwright-compat {
-  display: grid;
-  min-height: 124px;
-  align-items: center;
-  padding: 25px clamp(30px, 5vw, 68px);
-  border-top: 1px solid var(--line);
-  background: linear-gradient(90deg, rgb(32 230 143 / 5%), transparent 58%);
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 20px;
-}
-
-.playwright-compat-icon {
-  display: grid;
-  width: 54px;
-  height: 54px;
-  border: 1px solid var(--line-strong);
-  border-radius: 13px;
-  background: #101714;
-  place-items: center;
-}
-
-.playwright-compat-icon svg {
-  width: 44px;
-  height: 44px;
-}
-
-.playwright-compat-copy > span {
-  display: block;
-  margin-bottom: 5px;
-  color: var(--green);
-  font-family: var(--mono);
-  font-size: 9px;
-  letter-spacing: 0.1em;
-}
-
-.playwright-compat-copy strong {
-  font-size: 16px;
-}
-
-.playwright-compat-copy p {
-  max-width: 800px;
-  margin: 5px 0 0;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.65;
-}
-
-.playwright-compat-copy code {
-  color: var(--warm);
-}
-
-.playwright-compat > .text-link {
-  white-space: nowrap;
-}
-
-@media (max-width: 700px) {
-  .playwright-compat {
-    align-items: start;
-    padding: 25px 23px;
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-
-  .playwright-compat > .text-link {
-    grid-column: 2;
-  }
-}
-
 .engine-status {
   margin-bottom: 20px;
   color: var(--green);
@@ -2474,6 +2406,131 @@ html:not(.js) .engine-panel[hidden] {
 }
 
 .manual-setup .command code {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.agent-handoff {
+  width: min(100%, 540px);
+  padding-top: 22px;
+  margin-top: 22px;
+  border-top: 1px solid var(--line);
+}
+
+.agent-handoff > strong,
+.integration-command > strong {
+  display: block;
+  color: var(--muted-strong);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.agent-handoff-picker {
+  display: none;
+  width: 100%;
+  margin-top: 11px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.js .agent-handoff-picker {
+  display: grid;
+}
+
+.agent-handoff-picker button {
+  min-width: 0;
+  min-height: 39px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #0c110f;
+  color: var(--muted);
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 9px;
+}
+
+.agent-handoff-picker button:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.agent-handoff-picker button[data-active='true'] {
+  border-color: rgb(32 230 143 / 55%);
+  background: rgb(32 230 143 / 10%);
+  color: var(--green-soft);
+}
+
+.agent-handoff-panels {
+  display: grid;
+  gap: 16px;
+  margin-top: 13px;
+}
+
+.agent-handoff-panel + .agent-handoff-panel {
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.agent-handoff-panel[hidden] {
+  display: none;
+}
+
+html:not(.js) .agent-handoff-panel[hidden] {
+  display: block;
+}
+
+.agent-prompt {
+  position: relative;
+  width: 100%;
+  padding: 15px 104px 15px 16px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: rgb(11 16 13 / 88%);
+  box-shadow: inset 0 1px 0 rgb(244 247 245 / 4%);
+}
+
+.agent-prompt p {
+  max-width: none;
+  margin: 0;
+  color: var(--muted-strong);
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.agent-prompt .agent-prompt-copy {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+}
+
+.agent-handoff .copy-button svg {
+  fill: none;
+  stroke: currentcolor;
+  stroke-width: 1.5;
+}
+
+.agent-handoff .check-icon {
+  stroke-width: 1.8;
+}
+
+.integration-command {
+  padding-top: 18px;
+  margin-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.integration-command .command {
+  margin-top: 9px;
+}
+
+.integration-command .command code {
   overflow: visible;
   overflow-wrap: anywhere;
   text-overflow: clip;
@@ -3920,6 +3977,91 @@ html[lang='zh-CN'] .final-content > p {
   font-size: clamp(17px, 1.45vw, 20px);
 }
 
+.hero-lede-display {
+  padding: 0;
+  margin: 0;
+}
+
+.hero-tool-reel {
+  position: relative;
+  display: inline-grid;
+  max-width: 100%;
+  padding: 0.08em 0.62em;
+  border: 1px solid rgb(134 243 189 / 34%);
+  border-radius: 0.45em;
+  margin: 0 0.16em;
+  background: linear-gradient(90deg, rgb(32 230 143 / 11%), transparent 32%), rgb(8 14 11 / 72%);
+  box-shadow:
+    inset 0 1px 0 rgb(244 247 245 / 4%),
+    0 0 22px rgb(32 230 143 / 5%);
+  color: var(--green-soft);
+  font-family: var(--mono);
+  font-size: 0.82em;
+  letter-spacing: -0.035em;
+  line-height: 1.45;
+  vertical-align: 0.08em;
+}
+
+.hero-tool-viewport {
+  display: none;
+}
+
+.hero-tool-static {
+  overflow-wrap: anywhere;
+}
+
+.js .hero-tool-reel {
+  width: 17ch;
+  height: 1.76em;
+  overflow: hidden;
+}
+
+.js .hero-tool-viewport {
+  display: block;
+  height: 1.45em;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, transparent, black 18%, black 82%, transparent);
+}
+
+.js .hero-tool-static {
+  display: none;
+}
+
+.hero-tool-track {
+  display: flex;
+  flex-direction: column;
+  animation: hero-tool-reel 9s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  will-change: transform;
+}
+
+.hero-tool-item {
+  height: 1.45em;
+  flex: 0 0 1.45em;
+  white-space: nowrap;
+}
+
+@keyframes hero-tool-reel {
+  0%,
+  23% {
+    transform: translateY(0);
+  }
+
+  31%,
+  54% {
+    transform: translateY(-1.45em);
+  }
+
+  62%,
+  85% {
+    transform: translateY(-2.9em);
+  }
+
+  93%,
+  100% {
+    transform: translateY(-4.35em);
+  }
+}
+
 .hero-actions {
   margin-top: 29px;
 }
@@ -4103,7 +4245,7 @@ html[lang='zh-CN'] .final-content > p {
   border: 1px solid #d7ddda;
   border-radius: 999px;
   background: #fff;
-  color: #78817c;
+  color: #5f6963;
   font-family: var(--mono);
   font-size: 8px;
   text-overflow: ellipsis;
@@ -4171,7 +4313,7 @@ html[lang='zh-CN'] .final-content > p {
   justify-content: center;
   padding: 0 16px;
   border-radius: 9px;
-  background: #0c8c50;
+  background: #08713f;
   color: #fff;
   font-size: 11px;
   font-weight: 700;
@@ -4968,7 +5110,7 @@ html[lang='zh-CN'] .final-content > p {
   border: 0;
   border-left: 1px solid var(--line);
   background: transparent;
-  color: #626d67;
+  color: #8d9993;
   cursor: pointer;
   font-family: var(--mono);
   text-align: left;
@@ -5333,9 +5475,97 @@ html[lang='zh-CN'] .hero h1 span {
 @media (max-width: 620px) {
   html[lang='zh-CN'] .hero h1 {
     font-size: clamp(43px, 11.8vw, 54px);
+    word-break: normal;
   }
 
   html[lang='zh-CN'] .hero h1 span {
-    font-size: 0.8em;
+    max-width: 100%;
+    font-size: 0.68em;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media (max-width: 620px) {
+  .hero .shell,
+  .hero-layout,
+  .hero-layout > *,
+  .hero-copy,
+  .hero h1,
+  .hero-lede,
+  .hero-actions,
+  .hero-trust,
+  .hero-visual,
+  .product-demo,
+  .product-demo-frame,
+  .journey-stage,
+  .journey-panel {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .hero-copy,
+  .hero-actions,
+  .hero-visual,
+  .product-demo,
+  .product-demo-frame {
+    width: 100%;
+  }
+
+  .hero h1,
+  .hero-lede-display,
+  .hero-actions .button {
+    overflow-wrap: anywhere;
+  }
+
+  .hero-tool-reel {
+    margin-right: 0;
+    margin-left: 0;
+  }
+
+  .hero-trust li {
+    min-width: 0;
+  }
+
+  .engine-tabs button {
+    font-size: 9px;
+  }
+
+  .agent-prompt {
+    padding: 14px 52px 14px 14px;
+  }
+
+  .agent-prompt .agent-prompt-copy {
+    right: 8px;
+    min-width: 36px;
+    width: 36px;
+    padding: 0;
+  }
+
+  .agent-prompt .copy-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .js .hero-tool-reel {
+    width: auto;
+    height: auto;
+    overflow: visible;
+  }
+
+  .js .hero-tool-viewport {
+    display: none;
+  }
+
+  .js .hero-tool-static {
+    display: inline;
+  }
+
+  .hero-tool-track {
+    animation: none !important;
   }
 }

@@ -32,7 +32,7 @@ test('source contains the complete product and installation journey', async () =
     'This tab remains authorized.',
     'Connect agent-browser to your everyday tabs.',
     'Connect browser-use',
-    'Playwright CLI can connect too.',
+    'Connect Playwright CLI',
     'playwright-cli',
     'Work with local Agents',
     'Chrome Web Store',
@@ -55,11 +55,10 @@ test('source contains the complete product and installation journey', async () =
   assert.match(html, /docs\/compatibility\/browser-use-0\.13\.7\.md/);
   assert.match(html, /browser-use CLI · Browser Harness/);
   assert.match(html, /browser-use CLI/);
-  assert.match(
-    html,
-    /Playwright CLI can connect too\.[\s\S]{0,1000}<code>attach<\/code>[\s\S]{0,1000}<code>playwright-cli<\/code>/,
-  );
+  assert.match(html, /data-engine-panel="playwright"/);
+  assert.match(html, /playwright-cli attach --cdp[\s\S]+\/cdp\/playwright/);
   assert.match(html, /packages\/playwright\/README\.md/);
+  assert.match(html, /docs\/compatibility\/playwright-cli-0\.1\.17\.md/);
   assert.match(
     html,
     /BU_CDP_URL=http:\/\/127\.0\.0\.1:43827\/cdp\/browser-use browser-use &lt;&lt;'PY'[\s\S]+print\(list_tabs\(\)\)/,
@@ -67,7 +66,10 @@ test('source contains the complete product and installation journey', async () =
   assert.doesNotMatch(html, /panerelay-browser-use-cli/);
   assert.doesNotMatch(html, /browser-use tab list/);
   assert.doesNotMatch(html, /await browser\./);
-  assert.doesNotMatch(html, /data-copy-command="[^\"]*--(?:agent-browser|browser-use)/);
+  assert.match(html, /data-handoff-command-copy/);
+  assert.match(html, /data-copy-command="npx --yes @panerelay\/setup --agent-browser"/);
+  assert.match(html, /data-handoff-select="playwright"/);
+  assert.match(html, /data-handoff-select="all"/);
   assert.doesNotMatch(html, /waiting for your approval|You authorize this tab/);
   assert.doesNotMatch(html, /agent-setup\.md|curl -fsSL/);
   assert.doesNotMatch(i18n, /agent-setup\.md|curl -fsSL/);
@@ -119,17 +121,18 @@ test('source preserves semantic and accessible interactions', async () => {
   assert.match(html, /aria-live="polite"/);
   assert.match(html, /aria-expanded="false"/);
   assert.match(html, /class="nav-github"[\s\S]+?aria-label="GitHub"/);
-  assert.equal((html.match(/data-copy-command=/g) ?? []).length, 1);
-  assert.equal((html.match(/data-copy-text-key=/g) ?? []).length, 1);
+  assert.equal((html.match(/data-copy-command=/g) ?? []).length, 2);
+  assert.equal((html.match(/data-copy-text-key=/g) ?? []).length, 5);
   assert.match(html, /role="tablist"/);
-  assert.equal((html.match(/data-engine-tab=/g) ?? []).length, 2);
-  assert.equal((html.match(/data-engine-panel=/g) ?? []).length, 2);
-  assert.equal((html.match(/data-engine-(?:tab|panel)="playwright"/g) ?? []).length, 0);
+  assert.equal((html.match(/data-engine-tab=/g) ?? []).length, 3);
+  assert.equal((html.match(/data-engine-panel=/g) ?? []).length, 3);
+  assert.equal((html.match(/data-engine-(?:tab|panel)="playwright"/g) ?? []).length, 2);
   assert.match(html, /class="setup-agent-step"/);
-  assert.doesNotMatch(html, /data-handoff/);
+  assert.equal((html.match(/data-handoff-tab=/g) ?? []).length, 4);
+  assert.equal((html.match(/data-handoff-panel=/g) ?? []).length, 4);
   assert.equal((html.match(/data-demo-step=/g) ?? []).length, 6);
   assert.equal((html.match(/data-demo-panel=/g) ?? []).length, 6);
-  assert.equal((html.match(/role="tabpanel"/g) ?? []).length, 8);
+  assert.equal((html.match(/role="tabpanel"/g) ?? []).length, 13);
   assert.match(html, /data-product-demo/);
   assert.match(html, /data-demo-toggle/);
   assert.match(html, /data-demo-replay/);
@@ -160,6 +163,8 @@ test('source preserves semantic and accessible interactions', async () => {
   assert.match(script, /addDemoTimelineStage\(timeline, 'authorize', 2\.5\)/);
   assert.match(script, /addDemoTimelineStage\(timeline, 'work', 3\.3\)/);
   assert.match(script, /addDemoTimelineStage\(timeline, 'release', 1\.8\)/);
+  assert.match(script, /panel\.hidden = !selected;/);
+  assert.doesNotMatch(script, /DEMO_FADE_(?:IN|OUT)_SECONDS|demoPanelTransition|autoAlpha/);
   assert.match(script, /productDemoTimeline\?\.pause\(\)\.seek\(stage, true\)/);
   assert.match(script, /demoPausedForHover/);
   assert.match(script, /demoPausedForFocus/);
@@ -173,7 +178,12 @@ test('source preserves semantic and accessible interactions', async () => {
   assert.match(script, /demoMedia\.revert/);
   assert.doesNotMatch(script, /ScrollTrigger/);
   assert.match(script, /ArrowLeft[\s\S]+ArrowRight[\s\S]+Home[\s\S]+End/);
-  assert.doesNotMatch(script, /HandoffChoice|handoffCommand|data-handoff/);
+  assert.match(script, /type HandoffChoice = AutomationEngine \| 'all'/);
+  assert.match(script, /playwright: 'npx --yes @panerelay\/setup --playwright'/);
+  assert.match(
+    script,
+    /all: 'npx --yes @panerelay\/setup --agent-browser --browser-use --playwright'/,
+  );
   assert.match(styles, /:focus-visible/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(styles, /@media \(max-width: 520px\)/);
@@ -182,7 +192,9 @@ test('source preserves semantic and accessible interactions', async () => {
   assert.match(styles, /\.language-switcher \+ \.button-small/);
   assert.match(styles, /\.engine-tabs/);
   assert.match(styles, /\.engine-panel/);
-  assert.match(styles, /\.playwright-compat/);
+  assert.doesNotMatch(styles, /\.playwright-compat/);
+  assert.match(styles, /\.agent-handoff-picker/);
+  assert.match(styles, /\.agent-handoff-panel/);
   assert.match(
     styles,
     /\.workflow \{[\s\S]+?--workflow-copy-track: 0\.88fr;[\s\S]+?--workflow-demo-track: 1\.12fr;[\s\S]+?grid-template-columns: var\(--workflow-copy-track\) var\(--workflow-demo-track\);/,
@@ -212,6 +224,31 @@ test('source preserves semantic and accessible interactions', async () => {
   assert.match(styles, /\.journey-panel\[hidden\]/);
   assert.match(styles, /grid-template-columns: repeat\(6, minmax\(0, 1fr\)\)/);
   assert.match(styles, /\.engine-tabs \{[\s\S]+?width: max-content/);
+});
+
+test('hero presents all three peer tools with stable motion fallbacks', async () => {
+  const html = await read('index.html');
+  const script = await read('src/main.ts');
+  const styles = await read('src/styles.css');
+  const i18n = await read('src/i18n.ts');
+
+  assert.match(
+    html,
+    /class="hero-tool-track"[\s\S]+agent-browser[\s\S]+Browser Use[\s\S]+Playwright CLI/,
+  );
+  assert.match(html, /class="hero-tool-static"[\s\S]*agent-browser · Browser Use · Playwright CLI/);
+  assert.match(i18n, /'hero\.lede\.before': 'Connect'/);
+  assert.match(i18n, /'hero\.lede\.before': '把'/);
+  assert.match(styles, /@keyframes hero-tool-reel/);
+  assert.match(styles, /\.js \.hero-tool-reel \{[\s\S]+?width: 17ch;[\s\S]+?height: 1\.76em;/);
+  assert.match(
+    styles,
+    /@media \(prefers-reduced-motion: reduce\) \{[\s\S]+?\.js \.hero-tool-viewport \{[\s\S]+?display: none;[\s\S]+?\.js \.hero-tool-static \{[\s\S]+?display: inline;/,
+  );
+  assert.match(script, /const automationEngines: AutomationEngine\[\] = \[[\s\S]+?'playwright'/);
+  assert.doesNotMatch(html, /playwright-compat/);
+  assert.doesNotMatch(styles, /overflow-x: hidden/);
+  assert.doesNotMatch(styles, /\.hero-tool-reel::before/);
 });
 
 test('source provides complete English and Simplified Chinese language contracts', async () => {
@@ -249,7 +286,7 @@ test('source provides complete English and Simplified Chinese language contracts
   assert.match(i18n, /获得访问，<br>不等于获得控制。<br><em>控制权始终可见。<\/em>/);
   assert.match(i18n, /把 agent-browser<br>接入日常标签页。/);
   assert.match(i18n, /把 browser-use<br>接入已登录的 Chrome。/);
-  assert.match(i18n, /Playwright CLI 也可以接入。/);
+  assert.match(i18n, /把 Playwright CLI<br>接入日常标签页。/);
   assert.match(i18n, /AGENT 侧边栏 · 自动化工具接入/);
   assert.match(i18n, /在页面旁使用 Agent，<br><em>也能接入现有自动化工具。<\/em>/);
   assert.match(i18n, /browser-use 0\.13\.7 \+ Browser Harness 0\.1\.8/);

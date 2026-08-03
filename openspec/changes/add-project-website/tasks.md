@@ -35,7 +35,16 @@
 - [x] 4.12 Align the Automation integration and Agent side-panel workflow cards to one shared copy-column track and verify the wide and stacked layouts.
 - [x] 4.13 End the root quickstarts with a direct Agent-use instruction, fold advanced setup and installation management into one later section, and remove redundant supported-workflow and documentation sections in both languages.
 
-## 5. Deployment and Cleanup
+## 5. Three-Engine Website Presentation
 
-- [ ] 5.1 Commit and push the focused branch, integrate it into the default branch, enable GitHub Actions as the Pages source, deploy, and set the repository homepage URL.
-- [ ] 5.2 Verify the production Pages URL on desktop and mobile, confirm first-party functionality needs no backend or analytics, and remove temporary browser sessions, configuration, screenshots, and logs from the repository workspace.
+- [x] 5.1 Replace the first-screen static tool list with a bilingual three-item vertical reel and a complete reduced-motion/no-JavaScript fallback while preserving the surrounding hero geometry.
+- [x] 5.2 Promote Playwright CLI into the same accessible rotating tab and panel structure as agent-browser and Browser Use, add the matching Agent-guided setup selection, and remove the standalone Playwright compatibility strip.
+- [x] 5.3 Fix the first-screen mobile width constraints at 375 CSS pixels so the copy, actions, trust row, and walkthrough keep balanced gutters without document-level horizontal clipping.
+- [x] 5.4 Extend source tests for three peer integrations, Playwright links and evidence, reel fallbacks, keyboard rotation, reduced motion, and the absence of the standalone compatibility strip.
+- [x] 5.5 Run focused and full checks, then use real Chrome to verify desktop and 375-pixel English/Chinese layouts, equal mobile insets, no horizontal overflow, three-engine selection, reduced motion, accessibility, and console cleanliness; store any screenshots outside the repository and clean temporary sessions.
+- [x] 5.6 Remove first-screen walkthrough panel transition effects so automatic and manual step changes replace the active panel immediately.
+
+## 6. Deployment and Cleanup
+
+- [ ] 6.1 Commit and push the focused branch, integrate it into the default branch, enable GitHub Actions as the Pages source, deploy, and set the repository homepage URL.
+- [ ] 6.2 Verify the production Pages URL on desktop and mobile, confirm first-party functionality needs no backend or analytics, and remove temporary browser sessions, configuration, screenshots, and logs from the repository workspace.

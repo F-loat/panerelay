@@ -6,27 +6,27 @@ Define a public, trustworthy entry point that explains Panerelay, guides visitor
 
 ### Requirement: Focused product narrative
 
-The website SHALL explain Panerelay through two clearly named paths: **Agent side panel**, where a local Agent works beside the page, and **Automation tool integrations**, where agent-browser or Browser Use operates explicitly authorized tabs in an existing Chrome or Microsoft Edge session. It SHALL present agent-browser and Browser Use as peer automation-engine choices within Automation tool integrations rather than as separate product modes.
+The website SHALL explain Panerelay through two clearly named paths: **Agent side panel**, where a local Agent works beside the page, and **Automation tool integrations**, where agent-browser, Browser Use, or Playwright CLI operates explicitly authorized tabs in an existing Chrome or Microsoft Edge session. It SHALL present all three integrations as peer automation-engine choices within Automation tool integrations rather than as separate product modes or a primary pair plus a subordinate compatibility note.
 
 #### Scenario: Visitor understands the product from the landing page
 
 - **GIVEN** a visitor opens the website without prior Panerelay knowledge
 - **WHEN** the primary page content is rendered
-- **THEN** the visitor can identify Agent side panel and Automation tool integrations, and can see agent-browser and Browser Use as choices within the latter, without opening another resource
+- **THEN** the visitor can identify Agent side panel and Automation tool integrations, and can see agent-browser, Browser Use, and Playwright CLI as choices within the latter, without opening another resource
 
 #### Scenario: Visitor compares automation engines
 
 - **GIVEN** a visitor is reading the Automation tool integrations workflow
 - **WHEN** the engine comparison is rendered
-- **THEN** agent-browser and Browser Use are identified as peer, explicitly selected integrations, and both choices retain the same explicit-authorization and visible-revocation boundary
+- **THEN** agent-browser, Browser Use, and Playwright CLI are identified as peer, explicitly selected integrations, and every choice retains the same explicit-authorization and visible-revocation boundary
 
 ### Requirement: First-screen standard workflow walkthrough
 
-The website SHALL demonstrate the representative zero-to-first-control automation-tool journey on the first screen through six separate, product-accurate interface states: installing the Extension, installing the repository-level `panerelay-browser` Skill, asking an Agent to use that Skill with agent-browser, Browser Use, or both, authorizing a tab in the Extension, observing and controlling that authorized tab, and releasing control while preserving the selected authorization scope. The first screen SHALL lead with a primary Extension installation action and a separate copyable Skill-backed Agent-setup action; documentation SHALL remain available at lower visual emphasis.
+The website SHALL demonstrate the representative zero-to-first-control automation-tool journey on the first screen through six separate, product-accurate interface states: installing the Extension, installing the repository-level `panerelay-browser` Skill, asking an Agent to use that Skill with a supported automation integration, authorizing a tab in the Extension, observing and controlling that authorized tab, and releasing control while preserving the selected authorization scope. The first screen SHALL lead with a primary Extension installation action and a separate copyable Skill-backed Agent-setup action; documentation SHALL remain available at lower visual emphasis. Its descriptive sentence SHALL place agent-browser, Browser Use, and Playwright CLI in one compact vertically advancing tool reel with a visually distinctive monospace treatment and a complete static accessible equivalent.
 
-At wide desktop widths, the hero and its positioning strip SHALL fit within one dynamic viewport, with shorter desktop heights tightening internal spacing instead of clipping content. Intermediate and mobile layouts SHALL expand naturally when a side-by-side composition is no longer readable. Localized headline text SHALL remain inside the copy column without painting beneath the product stage.
+At wide desktop widths, the hero and its positioning strip SHALL fit within one dynamic viewport, with shorter desktop heights tightening internal spacing instead of clipping content. Intermediate and mobile layouts SHALL expand naturally when a side-by-side composition is no longer readable. Localized headline text SHALL remain inside the copy column without painting beneath the product stage. At a 375 CSS-pixel viewport, every first-screen copy, action, trust item, and walkthrough surface SHALL remain within the same balanced left and right inset and SHALL NOT increase the document's horizontal scroll width.
 
-Each step SHALL be directly selectable and SHALL display one complete active interface rather than overlapping multiple terminal, browser, authorization, or result surfaces. The walkthrough SHALL use current Extension and setup vocabulary and SHALL keep code as supporting evidence rather than the only product explanation. It SHALL NOT expose a target name to the Agent before authorization, imply that `@panerelay/setup` installs an upstream automation tool, treat observation as active control, render page content in Panerelay's sanitized activity UI, or replace the Extension's authorization and release controls with page-owned overlays.
+Each step SHALL be directly selectable and SHALL display one complete active interface rather than overlapping multiple terminal, browser, authorization, or result surfaces. A step change SHALL replace the active panel immediately without a translation, fade, overlap, or intermediate state. The walkthrough SHALL use current Extension and setup vocabulary and SHALL keep code as supporting evidence rather than the only product explanation. It SHALL NOT expose a target name to the Agent before authorization, imply that `@panerelay/setup` installs an upstream automation tool, treat observation as active control, render page content in Panerelay's sanitized activity UI, or replace the Extension's authorization and release controls with page-owned overlays.
 
 JavaScript enhancement SHALL coordinate one restrained pass through the six states using a labeled GSAP core timeline with keyboard-operable step selection, pause/resume, and restart controls. It SHALL pause on hover or keyboard focus, while outside the viewport, and while the document is hidden; manual step selection SHALL stop automatic advancement until the visitor explicitly resumes or restarts it. Reduced-motion visitors, narrow mobile visitors, and no-JavaScript visitors SHALL receive a coherent static and operable state without automatic movement, missing information, or dependence on GSAP. The walkthrough SHALL NOT use ScrollTrigger, optional GSAP plugins, fabricated performance claims, infinite looping, or copy that implies setup or focus grants authorization.
 
@@ -41,6 +41,18 @@ JavaScript enhancement SHALL coordinate one restrained pass through the six stat
 - **GIVEN** the landing page is rendered at a wide desktop viewport
 - **WHEN** the localized hero and positioning strip are visible
 - **THEN** they occupy one dynamic viewport and the headline, actions, and walkthrough remain within their own columns without clipping or overlap
+
+#### Scenario: Hero presents three peer tools
+
+- **GIVEN** the first screen is rendered with ordinary motion enabled
+- **WHEN** the descriptive tool reel advances vertically
+- **THEN** agent-browser, Browser Use, and Playwright CLI each receive the same visual treatment without changing the surrounding sentence geometry
+
+#### Scenario: Narrow first screen keeps balanced insets
+
+- **GIVEN** the landing page is rendered at a 375 CSS-pixel-wide viewport
+- **WHEN** the visitor views the complete first screen in either supported language
+- **THEN** the hero copy, actions, trust row, and walkthrough remain inside the viewport with a visible right inset matching the intended mobile content gutter and no horizontal page scrolling
 
 #### Scenario: Unauthorized targets remain undisclosed
 
@@ -74,7 +86,7 @@ JavaScript enhancement SHALL coordinate one restrained pass through the six stat
 
 ### Requirement: Actionable installation journey
 
-The website SHALL provide direct paths to the Chrome Web Store, the Panerelay GitHub repository, project documentation, and the upstream agent-browser and Browser Use websites. Its initial installation journey SHALL contain two steps: install the Extension and install the repository-level `panerelay-browser` Skill with `npx skills add F-loat/panerelay --skill panerelay-browser`. The website SHALL state that the unified Skill contains agent-browser, Browser Use, and Playwright CLI workflows, while `@panerelay/setup` remains an advanced command for selected upstream program probes and Panerelay-owned Provider, adapter, and default management. The website SHALL NOT publish or reference a separate Agent setup document. The Skill command SHALL remain readable without JavaScript, and supported browsers SHALL offer a copy interaction with an accessible success indication.
+The website SHALL provide direct paths to the Chrome Web Store, the Panerelay GitHub repository, project documentation, and the upstream agent-browser, Browser Use, and Playwright CLI websites. Its initial installation journey SHALL contain two steps: install the Extension and install the repository-level `panerelay-browser` Skill with `npx skills add F-loat/panerelay --skill panerelay-browser`. The website SHALL state that the unified Skill contains agent-browser, Browser Use, and Playwright CLI workflows, while `@panerelay/setup` remains an advanced command for selected upstream program probes and Panerelay-owned Provider, adapter, and default management. The website SHALL NOT publish or reference a separate Agent setup document. The Skill command SHALL remain readable without JavaScript, and supported browsers SHALL offer a copy interaction with an accessible success indication.
 
 The repository-level `panerelay-browser` Skill SHALL state that Panerelay setup does not install upstream automation tools. It SHALL provide deterministic steps for selected-engine environment inspection, official-source installation or update only when needed, the selected Panerelay integration, targeted doctor diagnostics, authorization-aware success verification, combined setup, supported-version boundaries, and platform-appropriate command execution without modifying unrelated Agent or Skill configuration.
 
@@ -92,7 +104,7 @@ The repository-level `panerelay-browser` Skill SHALL state that Panerelay setup 
 
 #### Scenario: Visitor delegates workflow setup to an Agent
 
-- **GIVEN** the visitor has installed Panerelay and wants agent-browser, Browser Use, or both
+- **GIVEN** the visitor has installed Panerelay and wants agent-browser, Browser Use, Playwright CLI, or a supported combination
 - **WHEN** the visitor selects and copies the corresponding Agent handoff
 - **THEN** the copied instruction identifies the selected scenario, asks the Agent to use the installed `panerelay-browser` Skill, and relies on that Skill for the detailed safety and acceptance sequence while the subordinate manual command reflects the same selected integration flags
 
@@ -100,7 +112,7 @@ The repository-level `panerelay-browser` Skill SHALL state that Panerelay setup 
 
 - **GIVEN** the visitor is viewing the Agent-guided tool chooser with JavaScript enhancement available
 - **WHEN** the visitor selects agent-browser, Browser Use, or both
-- **THEN** the visible secondary command and its copy action use the matching `@panerelay/setup` integration flags without changing the initial repository Skill installation command
+- **THEN** the visible secondary command and its copy action use the matching `@panerelay/setup` integration flags without changing the initial repository Skill installation command or treating Playwright CLI as a subordinate compatibility path
 
 #### Scenario: Agent follows the installed Skill
 
@@ -120,15 +132,21 @@ The repository-level `panerelay-browser` Skill SHALL state that Panerelay setup 
 - **WHEN** the visitor follows its upstream documentation link
 - **THEN** the website opens the official Browser Use documentation as the upstream resource
 
+#### Scenario: Visitor continues to upstream Playwright CLI documentation
+
+- **GIVEN** a visitor is reading the Playwright CLI workflow
+- **WHEN** the visitor follows its connection resource
+- **THEN** the website opens the repository's Playwright CLI integration documentation and compatibility evidence
+
 #### Scenario: Page is usable without JavaScript
 
 - **GIVEN** JavaScript is disabled or fails to load
 - **WHEN** the visitor opens the website
-- **THEN** the product narrative, both engine descriptions, source links, Extension link, documentation links, repository Skill installation command, and all Agent handoff prompts remain available
+- **THEN** the product narrative, all three engine descriptions, source links, Extension link, documentation links, repository Skill installation command, and all Agent handoff prompts remain available
 
 ### Requirement: Accessible automation-engine comparison
 
-The website SHALL expose the agent-browser and Browser Use comparison as a compact, content-sized, keyboard-operable tab interface within the workflow introduction when JavaScript enhancement is available and as two readable sections without JavaScript. It SHALL NOT use full-width tool buttons or redundant status sublabels. The enhanced comparison MAY rotate automatically at a restrained interval, but SHALL stop automatic rotation after manual selection, pause while hovered or keyboard-focused, and disable automatic rotation when reduced motion is requested. Selecting an engine SHALL update the associated description and upstream and compatibility links without changing the global navigation, the repository Skill installation command, or the separate Agent handoff choices.
+The website SHALL expose the agent-browser, Browser Use, and Playwright CLI comparison as a compact, content-sized, keyboard-operable tab interface within the workflow introduction when JavaScript enhancement is available and as three readable sections without JavaScript. It SHALL NOT use full-width tool buttons, redundant status sublabels, or a separate Playwright compatibility strip. The enhanced comparison MAY rotate automatically at a restrained interval, but SHALL stop automatic rotation after manual selection, pause while hovered or keyboard-focused, and disable automatic rotation when reduced motion is requested. Selecting an engine SHALL update the associated description, demonstration, and upstream and compatibility links without changing the global navigation, the repository Skill installation command, or the separate Agent handoff choices.
 
 #### Scenario: Visitor selects Browser Use
 
@@ -136,21 +154,27 @@ The website SHALL expose the agent-browser and Browser Use comparison as a compa
 - **WHEN** the visitor activates the Browser Use tab by pointer or keyboard
 - **THEN** the Browser Use explanation and links become visible and automatic rotation stops
 
+#### Scenario: Visitor selects Playwright CLI
+
+- **GIVEN** either of the other automation-engine panels is active
+- **WHEN** the visitor activates the Playwright CLI tab by pointer or keyboard
+- **THEN** the Playwright CLI explanation, command demonstration, connection notes, and compatibility evidence become visible in the same panel structure and automatic rotation stops
+
 #### Scenario: Automatic rotation remains non-disruptive
 
 - **GIVEN** the visitor has not interacted with the comparison and does not request reduced motion
 - **WHEN** the automatic interval elapses while the comparison has neither hover nor focus
-- **THEN** the active engine advances while the tab selection and panel relationship remain available to assistive technology
+- **THEN** the active engine advances through all three integrations while the tab selection and panel relationship remain available to assistive technology
 
 #### Scenario: Reduced motion keeps a stable engine
 
 - **GIVEN** the visitor requests reduced motion
 - **WHEN** the enhanced engine comparison loads
-- **THEN** no automatic engine rotation starts and both engine choices remain manually operable
+- **THEN** no automatic engine or hero-tool rotation starts and all three engine choices remain manually operable while all three tool names remain readable
 
 ### Requirement: Honest safety and compatibility claims
 
-The website SHALL state that site permission, tab authorization, and active control are separate; that access is visible and revocable; and that Panerelay does not own browser-process features. It SHALL identify agent-browser 0.33.0 and Browser Use 0.13.7 with Browser Harness 0.1.8 as pinned evidence baselines, distinguish an accepted minimum from an exact verified baseline, and SHALL NOT describe Edge capability groups as `Verified` while the checked-in compatibility record classifies them as `Forwarded`. Browser Use claims SHALL cover its Browser Harness-backed CLI and CLI MCP surfaces in the unified Skill and SHALL NOT imply transparent interception of arbitrary Python SDK construction.
+The website SHALL state that site permission, tab authorization, and active control are separate; that access is visible and revocable; and that Panerelay does not own browser-process features. It SHALL identify agent-browser 0.33.0, Browser Use 0.13.7 with Browser Harness 0.1.8, and Playwright CLI 0.1.17 as pinned evidence baselines, distinguish an accepted minimum from an exact verified baseline, and SHALL NOT describe Edge capability groups as `Verified` while the checked-in compatibility record classifies them as `Forwarded`. Browser Use claims SHALL cover its Browser Harness-backed CLI and CLI MCP surfaces in the unified Skill and SHALL NOT imply transparent interception of arbitrary Python SDK construction.
 
 #### Scenario: Visitor reviews the trust boundary
 
@@ -162,7 +186,7 @@ The website SHALL state that site permission, tab authorization, and active cont
 
 - **GIVEN** the website presents browser, agent-browser, or Browser Use compatibility
 - **WHEN** the published page is compared with the checked-in compatibility records
-- **THEN** both engine baselines and Browser Use integration boundaries match the records and Edge is not promoted beyond its recorded `Forwarded` classification
+- **THEN** all three integration baselines and their documented boundaries match the records and Edge is not promoted beyond its recorded `Forwarded` classification
 
 ### Requirement: Coherent repository onboarding
 
