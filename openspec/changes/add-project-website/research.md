@@ -33,7 +33,7 @@ Authoritative implementation references:
 - Eligible targets fail closed before authorization: `apps/extension/src/background/index.ts` (`listEligibleTargets`).
 - Engine-specific controlled favicons and the green status dot: `apps/extension/src/background/controlled-favicon.ts`.
 - Release preserves authorization while ending control: `apps/extension/src/pages/sidepanel/app.component.test.tsx`.
-- Agent-guided upstream inspection, integration, doctor, and acceptance checks: `docs/agent-setup.md`.
+- Agent-guided upstream inspection, integration, doctor, and acceptance checks: `skills/panerelay-browser/SKILL.md`, installed independently with `npx skills`.
 
 ## External benchmarks
 

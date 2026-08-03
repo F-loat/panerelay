@@ -9,13 +9,13 @@ Start with the path that matches what you are trying to do. Product setup and us
 | Goal | Start here |
 | --- | --- |
 | Understand Panerelay and install it | [English quickstart](../README.md#quickstart) |
-| Let an Agent configure Panerelay and an automation tool | [Agent setup instructions](agent-setup.md) |
+| Let an Agent configure Panerelay and an automation tool | [`panerelay-browser` Skill](../skills/panerelay-browser/SKILL.md) |
 | Install only Panerelay for the browser side panel | [`@panerelay/setup` start guide](../packages/setup/README.md#start-here) |
 | Use agent-browser with authorized existing-browser tabs | [agent-browser integration guide](../packages/agent-browser/README.md) |
 | Use browser-use CLI, Skill, or CLI MCP with authorized Chrome tabs | [browser-use integration guide](../packages/browser-use/README.md) |
 | Explicitly attach Playwright CLI to authorized Chrome tabs | [Playwright CLI integration guide](../packages/playwright/README.md) |
 
-The published Agent guide is available at <https://f-loat.github.io/panerelay/agent-setup.md> so an Agent can fetch one stable, reviewable instruction file.
+Install the unified Agent workflow with `npx skills add F-loat/panerelay --skill panerelay-browser`. The Skill is the version-controlled source for agent-browser, Browser Use, and Playwright CLI setup, use, verification, and troubleshooting.
 
 ## Operate and troubleshoot
 

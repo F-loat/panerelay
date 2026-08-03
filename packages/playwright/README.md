@@ -15,7 +15,7 @@ playwright-cli tab-select 1
 playwright-cli snapshot
 ```
 
-The setup package verifies the upstream executable and installs Panerelay-owned adapter metadata plus an additive `panerelay-playwright` Skill. It does not install a shim, modify `PATH` or shell startup files, write `.playwright/cli.config.json`, or set Playwright as a default.
+The setup package verifies the upstream executable and installs only Panerelay-owned adapter metadata. It does not install a shim, modify `PATH` or shell startup files, write `.playwright/cli.config.json`, set Playwright as a default, or manage an Agent Skill. The independently installed `panerelay-browser` Skill contains the Playwright workflow.
 
 For explicit user-managed configuration, set `PLAYWRIGHT_MCP_CDP_ENDPOINT=http://127.0.0.1:43827/cdp/playwright` or configure `browser.cdpEndpoint` in `.playwright/cli.config.json`.
 

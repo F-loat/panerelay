@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { PANERELAY_EXTENSION_ID } from '@panerelay/protocol';
-import { main, parseSetupArgs } from './cli.js';
+import { main, parseIntegrationSelection, parseSetupArgs } from './cli.js';
 import type { BrowserUseIntegrationInstallation } from './browser-use-integration.js';
 import type { DoctorReport } from './doctor.js';
 
@@ -123,7 +123,6 @@ test('passes independent engine selections without changing the base setup call'
               version: '0.33.0',
             },
             agentBrowserConfigPath: '/tmp/agent-browser.json',
-            globalSkillPath: '/tmp/panerelay-browser',
           }
         : {}),
       ...(options?.browserUse ? { browserUseReady: true } : {}),
@@ -168,8 +167,8 @@ test('passes independent engine selections without changing the base setup call'
 
 test('offers interactive integration and default selections only for the unflagged setup', async () => {
   const selections: Array<Record<string, unknown>> = [];
-  const answers = [true, true, true, false];
   const prompts: string[] = [];
+  const confirmations: string[] = [];
   const originalLog = console.log;
   console.log = () => undefined;
   try {
@@ -178,7 +177,11 @@ test('offers interactive integration and default selections only for the unflagg
       interactive: () => true,
       prompt: async message => {
         prompts.push(message);
-        return answers.shift() ?? false;
+        return '1,2,3';
+      },
+      confirmDefault: async message => {
+        confirmations.push(message);
+        return true;
       },
       setup: async options => {
         selections.push({ ...options });
@@ -198,6 +201,11 @@ test('offers interactive integration and default selections only for the unflagg
             manifestPaths: ['/tmp/manifest.json'],
             runtimeConfigPath: '/tmp/runtime.json',
           },
+          playwrightInstallation: {
+            executable: '/tmp/playwright-cli',
+            supported: true,
+            version: '0.1.17',
+          },
         };
       },
       systemLocale: 'en',
@@ -206,8 +214,9 @@ test('offers interactive integration and default selections only for the unflagg
     assert.equal(selections.length, 1);
     assert.equal(selections[0]?.agentBrowser, true);
     assert.equal(selections[0]?.browserUse, true);
+    assert.equal(selections[0]?.playwright, true);
     assert.equal(selections[0]?.globalDefault, true);
-    assert.equal(selections[0]?.browserUseDefault, 'direct');
+    assert.equal(selections[0]?.browserUseDefault, 'extension');
 
     await main(['--yes'], {
       environment: {},
@@ -239,12 +248,68 @@ test('offers interactive integration and default selections only for the unflagg
       extensionId: undefined,
       globalDefault: false,
     });
-    assert.equal(prompts.length, 4);
-    assert.match(prompts[0]!, /agent-browser integration/);
-    assert.match(prompts[3]!, /default Browser Use connection/);
+    assert.equal(prompts.length, 1);
+    assert.match(prompts[0]!, /comma-separated/);
+    assert.match(prompts[0]!, /3\. Playwright CLI/);
+    assert.equal(confirmations.length, 1);
+    assert.match(confirmations[0]!, /user default/);
   } finally {
     console.log = originalLog;
   }
+});
+
+test('parses one bounded multiselect response and rejects invalid or duplicate entries', () => {
+  assert.deepEqual(parseIntegrationSelection('1, browser-use, playwright-cli'), {
+    agentBrowser: true,
+    browserUse: true,
+    playwright: true,
+  });
+  assert.deepEqual(parseIntegrationSelection(''), {
+    agentBrowser: false,
+    browserUse: false,
+    playwright: false,
+  });
+  assert.equal(parseIntegrationSelection('1,1'), undefined);
+  assert.equal(parseIntegrationSelection('4'), undefined);
+});
+
+test('does not ask for a default when only Playwright is selected interactively', async () => {
+  let received: Record<string, unknown> | undefined;
+  const originalLog = console.log;
+  console.log = () => undefined;
+  try {
+    const code = await main([], {
+      environment: {},
+      interactive: () => true,
+      prompt: async () => '3',
+      confirmDefault: async () => {
+        throw new Error('Playwright cannot become the user default');
+      },
+      setup: async options => {
+        received = { ...options };
+        return {
+          globalDefault: false,
+          host: {
+            extensionId: PANERELAY_EXTENSION_ID,
+            hostPath: '/tmp/host.mjs',
+            launchPath: '/tmp/host',
+            legacyHostPath: '/tmp/legacy-host',
+            manifestPaths: ['/tmp/manifest.json'],
+            runtimeConfigPath: '/tmp/runtime.json',
+          },
+          playwrightInstallation: { supported: false },
+        };
+      },
+      systemLocale: 'en',
+    });
+    assert.equal(code, 1);
+  } finally {
+    console.log = originalLog;
+  }
+  assert.equal(received?.agentBrowser, false);
+  assert.equal(received?.browserUse, false);
+  assert.equal(received?.playwright, true);
+  assert.equal(received?.globalDefault, false);
 });
 
 test('reports an incompatible selected Browser Use integration without installing it silently', async () => {
@@ -362,7 +427,6 @@ test('runs setup when the action is omitted', async () => {
           },
           agentBrowserConfigPath: '/tmp/agent-browser.json',
           globalDefault: true,
-          globalSkillPath: '/tmp/panerelay-browser',
           host: {
             extensionId: PANERELAY_EXTENSION_ID,
             hostPath: '/tmp/host.mjs',
@@ -387,14 +451,14 @@ test('runs setup when the action is omitted', async () => {
 
 test('uses the Browser Use default selection as the global default', async () => {
   let received: Record<string, unknown> | undefined;
-  const answers = [false, true, true];
   const originalLog = console.log;
   console.log = () => undefined;
   try {
     const code = await main([], {
       environment: {},
       interactive: () => true,
-      prompt: async () => answers.shift() ?? false,
+      prompt: async () => '2',
+      confirmDefault: async () => true,
       setup: async options => {
         received = { ...options };
         return {
@@ -563,7 +627,6 @@ test('renders explicit commands only for selected integrations', async () => {
               },
               registry: { protocol: 'panerelay.cli-adapter-registry.v1', adapters: [] },
             },
-            playwrightSkillPath: '/tmp/setup-home/.agents/skills/panerelay-playwright',
           };
         },
         systemLocale: 'en',
@@ -571,7 +634,7 @@ test('renders explicit commands only for selected integrations', async () => {
       0,
     );
     const playwright = output.join('\n');
-    assert.match(playwright, /Playwright Agent Skill/);
+    assert.doesNotMatch(playwright, /Agent Skill/);
     assert.match(
       playwright,
       /playwright-cli attach --cdp http:\/\/127\.0\.0\.1:43827\/cdp\/playwright/,

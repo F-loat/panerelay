@@ -14,13 +14,13 @@ Panerelay setup verifies browser-use but does not install, upgrade, downgrade, r
 
 ## Set up with your Agent
 
-Copy this instruction into the Agent you already use:
+Install the unified Skill, then ask your Agent to use its Browser Use workflow:
 
-```text
-Fetch this guide with curl -fsSL and follow the browser-use scenario: https://f-loat.github.io/panerelay/agent-setup.md
+```bash
+npx skills add F-loat/panerelay --skill panerelay-browser
 ```
 
-The version-controlled [Agent setup instructions](../../docs/agent-setup.md) define the inspection, official upstream installation, Panerelay integration, user authorization stop, and acceptance report.
+The Skill defines environment inspection, official upstream installation when needed, Panerelay integration, the user authorization stop, verification, and troubleshooting.
 
 ## Set up manually
 
@@ -85,7 +85,6 @@ The managed environment file is the default for new Browser Use processes. An ex
 Setup adds only Panerelay-owned integration files:
 
 - a protected Browser Use adapter registration and internal adapter launcher (it does not replace the official `browser-use` command);
-- an additive `panerelay-browser-use` Skill without replacing the official browser-use Skill;
 - a saved Direct or Extension connection preference and managed Browser Harness environment file.
 
 The official `browser-use` executable remains the user-installed command. This package supplies its connection environment and is not intended to be invoked directly by Agents.
@@ -95,7 +94,7 @@ The official `browser-use` executable remains the user-installed command. This p
 | Surface | Support |
 | --- | --- |
 | Official browser-use CLI with setup-managed environment | Supported |
-| Additive Panerelay browser-use Skill | Supported |
+| Browser Use workflow in the independent `panerelay-browser` Skill | Supported |
 | Official `browser-use --cli-mcp` | Supported |
 | Saved Direct or Extension mode and one-run override | Supported |
 | Arbitrary browser-use Python SDK construction | Not transparently intercepted; requires explicit connection integration |

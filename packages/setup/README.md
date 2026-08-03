@@ -15,39 +15,21 @@ npx --yes @panerelay/setup
 npx --yes @panerelay/setup doctor
 ```
 
-The base command installs the Native Host and side-panel prerequisites. It does not probe an automation engine, register an agent-browser Provider, install an automation Skill, or change `PATH`.
+The base command installs the Native Host and side-panel prerequisites. It does not probe an automation engine, register an agent-browser Provider, manage an Agent Skill, or change `PATH`.
 
 Agents in the side panel keep the selected project as their working directory and receive only bounded current-tab URL and title context. Browser MCP servers and Skills continue to come from the Agent's own configuration.
 
 ### Automation tool integrations — let your Agent configure them
 
-Copy the handoff that matches your workflow. The Agent setup guide requires environment inspection, official upstream installation only when needed, the selected Panerelay integration, diagnostics, a stop for user-controlled tab authorization, and an evidence-based result.
+Install the unified Skill with the standard Agent Skills CLI:
 
-All handoffs use the version-controlled [Panerelay Agent setup instructions](../../docs/agent-setup.md) as their executable source of truth.
-
-**agent-browser**
-
-```text
-Fetch this guide with curl -fsSL and follow the agent-browser scenario: https://f-loat.github.io/panerelay/agent-setup.md
+```bash
+npx skills add F-loat/panerelay --skill panerelay-browser
 ```
 
-**browser-use**
+Then ask the Agent to use `$panerelay-browser` with the engine you want. The Skill covers environment inspection, official upstream installation only when needed, selected Panerelay setup and doctor commands, a stop for user-controlled tab authorization, engine-specific verification, and troubleshooting.
 
-```text
-Fetch this guide with curl -fsSL and follow the browser-use scenario: https://f-loat.github.io/panerelay/agent-setup.md
-```
-
-**Playwright CLI**
-
-```text
-Fetch this guide with curl -fsSL and follow the Playwright CLI scenario: https://f-loat.github.io/panerelay/agent-setup.md
-```
-
-**Both tools**
-
-```text
-Fetch this guide with curl -fsSL and follow the combined agent-browser and browser-use scenario: https://f-loat.github.io/panerelay/agent-setup.md
-```
+Skill installation, scope, updates, and removal are owned by `npx skills`. Setup does not inspect Agent Skill directories or remove independently installed Skills.
 
 `@panerelay/setup` does not install, update, downgrade, or rewrite agent-browser, browser-use, or Playwright CLI. It verifies an existing supported installation before adding the selected Panerelay-owned integration files.
 
@@ -74,7 +56,7 @@ npx --yes @panerelay/setup --agent-browser
 npx --yes @panerelay/setup doctor --agent-browser
 ```
 
-Setup verifies a compatible agent-browser executable before registering the Panerelay Provider and additive Skill. It does not install or update agent-browser itself. See the [agent-browser integration guide](../agent-browser/README.md) and [compatibility record](../../docs/compatibility/agent-browser-0.33.0.md).
+Setup verifies a compatible agent-browser executable before registering the Panerelay Provider. It does not install or update agent-browser or manage an Agent Skill. See the [agent-browser integration guide](../agent-browser/README.md) and [compatibility record](../../docs/compatibility/agent-browser-0.33.0.md).
 
 ### Explicit browser-use integration
 
@@ -85,7 +67,7 @@ npx --yes @panerelay/setup --browser-use
 npx --yes @panerelay/setup doctor --browser-use
 ```
 
-Setup does not install, upgrade, downgrade, or rewrite browser-use. It verifies the installed versions, configures the Panerelay Browser Use gateway and Browser Harness environment default, records the exact compatible executable for diagnostics, and installs an additive `panerelay-browser-use` Skill without replacing the official browser-use Skill or changing `PATH`. Setup initially saves Extension mode. If the browser-use environment is incomplete, setup asks the user to repair or upgrade browser-use as one installation.
+Setup does not install, upgrade, downgrade, or rewrite browser-use. It verifies the installed versions, configures the Panerelay Browser Use gateway and Browser Harness environment default, and records the exact compatible executable for diagnostics without changing `PATH` or any Agent Skill. Setup initially saves Extension mode. If the browser-use environment is incomplete, setup asks the user to repair or upgrade browser-use as one installation.
 
 The key environment entry is:
 
@@ -97,7 +79,7 @@ Setup writes it to Browser Harness's user-scoped environment file. The official 
 
 The explicit `BU_CDP_URL=` prefix is a one-process override. After saving Extension mode, it can be omitted. Do not set Browser Harness's higher-priority `BU_CDP_WS` at the same time.
 
-The supported surfaces are the official `browser-use` CLI, `browser-use --cli-mcp`, and additive Skill. Panerelay does not transparently intercept arbitrary browser-use Python SDK construction. The exact verified baseline is browser-use 0.13.7 with Browser Harness 0.1.8; newer supported versions meet the minimum without automatically inheriting `Verified` status. See the [compatibility record](../../docs/compatibility/browser-use-0.13.7.md).
+The supported surfaces are the official `browser-use` CLI, `browser-use --cli-mcp`, and the Browser Use workflow in the independently installed `panerelay-browser` Skill. Panerelay does not transparently intercept arbitrary browser-use Python SDK construction. The exact verified baseline is browser-use 0.13.7 with Browser Harness 0.1.8; newer supported versions meet the minimum without automatically inheriting `Verified` status. See the [compatibility record](../../docs/compatibility/browser-use-0.13.7.md).
 
 The base CLI controls the durable Browser Use mode:
 
@@ -111,7 +93,7 @@ PY
 
 These paths are POSIX examples. A healthy Extension-mode browser-use daemon persists and is reused after the command exits. Sequential Agents share its current-page state; simultaneous canonical runs are serialized or fail busy. User release, authorization loss, Extension/Native Host disconnect, or WebSocket loss removes browser authority even if the detached browser-use process remains alive.
 
-The integration disables browser-use telemetry and automatic recording for this lane. Browser Harness keeps its daemon state in its normal user-scoped storage, while full Panerelay uninstall removes the owned adapter, mode, Skill, configuration, and gateway state; it does not kill processes by a broad command-line pattern.
+The integration disables browser-use telemetry and automatic recording for this lane. Browser Harness keeps its daemon state in its normal user-scoped storage, while full Panerelay uninstall removes the owned adapter, mode, configuration, and gateway state without touching independently managed Skills; it does not kill processes by a broad command-line pattern.
 
 ### Explicit Playwright CLI integration
 
@@ -128,7 +110,7 @@ playwright-cli snapshot
 
 Setup verifies the upstream executable and registers only Panerelay-owned adapter metadata. It does not install a shim, modify `PATH` or shell startup files, write user-owned Playwright configuration, or set Playwright as a default. Users who want persistent explicit configuration may set `PLAYWRIGHT_MCP_CDP_ENDPOINT` or manage their own `.playwright/cli.config.json`.
 
-Setup also installs the additive `panerelay-playwright` Agent Skill without replacing any upstream Playwright files. See the [Playwright integration guide](../playwright/README.md) and [compatibility record](../../docs/compatibility/playwright-cli-0.1.17.md).
+The independently installed `panerelay-browser` Skill contains the Playwright workflow. See the [Playwright integration guide](../playwright/README.md) and [compatibility record](../../docs/compatibility/playwright-cli-0.1.17.md).
 
 This connection reuses authorized tabs and does not provide isolated BrowserContexts, launch-time executable or proxy options, or browser-wide close. The fixed endpoint is loopback discovery, not a reusable browser credential.
 

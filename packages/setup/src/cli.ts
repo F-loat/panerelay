@@ -38,7 +38,8 @@ interface LanguageArguments {
   language?: SupportedLocale;
 }
 
-type SetupPrompt = (message: string) => Promise<boolean>;
+type SetupPrompt = (message: string) => Promise<string>;
+type SetupConfirm = (message: string) => Promise<boolean>;
 
 function languageValue(argv: string[]): string | undefined {
   for (let index = 0; index < argv.length; index += 1) {
@@ -224,7 +225,6 @@ const doctorLabels: Record<string, { en: string; 'zh-CN': string }> = {
     'zh-CN': 'agent-browser Provider',
   },
   qoder: { en: 'Qoder (optional)', 'zh-CN': 'Qoder（可选）' },
-  skill: { en: 'Agent Skill', 'zh-CN': 'Agent Skill' },
   'windows-registry-chrome': {
     en: 'Chrome Native Messaging registry',
     'zh-CN': 'Chrome Native Messaging 注册表',
@@ -249,7 +249,6 @@ const doctorGroups = [
       'windows-registry-edge',
       'extension-id',
       'provider',
-      'skill',
     ],
     title: 'doctorGroupIntegration',
   },
@@ -383,6 +382,7 @@ async function confirmUninstall(locale: SupportedLocale): Promise<boolean> {
 
 export interface CliDependencies {
   confirm?: () => Promise<boolean>;
+  confirmDefault?: SetupConfirm;
   doctor?: typeof doctorPanerelay;
   environment?: NodeJS.ProcessEnv;
   interactive?: () => boolean;
@@ -406,24 +406,66 @@ async function promptYesNo(message: string): Promise<boolean> {
   }
 }
 
+async function promptLine(message: string): Promise<string> {
+  const input = createInterface({ input: stdin, output: stdout });
+  try {
+    return (await input.question(message)).trim();
+  } finally {
+    input.close();
+  }
+}
+
+export function parseIntegrationSelection(
+  answer: string,
+): Pick<ParsedSetupArgs, 'agentBrowser' | 'browserUse' | 'playwright'> | undefined {
+  const normalized = answer.trim().toLowerCase();
+  if (!normalized) return { agentBrowser: false, browserUse: false, playwright: false };
+  const aliases: ReadonlyMap<string, 'agentBrowser' | 'browserUse' | 'playwright'> = new Map([
+    ['1', 'agentBrowser'],
+    ['agent-browser', 'agentBrowser'],
+    ['2', 'browserUse'],
+    ['browser-use', 'browserUse'],
+    ['3', 'playwright'],
+    ['playwright', 'playwright'],
+    ['playwright-cli', 'playwright'],
+  ] as const);
+  const selected = new Set<'agentBrowser' | 'browserUse' | 'playwright'>();
+  for (const token of normalized.split(',').map(value => value.trim())) {
+    const integration = aliases.get(token);
+    if (!integration || selected.has(integration)) return undefined;
+    selected.add(integration);
+  }
+  return {
+    agentBrowser: selected.has('agentBrowser'),
+    browserUse: selected.has('browserUse'),
+    playwright: selected.has('playwright'),
+  };
+}
+
 async function selectOptionalIntegrations(
   locale: SupportedLocale,
   prompt: SetupPrompt,
+  confirmDefault: SetupConfirm,
 ): Promise<
-  Pick<ParsedSetupArgs, 'agentBrowser' | 'browserUse' | 'globalDefault'> & {
+  Pick<ParsedSetupArgs, 'agentBrowser' | 'browserUse' | 'playwright' | 'globalDefault'> & {
     browserUseDefault: 'direct' | 'extension';
   }
 > {
-  const agentBrowser = await prompt(translate(locale, 'agentBrowserPrompt'));
-  const agentBrowserGlobalDefault = agentBrowser
-    ? await prompt(translate(locale, 'agentBrowserDefaultPrompt'))
-    : false;
-  const browserUse = await prompt(translate(locale, 'browserUsePrompt'));
-  const browserUseGlobalDefault =
-    browserUse && (await prompt(translate(locale, 'browserUseDefaultPrompt')));
-  const browserUseDefault = browserUseGlobalDefault ? 'extension' : 'direct';
-  const globalDefault = agentBrowserGlobalDefault || browserUseGlobalDefault;
-  return { agentBrowser, browserUse, browserUseDefault, globalDefault };
+  let selected: ReturnType<typeof parseIntegrationSelection>;
+  while (!selected) {
+    selected = parseIntegrationSelection(
+      await prompt(translate(locale, 'integrationSelectPrompt')),
+    );
+    if (!selected) console.error(translate(locale, 'errorIntegrationSelection'));
+  }
+  const globalDefault =
+    (selected.agentBrowser || selected.browserUse) &&
+    (await confirmDefault(translate(locale, 'defaultIntegrationsPrompt')));
+  return {
+    ...selected,
+    browserUseDefault: globalDefault ? 'extension' : 'direct',
+    globalDefault,
+  };
 }
 
 function localizeArgumentError(error: unknown, locale: SupportedLocale): string {
@@ -548,7 +590,8 @@ export async function main(
     ) {
       const selected = await selectOptionalIntegrations(
         locale,
-        dependencies.prompt ?? (message => promptYesNo(message)),
+        dependencies.prompt ?? (message => promptLine(message)),
+        dependencies.confirmDefault ?? (message => promptYesNo(message)),
       );
       setupOptions = { ...setupOptions, ...selected };
     }
@@ -587,9 +630,6 @@ export async function main(
           ? (agentBrowserVersion ?? 'unknown')
           : translate(locale, 'setupNotFound'),
       );
-      if (result.globalSkillPath) {
-        printSetupSubline(translate(locale, 'setupAgentSkill'), result.globalSkillPath);
-      }
       if (selectedGlobalDefault && result.agentBrowserConfigPath) {
         printSetupSubline(translate(locale, 'setupUserDefault'), result.agentBrowserConfigPath);
       }
@@ -630,9 +670,6 @@ export async function main(
           );
         }
       }
-      if (result.browserUseSkillPath) {
-        printSetupSubline(translate(locale, 'setupBrowserUseSkill'), result.browserUseSkillPath);
-      }
       if (browserUseReady) {
         printSetupCommand(
           translate(locale, 'setupBrowserUseCommand'),
@@ -657,9 +694,6 @@ export async function main(
           translate(locale, 'setupPlaywrightConfig'),
           result.playwrightIntegration.paths.configPath,
         );
-        if (result.playwrightSkillPath) {
-          printSetupSubline(translate(locale, 'setupPlaywrightSkill'), result.playwrightSkillPath);
-        }
         if (playwrightReady) {
           printSetupCommand(
             translate(locale, 'setupPlaywrightCommand'),

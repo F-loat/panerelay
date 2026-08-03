@@ -19,62 +19,56 @@ Panerelay supports two ways to work:
 | **Agent side panel** | You want a local Agent beside the current page | Open Codex, Claude Code, or Qoder in the side panel for conversations, approvals, activity, and tab-linked workspaces |
 | **Automation tool integrations** | You want an Agent in another app or terminal to operate the browser | Connect [agent-browser](https://agent-browser.dev/) or [browser-use](https://docs.browser-use.com/open-source/browser-use-cli), or explicitly attach Playwright CLI, to authorized tabs in your existing browser |
 
-![Panerelay](https://github.com/user-attachments/assets/8873dd53-ee16-484a-b801-66622ebe61ad)
+![Panerelay](https://github.com/user-attachments/assets/2eba77ae-5362-4803-9190-cf134dd2b8d7)
 
 ## Quickstart
 
-Requirements: Chrome or Microsoft Edge on macOS, Linux, or Windows, plus Node.js 20 or newer. Automation tools are optional. The current integration minimums are agent-browser 0.33.0+, browser-use 0.13.7+ with Browser Harness 0.1.8+, and Playwright CLI 0.1.17+.
+Requirements: Chrome or Microsoft Edge on macOS, Linux, or Windows, plus Node.js 20 or newer.
 
 ### 1. Install the Extension
 
 Add [Panerelay from the Chrome Web Store](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi). Microsoft Edge may first ask you to allow extensions from other stores.
 
-### 2. Connect Panerelay
+### 2. Install the Panerelay Skill
 
-Choose the setup path that matches how you want to work.
+Install the unified Skill into the Agent you use:
 
-#### Let your Agent handle browser automation setup
-
-Copy one instruction into the Agent you already use. The Agent will inspect the environment, install or update the selected upstream tool from its official source only when needed, install the Panerelay integration, run diagnostics, and stop when your action is required.
-
-**agent-browser**
-
-```text
-Fetch this guide with curl -fsSL and follow the agent-browser scenario: https://f-loat.github.io/panerelay/agent-setup.md
+```bash
+npx skills add F-loat/panerelay --skill panerelay-browser
 ```
 
-**browser-use**
+Then ask the Agent to use `$panerelay-browser` with agent-browser, Browser Use, or Playwright CLI. The Skill inspects the environment, installs or repairs only the selected upstream tool when needed, manages the matching Panerelay integration through setup, runs doctor, and pauses when you need to authorize a tab in the Extension.
 
-```text
-Fetch this guide with curl -fsSL and follow the browser-use scenario: https://f-loat.github.io/panerelay/agent-setup.md
-```
+That is the complete normal installation path: Extension plus Skill. Skill installation, updates, and removal are owned by `npx skills`; `@panerelay/setup` does not install or diagnose Agent Skills.
 
-**Playwright CLI**
+## Advanced setup and manual use
 
-```text
-Fetch this guide with curl -fsSL and follow the Playwright CLI scenario: https://f-loat.github.io/panerelay/agent-setup.md
-```
+### Run setup yourself
 
-The published guide is generated from the version-controlled [Agent setup instructions](docs/agent-setup.md). `@panerelay/setup` installs Panerelay-owned files; it does not install or modify agent-browser, browser-use, or Playwright CLI itself.
-
-#### Install Panerelay yourself
+Base setup installs the Native Host required by the side panel:
 
 ```bash
 npx --yes @panerelay/setup
 ```
 
-This command installs the Native Host required by the side panel and Panerelay integrations, then interactively asks whether to connect optional automation engines.
+In an interactive terminal it asks once for a comma-separated selection of agent-browser, Browser Use, and Playwright CLI, then asks at most once whether the selected agent-browser/Browser Use integrations should become user defaults. Playwright always remains explicit.
 
-### 3. Authorize the tabs you want to share
+For automation or a specific repair, use flags directly:
 
-Open Panerelay from the browser toolbar and choose the current web tab or all supported web tabs.
+```bash
+npx --yes @panerelay/setup --agent-browser
+npx --yes @panerelay/setup --browser-use
+npx --yes @panerelay/setup --playwright
+npx --yes @panerelay/setup doctor --agent-browser --browser-use --playwright
+```
 
-### 4. Start working
+Setup continues to probe the selected programs and manage Panerelay-owned Provider/adapter files, Browser Use environment, and supported defaults. It does not install third-party automation tools, change `PATH`, or manage the Skill.
 
-- In the **Agent side panel**, select an installed and signed-in Codex, Claude Code, or Qoder, optionally choose a project directory, and start a conversation.
-- With **agent-browser or browser-use**, run the tool as usual. With **Playwright CLI**, attach explicitly to Panerelay's CDP endpoint.
+### Authorize and verify tabs
 
-For agent-browser, this is the shortest authorization check:
+Open Panerelay from the browser toolbar and authorize the current web tab or all supported web tabs. Focus never grants authorization.
+
+For agent-browser, the shortest boundary check is:
 
 ```bash
 agent-browser --provider panerelay tab list
@@ -82,7 +76,7 @@ agent-browser --provider panerelay tab list
 
 It must list only the tabs you authorized. An empty list means no eligible tab is currently authorized; it does not necessarily mean installation failed.
 
-For browser-use, run the official CLI directly with the fixed Panerelay discovery URL. This does not depend on whether Browser Use has been saved as the default connection:
+For Browser Use, run the official CLI directly with the fixed Panerelay discovery URL:
 
 ```bash
 BU_CDP_URL=http://127.0.0.1:43827/cdp/browser-use browser-use <<'PY'
@@ -106,7 +100,7 @@ set "BU_CDP_URL=http://127.0.0.1:43827/cdp/browser-use"
 echo print(list_tabs()) | browser-use
 ```
 
-The result must likewise contain only explicitly authorized tabs. On Windows or when browser-use is not on `PATH`, invoke the official executable path reported by setup; setup does not replace it or modify `PATH`.
+The result must likewise contain only explicitly authorized tabs. On Windows or when browser-use is not on `PATH`, invoke its official executable path; setup does not replace it or modify `PATH`.
 
 In Extension mode, the managed environment contains the fixed discovery URL:
 
@@ -123,7 +117,7 @@ panerelay connection use browser-use direct
 
 After saving Extension mode, the explicit `BU_CDP_URL=` prefix can be omitted. Direct mode removes Panerelay-managed keys, while an explicitly supplied process environment always takes precedence.
 
-For the optional Playwright CLI integration, install the upstream Playwright CLI 0.1.17 or newer first. Panerelay validates that prerequisite but does not install or replace it. Then keep the upstream command and attach explicitly:
+For Playwright CLI, keep the upstream command and attach explicitly:
 
 ```bash
 npx --yes @panerelay/setup --playwright
@@ -135,6 +129,16 @@ playwright-cli snapshot
 ```
 
 Panerelay does not install a shim or set Playwright as the default connection. The CLI lists only authorized tabs; use its normal session option when you need more than one named session.
+
+### Manage or troubleshoot the Skill
+
+```bash
+npx skills list
+npx skills update panerelay-browser
+npx skills remove panerelay-browser
+```
+
+Use `--global` with the matching `npx skills` command when you chose a user-level installation. If an Agent cannot load the Skill, first verify its selected Agent and scope; if an automation command is missing, follow that tool's official installation source. The Skill contains the complete layered troubleshooting flow for the Skill, each upstream executable, setup/doctor, Extension connection, and browser authorization.
 
 ## Supported workflows
 
@@ -148,13 +152,13 @@ Panerelay provides an agent-browser Provider for authorized existing-browser tab
 
 ### browser-use integration
 
-Panerelay supports the official browser-use CLI, additive Skill, and `browser-use --cli-mcp`. Browser Harness continues to own browser-use automation semantics while Panerelay supplies the authorized Chrome connection through the managed `BU_CDP_URL` environment. Arbitrary browser-use Python SDK construction is not transparently intercepted and needs an explicit connection integration.
+Panerelay supports the official browser-use CLI and `browser-use --cli-mcp`; the unified `panerelay-browser` Skill contains its Panerelay workflow. Browser Harness continues to own browser-use automation semantics while Panerelay supplies the authorized Chrome connection through the managed `BU_CDP_URL` environment. Arbitrary browser-use Python SDK construction is not transparently intercepted and needs an explicit connection integration.
 
 The supported minimum is browser-use 0.13.7. The exact verified baseline is browser-use 0.13.7 with Browser Harness 0.1.8. See the [integration guide](packages/browser-use/README.md) and [compatibility record](docs/compatibility/browser-use-0.13.7.md).
 
 ### Playwright CLI integration
 
-Panerelay provides an optional explicit CDP connection for the upstream Playwright CLI 0.1.17 or newer. Core existing-tab commands such as `attach`, `tab-list`, `tab-select`, `snapshot`, and page evaluation operate on authorized Chromium tabs. Chrome is the verified baseline; Edge remains `Forwarded` pending its complete command matrix. Panerelay does not provide isolated browser contexts, launch-time options, proxy ownership, or browser-wide close through this connection. See the [Agent setup instructions](docs/agent-setup.md#playwright-cli).
+Panerelay provides an optional explicit CDP connection for the upstream Playwright CLI 0.1.17 or newer. Core existing-tab commands such as `attach`, `tab-list`, `tab-select`, `snapshot`, and page evaluation operate on authorized Chromium tabs. Chrome is the verified baseline; Edge remains `Forwarded` pending its complete command matrix. Panerelay does not provide isolated browser contexts, launch-time options, proxy ownership, or browser-wide close through this connection. See the [Playwright integration guide](packages/playwright/README.md).
 
 Microsoft Edge capability groups remain classified as `Forwarded` until representative acceptance is complete. See the [browser platform record](docs/compatibility/browser-platforms.md).
 
@@ -204,7 +208,7 @@ An unavailable saved browser or an ambiguous choice fails closed instead of foll
 ## Documentation
 
 - [Documentation map](docs/README.md)
-- [Agent setup instructions](docs/agent-setup.md)
+- [`panerelay-browser` Skill](skills/panerelay-browser/SKILL.md)
 - [`@panerelay/setup` technical reference](packages/setup/README.md)
 - [Compatibility records](docs/compatibility)
 - [Architecture RFCs](docs/rfcs)
