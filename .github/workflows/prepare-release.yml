@@ -27,7 +27,7 @@ jobs:
   prepare:
     name: Prepare version pull request
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
 
     steps:
       - name: Require the default branch
@@ -191,6 +191,7 @@ jobs:
           diff -u "$expected" "$actual"
 
       - name: Commit and push preparation branch
+        id: commit
         env:
           PREPARE_BRANCH: ${{ steps.version.outputs.branch }}
           TARGET_VERSION: ${{ steps.version.outputs.version }}
@@ -213,8 +214,10 @@ jobs:
           git diff --cached --check
           git commit -m "chore(release): prepare $TARGET_VERSION"
           git push --set-upstream origin "$PREPARE_BRANCH"
+          echo "head_sha=$(git rev-parse HEAD)" >>"$GITHUB_OUTPUT"
 
       - name: Open version pull request
+        id: pr
         env:
           BASE_VERSION: ${{ steps.version.outputs.base_version }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
@@ -232,7 +235,7 @@ jobs:
             echo "- Target version: \`$TARGET_VERSION\`"
             echo "- Full workspace and retained-candidate checks passed before this commit."
             echo
-            echo "After review and merge, run **Release** from \`$DEFAULT_BRANCH\` with channel \`stable\`."
+            echo "After this workflow's check gate and squash merge, run **Release** from \`$DEFAULT_BRANCH\` with channel \`stable\`."
           } >"$body"
           pr_url="$(
             gh pr create \
@@ -243,6 +246,64 @@ jobs:
               --body-file "$body"
           )"
           echo "Prepared release pull request: $pr_url"
+          echo "url=$pr_url" >>"$GITHUB_OUTPUT"
           echo "## Prepare Release" >>"$GITHUB_STEP_SUMMARY"
           echo >>"$GITHUB_STEP_SUMMARY"
           echo "Created [$TARGET_VERSION]($pr_url) from $BASE_VERSION." >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Wait for pull request checks
+        env:
+          CHECK_DISCOVERY_ATTEMPTS: 90
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ steps.pr.outputs.url }}
+        run: |
+          checks_started=false
+          for ((attempt = 1; attempt <= CHECK_DISCOVERY_ATTEMPTS; attempt++)); do
+            check_count="$(
+              gh pr checks "$PR_URL" \
+                --repo "$GITHUB_REPOSITORY" \
+                --json name,state,bucket \
+                --jq 'length' 2>/dev/null || true
+            )"
+            if [[ "$check_count" =~ ^[1-9][0-9]*$ ]]; then
+              checks_started=true
+              echo "Observed $check_count pull-request check(s)."
+              break
+            fi
+            if (( attempt == CHECK_DISCOVERY_ATTEMPTS )); then
+              echo "No pull-request checks appeared before the discovery timeout." >&2
+              exit 1
+            fi
+            sleep 10
+          done
+
+          if [[ "$checks_started" != true ]]; then
+            echo "Pull-request checks did not start." >&2
+            exit 1
+          fi
+          gh pr checks "$PR_URL" \
+            --repo "$GITHUB_REPOSITORY" \
+            --watch \
+            --fail-fast \
+            --interval 10
+
+      - name: Squash merge validated pull request
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ github.token }}
+          PREPARE_SHA: ${{ steps.commit.outputs.head_sha }}
+          PR_URL: ${{ steps.pr.outputs.url }}
+          TARGET_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          test "$(
+            gh pr view "$PR_URL" \
+              --repo "$GITHUB_REPOSITORY" \
+              --json baseRefName \
+              --jq '.baseRefName'
+          )" = "$DEFAULT_BRANCH"
+          gh pr merge "$PR_URL" \
+            --repo "$GITHUB_REPOSITORY" \
+            --squash \
+            --delete-branch \
+            --match-head-commit "$PREPARE_SHA" \
+            --subject "chore(release): prepare $TARGET_VERSION"

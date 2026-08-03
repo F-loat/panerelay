@@ -196,7 +196,7 @@ test('keeps localized README documentation navigation in the selected language',
   assert.match(documentationIndexZhCn, /\[English\]\(README\.md\)/);
 });
 
-test('keeps selectable release preparation reviewable and non-publishing', () => {
+test('keeps selectable release preparation validated and auto-squashed', () => {
   assert.match(prepareReleaseWorkflow, /^name: Prepare Release$/m);
   assert.match(prepareReleaseWorkflow, /workflow_dispatch:/);
   assert.match(
@@ -223,7 +223,23 @@ test('keeps selectable release preparation reviewable and non-publishing', () =>
     /git commit -m "chore\(release\): prepare \$TARGET_VERSION"/,
   );
   assert.match(prepareReleaseWorkflow, /git push --set-upstream origin "\$PREPARE_BRANCH"/);
+  assert.match(prepareReleaseWorkflow, /id: commit/);
+  assert.match(
+    prepareReleaseWorkflow,
+    /echo "head_sha=\$\(git rev-parse HEAD\)" >>"\$GITHUB_OUTPUT"/,
+  );
   assert.match(prepareReleaseWorkflow, /gh pr create/);
+  assert.match(prepareReleaseWorkflow, /id: pr/);
+  assert.match(prepareReleaseWorkflow, /echo "url=\$pr_url" >>"\$GITHUB_OUTPUT"/);
+  assert.match(prepareReleaseWorkflow, /gh pr checks "\$PR_URL"/);
+  assert.match(prepareReleaseWorkflow, /--watch/);
+  assert.match(prepareReleaseWorkflow, /--fail-fast/);
+  assert.match(prepareReleaseWorkflow, /--interval 10/);
+  assert.match(prepareReleaseWorkflow, /gh pr merge "\$PR_URL"/);
+  assert.match(prepareReleaseWorkflow, /--squash/);
+  assert.match(prepareReleaseWorkflow, /--delete-branch/);
+  assert.match(prepareReleaseWorkflow, /--match-head-commit "\$PREPARE_SHA"/);
+  assert.doesNotMatch(prepareReleaseWorkflow, /--admin/);
   assert.doesNotMatch(
     prepareReleaseWorkflow,
     /id-token: write|npm publish|publish-release\.mjs|gh release create|git tag|Chrome Web Store/,
