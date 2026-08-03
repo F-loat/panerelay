@@ -24,7 +24,7 @@ Chrome is the verified runtime baseline. Microsoft Edge operations use the share
    agent-browser --session panerelay-task --provider panerelay click @e1
    ```
 
-   A user or project configured with `npx --yes @panerelay/setup --agent-browser --global-provider` or `npx --yes @panerelay/setup --agent-browser --project-provider` already defaults to this Provider, but keep the explicit flag when portability matters. Explicit CLI selection wins over project and user defaults. Changing the Provider never changes browser authorization.
+   A user configured with `npx --yes @panerelay/setup --agent-browser --global-default` already defaults to this Provider, but keep the explicit flag when portability matters. Changing the Provider never changes browser authorization.
 
 3. If Panerelay reports multiple ready browsers, inspect them with `npx --yes @panerelay/cli browsers`. Ask the user which browser to use when their intent is not already explicit, then scope the process with `PANERELAY_BROWSER_ID=<registration-id>` or `PANERELAY_BROWSER=<chrome|edge>`. Do not change the saved browser default unless the user asks. An active session remains pinned to its original browser.
 

@@ -5,7 +5,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   browserUseAdapterManifest,
-  isBrowserUseInstallationSupported,
+  browserUseEnvironmentPath,
+  setBrowserUseEnvironmentMode,
   type BrowserUseVersions,
 } from '@panerelay/browser-use';
 import {
@@ -35,13 +36,8 @@ export interface BrowserUseIntegrationPaths {
   adapterPackagePath: string;
   adapterStorageDirectory: string;
   browserUseDirectory: string;
-  cliArtifactPath: string;
-  cliLauncherPath: string;
-  cliStorageDirectory: string;
   dataDirectory: string;
   integrationConfigPath: string;
-  mcpLauncherPath: string;
-  mcpRunnerArtifactPath: string;
   runtimeDirectory: string;
 }
 
@@ -49,7 +45,6 @@ export interface InstallBrowserUseIntegrationOptions extends BrowserUseIntegrati
   adapterBundlePath?: string;
   browserUseDefault?: 'direct' | 'extension';
   browserUseVersions?: BrowserUseVersions;
-  cliBundlePath?: string;
   nodePath?: string;
   readAdapterMode?: typeof readCliAdapterMode;
   registerAdapter?: typeof registerCliAdapter;
@@ -60,8 +55,6 @@ export interface InstallBrowserUseIntegrationOptions extends BrowserUseIntegrati
 export interface BrowserUseIntegrationConfig {
   adapterId: 'browser-use';
   adapterLauncherPath: string;
-  cliLauncherPath: string;
-  mcpLauncherPath?: string;
   browserHarnessVersion?: string;
   browserUseExecutable?: string;
   browserUseVersion?: string;
@@ -101,14 +94,7 @@ export function resolveBrowserUseIntegrationPaths(
   const paths = pathImplementation(platform);
   const dataDirectory =
     options.dataDirectory ?? paths.join(options.homeDirectory ?? homedir(), '.panerelay');
-  const cliVersionDirectory = paths.join(
-    dataDirectory,
-    'cli',
-    'browser-use',
-    PANERELAY_BROWSER_USE_INTEGRATION_VERSION,
-  );
   const adapterStorageDirectory = paths.join(dataDirectory, 'adapters', 'browser-use');
-  const cliStorageDirectory = paths.join(dataDirectory, 'cli', 'browser-use');
   const browserUseDirectory = paths.join(dataDirectory, 'browser-use');
   const adapterVersionDirectory = paths.join(
     adapterStorageDirectory,
@@ -129,21 +115,8 @@ export function resolveBrowserUseIntegrationPaths(
     adapterPackagePath: paths.join(adapterVersionDirectory, 'package.json'),
     adapterStorageDirectory,
     browserUseDirectory,
-    cliArtifactPath: paths.join(cliVersionDirectory, 'dist', 'panerelay-cli.mjs'),
-    cliLauncherPath: paths.join(dataDirectory, 'bin', `panerelay-browser-use${launcherExtension}`),
-    cliStorageDirectory,
     dataDirectory,
     integrationConfigPath: paths.join(browserUseDirectory, 'config.json'),
-    mcpLauncherPath: paths.join(
-      dataDirectory,
-      'bin',
-      `panerelay-browser-use-mcp${launcherExtension}`,
-    ),
-    mcpRunnerArtifactPath: paths.join(
-      cliVersionDirectory,
-      'dist',
-      'panerelay-browser-use-mcp-runner.mjs',
-    ),
     runtimeDirectory: paths.join(browserUseDirectory, 'runtime'),
   };
 }
@@ -153,7 +126,7 @@ function bundledPrivatePath(fileName: string): string {
 }
 
 function shellQuote(value: string): string {
-  return `'${value.replaceAll("'", `'"'"'`)}'`;
+  return "'" + value.split("'").join("'\"'\"'") + "'";
 }
 
 export function posixNodeLauncherContent(nodePath: string, scriptPath: string): string {
@@ -168,53 +141,6 @@ export function windowsNodeLauncherContent(nodePath: string, scriptPath: string)
     `"${escapePercent(nodePath)}" "${escapePercent(scriptPath)}" %*`,
     '',
   ].join('\r\n');
-}
-
-export function browserUseLauncherContent(
-  nodePath: string,
-  cliArtifactPath: string,
-  browserUseExecutable: string,
-  platform: NodeJS.Platform,
-): string {
-  if (platform === 'win32') {
-    const escapePercent = (value: string): string => value.replaceAll('%', '%%');
-    return [
-      '@echo off',
-      'setlocal DisableDelayedExpansion',
-      'if "%*"=="" goto :no_args',
-      `"${escapePercent(nodePath)}" "${escapePercent(cliArtifactPath)}" %*`,
-      'exit /b %ERRORLEVEL%',
-      ':no_args',
-      `"${escapePercent(nodePath)}" "${escapePercent(cliArtifactPath)}" run browser-use -- "${escapePercent(browserUseExecutable)}"`,
-      'exit /b %ERRORLEVEL%',
-      '',
-    ].join('\r\n');
-  }
-  return `#!/bin/sh
-if [ "$#" -eq 0 ]; then
-  exec ${shellQuote(nodePath)} ${shellQuote(cliArtifactPath)} run browser-use -- ${shellQuote(browserUseExecutable)}
-fi
-exec ${shellQuote(nodePath)} ${shellQuote(cliArtifactPath)} "$@"
-`;
-}
-
-export function browserUseMcpLauncherContent(
-  nodePath: string,
-  cliArtifactPath: string,
-  mcpRunnerArtifactPath: string,
-  browserUseExecutable: string,
-  platform: NodeJS.Platform,
-): string {
-  if (platform === 'win32') {
-    const escapePercent = (value: string): string => value.replaceAll('%', '%%');
-    return [
-      '@echo off',
-      'setlocal DisableDelayedExpansion',
-      `"${escapePercent(nodePath)}" "${escapePercent(cliArtifactPath)}" run browser-use -- "${escapePercent(nodePath)}" "${escapePercent(mcpRunnerArtifactPath)}" "${escapePercent(browserUseExecutable)}"`,
-      '',
-    ].join('\r\n');
-  }
-  return `#!/bin/sh\nexec ${shellQuote(nodePath)} ${shellQuote(cliArtifactPath)} run browser-use -- ${shellQuote(nodePath)} ${shellQuote(mcpRunnerArtifactPath)} ${shellQuote(browserUseExecutable)}\n`;
 }
 
 async function ensureProtectedDirectory(
@@ -248,7 +174,8 @@ async function writeProtectedFile(
   mode: number,
   platform: NodeJS.Platform,
 ): Promise<void> {
-  await ensureProtectedDirectory(pathImplementation(platform).dirname(filePath), platform);
+  const implementation = pathImplementation(platform);
+  await ensureProtectedDirectory(implementation.dirname(filePath), platform);
   const bytes = Buffer.isBuffer(content) ? content : Buffer.from(content);
   const existing = await existingRegularFile(filePath);
   if (existing?.equals(bytes)) {
@@ -322,22 +249,24 @@ function adapterRegistration(executablePath: string): CliAdapterRegistration {
   };
 }
 
+async function readPreviousConfig(filePath: string): Promise<BrowserUseIntegrationConfig | null> {
+  try {
+    return JSON.parse(await readFile(filePath, 'utf8')) as BrowserUseIntegrationConfig;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
 export async function installBrowserUseIntegrationArtifacts(
   options: InstallBrowserUseIntegrationOptions = {},
 ): Promise<BrowserUseIntegrationInstallation> {
   const platform = options.platform ?? process.platform;
   const paths = resolveBrowserUseIntegrationPaths(options);
-  const [cliBundle, adapterBundle, mcpRunnerBundle] = await Promise.all([
-    readFile(options.cliBundlePath ?? bundledPrivatePath('panerelay-cli.mjs')),
-    readFile(options.adapterBundlePath ?? bundledPrivatePath('panerelay-browser-use-adapter.mjs')),
-    readFile(bundledPrivatePath('panerelay-browser-use-mcp-runner.mjs')),
-  ]);
+  const adapterBundle = await readFile(
+    options.adapterBundlePath ?? bundledPrivatePath('panerelay-browser-use-adapter.mjs'),
+  );
   const nodePath = options.nodePath ?? process.execPath;
-  const launcher = (scriptPath: string): string =>
-    platform === 'win32'
-      ? windowsNodeLauncherContent(nodePath, scriptPath)
-      : posixNodeLauncherContent(nodePath, scriptPath);
-
   const registryOptions = {
     dataDirectory: paths.dataDirectory,
     homeDirectory: options.homeDirectory,
@@ -345,16 +274,7 @@ export async function installBrowserUseIntegrationArtifacts(
   };
   const preferenceOptions = { homeDirectory: options.homeDirectory };
   const previousRegistration = await readCliAdapterRegistration('browser-use', registryOptions);
-  const previousConfig = await (async (): Promise<BrowserUseIntegrationConfig | null> => {
-    try {
-      return JSON.parse(
-        await readFile(paths.integrationConfigPath, 'utf8'),
-      ) as BrowserUseIntegrationConfig;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
-      throw error;
-    }
-  })();
+  const previousConfig = await readPreviousConfig(paths.integrationConfigPath);
   if (options.browserUseVersions && !options.browserUseVersions.browserUseExecutable) {
     throw new Error(
       'Browser Use installation is incomplete; reinstall or upgrade Browser Use 0.13.7 or newer',
@@ -372,14 +292,11 @@ export async function installBrowserUseIntegrationArtifacts(
     preferenceOptions,
   );
   const managedFiles = [
-    paths.cliArtifactPath,
     paths.adapterArtifactPath,
-    paths.mcpRunnerArtifactPath,
     paths.adapterPackagePath,
-    paths.cliLauncherPath,
     paths.adapterLauncherPath,
-    paths.mcpLauncherPath,
     paths.integrationConfigPath,
+    browserUseEnvironmentPath(options.homeDirectory),
   ];
   const snapshots = new Map(
     await Promise.all(
@@ -393,9 +310,7 @@ export async function installBrowserUseIntegrationArtifacts(
   try {
     await ensureProtectedDirectory(paths.dataDirectory, platform);
     await Promise.all([
-      writeProtectedFile(paths.cliArtifactPath, cliBundle, 0o600, platform),
       writeProtectedFile(paths.adapterArtifactPath, adapterBundle, 0o600, platform),
-      writeProtectedFile(paths.mcpRunnerArtifactPath, mcpRunnerBundle, 0o600, platform),
       writeProtectedFile(
         paths.adapterPackagePath,
         `${JSON.stringify(
@@ -411,36 +326,11 @@ export async function installBrowserUseIntegrationArtifacts(
         0o600,
         platform,
       ),
-    ]);
-    const browserUseCompatible = options.browserUseVersions
-      ? isBrowserUseInstallationSupported(options.browserUseVersions)
-      : false;
-    if (browserUseCompatible) {
-      await writeProtectedFile(
-        paths.mcpLauncherPath,
-        browserUseMcpLauncherContent(
-          nodePath,
-          paths.cliArtifactPath,
-          paths.mcpRunnerArtifactPath,
-          browserUseExecutable,
-          platform,
-        ),
-        0o700,
-        platform,
-      );
-    } else {
-      await rm(paths.mcpLauncherPath, { force: true });
-    }
-    await Promise.all([
-      writeProtectedFile(
-        paths.cliLauncherPath,
-        browserUseLauncherContent(nodePath, paths.cliArtifactPath, browserUseExecutable, platform),
-        0o700,
-        platform,
-      ),
       writeProtectedFile(
         paths.adapterLauncherPath,
-        launcher(paths.adapterArtifactPath),
+        platform === 'win32'
+          ? windowsNodeLauncherContent(nodePath, paths.adapterArtifactPath)
+          : posixNodeLauncherContent(nodePath, paths.adapterArtifactPath),
         0o700,
         platform,
       ),
@@ -455,12 +345,10 @@ export async function installBrowserUseIntegrationArtifacts(
     const config: BrowserUseIntegrationConfig = {
       adapterId: 'browser-use',
       adapterLauncherPath: paths.adapterLauncherPath,
-      cliLauncherPath: paths.cliLauncherPath,
       protocol: PANERELAY_BROWSER_USE_CONFIG_PROTOCOL,
       runtimeDirectory: paths.runtimeDirectory,
       runtimeName: 'panerelay',
       version: PANERELAY_BROWSER_USE_INTEGRATION_VERSION,
-      ...(browserUseCompatible ? { mcpLauncherPath: paths.mcpLauncherPath } : {}),
       browserUseExecutable,
       ...(options.browserUseVersions?.browserUse
         ? { browserUseVersion: options.browserUseVersions.browserUse }
@@ -482,6 +370,9 @@ export async function installBrowserUseIntegrationArtifacts(
         preferenceOptions,
       );
     }
+    await setBrowserUseEnvironmentMode(options.browserUseDefault ?? currentMode ?? 'extension', {
+      homeDirectory: options.homeDirectory,
+    });
     return { config, paths, registration, registry };
   } catch (error) {
     try {
@@ -534,12 +425,10 @@ export async function uninstallBrowserUseIntegrationArtifacts(
   await (options.removeAdapterMode ?? removeCliAdapterMode)('browser-use', {
     homeDirectory: options.homeDirectory,
   });
+  await setBrowserUseEnvironmentMode('direct', { homeDirectory: options.homeDirectory });
   await Promise.all([
     rm(paths.adapterLauncherPath, { force: true }),
-    rm(paths.cliLauncherPath, { force: true }),
-    rm(paths.mcpLauncherPath, { force: true }),
     rm(paths.adapterStorageDirectory, { force: true, recursive: true }),
-    rm(paths.cliStorageDirectory, { force: true, recursive: true }),
     rm(paths.browserUseDirectory, { force: true, recursive: true }),
   ]);
   return {

@@ -179,13 +179,13 @@ test('keeps official installation guidance Store-first and version-neutral', () 
   assert.match(rootReadme, /interactively asks whether to connect optional automation engines/);
   assert.match(rootReadmeZhCn, /交互式选择是否接入自动化引擎/);
   for (const readme of [rootReadme, rootReadmeZhCn]) {
-    assert.match(readme, /panerelay-browser-use[\s\S]+print\(list_tabs\(\)\)/);
+    assert.match(readme, /browser-use[\s\S]+print\(list_tabs\(\)\)/);
     assert.doesNotMatch(readme, /panerelay-browser-use-cli/);
     assert.doesNotMatch(readme, /browser-use tab list/);
   }
   assert.doesNotMatch(browserUseReadme, /browser-use --version/);
-  assert.match(rootReadme, /packages\/setup\/dist\/cli\.js --agent-browser --project-provider/);
-  assert.doesNotMatch(rootReadme, /packages\/setup\/dist\/cli\.js --project-provider/);
+  assert.match(rootReadme, /packages\/setup\/dist\/cli\.js --agent-browser --global-default/);
+  assert.doesNotMatch(rootReadme, /--project-provider|--global-provider/);
 });
 
 test('keeps localized README documentation navigation in the selected language', () => {

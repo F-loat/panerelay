@@ -14,6 +14,7 @@ import {
   setCliAdapterMode,
   type CliAdapterRegistration,
 } from '@panerelay/cli/adapter-config';
+import { setBrowserUseEnvironmentMode } from '@panerelay/browser-use';
 import {
   clearBrowserDefault,
   listBrowserRegistrations,
@@ -132,7 +133,11 @@ export class IntegrationService {
     this.#readDefaultProvider = options.readDefaultProvider ?? readUserDefaultProvider;
     this.#setBrowserDefault = options.setBrowserDefault ?? setBrowserDefault;
     this.#setBrowserUseMode =
-      options.setBrowserUseMode ?? (mode => setCliAdapterMode('browser-use', mode));
+      options.setBrowserUseMode ??
+      (async mode => {
+        await setCliAdapterMode('browser-use', mode);
+        await setBrowserUseEnvironmentMode(mode);
+      });
     this.#setDefaultProvider = options.setDefaultProvider ?? setPanerelayUserDefaultProvider;
     this.#pickDirectory = options.pickDirectory ?? pickWorkspaceDirectory;
   }

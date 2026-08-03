@@ -5,8 +5,6 @@ import { fileURLToPath } from 'node:url';
 
 export const PANERELAY_SKILL_NAME = 'panerelay-browser';
 export const PANERELAY_BROWSER_USE_SKILL_NAME = 'panerelay-browser-use';
-const PANERELAY_BROWSER_USE_CLI_PLACEHOLDER = '{{PANERELAY_BROWSER_USE_CLI}}';
-const PANERELAY_BROWSER_USE_MCP_PLACEHOLDER = '{{PANERELAY_BROWSER_USE_MCP}}';
 const PANERELAY_SETUP_VERSION_PLACEHOLDER = '{{PANERELAY_SETUP_VERSION}}';
 const SEMVER_PRERELEASE_IDENTIFIER = String.raw`(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)`;
 const PACKAGE_VERSION_PATTERN = new RegExp(
@@ -39,16 +37,8 @@ function bundledBrowserUseSkillPath(): string {
   return fileURLToPath(new URL(`../skills/${PANERELAY_BROWSER_USE_SKILL_NAME}`, import.meta.url));
 }
 
-function skillCommandPath(cliLauncherPath: string, platform: NodeJS.Platform): string {
-  if (platform === 'win32') return `"${cliLauncherPath.replaceAll('"', '\\"')}"`;
-  return `'${cliLauncherPath.replaceAll("'", `'"'"'`)}'`;
-}
-
 export async function installBrowserUseSkill(
-  cliLauncherPath: string,
   options: SkillPathOptions & {
-    mcpLauncherPath?: string;
-    platform?: NodeJS.Platform;
     setupVersion: string;
   },
 ): Promise<string> {
@@ -60,27 +50,12 @@ export async function installBrowserUseSkill(
   await cp(options.sourceDirectory ?? bundledBrowserUseSkillPath(), target, { recursive: true });
   const skillPath = join(target, 'SKILL.md');
   const template = await readFile(skillPath, 'utf8');
-  if (
-    !template.includes(PANERELAY_BROWSER_USE_CLI_PLACEHOLDER) ||
-    !template.includes(PANERELAY_BROWSER_USE_MCP_PLACEHOLDER) ||
-    !template.includes(PANERELAY_SETUP_VERSION_PLACEHOLDER)
-  ) {
+  if (!template.includes(PANERELAY_SETUP_VERSION_PLACEHOLDER)) {
     throw new Error('Panerelay Browser Use Skill template is invalid');
   }
   await writeFile(
     skillPath,
-    template
-      .replaceAll(
-        PANERELAY_BROWSER_USE_CLI_PLACEHOLDER,
-        skillCommandPath(cliLauncherPath, options.platform ?? process.platform),
-      )
-      .replaceAll(
-        PANERELAY_BROWSER_USE_MCP_PLACEHOLDER,
-        options.mcpLauncherPath
-          ? skillCommandPath(options.mcpLauncherPath, options.platform ?? process.platform)
-          : 'Unavailable until setup detects a complete Browser Use 0.13.7 or newer installation',
-      )
-      .replaceAll(PANERELAY_SETUP_VERSION_PLACEHOLDER, options.setupVersion),
+    template.replaceAll(PANERELAY_SETUP_VERSION_PLACEHOLDER, options.setupVersion),
   );
   return target;
 }

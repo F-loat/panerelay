@@ -33,34 +33,54 @@ npx --yes @panerelay/setup doctor --browser-use
 
 Open Panerelay in Chrome and authorize the current tab or all supported web tabs. Re-run the doctor command and require the browser-use compatibility and Extension-connection checks to pass.
 
-Then use the exact setup-managed Browser Use launcher printed during installation to run browser-use's pre-imported helpers. This POSIX example uses the default launcher path:
+Then use the official Browser Use CLI with the fixed Panerelay discovery URL. This works even when Extension mode is not saved as the default:
 
 ```bash
-~/.panerelay/bin/panerelay-browser-use <<'PY'
+BU_CDP_URL=http://127.0.0.1:43827/cdp/browser-use browser-use <<'PY'
 print(list_tabs())
 PY
 ```
 
 Success means the command lists only tabs authorized in Panerelay.
 
+### Browser Harness environment
+
+In Extension mode, setup manages Browser Harness's user-scoped environment file and writes the fixed discovery URL below:
+
+```dotenv
+BU_CDP_URL=http://127.0.0.1:43827/cdp/browser-use
+```
+
+You normally do not need to set this variable yourself. `browser-use` and `browser-use --cli-mcp` read it directly. The URL is a stable loopback discovery endpoint, not a permanent CDP credential: Panerelay selects the configured browser and creates a short-lived connection behind it for each Browser Harness daemon. Do not copy or persist the dynamic WebSocket/bootstrap URL returned during discovery.
+
+The explicit `BU_CDP_URL=` prefix is a one-process override. After saving Extension mode, it can be omitted. Do not set Browser Harness's higher-priority `BU_CDP_WS` at the same time; it takes precedence over `BU_CDP_URL`.
+
+Use the base CLI to change the durable mode:
+
+```bash
+panerelay connection use browser-use extension  # manage BU_CDP_URL
+panerelay connection use browser-use direct     # remove Panerelay-managed Browser Harness keys
+```
+
+The managed environment file is the default for new Browser Use processes. An explicitly supplied process environment still takes precedence for that process.
+
 ## What setup adds
 
 Setup adds only Panerelay-owned integration files:
 
-- a protected adapter and private Panerelay CLI;
+- a protected Browser Use adapter registration and launcher;
 - an additive `panerelay-browser-use` Skill without replacing the official browser-use Skill;
-- a CLI MCP launcher;
-- a saved Direct or Extension connection preference.
+- a saved Direct or Extension connection preference and managed Browser Harness environment file.
 
-The setup output prints the exact platform-specific launchers. Agents should use those printed commands or the additive Skill instead of guessing a private path. This package supplies connection environment to the engine-neutral Panerelay CLI and is not intended to be invoked directly by Agents.
+The official `browser-use` executable remains the user-installed command. This package supplies its connection environment and is not intended to be invoked directly by Agents.
 
 ## Supported surfaces
 
 | Surface | Support |
 | --- | --- |
-| Setup-managed browser-use CLI | Supported |
+| Official browser-use CLI with setup-managed environment | Supported |
 | Additive Panerelay browser-use Skill | Supported |
-| browser-use CLI MCP through the setup launcher | Supported |
+| Official `browser-use --cli-mcp` | Supported |
 | Saved Direct or Extension mode and one-run override | Supported |
 | Arbitrary browser-use Python SDK construction | Not transparently intercepted; requires explicit connection integration |
 

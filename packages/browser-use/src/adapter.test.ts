@@ -187,85 +187,32 @@ test('resolves an env shebang target and preserves its interpreter arguments', a
   }
 });
 
-test('attributes bootstrap to Browser Use independently from a customized actor label', async () => {
-  let readBrowserId: string | undefined;
-  let fetchUrl: string | undefined;
-  let fetchAuthorization: string | undefined;
-  let fetchPayload: unknown;
+test('resolves the stable Browser Use gateway independently from actor labels', async () => {
   const response = await handleBrowserUseAdapterRequest(
     resolveRequest('extension', 'Research Agent'),
     {
       homeDirectory: '/protected-user',
-      readLiveBrowserRegistration: async browserId => {
-        readBrowserId = browserId;
-        return state;
-      },
-      fetch: async (input, init) => {
-        fetchUrl = String(input);
-        fetchAuthorization = (init?.headers as Record<string, string>).authorization;
-        fetchPayload = JSON.parse(String(init?.body));
-        return new Response(
-          JSON.stringify({
-            protocol: 'panerelay.relay.v1',
-            cdpUrl: `http://127.0.0.1:${state.port}/cdp/bootstrap/${'a'.repeat(43)}`,
-            expiresAt: '2099-08-01T01:02:03.000Z',
-          }),
-          { status: 201, headers: { 'content-type': 'application/json' } },
-        );
-      },
     },
   );
-  assert.equal(readBrowserId, 'opaque-browser');
-  assert.equal(fetchUrl, `http://127.0.0.1:${state.port}/cdp/bootstrap`);
-  assert.equal(fetchAuthorization, `Bearer ${state.token}`);
-  assert.deepEqual(fetchPayload, {
-    protocol: 'panerelay.relay.v1',
-    browser: { browserId: state.browserId, generation: state.generation },
-    actor: { kind: 'automation', name: 'Research Agent', sessionLabel: 'skill-run' },
-    engine: 'browser-use',
-    laneKey: 'browser-use:panerelay',
-    connectionPolicy: 'single',
-  });
   assert.equal(response.success, true);
   if (!response.success) assert.fail('resolution failed');
   assert.deepEqual(response.result, {
     mode: 'extension',
-    connection: {
-      kind: 'cdp-http',
-      url: `http://127.0.0.1:${state.port}/cdp/bootstrap/${'a'.repeat(43)}`,
-    },
+    connection: { kind: 'cdp-http', url: 'http://127.0.0.1:43827/cdp/browser-use' },
     environment: {
       ANONYMIZED_TELEMETRY: 'false',
       BH_RECORD: '0',
-      BH_RUNTIME_DIR: '/protected-user/.panerelay/browser-use/runtime',
-      BH_RUNTIME_DIR_SHARED: '0',
       BH_TELEMETRY: '0',
-      BH_TMP_DIR: '/protected-user/.panerelay/browser-use/tmp',
-      BH_TMP_DIR_SHARED: '0',
-      BU_CDP_URL: `http://127.0.0.1:${state.port}/cdp/bootstrap/${'a'.repeat(43)}`,
+      BU_CDP_URL: 'http://127.0.0.1:43827/cdp/browser-use',
       BU_NAME: 'panerelay',
     },
-    expiresAt: '2099-08-01T01:02:03.000Z',
     concurrencyKey: 'browser-use:panerelay',
   });
   assert.doesNotMatch(JSON.stringify(response), /bridge-bearer/);
 });
 
 test('bypasses all adapter connection state in Direct mode', async () => {
-  let read = false;
-  let fetched = false;
-  const response = await handleBrowserUseAdapterRequest(resolveRequest('direct'), {
-    readLiveBrowserRegistration: async () => {
-      read = true;
-      return state;
-    },
-    fetch: async () => {
-      fetched = true;
-      throw new Error('must not fetch');
-    },
-  });
-  assert.equal(read, false);
-  assert.equal(fetched, false);
+  const response = await handleBrowserUseAdapterRequest(resolveRequest('direct'));
   assert.equal(response.success, true);
   if (!response.success) assert.fail('direct failed');
   assert.deepEqual(response.result, {
@@ -275,91 +222,13 @@ test('bypasses all adapter connection state in Direct mode', async () => {
   });
 });
 
-test('fails closed for unavailable, changed, unsupported, and rejected browser connections', async () => {
-  const cases = [
-    {
-      name: 'unavailable',
-      read: async () => null,
-      expected: 'browser-unavailable',
-    },
-    {
-      name: 'generation',
-      read: async () => ({ ...state, generation: 'replacement-generation' }),
-      expected: 'generation-changed',
-    },
-    {
-      name: 'unsupported',
-      read: async () => ({ ...state, capabilities: { cdpRelay: false } }),
-      expected: 'not-ready',
-    },
-  ] as const;
-  for (const item of cases) {
-    let fetched = false;
-    const response = await handleBrowserUseAdapterRequest(resolveRequest(), {
-      readLiveBrowserRegistration: item.read,
-      fetch: async () => {
-        fetched = true;
-        throw new Error('must not fetch');
-      },
-    });
-    assert.equal(response.success, false, item.name);
-    if (response.success) assert.fail(item.name);
-    assert.equal(response.error.code, item.expected);
-    assert.equal(fetched, false);
-    assert.doesNotMatch(JSON.stringify(response), /bridge-bearer/);
-  }
-
-  for (const [status, bridgeCode, expected] of [
-    [401, 'unauthorized', 'not-ready'],
-    [409, 'generation-changed', 'generation-changed'],
-    [429, 'ticket-limit', 'busy'],
-    [429, 'participant-limit', 'busy'],
-    [503, 'browser-unavailable', 'browser-unavailable'],
-  ] as const) {
-    const response = await handleBrowserUseAdapterRequest(resolveRequest(), {
-      readLiveBrowserRegistration: async () => state,
-      fetch: async () =>
-        new Response(
-          JSON.stringify({
-            protocol: 'panerelay.relay.v1',
-            error: { code: bridgeCode, message: 'bridge-bearer-never-returned' },
-          }),
-          { status },
-        ),
-    });
-    assert.equal(response.success, false);
-    if (response.success) assert.fail(`status ${status}`);
-    assert.equal(response.error.code, expected);
-    assert.doesNotMatch(JSON.stringify(response), /bridge-bearer/);
-  }
-});
-
-test('rejects a bootstrap URL that does not belong to the selected Bridge', async () => {
-  const response = await handleBrowserUseAdapterRequest(resolveRequest(), {
-    readLiveBrowserRegistration: async () => state,
-    fetch: async () =>
-      new Response(
-        JSON.stringify({
-          protocol: 'panerelay.relay.v1',
-          cdpUrl: `http://127.0.0.1:49999/cdp/bootstrap/${'a'.repeat(43)}`,
-          expiresAt: '2099-08-01T01:02:03.000Z',
-        }),
-        { status: 201 },
-      ),
-  });
-  assert.equal(response.success, false);
-  if (response.success) assert.fail('wrong Bridge URL accepted');
-  assert.equal(response.error.code, 'not-ready');
-});
-
 test('the publish artifact contains only the runtime, metadata, README, and license', async () => {
   const packageDirectory = new URL('..', import.meta.url);
   const manifest = JSON.parse(
     await readFile(new URL('package.json', packageDirectory), 'utf8'),
-  ) as { name: string; version: string; bin: Record<string, string>; engines: { node: string } };
+  ) as { name: string; version: string; engines: { node: string } };
   assert.equal(manifest.name, '@panerelay/browser-use');
   assert.match(manifest.version, /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/);
-  assert.equal(manifest.bin['panerelay-browser-use'], './dist/index.js');
   assert.equal(manifest.engines.node, '>=20');
 
   const packed = spawnSync('npm', ['pack', '--dry-run', '--json', '--ignore-scripts'], {

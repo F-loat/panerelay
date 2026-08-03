@@ -79,23 +79,33 @@ npx --yes @panerelay/setup --browser-use
 npx --yes @panerelay/setup doctor --browser-use
 ```
 
-Setup does not install, upgrade, downgrade, or rewrite browser-use. It verifies the installed versions, installs a private Panerelay CLI and adapter under `~/.panerelay`, records the exact compatible executable, and installs an additive `panerelay-browser-use` Skill without replacing the official browser-use Skill or changing `PATH`. Setup initially saves Extension mode. The setup output also prints an optional CLI MCP launcher. If the browser-use environment is incomplete, setup asks the user to repair or upgrade browser-use as one installation.
+Setup does not install, upgrade, downgrade, or rewrite browser-use. It verifies the installed versions, configures the Panerelay Browser Use gateway and Browser Harness environment default, records the exact compatible executable for diagnostics, and installs an additive `panerelay-browser-use` Skill without replacing the official browser-use Skill or changing `PATH`. Setup initially saves Extension mode. If the browser-use environment is incomplete, setup asks the user to repair or upgrade browser-use as one installation.
 
-The supported surfaces are the setup-managed browser-use CLI, additive Skill, and CLI MCP launcher. Panerelay does not transparently intercept arbitrary browser-use Python SDK construction. The exact verified baseline is browser-use 0.13.7 with Browser Harness 0.1.8; newer supported versions meet the minimum without automatically inheriting `Verified` status. See the [compatibility record](../../docs/compatibility/browser-use-0.13.7.md).
+The key environment entry is:
 
-The private CLI supports a durable Panerelay-owned mode and a one-run override:
+```dotenv
+BU_CDP_URL=http://127.0.0.1:43827/cdp/browser-use
+```
+
+Setup writes it to Browser Harness's user-scoped environment file. The official `browser-use` CLI and `browser-use --cli-mcp` read it directly; no `panerelay-browser-use` or `panerelay run browser-use` wrapper is required. The URL is a fixed local discovery address. Panerelay still selects the saved browser and mints a short-lived CDP connection behind it, so this value is not a reusable browser credential. `panerelay connection use browser-use direct` removes Panerelay-managed Browser Harness keys and restores Browser Use's normal discovery behavior. An explicitly supplied process environment takes precedence over the managed file. Panerelay leaves Browser Harness's runtime and temporary-directory defaults unchanged so the official CLI and daemon resolve the same IPC endpoint.
+
+The explicit `BU_CDP_URL=` prefix is a one-process override. After saving Extension mode, it can be omitted. Do not set Browser Harness's higher-priority `BU_CDP_WS` at the same time.
+
+The supported surfaces are the official `browser-use` CLI, `browser-use --cli-mcp`, and additive Skill. Panerelay does not transparently intercept arbitrary browser-use Python SDK construction. The exact verified baseline is browser-use 0.13.7 with Browser Harness 0.1.8; newer supported versions meet the minimum without automatically inheriting `Verified` status. See the [compatibility record](../../docs/compatibility/browser-use-0.13.7.md).
+
+The base CLI controls the durable Browser Use mode:
 
 ```bash
-~/.panerelay/bin/panerelay-browser-use connection use browser-use extension
-~/.panerelay/bin/panerelay-browser-use connection use browser-use direct
-~/.panerelay/bin/panerelay-browser-use <<'PY'
+panerelay connection use browser-use extension
+panerelay connection use browser-use direct
+BU_CDP_URL=http://127.0.0.1:43827/cdp/browser-use browser-use <<'PY'
 print(page_info())
 PY
 ```
 
-These paths are POSIX examples; use the exact launchers printed by setup on the current platform. A healthy Extension-mode browser-use daemon persists and is reused after the command exits. Sequential Agents share its current-page state; simultaneous canonical runs are serialized or fail busy. User release, authorization loss, Extension/Native Host disconnect, or WebSocket loss removes browser authority even if the detached browser-use process remains alive.
+These paths are POSIX examples. A healthy Extension-mode browser-use daemon persists and is reused after the command exits. Sequential Agents share its current-page state; simultaneous canonical runs are serialized or fail busy. User release, authorization loss, Extension/Native Host disconnect, or WebSocket loss removes browser authority even if the detached browser-use process remains alive.
 
-The adapter disables browser-use telemetry and automatic recording for this lane and confines its daemon log and temporary artifacts to protected Panerelay-owned storage. Full Panerelay uninstall removes the owned adapter, mode, Skill, launchers, configuration, runtime, and temporary files; it does not kill processes by a broad command-line pattern.
+The integration disables browser-use telemetry and automatic recording for this lane. Browser Harness keeps its daemon state in its normal user-scoped storage, while full Panerelay uninstall removes the owned adapter, mode, Skill, configuration, and gateway state; it does not kill processes by a broad command-line pattern.
 
 Omitting an action runs base `setup` and installs only the Native Messaging host and side-panel prerequisites. Add `--agent-browser`, `--browser-use`, or both to install either engine integration explicitly.
 
@@ -123,23 +133,17 @@ npx --yes @panerelay/cli browser clear
 
 `PANERELAY_BROWSER_ID` selects one exact registration for a process. `PANERELAY_BROWSER` accepts an exact ID or an unambiguous browser family. Explicit selection wins over the saved browser default. Without either, Panerelay selects only when exactly one CDP-ready browser is live; ambiguity and unavailable defaults fail closed. Existing sessions remain pinned to the browser through which they were created.
 
-Or choose a default scope:
+Or choose the user-level default for the selected integration:
 
 ```bash
-# Default for the current project
-npx --yes @panerelay/setup --agent-browser --project-provider
-
-# Default for the current user
-npx --yes @panerelay/setup --agent-browser --global-provider
-
-# Configure both scopes
-npx --yes @panerelay/setup --agent-browser --project-provider --global-provider
+# agent-browser Provider and/or Browser Use
+npx --yes @panerelay/setup --agent-browser --browser-use --global-default
 ```
 
-The corresponding doctor flags verify the requested defaults:
+The corresponding doctor flags verify the requested user-level defaults:
 
 ```bash
-npx --yes @panerelay/setup doctor --agent-browser --project-provider --global-provider
+npx --yes @panerelay/setup doctor --agent-browser --browser-use --global-default
 ```
 
 Human-readable setup output follows the system language when it resolves to Chinese or English. Override it per command with `--lang zh-CN` or `--lang en`, or set `PANERELAY_LANG`. The machine-readable `doctor --json` schema and values remain stable.
@@ -157,7 +161,7 @@ npx --yes @panerelay/setup --extension-id <32-character-id>
 `update` is an alias of `setup` and replaces only the Panerelay-managed files selected by the same explicit flags:
 
 ```bash
-npx --yes @panerelay/setup update --agent-browser --global-provider
+npx --yes @panerelay/setup update --agent-browser --browser-use --global-default
 ```
 
 To roll back, run an earlier setup package and reload the matching unpacked Extension. Do not mix Extension and package versions. Native Messaging installation supports Chrome and Edge on macOS, Linux, and current-user Windows without administrator privileges. Windows doctor reports each browser's registration independently. agent-browser 0.33.0 or newer is required only with `--agent-browser`, and its detected version appears only in `doctor --agent-browser`.

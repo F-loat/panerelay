@@ -5,17 +5,17 @@
 - Status: Accepted
 - Authors: F-loat
 - Created: 2026-07-31
-- Updated: 2026-08-02
+- Updated: 2026-08-03
 - OpenSpec: `openspec/changes/archive/2026-08-01-add-browser-use-connection-adapter`
 - Amendments: `openspec/changes/archive/2026-08-01-relax-browser-use-version-gate`, `openspec/changes/archive/2026-08-01-add-browser-use-default-setting`, `openspec/changes/show-control-engine-favicon`, `openspec/changes/archive/2026-08-02-make-adapter-installation-explicit`
 
 ## Summary
 
-Panerelay defines an explicitly selected Browser Use connection adapter behind the recurring Panerelay CLI. It is a peer of the explicitly selected agent-browser integration; plain setup installs neither. `--browser-use` installs the adapter and a Panerelay Browser Use Skill. The Skill continues to use Browser Use and Browser Harness automation semantics while the adapter supplies a short-lived authenticated HTTP CDP bootstrap URL for explicitly authorized targets in the user's existing Chromium browser. Side-panel Agent providers do not inject this Skill or its MCP launcher; Agents load them from their own configuration.
+Panerelay defines an explicitly selected Browser Use integration alongside the agent-browser Provider. `--browser-use` installs the integration, a user-scoped fixed CDP gateway, and a Panerelay Browser Use Skill. Setup writes Browser Harness's `BU_CDP_URL` default to the gateway, so the official `browser-use` CLI and `browser-use --cli-mcp` consume the same connection without a Panerelay process wrapper. The gateway mints short-lived authenticated CDP tickets only after selecting the saved browser and routes discovery to explicitly authorized targets in the user's existing Chromium browser.
 
-Browser Harness uses one isolated, lazily started Panerelay daemon lane and keeps its virtual CDP WebSocket participant connected across sequential commands. Task completion does not stop that lane. Extension revocation, authorization loss, WebSocket or heartbeat failure, and Native Host shutdown remain authoritative cleanup boundaries.
+Browser Harness uses one stable, lazily started user-scoped daemon lane and keeps its virtual CDP WebSocket participant connected across sequential commands. Task completion does not stop that lane. Extension revocation, authorization loss, WebSocket or heartbeat failure, and Native Host shutdown remain authoritative cleanup boundaries.
 
-No Browser Use upstream provider change, fork, PATH shim, global Browser Use configuration rewrite, or Chrome Remote Debugging requirement is introduced.
+No Browser Use upstream provider change, fork, PATH shim, or Chrome Remote Debugging requirement is introduced. Panerelay does manage its own Browser Harness workspace `.env` file and a loopback gateway endpoint.
 
 ## Relationship to existing RFCs
 
@@ -25,15 +25,15 @@ No Browser Use upstream provider change, fork, PATH shim, global Browser Use con
 - RFC-0006 remains authoritative for deterministic browser registration selection and participant pinning.
 - RFC-0003 describes the participant heartbeat, activity, expiry, and isolation behavior reused here, but remains marked Draft.
 
-This RFC adds a durable Panerelay CLI adapter protocol, lazy HTTP-to-WebSocket bootstrap lifecycle, a persistent Browser Use participant, and two general virtual-CDP compatibility prerequisites within RFC-0002's existing authorized-target boundary. It does not supersede the existing permission, top-level inventory, foreground-focus, or control rules.
+This RFC adds a user-scoped fixed discovery gateway, environment-default integration, lazy HTTP-to-WebSocket bootstrap lifecycle, a persistent Browser Use participant, and two general virtual-CDP compatibility prerequisites within RFC-0002's existing authorized-target boundary. It does not supersede the existing permission, top-level inventory, foreground-focus, or control rules.
 
 ## Goals and non-goals
 
 ### Goals
 
 1. Connect Browser Use CLI, its installed Panerelay Skill, and Browser Harness-backed CLI MCP to authorized daily-browser targets without modifying Browser Use upstream.
-2. Put recurring integration calls behind an engine-neutral Panerelay CLI with separately installed adapters.
-3. Allocate a Browser Use participant only when Browser Harness starts a new daemon connection.
+2. Keep mode persistence and browser selection in the engine-neutral Panerelay CLI while allowing the official Browser Use process to run directly.
+3. Allocate a Browser Use participant only when the fixed gateway receives a valid discovery request.
 4. Keep Direct and Extension Browser Use lanes independently selectable and reusable.
 5. Bound credentials, localhost APIs, revocation, Native Host generations, and compatibility claims.
 
@@ -52,12 +52,11 @@ Panerelay Browser Use Skill
           │
           ▼
   @panerelay/cli
-  selection, mode, run
-          │ bounded adapter stdio
+  selection + mode persistence
+          │ managed BU_CDP_URL
           ▼
-@panerelay/browser-use
-  registration + bootstrap request
-          │ authenticated loopback HTTP
+  fixed loopback Browser Use gateway
+          │ authenticated bootstrap
           ▼
   Panerelay Bridge / Native Host
           │ short-lived HTTP CDP base
@@ -76,11 +75,11 @@ The Extension remains the only owner that starts the Native Host through `chrome
 
 Each adapter registration contains an identifier, exact absolute executable path, protocol version, and capabilities. The CLI does not discover adapters from PATH or package names and does not load them into its process. Adapter manifests declare the child-environment keys they may return.
 
-The Browser Use adapter receives the selected opaque browser ID, rereads only that protected live registration, requests a bootstrap ticket using its Bridge bearer, and returns Browser Use connection environment. Bridge bearers never appear in command arguments, standard output, or adapter responses.
+The Browser Use gateway selects the saved opaque browser ID, rereads only that protected live registration, requests a bootstrap ticket using its Bridge bearer, and returns only bounded DevTools version metadata to Browser Harness. Bridge bearers and ticket WebSocket URLs never appear in command arguments, standard output, or Panerelay logs.
 
-Setup installs a private version-pinned CLI launcher and adapter artifact for the Skill without installing either globally or changing shell PATH. A globally installed CLI remains optional and can read the same protected adapter registry.
+Setup installs the gateway and integration metadata without installing a Browser Use wrapper or changing shell PATH. The official Browser Use executable remains the user's installation.
 
-The implemented user-facing surfaces are `panerelay connection use <adapter> <mode>`, `panerelay connection resolve <adapter>`, and `panerelay run <adapter> -- <exact child command>`. Setup records and injects the detected compatible Browser Use executable into its additive Skill; Agents do not discover the adapter or Browser Use executable from PATH.
+The implemented user-facing surfaces are `panerelay connection use <adapter> <mode>` and the shared browser-selection commands. Browser Use is invoked as the ordinary `browser-use` command; `connection resolve` and `run` are not required for its normal path.
 
 ## CDP HTTP bootstrap
 
@@ -100,9 +99,9 @@ Browser Harness needs one WebSocket. Its participant uses a single-connection po
 
 Bootstrap is loopback-only, no-store, has no permissive CORS, bounds methods, paths, bodies, timeouts, and outstanding tickets, and excludes credentials and content from logs. Ticket capacity, participant capacity, invalid or expired tickets, generation changes, and occupied lanes have distinct bounded error codes. The ticket and participant are bound to one browser and Native Host generation; host shutdown invalidates all of them.
 
-## Persistent Browser Use lane
+## Fixed gateway and persistent Browser Use lane
 
-The adapter supplies a private Browser Harness runtime directory, a protected temporary directory, a stable Panerelay daemon name, and a fresh HTTP CDP bootstrap URL. It also disables Browser Harness/Browser Use telemetry and automatic recording for this lane. The first Browser Use invocation starts the daemon and consumes the URL. Later sequential invocations reuse the healthy daemon and WebSocket; their unused tickets expire without consuming participant capacity.
+The integration writes a fixed user-scoped URL such as `http://127.0.0.1:43827/cdp/browser-use` to Browser Harness's managed workspace `.env`, together with a stable Panerelay daemon name and telemetry/recording safeguards. It intentionally leaves Browser Harness's runtime and temporary-directory defaults unchanged: Browser Harness 0.1.8 initializes client IPC paths before loading the workspace `.env`, so overriding those paths from `.env` can make the client and daemon resolve different sockets. `GET /cdp/browser-use/json/version` selects the current saved browser, performs the authenticated bootstrap, and forwards bounded version metadata. The returned WebSocket URL remains dynamic and short-lived. The first Browser Use invocation starts the daemon and consumes that URL; later sequential invocations reuse the healthy daemon and WebSocket.
 
 Normal task completion does not close the lane because Browser Harness is intentionally daemonized and the Skill lacks a reliable cross-Agent task boundary. The side panel therefore presents a persistent Browser Use actor and retains immediate release. When that participant issues a control-class command, the routed command carries `browser-use` so the Extension can mark the controlled document with the Browser Use icon and shared green control dot. Actor text, focus, and saved connection preference are not used to infer the icon. RFC-0004 continues to distinguish observed and controlled targets.
 
@@ -112,7 +111,7 @@ The canonical Panerelay CLI run surface serializes or fails simultaneous child i
 
 ## Connection modes
 
-Panerelay stores a per-adapter Direct or Extension preference in protected Panerelay configuration. Extension mode uses the registered adapter and private daemon lane. Direct mode bypasses the adapter and invokes Browser Use with its normal environment and daemon behavior.
+Panerelay stores a per-adapter Direct or Extension preference in protected Panerelay configuration. Extension mode writes the fixed gateway, stable daemon name, and telemetry/recording safeguards to Browser Harness's managed `.env`; Direct mode removes only those managed keys and lets Browser Use use its normal discovery and daemon behavior.
 
 An explicit mode applies only to one CLI invocation and never mutates the saved preference. Changing the saved preference does not restart either lane. Browser selection follows RFC-0006 and never falls through from an unavailable explicit/default registration to another browser or Direct mode.
 
@@ -128,8 +127,8 @@ The Extension settings surface may change the saved Browser Use preference throu
 6. Unsupported or unauthorized CDP methods fail explicitly and never reroute to Direct Chrome.
 7. User release, authorization loss, Extension disconnect, Native Host shutdown, transport loss, and heartbeat expiry remain fail-closed.
 8. Local services remain loopback-only and omit permissive CORS.
-9. Panerelay-owned components do not log credentials, page content, cookies, screenshots, prompts, request bodies, or raw CDP bodies by default. Browser Harness 0.1.8's unavoidable daemon log is confined to protected Panerelay-owned storage; its one-time WebSocket credential is consumed at handshake and the owned log is removed by uninstall or scoped cleanup.
-10. The adapter cannot inject undeclared child environment or change the Browser Use executable and arguments selected by the caller.
+9. Panerelay-owned components do not log credentials, page content, cookies, screenshots, prompts, request bodies, or raw CDP bodies by default. Browser Harness 0.1.8's unavoidable daemon log remains in its protected user-scoped storage; its one-time WebSocket credential is consumed at handshake. Panerelay does not claim ownership of Browser Harness's default runtime or log directories.
+10. The gateway binds to loopback only, returns no Bridge bearer, and retains the dynamic WebSocket credential boundary. Same-user local processes are within the gateway's trust boundary; cross-user access is not claimed.
 
 ## Compatibility
 
@@ -171,6 +170,6 @@ Rejected because Browser Harness is intentionally persistent and the Skill canno
 
 ## Delivery and acceptance
 
-The linked OpenSpec change owns implementation tasks and verification details. The committed bounded spike records the pinned Browser Harness initialization trace, lifecycle behavior, focus-emulation resolution, and OOPIF child-session capability. The development candidate implements and regresses the two generic virtual-CDP prerequisites, adapter protocol, authenticated bootstrap, setup integration, Skill, CLI MCP launcher, and private persistent lane. Product acceptance covers bootstrap races, core operations, tabs, popups, frames, single-tab cross-origin loss, visible user release, independent-target exclusion, reuse, reload, stale recovery, simultaneous invocation handling, and credential boundaries.
+The linked OpenSpec change owns implementation tasks and verification details. The committed bounded spike records the pinned Browser Harness initialization trace, lifecycle behavior, focus-emulation resolution, and OOPIF child-session capability. The development candidate implements and regresses the two generic virtual-CDP prerequisites, adapter protocol, authenticated bootstrap, setup integration, Skill, CLI MCP surface, and user-scoped persistent lane. Product acceptance covers bootstrap races, core operations, tabs, popups, frames, single-tab cross-origin loss, visible user release, independent-target exclusion, reuse, reload, stale recovery, simultaneous invocation handling, and credential boundaries.
 
 This RFC remains Accepted while the development candidate is tested. It must not move to Implemented until the lockstep Panerelay release and Browser Use compatibility record are published.

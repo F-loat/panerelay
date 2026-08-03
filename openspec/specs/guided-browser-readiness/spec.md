@@ -6,9 +6,9 @@ Define how Panerelay guides users from an unconfigured or unauthorized browser s
 
 ## Requirements
 
-### Requirement: Installation does not silently change the default Provider
+### Requirement: Installation does not silently change the user default
 
-Panerelay SHALL omit agent-browser Provider installation and default-Provider options from the base setup path. It SHALL install the Provider only with `--agent-browser`, require that flag when a project-level or user-level default scope is requested, and leave existing default Provider values unchanged when no explicit agent-browser default option is supplied.
+Panerelay SHALL omit automation integration installation and user-default options from the base setup path. It SHALL install each integration only when its explicit flag is supplied, require at least one selected integration when `--global-default` is requested, and leave existing defaults unchanged when no explicit default option is supplied.
 
 #### Scenario: Reader follows the base installation path
 
@@ -16,11 +16,11 @@ Panerelay SHALL omit agent-browser Provider installation and default-Provider op
 - **WHEN** they run `npx --yes @panerelay/setup`
 - **THEN** Panerelay does not install or select an agent-browser Provider
 
-#### Scenario: User explicitly selects a setup scope
+#### Scenario: User explicitly selects a global default
 
-- **GIVEN** the user invokes setup with `--agent-browser` and `--project-provider` or `--global-provider`
+- **GIVEN** the user invokes setup with `--agent-browser` and/or `--browser-use` plus `--global-default`
 - **WHEN** setup completes
-- **THEN** Panerelay preserves the existing scoped default-Provider behavior
+- **THEN** Panerelay sets the selected integrations as user-level defaults
 
 ### Requirement: Extension settings manage the user-level default
 

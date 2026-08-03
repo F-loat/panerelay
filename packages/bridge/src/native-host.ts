@@ -25,6 +25,7 @@ import { NativeMessageDecoder, encodeNativeMessage } from './native-messaging.js
 import { BrowserRelay } from './browser-relay.js';
 import { readRuntimeConfig } from './runtime-config.js';
 import { IntegrationService } from './integration-service.js';
+import { ensureBrowserUseGateway, runBrowserUseGateway } from './browser-use-gateway.js';
 
 function log(message: string): void {
   process.stderr.write(`[Panerelay] ${message}\n`);
@@ -89,6 +90,11 @@ async function main(): Promise<void> {
       currentBrowser = state;
       process.env[PANERELAY_BROWSER_ID_ENV] = state.browserId;
       log(`Extension registered; CDP relay listening on 127.0.0.1:${relay.port}`);
+      await ensureBrowserUseGateway().catch(error =>
+        log(
+          `Browser Use gateway unavailable: ${error instanceof Error ? error.message : String(error)}`,
+        ),
+      );
     },
     onBrowserDisconnected: async () => {
       if (currentBrowser) {
@@ -180,9 +186,11 @@ async function main(): Promise<void> {
   });
 }
 
-const operation = process.argv.includes('--agent-browser-plugin')
-  ? runAgentBrowserPlugin()
-  : main();
+const operation = process.argv.includes('--browser-use-gateway')
+  ? runBrowserUseGateway()
+  : process.argv.includes('--agent-browser-plugin')
+    ? runAgentBrowserPlugin()
+    : main();
 
 void operation.catch(error => {
   log(`Bridge failed to start: ${error instanceof Error ? error.message : String(error)}`);

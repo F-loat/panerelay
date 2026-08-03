@@ -10,6 +10,7 @@ import {
   setBrowserDefault,
 } from '@panerelay/browser-registry';
 import { realpathSync } from 'node:fs';
+import { setBrowserUseEnvironmentMode } from '@panerelay/browser-use';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { normalizeLocale, resolveLocale, translate, type SupportedLocale } from './i18n.js';
@@ -231,6 +232,7 @@ export interface CliDependencies {
   setBrowserDefault?: typeof setBrowserDefault;
   resolveCliConnection?: typeof resolveCliConnection;
   saveCliConnectionMode?: typeof saveCliConnectionMode;
+  setBrowserUseEnvironmentMode?: typeof setBrowserUseEnvironmentMode;
   runCliConnectionCommand?: typeof runCliConnectionCommand;
   systemLocale?: string;
 }
@@ -381,6 +383,12 @@ export async function main(
           environment: dependencies.environment,
         },
       );
+      if (parsed.adapterId === 'browser-use') {
+        await (dependencies.setBrowserUseEnvironmentMode ?? setBrowserUseEnvironmentMode)(
+          parsed.connectionMode!,
+          { environment: dependencies.environment },
+        );
+      }
       console.log(
         translate(locale, 'connectionModeSaved', {
           adapter: parsed.adapterId!,

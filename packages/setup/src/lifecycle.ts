@@ -38,7 +38,7 @@ export interface PanerelaySetupOptions {
   browserUseDefault?: 'direct' | 'extension';
   environment?: NodeJS.ProcessEnv;
   extensionId?: string;
-  globalProvider?: boolean;
+  globalDefault?: boolean;
   homeDirectory?: string;
   platform?: NodeJS.Platform;
   project?: boolean;
@@ -48,7 +48,7 @@ export interface PanerelaySetupOptions {
 export interface PanerelaySetupResult {
   agentBrowserInstallation?: AgentBrowserInstallation;
   agentBrowserConfigPath?: string;
-  globalProvider: boolean;
+  globalDefault: boolean;
   globalSkillPath?: string;
   host: NativeHostInstallationResult;
   browserUseRequested?: boolean;
@@ -99,8 +99,11 @@ export async function setupPanerelay(
   const installSelectedBrowserUseSkill =
     dependencies.installBrowserUseSkill ?? installBrowserUseSkill;
   const configureProject = dependencies.configureProject ?? configureProjectProvider;
-  if ((options.globalProvider || options.project) && !options.agentBrowser) {
-    throw new Error('agent-browser Provider scopes require agentBrowser: true');
+  if (options.globalDefault && !options.agentBrowser && !options.browserUse) {
+    throw new Error('--global-default requires agentBrowser or browserUse: true');
+  }
+  if (options.project && !options.agentBrowser) {
+    throw new Error('agent-browser Provider project scope requires agentBrowser: true');
   }
   const agentBrowserInstallation = options.agentBrowser
     ? await (dependencies.probeAgentBrowser ?? probeAgentBrowserInstallation)({
@@ -119,7 +122,7 @@ export async function setupPanerelay(
         homeDirectory: options.homeDirectory,
       })
     : undefined;
-  if (options.globalProvider) {
+  if (options.globalDefault && options.agentBrowser) {
     await configureGlobal({ homeDirectory: options.homeDirectory });
   }
   const globalSkillPath = options.agentBrowser
@@ -146,10 +149,8 @@ export async function setupPanerelay(
     : undefined;
   const browserUseSkillPath =
     browserUseIntegration && browserUseReady
-      ? await installSelectedBrowserUseSkill(browserUseIntegration.paths.cliLauncherPath, {
+      ? await installSelectedBrowserUseSkill({
           homeDirectory: options.homeDirectory,
-          mcpLauncherPath: browserUseIntegration.config.mcpLauncherPath,
-          platform: options.platform,
           setupVersion: browserUseIntegration.config.version,
         })
       : undefined;
@@ -168,7 +169,7 @@ export async function setupPanerelay(
             browserUseReady,
           }
         : {}),
-      globalProvider: options.globalProvider === true,
+      globalDefault: options.globalDefault === true,
       ...(globalSkillPath ? { globalSkillPath } : {}),
     };
   }
@@ -191,7 +192,7 @@ export async function setupPanerelay(
           browserUseReady,
         }
       : {}),
-    globalProvider: options.globalProvider === true,
+    globalDefault: options.globalDefault === true,
     ...(globalSkillPath ? { globalSkillPath } : {}),
     projectConfigPath,
     projectSkillPath,

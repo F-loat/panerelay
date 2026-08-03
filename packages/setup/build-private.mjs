@@ -12,8 +12,6 @@ await build({
   bundle: true,
   entryPoints: {
     'panerelay-browser-use-adapter': '../browser-use/src/index.ts',
-    'panerelay-browser-use-mcp-runner': './private-browser-use-mcp-runner.mjs',
-    'panerelay-cli': '../cli/src/cli.ts',
   },
   format: 'esm',
   legalComments: 'none',

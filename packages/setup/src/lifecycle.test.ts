@@ -22,7 +22,7 @@ test('setup can opt into global and project default providers', async () => {
       environment: { PANERELAY_EXTENSION_ID: 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' },
       browserUse: true,
       extensionId,
-      globalProvider: true,
+      globalDefault: true,
       homeDirectory: '/home',
       project: true,
       projectDirectory: '/project',
@@ -56,7 +56,6 @@ test('setup can opt into global and project default providers', async () => {
           config: {
             adapterId: 'browser-use',
             adapterLauncherPath: '/home/.panerelay/adapter',
-            cliLauncherPath: '/home/.panerelay/cli',
             protocol: 'panerelay.browser-use-integration.v1',
             runtimeDirectory: '/home/.panerelay/browser-use/runtime',
             runtimeName: 'panerelay',
@@ -68,13 +67,8 @@ test('setup can opt into global and project default providers', async () => {
             adapterPackagePath: '/home/.panerelay/package.json',
             adapterStorageDirectory: '/home/.panerelay/adapters/browser-use',
             browserUseDirectory: '/home/.panerelay/browser-use',
-            cliArtifactPath: '/home/.panerelay/cli.mjs',
-            cliLauncherPath: '/home/.panerelay/cli',
-            cliStorageDirectory: '/home/.panerelay/cli/browser-use',
             dataDirectory: '/home/.panerelay',
             integrationConfigPath: '/home/.panerelay/browser-use/config.json',
-            mcpLauncherPath: '/home/.panerelay/bin/panerelay-browser-use-mcp',
-            mcpRunnerArtifactPath: '/home/.panerelay/cli/0.2.0/dist/mcp-runner.mjs',
             runtimeDirectory: '/home/.panerelay/browser-use/runtime',
           },
           registration: {
@@ -92,9 +86,8 @@ test('setup can opt into global and project default providers', async () => {
           },
         };
       },
-      installBrowserUseSkill: async (cliLauncherPath, options) => {
+      installBrowserUseSkill: async options => {
         calls.push('install-browser-use-skill');
-        assert.equal(cliLauncherPath, '/home/.panerelay/cli');
         assert.equal(options.setupVersion, '0.2.0');
         return '/home/.agents/skills/panerelay-browser-use';
       },
@@ -125,7 +118,7 @@ test('setup can opt into global and project default providers', async () => {
     'configure-project',
     'install-skill:project',
   ]);
-  assert.equal(result.globalProvider, true);
+  assert.equal(result.globalDefault, true);
   assert.equal(result.browserUseRequested, true);
   assert.equal(result.browserUseReady, true);
   assert.equal(result.projectConfigPath, '/project/agent-browser.json');
@@ -164,7 +157,7 @@ test('base setup installs only the Native Host and skips both engine integration
 });
 
 test('rejects Provider scopes before installing the Native Host without agent-browser', async () => {
-  for (const scope of [{ globalProvider: true }, { project: true }]) {
+  for (const scope of [{ globalDefault: true }, { project: true }]) {
     let writes = 0;
     await assert.rejects(
       setupPanerelay(scope, {
@@ -173,7 +166,7 @@ test('rejects Provider scopes before installing the Native Host without agent-br
           return host;
         },
       }),
-      /require agentBrowser: true/,
+      /requires? agentBrowser|requires agentBrowser or browserUse/,
     );
     assert.equal(writes, 0);
   }
@@ -202,13 +195,8 @@ test('uninstall removes only Panerelay-owned integration through scoped operatio
             adapterPackagePath: '/home/.panerelay/package.json',
             adapterStorageDirectory: '/home/.panerelay/adapters/browser-use',
             browserUseDirectory: '/home/.panerelay/browser-use',
-            cliArtifactPath: '/home/.panerelay/cli.mjs',
-            cliLauncherPath: '/home/.panerelay/cli',
-            cliStorageDirectory: '/home/.panerelay/cli/browser-use',
             dataDirectory: '/home/.panerelay',
             integrationConfigPath: '/home/.panerelay/browser-use/config.json',
-            mcpLauncherPath: '/home/.panerelay/bin/panerelay-browser-use-mcp',
-            mcpRunnerArtifactPath: '/home/.panerelay/cli/browser-use/0.2.0/mcp-runner.mjs',
             runtimeDirectory: '/home/.panerelay/browser-use/runtime',
           },
           registry: {
