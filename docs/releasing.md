@@ -4,20 +4,20 @@ Panerelay candidate creation is deliberately separate from publication. The repo
 
 ## Prepare the next release
 
-The manual [Prepare Release workflow](../.github/workflows/prepare-release.yml) accepts a semantic version increment and opens a validated version pull request:
+The manual [Prepare Release workflow](../.github/workflows/prepare-release.yml) accepts a semantic version increment, opens a version pull request, waits for its checks, and automatically squash-merges the validated metadata change:
 
 - `major`: `X.Y.Z` → `(X+1).0.0`
 - `minor` (default): `X.Y.Z` → `X.(Y+1).0`
 - `patch`: `X.Y.Z` → `X.Y.(Z+1)`
 
-The Chrome numeric identity appends `.0` to the selected semantic version. Prepare Release never publishes packages, creates a tag or GitHub Release, submits to Chrome Web Store, or pushes directly to the default branch.
+The Chrome numeric identity appends `.0` to the selected semantic version. Prepare Release never publishes packages, creates a tag or GitHub Release, submits to Chrome Web Store, or commits directly to the default branch; its only default-branch change is the guarded squash merge of the generated pull request.
 
 1. Confirm the current repository version already has its matching stable tag and GitHub Release.
-2. In GitHub Actions, open **Prepare Release**, choose **Run workflow** from the default branch, select `major`, `minor`, or `patch`, and wait for the version pull request.
-3. If GitHub marks the Action-created pull-request workflows as awaiting approval, approve them from the pull request, then review its version-only diff and checks.
-4. Merge the preparation pull request. Do not run Prepare Release again until that merged version has been published by **Release → stable**.
+2. In GitHub Actions, open **Prepare Release**, choose **Run workflow** from the default branch, and select `major`, `minor`, or `patch`.
+3. The workflow creates the version-only pull request, waits for its reported checks, and squash-merges it into the default branch when every check passes. If a check fails, is cancelled, or never starts before the workflow timeout, the workflow fails and leaves the pull request open for inspection or deliberate manual recovery.
+4. Do not run Prepare Release again until that merged version has been published by **Release → stable**. The squash merge does not publish npm packages or create a GitHub Release; dispatch **Release** separately from the default branch and select `stable` when the release checklist is complete.
 
-Prepare Release requires repository **Settings → Actions → General → Workflow permissions → Allow GitHub Actions to create and approve pull requests**. The workflow requests only `contents: write` and `pull-requests: write`; npm trusted-publishing permission remains isolated to the Release workflow.
+Prepare Release requires repository **Settings → Actions → General → Workflow permissions → Allow GitHub Actions to create and approve pull requests**. The workflow requests only `contents: write` and `pull-requests: write`; the squash merge does not use administrator bypass, and npm trusted-publishing permission remains isolated to the Release workflow. Repository branch protection, required reviews, required checks, merge queues, and conflicts can still reject the automatic merge.
 
 ## Candidate prerequisites
 
@@ -86,7 +86,7 @@ candidate_directory=".artifacts/panerelay-$release_version"
 The manual [Release workflow](../.github/workflows/release.yml) publishes through [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/), so it does not use a long-lived `NPM_TOKEN`.
 
 1. In GitHub repository settings, create an environment named `release`. Add required reviewers when the repository plan exposes environment protection rules; otherwise the explicit manual dispatch remains the human release gate.
-2. In GitHub repository Actions settings, allow `GITHUB_TOKEN` workflows to create pull requests so Prepare Release can open its version branch for review.
+2. In GitHub repository Actions settings, allow `GITHUB_TOKEN` workflows to create pull requests so Prepare Release can open its version branch for checks and squash merge.
 3. In the npm settings for each of `@panerelay/protocol`, `@panerelay/browser-registry`, `@panerelay/cli`, `@panerelay/agent-browser`, `@panerelay/browser-use`, `@panerelay/bridge`, and `@panerelay/setup`, configure the same GitHub Actions trusted publisher:
    - Organization or user: `F-loat`
    - Repository: `panerelay`
@@ -123,7 +123,7 @@ Beta Extension archives are developer downloads, not Chrome Web Store updates. T
 Before dispatching `stable`:
 
 - [ ] Complete the candidate and runtime acceptance sections above.
-- [ ] Merge the Prepare Release pull request into the default branch and confirm CI is green.
+- [ ] Confirm Prepare Release squash-merged its version pull request into the default branch and CI is green.
 - [ ] Confirm the repository version is the unused stable version to publish.
 - [ ] Confirm the matching remote tag and GitHub Release do not exist.
 - [ ] Confirm all seven npm packages have the trusted publisher configuration above.
