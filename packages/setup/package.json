@@ -45,6 +45,7 @@
     "@panerelay/bridge": "workspace:*",
     "@panerelay/browser-registry": "workspace:*",
     "@panerelay/browser-use": "workspace:*",
+    "@panerelay/playwright": "workspace:*",
     "@panerelay/cli": "workspace:*",
     "@panerelay/protocol": "workspace:*"
   },

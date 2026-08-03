@@ -1,6 +1,6 @@
 # @panerelay/setup
 
-Install, update, diagnose, and remove Panerelay's local components. The base command is automation-engine neutral; agent-browser and browser-use integrations are explicit peer choices.
+Install, update, diagnose, and remove Panerelay's local components. The base command is automation-engine neutral; agent-browser, browser-use, and Playwright CLI integrations are explicit choices.
 
 ## Start here
 
@@ -37,13 +37,19 @@ Fetch this guide with curl -fsSL and follow the agent-browser scenario: https://
 Fetch this guide with curl -fsSL and follow the browser-use scenario: https://f-loat.github.io/panerelay/agent-setup.md
 ```
 
+**Playwright CLI**
+
+```text
+Fetch this guide with curl -fsSL and follow the Playwright CLI scenario: https://f-loat.github.io/panerelay/agent-setup.md
+```
+
 **Both tools**
 
 ```text
 Fetch this guide with curl -fsSL and follow the combined agent-browser and browser-use scenario: https://f-loat.github.io/panerelay/agent-setup.md
 ```
 
-`@panerelay/setup` does not install, update, downgrade, or rewrite agent-browser or browser-use. It verifies an existing supported installation before adding the selected Panerelay-owned integration files.
+`@panerelay/setup` does not install, update, downgrade, or rewrite agent-browser, browser-use, or Playwright CLI. It verifies an existing supported installation before adding the selected Panerelay-owned integration files.
 
 ### Authorize and verify
 
@@ -107,10 +113,30 @@ These paths are POSIX examples. A healthy Extension-mode browser-use daemon pers
 
 The integration disables browser-use telemetry and automatic recording for this lane. Browser Harness keeps its daemon state in its normal user-scoped storage, while full Panerelay uninstall removes the owned adapter, mode, Skill, configuration, and gateway state; it does not kill processes by a broad command-line pattern.
 
-Omitting an action runs base `setup` and installs only the Native Messaging host and side-panel prerequisites. Add `--agent-browser`, `--browser-use`, or both to install either engine integration explicitly.
+### Explicit Playwright CLI integration
+
+Playwright CLI `0.1.17` or newer can attach to authorized existing Chrome or Microsoft Edge tabs through a separate opt-in CDP lane. Chrome is the verified baseline; Edge remains `Forwarded` pending its complete command matrix:
+
+```bash
+npx --yes @panerelay/setup --playwright
+npx --yes @panerelay/setup doctor --playwright
+playwright-cli attach --cdp http://127.0.0.1:43827/cdp/playwright
+playwright-cli tab-list
+playwright-cli tab-select 1
+playwright-cli snapshot
+```
+
+Setup verifies the upstream executable and registers only Panerelay-owned adapter metadata. It does not install a shim, modify `PATH` or shell startup files, write user-owned Playwright configuration, or set Playwright as a default. Users who want persistent explicit configuration may set `PLAYWRIGHT_MCP_CDP_ENDPOINT` or manage their own `.playwright/cli.config.json`.
+
+Setup also installs the additive `panerelay-playwright` Agent Skill without replacing any upstream Playwright files. See the [Playwright integration guide](../playwright/README.md) and [compatibility record](../../docs/compatibility/playwright-cli-0.1.17.md).
+
+This connection reuses authorized tabs and does not provide isolated BrowserContexts, launch-time executable or proxy options, or browser-wide close. The fixed endpoint is loopback discovery, not a reusable browser credential.
+
+Omitting an action runs base `setup` and installs only the Native Messaging host and side-panel prerequisites. Add `--agent-browser`, `--browser-use`, and/or `--playwright` to install integrations explicitly.
 
 ```bash
 npx --yes @panerelay/setup --agent-browser --browser-use
+npx --yes @panerelay/setup --playwright
 ```
 
 Use Panerelay explicitly:

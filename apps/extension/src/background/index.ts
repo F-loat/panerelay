@@ -9,6 +9,7 @@ import {
   isNativeTransferEnvelope,
   type AgentRequest,
   type AgentResponseMessage,
+  type AutomationEngineId,
   type AutomationIntegrationId,
   type CdpCommandMessage,
   type CdpTargetInfo,
@@ -86,6 +87,8 @@ const targetIdsByTabId = new Map<number, string>();
 const tabIdsByTargetId = new Map<string, number>();
 const attachedTabs = new Map<string, TabSummary>();
 const controlledTabs = new Map<string, TabSummary>();
+const controlledFaviconEngines = new Map<string, AutomationEngineId>();
+const controlledFaviconTasks = new Map<string, Promise<void>>();
 const publishedTargets = new Map<string, CdpTargetInfo>();
 const sessionOwnedTabIds = new Set<number>();
 const targetExposure = new TargetExposureState();
@@ -543,7 +546,39 @@ function forgetTarget(targetId: string): void {
   tabIdsByTargetId.delete(targetId);
   attachedTabs.delete(targetId);
   publishedTargets.delete(targetId);
-  if (controlledTabs.delete(targetId)) void updateActionBadge();
+  if (controlledTabs.delete(targetId)) {
+    if (tabId !== undefined) void restoreTargetFavicon(targetId, tabId);
+    void updateActionBadge();
+  }
+}
+
+function renderTargetFavicon(targetId: string, tabId: number, engine: AutomationEngineId): void {
+  if (controlledFaviconEngines.get(targetId) === engine) return;
+  controlledFaviconEngines.set(targetId, engine);
+  const previous = controlledFaviconTasks.get(targetId) ?? Promise.resolve();
+  const task = previous
+    .then(async () => {
+      const currentEngine = controlledFaviconEngines.get(targetId);
+      if (currentEngine) await applyControlledFavicon(tabId, currentEngine);
+    })
+    .finally(() => {
+      if (controlledFaviconTasks.get(targetId) === task) controlledFaviconTasks.delete(targetId);
+    });
+  controlledFaviconTasks.set(targetId, task);
+}
+
+async function restoreTargetFavicon(targetId: string, tabId: number): Promise<void> {
+  controlledFaviconEngines.delete(targetId);
+  const previous = controlledFaviconTasks.get(targetId) ?? Promise.resolve();
+  const task = previous
+    .then(async () => {
+      if (!controlledFaviconEngines.has(targetId)) await releaseControlledFavicon(tabId);
+    })
+    .finally(() => {
+      if (controlledFaviconTasks.get(targetId) === task) controlledFaviconTasks.delete(targetId);
+    });
+  controlledFaviconTasks.set(targetId, task);
+  await task;
 }
 
 function isSessionOwnedBlankTab(tab: TabSummary): boolean {
@@ -783,7 +818,7 @@ async function runCdpCommand(message: CdpCommandMessage): Promise<void> {
         await updateActionBadge();
         await broadcastStatus();
       }
-      if (message.engine) await applyControlledFavicon(current.id, message.engine);
+      if (message.engine) renderTargetFavicon(message.targetId, current.id, message.engine);
     }
     const result = await chrome.debugger.sendCommand(
       debuggee,
@@ -810,12 +845,12 @@ async function runCdpCommand(message: CdpCommandMessage): Promise<void> {
 }
 
 async function detachTarget(targetId: string, reason: string, notifyHost: boolean): Promise<void> {
-  const tab = attachedTabs.get(targetId);
+  const tab = attachedTabs.get(targetId) ?? controlledTabs.get(targetId);
   attachedTabs.delete(targetId);
   controlledTabs.delete(targetId);
   if (tab) {
-    await releaseControlledFavicon(tab.id);
     await chrome.debugger.detach({ tabId: tab.id }).catch(() => undefined);
+    void restoreTargetFavicon(targetId, tab.id);
   }
   await updateActionBadge().catch(() => undefined);
   if (notifyHost) {
@@ -835,7 +870,7 @@ async function detachTarget(targetId: string, reason: string, notifyHost: boolea
 }
 
 async function releaseControl(reason: string, notifyHost: boolean): Promise<void> {
-  const targets = [...attachedTabs.keys()];
+  const targets = new Set([...attachedTabs.keys(), ...controlledTabs.keys()]);
   for (const targetId of targets) await detachTarget(targetId, reason, false);
   targetDiscoveryActive = false;
   targetIdsByTabId.clear();
@@ -1047,7 +1082,7 @@ chrome.debugger.onDetach.addListener((source, reason) => {
   if (!targetId || !attachedTabs.has(targetId)) return;
   attachedTabs.delete(targetId);
   const wasControlled = controlledTabs.delete(targetId);
-  if (wasControlled) void releaseControlledFavicon(source.tabId);
+  if (wasControlled) void restoreTargetFavicon(targetId, source.tabId);
   void updateActionBadge().catch(() => undefined);
   const detachReason = debuggerDetachReason(reason);
   if (!detachReason) {

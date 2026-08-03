@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 export const PANERELAY_SKILL_NAME = 'panerelay-browser';
 export const PANERELAY_BROWSER_USE_SKILL_NAME = 'panerelay-browser-use';
+export const PANERELAY_PLAYWRIGHT_SKILL_NAME = 'panerelay-playwright';
 const PANERELAY_SETUP_VERSION_PLACEHOLDER = '{{PANERELAY_SETUP_VERSION}}';
 const SEMVER_PRERELEASE_IDENTIFIER = String.raw`(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)`;
 const PACKAGE_VERSION_PATTERN = new RegExp(
@@ -29,6 +30,10 @@ export function globalBrowserUseSkillPath(homeDirectory = homedir()): string {
   return join(homeDirectory, '.agents', 'skills', PANERELAY_BROWSER_USE_SKILL_NAME);
 }
 
+export function globalPlaywrightSkillPath(homeDirectory = homedir()): string {
+  return join(homeDirectory, '.agents', 'skills', PANERELAY_PLAYWRIGHT_SKILL_NAME);
+}
+
 function bundledSkillPath(): string {
   return fileURLToPath(new URL(`../skills/${PANERELAY_SKILL_NAME}`, import.meta.url));
 }
@@ -37,31 +42,63 @@ function bundledBrowserUseSkillPath(): string {
   return fileURLToPath(new URL(`../skills/${PANERELAY_BROWSER_USE_SKILL_NAME}`, import.meta.url));
 }
 
+function bundledPlaywrightSkillPath(): string {
+  return fileURLToPath(new URL(`../skills/${PANERELAY_PLAYWRIGHT_SKILL_NAME}`, import.meta.url));
+}
+
+async function installVersionedSkill(
+  target: string,
+  source: string,
+  setupVersion: string,
+): Promise<string> {
+  if (!PACKAGE_VERSION_PATTERN.test(setupVersion)) {
+    throw new Error('Panerelay setup version is invalid');
+  }
+  await rm(target, { recursive: true, force: true });
+  await cp(source, target, { recursive: true });
+  const skillPath = join(target, 'SKILL.md');
+  const template = await readFile(skillPath, 'utf8');
+  if (!template.includes(PANERELAY_SETUP_VERSION_PLACEHOLDER)) {
+    throw new Error('Panerelay automation Skill template is invalid');
+  }
+  await writeFile(
+    skillPath,
+    template.replaceAll(PANERELAY_SETUP_VERSION_PLACEHOLDER, setupVersion),
+  );
+  return target;
+}
+
 export async function installBrowserUseSkill(
   options: SkillPathOptions & {
     setupVersion: string;
   },
 ): Promise<string> {
-  if (!PACKAGE_VERSION_PATTERN.test(options.setupVersion)) {
-    throw new Error('Panerelay setup version is invalid');
-  }
   const target = globalBrowserUseSkillPath(options.homeDirectory);
-  await rm(target, { recursive: true, force: true });
-  await cp(options.sourceDirectory ?? bundledBrowserUseSkillPath(), target, { recursive: true });
-  const skillPath = join(target, 'SKILL.md');
-  const template = await readFile(skillPath, 'utf8');
-  if (!template.includes(PANERELAY_SETUP_VERSION_PLACEHOLDER)) {
-    throw new Error('Panerelay Browser Use Skill template is invalid');
-  }
-  await writeFile(
-    skillPath,
-    template.replaceAll(PANERELAY_SETUP_VERSION_PLACEHOLDER, options.setupVersion),
+  return installVersionedSkill(
+    target,
+    options.sourceDirectory ?? bundledBrowserUseSkillPath(),
+    options.setupVersion,
   );
-  return target;
 }
 
 export async function uninstallBrowserUseSkill(homeDirectory?: string): Promise<string> {
   const target = globalBrowserUseSkillPath(homeDirectory);
+  await rm(target, { recursive: true, force: true });
+  return target;
+}
+
+export async function installPlaywrightSkill(
+  options: SkillPathOptions & { setupVersion: string },
+): Promise<string> {
+  return installVersionedSkill(
+    globalPlaywrightSkillPath(options.homeDirectory),
+    options.sourceDirectory ?? bundledPlaywrightSkillPath(),
+    options.setupVersion,
+  );
+}
+
+export async function uninstallPlaywrightSkill(homeDirectory?: string): Promise<string> {
+  const target = globalPlaywrightSkillPath(homeDirectory);
   await rm(target, { recursive: true, force: true });
   return target;
 }

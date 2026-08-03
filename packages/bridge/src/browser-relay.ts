@@ -41,7 +41,10 @@ interface PendingExtensionResult<T> {
 interface PendingCommand {
   client: WebSocket;
   cdpId: number;
+  targetId: string;
+  method: string;
   sessionId?: string;
+  chromeSessionId?: string;
   releaseTarget: () => void;
   timer: NodeJS.Timeout;
   onResult?: (message: CdpResultMessage) => void;
@@ -84,7 +87,12 @@ interface ClientState {
   participantId: string;
   discoverTargets: boolean;
   sessions: Set<string>;
+  autoAttach?: {
+    params: Record<string, unknown>;
+    enabled: boolean;
+  };
   lastSeenAt: number;
+  initialization: Promise<void>;
 }
 
 interface ChildSession {
@@ -159,6 +167,11 @@ export class BrowserRelay {
   private readonly pageSessions = new Map<string, PageSession>();
   private readonly childSessions = new Map<string, ChildSession>();
   private readonly childTargets = new Map<string, PhysicalChildTarget>();
+  private readonly playwrightMainFrameIds = new Map<string, string>();
+  private readonly runtimeExecutionContexts = new Map<
+    string,
+    Map<number, Record<string, unknown>>
+  >();
   private readonly attachedTargets = new Set<string>();
   private readonly autoAttachTargets = new Set<string>();
   private readonly autoAttachChildSessions = new Set<string>();
@@ -341,11 +354,18 @@ export class BrowserRelay {
     }
 
     const now = Date.now();
+    const initialization =
+      participant.engine === 'playwright'
+        ? this.refreshTargets()
+            .then(() => undefined)
+            .catch(() => undefined)
+        : Promise.resolve();
     this.clients.set(client, {
       participantId: participant.id,
       discoverTargets: false,
       sessions: new Set(),
       lastSeenAt: now,
+      initialization,
     });
     participant.clients.add(client);
     participant.connectedAt ??= now;
@@ -360,13 +380,16 @@ export class BrowserRelay {
     this.emitCurrentSessionState('connected');
     client.on('message', data => {
       this.touchClient(client, true);
-      void this.handleClientMessage(client, data.toString()).catch(error => {
-        this.sendProtocolError(
-          client,
-          null,
-          error instanceof Error ? error.message : String(error),
-        );
-      });
+      const state = this.clients.get(client);
+      void (state?.initialization ?? Promise.resolve())
+        .then(() => this.handleClientMessage(client, data.toString()))
+        .catch(error => {
+          this.sendProtocolError(
+            client,
+            null,
+            error instanceof Error ? error.message : String(error),
+          );
+        });
     });
     client.on('pong', () => this.touchClient(client));
     client.on('close', () => this.handleClientClose(client));
@@ -398,7 +421,7 @@ export class BrowserRelay {
     response: ServerResponse,
   ): Promise<void> {
     const url = new URL(request.url || '/', 'http://127.0.0.1');
-    const versionMatch = /^\/cdp\/bootstrap\/([A-Za-z0-9_-]{43})\/json\/version$/.exec(
+    const versionMatch = /^\/cdp\/bootstrap\/([A-Za-z0-9_-]{43})\/json\/version\/?$/.exec(
       url.pathname,
     );
     if (request.method === 'GET' && versionMatch?.[1] && url.search === '') {
@@ -910,6 +933,13 @@ export class BrowserRelay {
       return;
     }
     if (method.startsWith('Browser.')) {
+      if (
+        method === 'Browser.setDownloadBehavior' &&
+        this.participantForClient(client)?.engine === 'playwright'
+      ) {
+        this.sendResult(client, id, {});
+        return;
+      }
       this.sendCdpError(
         client,
         id,
@@ -959,12 +989,23 @@ export class BrowserRelay {
       case 'Target.setDiscoverTargets':
         state.discoverTargets = params.discover === true;
         this.sendResult(client, id, {});
+        if (state.discoverTargets && this.participantForClient(client)?.engine === 'playwright') {
+          for (const target of this.targets.values()) {
+            if (client.readyState !== WebSocket.OPEN) break;
+            client.send(
+              JSON.stringify({
+                method: 'Target.targetCreated',
+                params: { targetInfo: this.toCdpTargetInfo(target, client) },
+              }),
+            );
+          }
+        }
         return;
       case 'Target.getTargets': {
         const targets = await this.refreshTargets();
         this.sendResult(client, id, {
           targetInfos: [
-            ...targets.map(target => this.toCdpTargetInfo(target)),
+            ...targets.map(target => this.toCdpTargetInfo(target, client)),
             ...this.virtualChildTargetInfos(client),
           ],
         });
@@ -1015,6 +1056,7 @@ export class BrowserRelay {
         if (!result.success || !result.target)
           throw new Error(result.error || 'Tab creation failed');
         this.targets.set(result.target.targetId, result.target);
+        await this.emitPlaywrightPageAttachment(client, result.target);
         this.sendResult(client, id, { targetId: result.target.targetId });
         return;
       }
@@ -1035,7 +1077,25 @@ export class BrowserRelay {
         return;
       }
       case 'Target.getTargetInfo': {
-        const targetId = this.requiredTargetId(params);
+        const targetId =
+          typeof params.targetId === 'string'
+            ? params.targetId
+            : this.participantForClient(client)?.engine === 'playwright'
+              ? [...this.targets.keys()][0]
+              : this.requiredTargetId(params);
+        if (typeof targetId !== 'string') {
+          this.sendResult(client, id, {
+            targetInfo: {
+              targetId: 'panerelay-browser',
+              type: 'browser',
+              title: 'Panerelay',
+              url: '',
+              attached: true,
+              browserContextId: 'panerelay-default',
+            },
+          });
+          return;
+        }
         const childTarget = this.physicalChildTargetForClient(client, targetId);
         if (childTarget) {
           this.sendResult(client, id, {
@@ -1044,14 +1104,17 @@ export class BrowserRelay {
           return;
         }
         const target = await this.ensureKnownTarget(targetId);
-        this.sendResult(client, id, { targetInfo: this.toCdpTargetInfo(target) });
+        this.sendResult(client, id, { targetInfo: this.toCdpTargetInfo(target, client) });
         return;
       }
       case 'Target.getBrowserContexts':
         this.sendResult(client, id, { browserContextIds: [] });
         return;
-      case 'Target.setAutoAttach':
-        if (params.waitForDebuggerOnStart === true) {
+      case 'Target.setAutoAttach': {
+        if (
+          params.waitForDebuggerOnStart === true &&
+          this.participantForClient(client)?.engine !== 'playwright'
+        ) {
           this.sendCdpError(
             client,
             id,
@@ -1060,8 +1123,31 @@ export class BrowserRelay {
           );
           return;
         }
+        const isPlaywrightAutoAttach =
+          this.participantForClient(client)?.engine === 'playwright' && params.autoAttach === true;
+        if (this.participantForClient(client)?.engine === 'playwright') {
+          state.autoAttach = {
+            params: {
+              ...params,
+              ...(isPlaywrightAutoAttach ? { waitForDebuggerOnStart: false } : {}),
+            },
+            enabled: isPlaywrightAutoAttach,
+          };
+        }
+        if (isPlaywrightAutoAttach) {
+          await Promise.all(
+            [...this.targets.values()].map(async target => {
+              try {
+                await this.emitPlaywrightPageAttachment(client, target);
+              } catch {
+                // A target that cannot be attached remains absent from Playwright's page list.
+              }
+            }),
+          );
+        }
         this.sendResult(client, id, {});
         return;
+      }
       default:
         this.sendCdpError(client, id, -32601, `${method} is not supported by Panerelay`);
     }
@@ -1305,11 +1391,18 @@ export class BrowserRelay {
     this.pendingCommands.set(requestId, {
       client,
       cdpId,
+      targetId,
+      method,
       sessionId,
+      ...(childSession ? { chromeSessionId: childSession.chromeSessionId } : {}),
       releaseTarget,
       timer,
     });
     try {
+      const forwardedParams =
+        participant.engine === 'playwright'
+          ? this.replacePlaywrightFrameId(params, targetId, 'to-chrome')
+          : params;
       this.options.sendToExtension({
         type: 'cdp.command',
         protocol: PANERELAY_PROTOCOL_VERSION,
@@ -1317,7 +1410,7 @@ export class BrowserRelay {
         targetId,
         method,
         engine: participant.engine,
-        ...(Object.keys(params).length > 0 ? { params } : {}),
+        ...(Object.keys(forwardedParams).length > 0 ? { params: forwardedParams } : {}),
         ...(childSession ? { sessionId: childSession.chromeSessionId } : {}),
       });
     } catch (error) {
@@ -1387,6 +1480,71 @@ export class BrowserRelay {
     return promise;
   }
 
+  private async ensurePlaywrightTargetReady(targetId: string): Promise<void> {
+    await this.ensureTargetAttached(targetId);
+    if (this.playwrightMainFrameIds.has(targetId)) return;
+    const message = await this.runSetupCommandForResult(targetId, 'Page.getFrameTree', {});
+    if (message.error) throw new Error(message.error.message);
+    this.capturePlaywrightMainFrameId(targetId, (message.result ?? {}) as Record<string, unknown>);
+    if (!this.playwrightMainFrameIds.has(targetId)) {
+      throw new Error('Chrome did not return a main frame for the Playwright target');
+    }
+  }
+
+  private async emitPlaywrightPageAttachment(
+    client: WebSocket,
+    target: CdpTargetInfo,
+  ): Promise<PageSession | undefined> {
+    const state = this.clients.get(client);
+    if (
+      !state?.autoAttach?.enabled ||
+      this.participantForClient(client)?.engine !== 'playwright' ||
+      client.readyState !== WebSocket.OPEN
+    ) {
+      return undefined;
+    }
+    const existing = [...this.pageSessions.values()].find(
+      session => session.client === client && session.targetId === target.targetId,
+    );
+    if (existing) return existing;
+
+    await this.ensurePlaywrightTargetReady(target.targetId);
+    const currentState = this.clients.get(client);
+    if (
+      !currentState?.autoAttach?.enabled ||
+      this.participantForClient(client)?.engine !== 'playwright' ||
+      client.readyState !== WebSocket.OPEN
+    ) {
+      return undefined;
+    }
+    const attached = [...this.pageSessions.values()].find(
+      session => session.client === client && session.targetId === target.targetId,
+    );
+    if (attached) return attached;
+
+    const sessionId = randomUUID();
+    const session: PageSession = {
+      id: sessionId,
+      targetId: target.targetId,
+      client,
+      autoAttach: { params: currentState.autoAttach.params, enabled: true },
+    };
+    this.pageSessions.set(sessionId, session);
+    currentState.sessions.add(sessionId);
+    client.send(
+      JSON.stringify({
+        method: 'Target.attachedToTarget',
+        params: {
+          sessionId,
+          targetInfo: { ...this.toCdpTargetInfo(target, client), attached: true },
+          waitingForDebugger: false,
+        },
+      }),
+    );
+    queueMicrotask(() => this.emitExistingChildAttachments(session));
+    return session;
+  }
+
   private resolveAttach(message: CdpAttachedMessage): void {
     const pending = this.pendingAttaches.get(message.requestId);
     if (!pending) return;
@@ -1401,6 +1559,17 @@ export class BrowserRelay {
     params: Record<string, unknown>,
     sessionId?: string,
   ): Promise<void> {
+    return this.runSetupCommandForResult(targetId, method, params, sessionId).then(message => {
+      if (message.error) throw new Error(message.error.message);
+    });
+  }
+
+  private runSetupCommandForResult(
+    targetId: string,
+    method: string,
+    params: Record<string, unknown>,
+    sessionId?: string,
+  ): Promise<CdpResultMessage> {
     const requestId = randomUUID();
     const timeoutMs = this.options.extensionRequestTimeoutMs ?? EXTENSION_REQUEST_TIMEOUT_MS;
     const result = new Promise<CdpResultMessage>((resolve, reject) => {
@@ -1429,9 +1598,7 @@ export class BrowserRelay {
         pending.reject(error instanceof Error ? error : new Error(String(error)));
       }
     }
-    return result.then(message => {
-      if (message.error) throw new Error(message.error.message);
-    });
+    return result;
   }
 
   private resolveSetupCommand(message: CdpResultMessage): boolean {
@@ -1787,6 +1954,8 @@ export class BrowserRelay {
     this.focusEmulationTargets.delete(targetId);
     this.focusEmulationParticipants.delete(targetId);
     if (!this.attachedTargets.delete(targetId)) return;
+    this.playwrightMainFrameIds.delete(targetId);
+    this.clearRuntimeExecutionContexts(targetId);
     this.autoAttachTargets.delete(targetId);
     this.controlledTargets.delete(targetId);
     this.removePhysicalChildrenForTarget(
@@ -1800,6 +1969,126 @@ export class BrowserRelay {
       reason: 'Panerelay could not restore target focus emulation after participant release',
     });
     this.emitCurrentSessionState();
+  }
+
+  private virtualizePlaywrightResult(
+    pending: PendingCommand,
+    result: Record<string, unknown>,
+  ): Record<string, unknown> {
+    if (pending.method === 'Page.getFrameTree')
+      this.capturePlaywrightMainFrameId(pending.targetId, result);
+    return this.replacePlaywrightFrameId(result, pending.targetId, 'to-client');
+  }
+
+  private capturePlaywrightMainFrameId(targetId: string, result: Record<string, unknown>): void {
+    const frameTree = result.frameTree;
+    const frame =
+      frameTree && typeof frameTree === 'object'
+        ? (frameTree as Record<string, unknown>).frame
+        : undefined;
+    const chromeFrameId =
+      frame && typeof frame === 'object' ? (frame as Record<string, unknown>).id : undefined;
+    if (typeof chromeFrameId === 'string') {
+      this.playwrightMainFrameIds.set(targetId, chromeFrameId);
+    }
+  }
+
+  private virtualizePlaywrightPayload(
+    client: WebSocket,
+    targetId: string,
+    payload: Record<string, unknown>,
+  ): Record<string, unknown> {
+    if (this.participantForClient(client)?.engine !== 'playwright') return payload;
+    return this.replacePlaywrightFrameId(payload, targetId, 'to-client');
+  }
+
+  private replacePlaywrightFrameId(
+    payload: Record<string, unknown>,
+    targetId: string,
+    direction: 'to-client' | 'to-chrome',
+  ): Record<string, unknown> {
+    const chromeFrameId = this.playwrightMainFrameIds.get(targetId);
+    if (!chromeFrameId) return payload;
+    const from = direction === 'to-client' ? chromeFrameId : targetId;
+    const to = direction === 'to-client' ? targetId : chromeFrameId;
+    return this.replaceCdpIdentifier(payload, from, to) as Record<string, unknown>;
+  }
+
+  private replaceCdpIdentifier(value: unknown, from: string, to: string): unknown {
+    if (value === from) return to;
+    if (Array.isArray(value)) {
+      return value.map(item => this.replaceCdpIdentifier(item, from, to));
+    }
+    if (!value || typeof value !== 'object') return value;
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, this.replaceCdpIdentifier(item, from, to)]),
+    );
+  }
+
+  private runtimeExecutionContextScope(targetId: string, chromeSessionId?: string): string {
+    return `${targetId}\0${chromeSessionId ?? ''}`;
+  }
+
+  private trackRuntimeExecutionContext(message: CdpEventMessage): void {
+    const scope = this.runtimeExecutionContextScope(message.targetId, message.sessionId);
+    if (message.method === 'Runtime.executionContextCreated') {
+      const context = message.params?.context;
+      const contextId =
+        context && typeof context === 'object'
+          ? (context as Record<string, unknown>).id
+          : undefined;
+      if (typeof contextId !== 'number' || !context || typeof context !== 'object') return;
+      let contexts = this.runtimeExecutionContexts.get(scope);
+      if (!contexts) {
+        contexts = new Map();
+        this.runtimeExecutionContexts.set(scope, contexts);
+      }
+      contexts.set(contextId, context as Record<string, unknown>);
+      return;
+    }
+    if (
+      message.method === 'Runtime.executionContextDestroyed' ||
+      message.method === 'Runtime.executionContextWillBeDestroyed'
+    ) {
+      const contextId = message.params?.executionContextId;
+      if (typeof contextId === 'number') {
+        this.runtimeExecutionContexts.get(scope)?.delete(contextId);
+      }
+      return;
+    }
+    if (message.method === 'Runtime.executionContextsCleared') {
+      this.runtimeExecutionContexts.delete(scope);
+    }
+  }
+
+  private replayRuntimeExecutionContexts(pending: PendingCommand): void {
+    if (
+      pending.method !== 'Runtime.enable' ||
+      this.participantForClient(pending.client)?.engine !== 'playwright' ||
+      pending.client.readyState !== WebSocket.OPEN
+    ) {
+      return;
+    }
+    const contexts = this.runtimeExecutionContexts.get(
+      this.runtimeExecutionContextScope(pending.targetId, pending.chromeSessionId),
+    );
+    if (!contexts) return;
+    for (const context of contexts.values()) {
+      pending.client.send(
+        JSON.stringify({
+          method: 'Runtime.executionContextCreated',
+          params: this.virtualizePlaywrightPayload(pending.client, pending.targetId, { context }),
+          ...(pending.sessionId ? { sessionId: pending.sessionId } : {}),
+        }),
+      );
+    }
+  }
+
+  private clearRuntimeExecutionContexts(targetId: string): void {
+    const prefix = `${targetId}\0`;
+    for (const scope of this.runtimeExecutionContexts.keys()) {
+      if (scope.startsWith(prefix)) this.runtimeExecutionContexts.delete(scope);
+    }
   }
 
   private forwardResult(message: CdpResultMessage): void {
@@ -1816,16 +2105,25 @@ export class BrowserRelay {
       message.error ? 'browser-error' : undefined,
     );
     if (pending.client.readyState !== WebSocket.OPEN) return;
+    if (!message.error) this.replayRuntimeExecutionContexts(pending);
+    const result =
+      !message.error && this.participantForClient(pending.client)?.engine === 'playwright'
+        ? this.virtualizePlaywrightResult(
+            pending,
+            (message.result ?? {}) as Record<string, unknown>,
+          )
+        : (message.result ?? {});
     pending.client.send(
       JSON.stringify({
         id: pending.cdpId,
-        ...(message.error ? { error: message.error } : { result: message.result ?? {} }),
+        ...(message.error ? { error: message.error } : { result }),
         ...(pending.sessionId ? { sessionId: pending.sessionId } : {}),
       }),
     );
   }
 
   private forwardEvent(message: CdpEventMessage): void {
+    this.trackRuntimeExecutionContext(message);
     if (message.method === 'Target.attachedToTarget') {
       const child = this.registerPhysicalChild(message);
       if (!child) return;
@@ -1880,7 +2178,11 @@ export class BrowserRelay {
           childSession.client.send(
             JSON.stringify({
               method: message.method,
-              params: message.params ?? {},
+              params: this.virtualizePlaywrightPayload(
+                childSession.client,
+                childSession.targetId,
+                message.params ?? {},
+              ),
               sessionId: childSession.id,
             }),
           );
@@ -1897,7 +2199,11 @@ export class BrowserRelay {
         pageSession.client.send(
           JSON.stringify({
             method: message.method,
-            params: message.params ?? {},
+            params: this.virtualizePlaywrightPayload(
+              pageSession.client,
+              pageSession.targetId,
+              message.params ?? {},
+            ),
             sessionId: pageSession.id,
           }),
         );
@@ -1917,6 +2223,11 @@ export class BrowserRelay {
       message.event === 'created' ? 'Target.targetCreated' : 'Target.targetInfoChanged',
       { targetInfo: this.toCdpTargetInfo(message.target) },
     );
+    if (message.event === 'created') {
+      for (const client of this.clients.keys()) {
+        void this.emitPlaywrightPageAttachment(client, message.target).catch(() => undefined);
+      }
+    }
   }
 
   private broadcastTargetEvent(method: string, params: Record<string, unknown>): void {
@@ -1926,12 +2237,15 @@ export class BrowserRelay {
     }
   }
 
-  private toCdpTargetInfo(target: CdpTargetInfo): Record<string, unknown> {
+  private toCdpTargetInfo(target: CdpTargetInfo, client?: WebSocket): Record<string, unknown> {
     return {
       targetId: target.targetId,
       type: target.type,
       title: target.title,
       url: target.url,
+      ...(client && this.participantForClient(client)?.engine === 'playwright'
+        ? { browserContextId: 'panerelay-default' }
+        : {}),
       attached: [...this.pageSessions.values()].some(
         session => session.targetId === target.targetId,
       ),
@@ -1939,7 +2253,18 @@ export class BrowserRelay {
   }
 
   private removeTarget(targetId: string): void {
+    for (const session of this.pageSessions.values()) {
+      if (session.targetId !== targetId || session.client.readyState !== WebSocket.OPEN) continue;
+      session.client.send(
+        JSON.stringify({
+          method: 'Target.detachedFromTarget',
+          params: { sessionId: session.id, targetId },
+        }),
+      );
+    }
     this.targets.delete(targetId);
+    this.playwrightMainFrameIds.delete(targetId);
+    this.clearRuntimeExecutionContexts(targetId);
     const wasAttached = this.attachedTargets.delete(targetId);
     this.autoAttachTargets.delete(targetId);
     this.controlledTargets.delete(targetId);
@@ -1993,6 +2318,8 @@ export class BrowserRelay {
       [...this.pageSessions.values()].some(session => session.targetId === targetId) ||
       [...this.childSessions.values()].some(session => session.targetId === targetId);
     if (stillReferenced || !this.attachedTargets.delete(targetId)) return;
+    this.playwrightMainFrameIds.delete(targetId);
+    this.clearRuntimeExecutionContexts(targetId);
     this.autoAttachTargets.delete(targetId);
     this.controlledTargets.delete(targetId);
     this.focusEmulationTargets.delete(targetId);
@@ -2016,6 +2343,8 @@ export class BrowserRelay {
   private handleDetached(message: CdpDetachedMessage): void {
     if (message.scope === 'target' && message.targetId) {
       const wasAttached = this.attachedTargets.delete(message.targetId);
+      this.playwrightMainFrameIds.delete(message.targetId);
+      this.clearRuntimeExecutionContexts(message.targetId);
       this.autoAttachTargets.delete(message.targetId);
       this.controlledTargets.delete(message.targetId);
       this.focusEmulationTargets.delete(message.targetId);
@@ -2149,6 +2478,8 @@ export class BrowserRelay {
     this.childSessions.clear();
     this.childTargets.clear();
     this.targets.clear();
+    this.playwrightMainFrameIds.clear();
+    this.runtimeExecutionContexts.clear();
     this.attachedTargets.clear();
     this.autoAttachTargets.clear();
     this.autoAttachChildSessions.clear();

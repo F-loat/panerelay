@@ -159,6 +159,61 @@ test('base setup installs only the Native Host and skips both engine integration
   assert.equal(result.browserUseIntegration, undefined);
 });
 
+test('Playwright setup installs only Panerelay-owned adapter and additive Skill artifacts', async () => {
+  const calls: string[] = [];
+  const result = await setupPanerelay(
+    { homeDirectory: '/home', playwright: true },
+    {
+      installHost: async () => {
+        calls.push('install-host');
+        return host;
+      },
+      probePlaywright: async () => {
+        calls.push('probe-playwright');
+        return { executable: '/bin/playwright-cli', supported: true, version: '0.1.17' };
+      },
+      installPlaywright: async options => {
+        calls.push('install-playwright');
+        assert.equal(options?.playwrightInstallation?.executable, '/bin/playwright-cli');
+        return {
+          paths: {
+            adapterArtifactPath: '/home/.panerelay/adapters/playwright/adapter.mjs',
+            adapterLauncherPath: '/home/.panerelay/bin/panerelay-playwright-adapter',
+            adapterPackagePath: '/home/.panerelay/adapters/playwright/package.json',
+            adapterStorageDirectory: '/home/.panerelay/adapters/playwright',
+            configPath: '/home/.panerelay/playwright/config.json',
+            dataDirectory: '/home/.panerelay',
+          },
+          registration: {
+            adapterId: 'playwright',
+            version: '0.4.0',
+            executablePath: '/home/.panerelay/bin/panerelay-playwright-adapter',
+            protocol: 'panerelay.cli-adapter.v1',
+            capabilities: ['connection.resolve', 'adapter.doctor'],
+            modes: ['direct', 'extension'],
+            childEnvironmentKeys: ['PLAYWRIGHT_MCP_CDP_ENDPOINT'],
+          },
+          registry: { protocol: 'panerelay.cli-adapter-registry.v1', adapters: [] },
+        };
+      },
+      installPlaywrightSkill: async options => {
+        calls.push('install-playwright-skill');
+        assert.equal(options.setupVersion, '0.4.0');
+        return '/home/.agents/skills/panerelay-playwright';
+      },
+    },
+  );
+
+  assert.deepEqual(calls, [
+    'install-host',
+    'probe-playwright',
+    'install-playwright',
+    'install-playwright-skill',
+  ]);
+  assert.equal(result.playwrightInstallation?.version, '0.1.17');
+  assert.equal(result.playwrightSkillPath, '/home/.agents/skills/panerelay-playwright');
+});
+
 test('rejects Provider scopes before installing the Native Host without agent-browser', async () => {
   for (const scope of [{ globalDefault: true }, { project: true }]) {
     let writes = 0;
@@ -214,6 +269,24 @@ test('uninstall removes only Panerelay-owned integration through scoped operatio
         calls.push('uninstall-browser-use-skill');
         return '/home/.agents/skills/panerelay-browser-use';
       },
+      uninstallPlaywright: async () => {
+        calls.push('uninstall-playwright');
+        return {
+          paths: {
+            adapterArtifactPath: '/home/.panerelay/adapters/playwright/adapter.mjs',
+            adapterLauncherPath: '/home/.panerelay/bin/panerelay-playwright-adapter',
+            adapterPackagePath: '/home/.panerelay/adapters/playwright/package.json',
+            adapterStorageDirectory: '/home/.panerelay/adapters/playwright',
+            configPath: '/home/.panerelay/playwright/config.json',
+            dataDirectory: '/home/.panerelay',
+          },
+          registry: { protocol: 'panerelay.cli-adapter-registry.v1', adapters: [] },
+        };
+      },
+      uninstallPlaywrightSkill: async () => {
+        calls.push('uninstall-playwright-skill');
+        return '/home/.agents/skills/panerelay-playwright';
+      },
       uninstallSkill: async scope => {
         calls.push(`uninstall-skill:${scope}`);
         return `/${scope}/skill`;
@@ -230,6 +303,8 @@ test('uninstall removes only Panerelay-owned integration through scoped operatio
     'unregister-provider',
     'uninstall-skill:global',
     'uninstall-browser-use',
+    'uninstall-playwright',
+    'uninstall-playwright-skill',
     'uninstall-browser-use-skill',
     'remove-project',
     'uninstall-skill:project',

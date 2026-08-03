@@ -36,6 +36,10 @@ const browserUseReadme = readFileSync(
   new URL('../packages/browser-use/README.md', import.meta.url),
   'utf8',
 );
+const playwrightReadme = readFileSync(
+  new URL('../packages/playwright/README.md', import.meta.url),
+  'utf8',
+);
 const rootLicense = readFileSync(new URL('../LICENSE', import.meta.url), 'utf8');
 const chromeWebStoreUrl =
   'https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi';
@@ -48,6 +52,8 @@ function releaseFixture() {
     extensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
     agentBrowserMinimumVersion: '0.33.0',
     agentBrowserVerifiedVersions: ['0.33.0'],
+    playwrightCliMinimumVersion: '0.1.17',
+    playwrightCliVerifiedVersions: ['0.1.17'],
     claudeCodeMinimumVersion: '2.1.206',
     packages: PACKAGE_DEFINITIONS.map(definition => definition.name),
   };
@@ -73,7 +79,7 @@ function releaseFixture() {
         }),
   }));
   return {
-    compatibilityRecords: ['agent-browser-0.33.0.md'],
+    compatibilityRecords: ['agent-browser-0.33.0.md', 'playwright-cli-0.1.17.md'],
     descriptor,
     extensionManifest: { version: '0.1.0.2', version_name: version, key: extensionKey },
     extensionPackage: { version, private: true },
@@ -210,6 +216,11 @@ test('keeps official installation guidance Store-first and version-neutral', () 
     assert.doesNotMatch(readme, /--project-provider|--global-provider/);
   }
   assert.doesNotMatch(browserUseReadme, /browser-use --version/);
+  assert.match(
+    playwrightReadme,
+    /playwright-cli attach --cdp http:\/\/127\.0\.0\.1:43827\/cdp\/playwright/,
+  );
+  assert.match(playwrightReadme, /does not install a shim[\s\S]+or set Playwright as a default/i);
   assert.match(rootReadme, /packages\/setup\/dist\/cli\.js --agent-browser --global-default/);
   assert.doesNotMatch(rootReadme, /--project-provider|--global-provider/);
 });
@@ -402,6 +413,13 @@ test('rejects stale prerelease metadata, identity drift, missing evidence, and i
   const missingEvidence = releaseFixture();
   missingEvidence.compatibilityRecords = [];
   assert.throws(() => validateReleaseMetadata(missingEvidence), /Missing compatibility record/);
+
+  const missingPlaywrightEvidence = releaseFixture();
+  missingPlaywrightEvidence.compatibilityRecords = ['agent-browser-0.33.0.md'];
+  assert.throws(
+    () => validateReleaseMetadata(missingPlaywrightEvidence),
+    /Missing compatibility record for Playwright CLI 0\.1\.17/,
+  );
 
   const unsupportedAcp = releaseFixture();
   unsupportedAcp.packageManifests.find(

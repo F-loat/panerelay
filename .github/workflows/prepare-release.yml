@@ -149,6 +149,7 @@ jobs:
             @panerelay/cli \
             @panerelay/agent-browser \
             @panerelay/browser-use \
+            @panerelay/playwright \
             @panerelay/bridge \
             @panerelay/setup; do
             set +e
@@ -181,6 +182,7 @@ jobs:
             echo "package.json"
             echo "packages/agent-browser/package.json"
             echo "packages/browser-use/package.json"
+            echo "packages/playwright/package.json"
             echo "packages/browser-registry/package.json"
             echo "packages/bridge/package.json"
             echo "packages/cli/package.json"
@@ -206,6 +208,7 @@ jobs:
             package.json \
             packages/agent-browser/package.json \
             packages/browser-use/package.json \
+            packages/playwright/package.json \
             packages/browser-registry/package.json \
             packages/bridge/package.json \
             packages/cli/package.json \

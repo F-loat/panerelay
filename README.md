@@ -17,13 +17,13 @@ Panerelay supports two ways to work:
 | Direction | Use it when | Experience |
 | --- | --- | --- |
 | **Agent side panel** | You want a local Agent beside the current page | Open Codex, Claude Code, or Qoder in the side panel for conversations, approvals, activity, and tab-linked workspaces |
-| **Automation tool integrations** | You want an Agent in another app or terminal to operate the browser | Connect [agent-browser](https://agent-browser.dev/) or [browser-use](https://docs.browser-use.com/open-source/browser-use-cli), or connect both tools, to authorized tabs in your existing browser |
+| **Automation tool integrations** | You want an Agent in another app or terminal to operate the browser | Connect [agent-browser](https://agent-browser.dev/) or [browser-use](https://docs.browser-use.com/open-source/browser-use-cli), or explicitly attach Playwright CLI, to authorized tabs in your existing browser |
 
 ![Panerelay](https://github.com/user-attachments/assets/8873dd53-ee16-484a-b801-66622ebe61ad)
 
 ## Quickstart
 
-Requirements: Chrome or Microsoft Edge on macOS, Linux, or Windows, plus Node.js 20 or newer. Panerelay itself does not require agent-browser or browser-use. Browser Use integration requires browser-use 0.13.7+ with Browser Harness 0.1.8+.
+Requirements: Chrome or Microsoft Edge on macOS, Linux, or Windows, plus Node.js 20 or newer. Automation tools are optional. The current integration minimums are agent-browser 0.33.0+, browser-use 0.13.7+ with Browser Harness 0.1.8+, and Playwright CLI 0.1.17+.
 
 ### 1. Install the Extension
 
@@ -49,7 +49,13 @@ Fetch this guide with curl -fsSL and follow the agent-browser scenario: https://
 Fetch this guide with curl -fsSL and follow the browser-use scenario: https://f-loat.github.io/panerelay/agent-setup.md
 ```
 
-The published guide is generated from the version-controlled [Agent setup instructions](docs/agent-setup.md). `@panerelay/setup` installs Panerelay-owned files; it does not install or modify agent-browser or browser-use itself.
+**Playwright CLI**
+
+```text
+Fetch this guide with curl -fsSL and follow the Playwright CLI scenario: https://f-loat.github.io/panerelay/agent-setup.md
+```
+
+The published guide is generated from the version-controlled [Agent setup instructions](docs/agent-setup.md). `@panerelay/setup` installs Panerelay-owned files; it does not install or modify agent-browser, browser-use, or Playwright CLI itself.
 
 #### Install Panerelay yourself
 
@@ -66,7 +72,7 @@ Open Panerelay from the browser toolbar and choose the current web tab or all su
 ### 4. Start working
 
 - In the **Agent side panel**, select an installed and signed-in Codex, Claude Code, or Qoder, optionally choose a project directory, and start a conversation.
-- With **agent-browser or browser-use**, run the tool as usual. Panerelay supplies the authorized existing-browser connection.
+- With **agent-browser or browser-use**, run the tool as usual. With **Playwright CLI**, attach explicitly to Panerelay's CDP endpoint.
 
 For agent-browser, this is the shortest authorization check:
 
@@ -117,6 +123,19 @@ panerelay connection use browser-use direct
 
 After saving Extension mode, the explicit `BU_CDP_URL=` prefix can be omitted. Direct mode removes Panerelay-managed keys, while an explicitly supplied process environment always takes precedence.
 
+For the optional Playwright CLI integration, keep the upstream command and attach explicitly:
+
+```bash
+npx --yes @panerelay/setup --playwright
+npx --yes @panerelay/setup doctor --playwright
+playwright-cli attach --cdp http://127.0.0.1:43827/cdp/playwright
+playwright-cli tab-list
+playwright-cli tab-select 1
+playwright-cli snapshot
+```
+
+Panerelay does not install a shim or set Playwright as the default connection. The CLI lists only authorized tabs; use its normal session option when you need more than one named session.
+
 ## Supported workflows
 
 ### Agent side panel
@@ -133,13 +152,18 @@ Panerelay supports the official browser-use CLI, additive Skill, and `browser-us
 
 The supported minimum is browser-use 0.13.7. The exact verified baseline is browser-use 0.13.7 with Browser Harness 0.1.8. See the [integration guide](packages/browser-use/README.md) and [compatibility record](docs/compatibility/browser-use-0.13.7.md).
 
+### Playwright CLI integration
+
+Panerelay provides an optional explicit CDP connection for the upstream Playwright CLI 0.1.17 or newer. Core existing-tab commands such as `attach`, `tab-list`, `tab-select`, `snapshot`, and page evaluation operate on authorized Chromium tabs. Chrome is the verified baseline; Edge remains `Forwarded` pending its complete command matrix. Panerelay does not provide isolated browser contexts, launch-time options, proxy ownership, or browser-wide close through this connection. See the [Agent setup instructions](docs/agent-setup.md#playwright-cli).
+
 Microsoft Edge capability groups remain classified as `Forwarded` until representative acceptance is complete. See the [browser platform record](docs/compatibility/browser-platforms.md).
 
 ## How it works
 
 ```text
 External Agent ─┬─ agent-browser CLI / MCP ─┐
-                └─ browser-use CLI / MCP ───┤
+                ├─ browser-use CLI / MCP ───┤
+                └─ Playwright CLI / CDP ────┤
                                             ▼
                                      Panerelay Bridge
                                             ↕ Native Messaging

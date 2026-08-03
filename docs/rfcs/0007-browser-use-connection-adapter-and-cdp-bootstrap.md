@@ -7,7 +7,7 @@
 - Created: 2026-07-31
 - Updated: 2026-08-03
 - OpenSpec: `openspec/changes/archive/2026-08-01-add-browser-use-connection-adapter`
-- Amendments: `openspec/changes/archive/2026-08-01-relax-browser-use-version-gate`, `openspec/changes/archive/2026-08-01-add-browser-use-default-setting`, `openspec/changes/show-control-engine-favicon`, `openspec/changes/archive/2026-08-02-make-adapter-installation-explicit`
+- Amendments: `openspec/changes/archive/2026-08-01-relax-browser-use-version-gate`, `openspec/changes/archive/2026-08-01-add-browser-use-default-setting`, `openspec/changes/show-control-engine-favicon`, `openspec/changes/archive/2026-08-02-make-adapter-installation-explicit`, `openspec/changes/add-playwright-cdp-integration`
 
 ## Summary
 
@@ -26,6 +26,8 @@ No Browser Use upstream provider change, fork, PATH shim, or Chrome Remote Debug
 - RFC-0003 describes the participant heartbeat, activity, expiry, and isolation behavior reused here, but remains marked Draft.
 
 This RFC adds a user-scoped fixed discovery gateway, environment-default integration, lazy HTTP-to-WebSocket bootstrap lifecycle, a persistent Browser Use participant, and two general virtual-CDP compatibility prerequisites within RFC-0002's existing authorized-target boundary. It does not supersede the existing permission, top-level inventory, foreground-focus, or control rules.
+
+The Playwright amendment adds a separate `/cdp/playwright` route and `playwright` engine/lane over the same authenticated bootstrap relay. It does not make the Browser Use route multi-client, does not alter Browser Use's persistent lane, and does not add Playwright to the Extension's default-setting surface. Playwright setup is opt-in and exposes only explicit `attach --cdp`/user-managed configuration; it installs no shim and edits no shell startup or user-owned Playwright configuration.
 
 ## Goals and non-goals
 

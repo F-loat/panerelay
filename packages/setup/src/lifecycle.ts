@@ -13,8 +13,10 @@ import {
 import {
   installBrowserUseSkill,
   installPanerelaySkill,
+  installPlaywrightSkill,
   uninstallBrowserUseSkill,
   uninstallPanerelaySkill,
+  uninstallPlaywrightSkill,
 } from './skill.js';
 import {
   installBrowserUseIntegrationArtifacts,
@@ -31,10 +33,18 @@ import {
   probeAgentBrowserInstallation,
   type AgentBrowserInstallation,
 } from './agent-browser-integration.js';
+import {
+  installPlaywrightIntegration,
+  PANERELAY_PLAYWRIGHT_INTEGRATION_VERSION,
+  type PlaywrightIntegrationInstallation,
+  uninstallPlaywrightIntegration,
+} from './playwright-integration.js';
+import { probePlaywrightInstallation, type PlaywrightInstallation } from '@panerelay/playwright';
 
 export interface PanerelaySetupOptions {
   agentBrowser?: boolean;
   browserUse?: boolean;
+  playwright?: boolean;
   browserUseDefault?: 'direct' | 'extension';
   environment?: NodeJS.ProcessEnv;
   extensionId?: string;
@@ -56,6 +66,9 @@ export interface PanerelaySetupResult {
   browserUseReady?: boolean;
   browserUseSkillPath?: string;
   browserUseVersions?: BrowserUseVersions;
+  playwrightInstallation?: PlaywrightInstallation;
+  playwrightIntegration?: PlaywrightIntegrationInstallation;
+  playwrightSkillPath?: string;
   projectConfigPath?: string;
   projectSkillPath?: string;
 }
@@ -63,6 +76,8 @@ export interface PanerelaySetupResult {
 export interface PanerelayUninstallResult {
   agentBrowserConfigPath: string;
   browserUseIntegration: BrowserUseIntegrationUninstallResult;
+  playwrightIntegration: Awaited<ReturnType<typeof uninstallPlaywrightIntegration>>;
+  playwrightSkillPath: string;
   browserUseSkillPath: string;
   globalSkillPath: string;
   projectConfigPath?: string;
@@ -83,6 +98,11 @@ export interface LifecycleDependencies {
   uninstallHost?: typeof uninstallNativeHost;
   uninstallBrowserUse?: typeof uninstallBrowserUseIntegrationArtifacts;
   uninstallBrowserUseSkill?: typeof uninstallBrowserUseSkill;
+  installPlaywright?: typeof installPlaywrightIntegration;
+  installPlaywrightSkill?: typeof installPlaywrightSkill;
+  probePlaywright?: typeof probePlaywrightInstallation;
+  uninstallPlaywright?: typeof uninstallPlaywrightIntegration;
+  uninstallPlaywrightSkill?: typeof uninstallPlaywrightSkill;
   uninstallSkill?: typeof uninstallPanerelaySkill;
   unregisterProvider?: typeof unregisterPanerelayProvider;
 }
@@ -99,6 +119,9 @@ export async function setupPanerelay(
   const installSelectedBrowserUseSkill =
     dependencies.installBrowserUseSkill ?? installBrowserUseSkill;
   const configureProject = dependencies.configureProject ?? configureProjectProvider;
+  const installPlaywright = dependencies.installPlaywright ?? installPlaywrightIntegration;
+  const installSelectedPlaywrightSkill =
+    dependencies.installPlaywrightSkill ?? installPlaywrightSkill;
   if (options.globalDefault && !options.agentBrowser && !options.browserUse) {
     throw new Error('--global-default requires agentBrowser or browserUse: true');
   }
@@ -149,6 +172,28 @@ export async function setupPanerelay(
         platform: options.platform,
       })
     : undefined;
+  const playwrightInstallation = options.playwright
+    ? await (dependencies.probePlaywright ?? probePlaywrightInstallation)(
+        options.environment,
+        options.platform,
+      )
+    : undefined;
+  const playwrightIntegration = options.playwright
+    ? await installPlaywright({
+        environment: options.environment,
+        homeDirectory: options.homeDirectory,
+        nodePath: process.execPath,
+        platform: options.platform,
+        playwrightInstallation,
+      })
+    : undefined;
+  const playwrightSkillPath =
+    playwrightIntegration && playwrightInstallation?.supported
+      ? await installSelectedPlaywrightSkill({
+          homeDirectory: options.homeDirectory,
+          setupVersion: PANERELAY_PLAYWRIGHT_INTEGRATION_VERSION,
+        })
+      : undefined;
   const browserUseSkillPath =
     browserUseIntegration && browserUseReady
       ? await installSelectedBrowserUseSkill({
@@ -171,6 +216,9 @@ export async function setupPanerelay(
             browserUseReady,
           }
         : {}),
+      ...(playwrightInstallation ? { playwrightInstallation } : {}),
+      ...(playwrightIntegration ? { playwrightIntegration } : {}),
+      ...(playwrightSkillPath ? { playwrightSkillPath } : {}),
       globalDefault: options.globalDefault === true,
       ...(globalSkillPath ? { globalSkillPath } : {}),
     };
@@ -194,6 +242,9 @@ export async function setupPanerelay(
           browserUseReady,
         }
       : {}),
+    ...(playwrightInstallation ? { playwrightInstallation } : {}),
+    ...(playwrightIntegration ? { playwrightIntegration } : {}),
+    ...(playwrightSkillPath ? { playwrightSkillPath } : {}),
     globalDefault: options.globalDefault === true,
     ...(globalSkillPath ? { globalSkillPath } : {}),
     projectConfigPath,
@@ -228,12 +279,24 @@ export async function uninstallPanerelay(
     homeDirectory: options.homeDirectory,
     platform: options.platform,
   });
+  const playwrightIntegration = await (
+    dependencies.uninstallPlaywright ?? uninstallPlaywrightIntegration
+  )({
+    environment: options.environment,
+    homeDirectory: options.homeDirectory,
+    platform: options.platform,
+  });
+  const playwrightSkillPath = await (
+    dependencies.uninstallPlaywrightSkill ?? uninstallPlaywrightSkill
+  )(options.homeDirectory);
   const browserUseSkillPath = await uninstallSelectedBrowserUseSkill(options.homeDirectory);
 
   if (!options.project) {
     return {
       agentBrowserConfigPath,
       browserUseIntegration,
+      playwrightIntegration,
+      playwrightSkillPath,
       browserUseSkillPath,
       globalSkillPath,
     };
@@ -247,6 +310,8 @@ export async function uninstallPanerelay(
   return {
     agentBrowserConfigPath,
     browserUseIntegration,
+    playwrightIntegration,
+    playwrightSkillPath,
     browserUseSkillPath,
     globalSkillPath,
     projectConfigPath,

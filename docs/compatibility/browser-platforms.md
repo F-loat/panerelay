@@ -3,6 +3,7 @@
 - Panerelay release: current development candidate
 - Extension target: shared Chromium Manifest V3
 - agent-browser baseline: 0.33.0
+- Playwright CLI baseline: 0.1.17
 - Last verified: 2026-07-31
 
 ## Status meanings
@@ -24,6 +25,7 @@ This record distinguishes deterministic installation and artifact coverage from 
 | Explicit site and tab authorization                         | Verified          | Forwarded      |
 | Browser-level CDP relay                                     | Verified          | Forwarded      |
 | agent-browser 0.33.0 Provider                               | Verified          | Forwarded      |
+| Playwright CLI 0.1.17 explicit CDP attach                   | Verified          | Forwarded      |
 | Independent registration and deterministic browser routing  | Verified          | Forwarded      |
 | Target lifecycle, control badge, and favicon                | Verified          | Forwarded      |
 | Immediate revocation and cleanup                            | Verified          | Forwarded      |

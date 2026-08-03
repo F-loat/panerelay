@@ -75,6 +75,19 @@ export const PACKAGE_DEFINITIONS = [
     ],
   },
   {
+    directory: 'packages/playwright',
+    name: '@panerelay/playwright',
+    requiredEntries: [
+      'package/LICENSE',
+      'package/README.md',
+      'package/dist/environment.d.ts',
+      'package/dist/environment.js',
+      'package/dist/index.d.ts',
+      'package/dist/index.js',
+      'package/package.json',
+    ],
+  },
+  {
     directory: 'packages/bridge',
     name: '@panerelay/bridge',
     requiredEntries: [
@@ -103,17 +116,21 @@ export const PACKAGE_DEFINITIONS = [
       'package/dist/index.d.ts',
       'package/dist/index.js',
       'package/dist/private/browser-use/panerelay-browser-use-adapter.mjs',
+      'package/dist/private/playwright/panerelay-playwright-adapter.mjs',
       'package/package.json',
       'package/skills/panerelay-browser/SKILL.md',
       'package/skills/panerelay-browser/agents/openai.yaml',
       'package/skills/panerelay-browser-use/SKILL.md',
       'package/skills/panerelay-browser-use/agents/openai.yaml',
+      'package/skills/panerelay-playwright/SKILL.md',
+      'package/skills/panerelay-playwright/agents/openai.yaml',
     ],
   },
 ];
 
 const OFFICIAL_EXTENSION_ID = 'panplnkjlkoceaonlmpdekjphgmbggmi';
 const AGENT_BROWSER_MINIMUM_VERSION = '0.33.0';
+const PLAYWRIGHT_CLI_MINIMUM_VERSION = '0.1.17';
 const CLAUDE_CODE_MINIMUM_VERSION = '2.1.206';
 const ACP_SDK_MINIMUM_VERSION = '1.2.1';
 const CLAUDE_AGENT_SDK_PACKAGE = '@anthropic-ai/claude-agent-sdk';
@@ -254,8 +271,9 @@ export function run(command, args, options = {}) {
     const child = spawn(invocation.command, invocation.args, {
       cwd: options.cwd,
       env: options.env,
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: [options.input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
     });
+    if (options.input !== undefined) child.stdin.end(options.input);
     let stdout = '';
     let stderr = '';
     child.stdout.setEncoding('utf8');
@@ -403,6 +421,34 @@ export function validateReleaseMetadata({
     invariant(
       compatibilityRecords?.includes(`agent-browser-${version}.md`),
       `Missing compatibility record for agent-browser ${version}`,
+    );
+  }
+  invariant(
+    descriptor.playwrightCliMinimumVersion === PLAYWRIGHT_CLI_MINIMUM_VERSION,
+    `The minimum Playwright CLI version must be ${PLAYWRIGHT_CLI_MINIMUM_VERSION}`,
+  );
+  invariant(
+    Array.isArray(descriptor.playwrightCliVerifiedVersions) &&
+      descriptor.playwrightCliVerifiedVersions.length > 0,
+    'Release config must list verified Playwright CLI versions',
+  );
+  const verifiedPlaywrightVersions = new Set(descriptor.playwrightCliVerifiedVersions);
+  invariant(
+    verifiedPlaywrightVersions.size === descriptor.playwrightCliVerifiedVersions.length,
+    'Verified Playwright CLI versions must be unique',
+  );
+  invariant(
+    verifiedPlaywrightVersions.has(descriptor.playwrightCliMinimumVersion),
+    'The minimum Playwright CLI version must have an explicit compatibility record',
+  );
+  for (const version of verifiedPlaywrightVersions) {
+    invariant(
+      compareVersions(version, descriptor.playwrightCliMinimumVersion) >= 0,
+      `Verified Playwright CLI ${version} is below the supported minimum`,
+    );
+    invariant(
+      compatibilityRecords?.includes(`playwright-cli-${version}.md`),
+      `Missing compatibility record for Playwright CLI ${version}`,
     );
   }
   invariant(
@@ -677,9 +723,11 @@ export async function smokePackedSetup(tarballs) {
     const commandSuffix = process.platform === 'win32' ? '.cmd' : '';
     const codexPath = join(binDirectory, `codex${commandSuffix}`);
     const agentBrowserPath = join(binDirectory, `agent-browser${commandSuffix}`);
+    const playwrightPath = join(binDirectory, `playwright-cli${commandSuffix}`);
     await Promise.all([
       writeStubExecutable(codexPath, 'codex-cli 1.0.0'),
       writeStubExecutable(agentBrowserPath, 'agent-browser 0.33.0'),
+      writeStubExecutable(playwrightPath, 'Playwright CLI 0.1.17'),
     ]);
     const environment = {
       ...process.env,
@@ -688,6 +736,7 @@ export async function smokePackedSetup(tarballs) {
       PATH: `${binDirectory}${delimiter}${process.env.PATH ?? ''}`,
       PANERELAY_CODEX_PATH: codexPath,
       PANERELAY_AGENT_BROWSER_PATH: agentBrowserPath,
+      PANERELAY_PLAYWRIGHT_EXECUTABLE: playwrightPath,
       npm_config_cache: join(smokeRoot, 'npm-cache'),
     };
     await run('npm', ['install', '--ignore-scripts', '--no-audit', '--no-fund'], {
@@ -719,12 +768,66 @@ export async function smokePackedSetup(tarballs) {
       cwd: consumerDirectory,
       env: environment,
     });
-    const setupArgs = ['--agent-browser', '--global-default', '--extension-id', extensionId];
+    await run(process.execPath, setupCliArguments(['--yes', '--extension-id', extensionId]), {
+      cwd: consumerDirectory,
+      env: environment,
+    });
+    const baseDoctor = await packedDoctor(
+      process.execPath,
+      setupCliArguments(['doctor', '--json']),
+      { cwd: consumerDirectory, env: environment },
+    );
+    invariant(baseDoctor.ok === true, 'Packed base setup doctor did not report readiness');
+
+    await run(process.execPath, setupCliArguments(['--playwright', '--yes']), {
+      cwd: consumerDirectory,
+      env: environment,
+    });
+    const installedSetupManifest = JSON.parse(
+      await readFile(join(consumerDirectory, 'node_modules/@panerelay/setup/package.json'), 'utf8'),
+    );
+    const playwrightAdapterVersion = installedSetupManifest.version;
+    const installedPlaywrightAdapter = join(
+      homeDirectory,
+      `.panerelay/adapters/playwright/${playwrightAdapterVersion}/dist/panerelay-playwright-adapter.mjs`,
+    );
+    const adapterManifest = await run(process.execPath, [installedPlaywrightAdapter], {
+      cwd: consumerDirectory,
+      env: environment,
+      input: JSON.stringify({
+        protocol: 'panerelay.cli-adapter.v1',
+        requestId: 'packed-playwright-adapter',
+        operation: 'adapter.manifest',
+        input: {},
+      }),
+    });
+    const adapterManifestResponse = JSON.parse(adapterManifest.stdout);
+    invariant(
+      adapterManifestResponse.success === true &&
+        adapterManifestResponse.result?.adapterId === 'playwright' &&
+        adapterManifestResponse.result?.version === playwrightAdapterVersion,
+      'Packed Playwright adapter did not return its registered manifest',
+    );
+    const playwrightDoctorArgs = ['doctor', '--playwright', '--json'];
+    const playwrightDoctor = await packedDoctor(
+      process.execPath,
+      setupCliArguments(playwrightDoctorArgs),
+      { cwd: consumerDirectory, env: environment },
+    );
+    invariant(playwrightDoctor.ok === true, 'Packed Playwright doctor did not report readiness');
+
+    const setupArgs = [
+      '--agent-browser',
+      '--playwright',
+      '--global-default',
+      '--extension-id',
+      extensionId,
+    ];
     await run(process.execPath, setupCliArguments(setupArgs), {
       cwd: consumerDirectory,
       env: environment,
     });
-    const doctorArgs = ['doctor', '--agent-browser', '--global-default', '--json'];
+    const doctorArgs = ['doctor', '--agent-browser', '--playwright', '--global-default', '--json'];
     const firstDoctor = await packedDoctor(process.execPath, setupCliArguments(doctorArgs), {
       cwd: consumerDirectory,
       env: environment,
@@ -739,7 +842,7 @@ export async function smokePackedSetup(tarballs) {
     );
     await run(
       process.execPath,
-      setupCliArguments(['update', '--agent-browser', '--global-default']),
+      setupCliArguments(['update', '--agent-browser', '--playwright', '--global-default']),
       {
         cwd: consumerDirectory,
         env: environment,
@@ -764,6 +867,10 @@ export async function smokePackedSetup(tarballs) {
     await Promise.all([
       assertMissing(join(homeDirectory, '.panerelay/bin/panerelay-native-host.cjs'), 'Native Host'),
       assertMissing(join(homeDirectory, '.agents/skills/panerelay-browser'), 'Global Agent Skill'),
+      assertMissing(
+        join(homeDirectory, '.agents/skills/panerelay-playwright'),
+        'Playwright Agent Skill',
+      ),
     ]);
   } finally {
     await rm(smokeRoot, { force: true, recursive: true });
@@ -796,9 +903,11 @@ async function validateStableDistributionSources(root) {
     'README.zh-CN.md',
     'docs/releasing.md',
     'docs/compatibility/agent-browser-0.33.0.md',
+    'docs/compatibility/playwright-cli-0.1.17.md',
     'docs/compatibility/claude-code.md',
     ...PACKAGE_DEFINITIONS.map(definition => `${definition.directory}/README.md`),
     'packages/setup/skills/panerelay-browser/SKILL.md',
+    'packages/setup/skills/panerelay-playwright/SKILL.md',
   ];
   for (const relativePath of distributionFiles) {
     const source = await readFile(join(root, relativePath), 'utf8');
@@ -880,6 +989,8 @@ export async function createReleaseCandidate({ outputDirectory, root, sourceDirt
     extensionId: metadata.descriptor.extensionId,
     agentBrowserMinimumVersion: metadata.descriptor.agentBrowserMinimumVersion,
     agentBrowserVerifiedVersions: metadata.descriptor.agentBrowserVerifiedVersions,
+    playwrightCliMinimumVersion: metadata.descriptor.playwrightCliMinimumVersion,
+    playwrightCliVerifiedVersions: metadata.descriptor.playwrightCliVerifiedVersions,
     claudeCodeMinimumVersion: metadata.descriptor.claudeCodeMinimumVersion,
     source: { commit, dirty },
     artifacts,

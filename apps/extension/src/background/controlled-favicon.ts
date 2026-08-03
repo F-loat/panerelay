@@ -32,10 +32,28 @@ export function createBrowserUseControlledFaviconDataUrl(): string {
 
 export const BROWSER_USE_CONTROLLED_FAVICON_DATA_URL = createBrowserUseControlledFaviconDataUrl();
 
+export function createPlaywrightControlledFaviconDataUrl(): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128" data-control-engine="playwright">
+  <g stroke="#142631" stroke-width="2.4" stroke-linejoin="round">
+    <path d="M20 45c8 3 19 4 31 0l21-9c-2 16-8 34-18 43-10 9-25 8-33-1-6-7-8-19-8-33Z" fill="#E85A51"/>
+    <path d="M31 58c8 3 15 2 22-1-2 8-7 12-14 12-4 0-7-4-8-11Z" fill="#142631" stroke="none"/>
+    <path d="M44 78c5-7 12-10 20-9-3 7-8 11-15 13Z" fill="#142631" stroke="none"/>
+    <path d="M57 14c10 10 23 18 38 22 10 3 20 4 29 2 1 19-4 42-17 55-13 14-35 14-49 3-12-10-18-27-17-45 1-17 6-30 16-37Z" fill="#2EAD33"/>
+    <path d="M63 43c8-2 14 1 19 8-7 0-13 1-19 5-1-5-1-9 0-13Z" fill="#142631" stroke="none"/>
+    <path d="M89 55c8-2 14 1 19 7-7 0-13 2-19 5-1-4-1-8 0-12Z" fill="#142631" stroke="none"/>
+    <path d="M67 72c11 5 22 8 34 9-5 10-15 14-25 11-7-2-11-8-9-20Z" fill="#142631"/>
+  </g>
+  ${CONTROL_BADGE}
+</svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+export const PLAYWRIGHT_CONTROLLED_FAVICON_DATA_URL = createPlaywrightControlledFaviconDataUrl();
+
 export function controlledFaviconDataUrl(engine: AutomationEngineId): string {
-  return engine === 'browser-use'
-    ? BROWSER_USE_CONTROLLED_FAVICON_DATA_URL
-    : AGENT_BROWSER_CONTROLLED_FAVICON_DATA_URL;
+  if (engine === 'browser-use') return BROWSER_USE_CONTROLLED_FAVICON_DATA_URL;
+  if (engine === 'playwright') return PLAYWRIGHT_CONTROLLED_FAVICON_DATA_URL;
+  return AGENT_BROWSER_CONTROLLED_FAVICON_DATA_URL;
 }
 
 interface ControlledFaviconState {

@@ -5,12 +5,16 @@ import { join } from 'node:path';
 import test from 'node:test';
 import {
   globalBrowserUseSkillPath,
+  globalPlaywrightSkillPath,
   installBrowserUseSkill,
   installPanerelaySkill,
+  installPlaywrightSkill,
   PANERELAY_BROWSER_USE_SKILL_NAME,
+  PANERELAY_PLAYWRIGHT_SKILL_NAME,
   PANERELAY_SKILL_NAME,
   uninstallBrowserUseSkill,
   uninstallPanerelaySkill,
+  uninstallPlaywrightSkill,
 } from './skill.js';
 
 test('installs and removes the bundled Skill in global and project scopes', async () => {
@@ -87,6 +91,37 @@ test('installs the additive Browser Use Skill with official commands', async () 
     await uninstallBrowserUseSkill(homeDirectory);
     await assert.rejects(readFile(join(target, 'SKILL.md')), { code: 'ENOENT' });
     assert.equal(await readFile(officialSkillPath, 'utf8'), 'official-browser-use-skill\n');
+  } finally {
+    await rm(root, { force: true, recursive: true });
+  }
+});
+
+test('installs the additive Playwright Skill without replacing the upstream CLI', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'panerelay-playwright-skill-'));
+  const homeDirectory = join(root, 'home with space');
+  try {
+    const target = await installPlaywrightSkill({
+      homeDirectory,
+      setupVersion: '0.4.0-beta.2',
+    });
+    const content = await readFile(join(target, 'SKILL.md'), 'utf8');
+    assert.equal(target, globalPlaywrightSkillPath(homeDirectory));
+    assert.equal(target.endsWith(PANERELAY_PLAYWRIGHT_SKILL_NAME), true);
+    assert.match(content, /name: panerelay-playwright/);
+    assert.match(
+      content,
+      /playwright-cli attach --cdp http:\/\/127\.0\.0\.1:43827\/cdp\/playwright/,
+    );
+    assert.match(content, /playwright-cli tab-list/);
+    assert.match(content, /playwright-cli tab-select 1/);
+    assert.match(content, /playwright-cli snapshot/);
+    assert.match(content, /PLAYWRIGHT_MCP_CDP_ENDPOINT/);
+    assert.match(content, /does not replace the CLI or configure it as the default/);
+    assert.match(content, /doctor --playwright/);
+    assert.doesNotMatch(content, /\{\{PANERELAY_SETUP_VERSION\}\}/);
+
+    await uninstallPlaywrightSkill(homeDirectory);
+    await assert.rejects(readFile(join(target, 'SKILL.md')), { code: 'ENOENT' });
   } finally {
     await rm(root, { force: true, recursive: true });
   }

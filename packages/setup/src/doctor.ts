@@ -29,6 +29,7 @@ import { readCliAdapterMode } from '@panerelay/cli/adapter-config';
 import { readJsonObject, userAgentBrowserConfigPath } from './config.js';
 import { globalSkillPath } from './skill.js';
 import { probeAgentBrowserInstallation } from './agent-browser-integration.js';
+import { PLAYWRIGHT_MINIMUM_VERSION, probePlaywrightInstallation } from '@panerelay/playwright';
 
 const SETUP_COMMAND = 'npx --yes @panerelay/setup';
 
@@ -51,6 +52,8 @@ export interface DoctorOptions {
   agentBrowser?: boolean;
   agentBrowserProbe?: typeof probeAgentBrowserInstallation;
   browserUse?: boolean;
+  playwright?: boolean;
+  playwrightProbe?: typeof probePlaywrightInstallation;
   browserUseProbe?: typeof probeBrowserUseVersions;
   browserUseGatewayProbe?: () => Promise<boolean>;
   environment?: NodeJS.ProcessEnv;
@@ -266,6 +269,27 @@ export async function doctorPanerelay(options: DoctorOptions = {}): Promise<Doct
       ...(gatewayReady
         ? {}
         : { hint: 'Open the Panerelay side panel and reconnect the Extension' }),
+    });
+  }
+  if (options.playwright) {
+    const installation = await (options.playwrightProbe ?? probePlaywrightInstallation)(
+      options.environment,
+      platform,
+    );
+    checks.push({
+      id: 'playwright',
+      label: 'Playwright CLI',
+      status: installation.supported ? 'pass' : 'fail',
+      detail: installation.executable
+        ? `${installation.executable}${installation.version ? ` (${installation.version})` : ''}`
+        : 'Not found',
+      ...(installation.supported
+        ? {}
+        : {
+            hint: installation.executable
+              ? `Upgrade Playwright CLI to ${PLAYWRIGHT_MINIMUM_VERSION} or newer, then run: ${SETUP_COMMAND} doctor --playwright`
+              : `Install Playwright CLI ${PLAYWRIGHT_MINIMUM_VERSION} or newer, then run: ${SETUP_COMMAND} --playwright`,
+          }),
     });
   }
   let runtimeConfig: Record<string, unknown> = {};

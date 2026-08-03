@@ -138,6 +138,32 @@ async function createBrowserUseClient(
   return client;
 }
 
+async function createPlaywrightClient(relay: BrowserRelay): Promise<WebSocket> {
+  const response = await fetch(`http://127.0.0.1:${relay.port}/cdp/bootstrap`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${relay.token}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      browser: { browserId: 'browser-1', generation: relay.generation },
+      actor: { kind: 'automation', name: 'Playwright CLI' },
+      engine: 'playwright',
+      laneKey: 'playwright:test',
+      connectionPolicy: 'single',
+    }),
+  });
+  assert.equal(response.status, 201);
+  const ticket = (await response.json()) as CdpBootstrapCreated;
+  const version = await fetch(`${ticket.cdpUrl}/json/version`);
+  assert.equal(version.status, 200);
+  const metadata = (await version.json()) as { webSocketDebuggerUrl: string };
+  const client = new WebSocket(metadata.webSocketDebuggerUrl);
+  await waitForOpen(client);
+  return client;
+}
+
 function target(
   targetId: string,
   url = `https://${targetId}.test/`,
@@ -447,6 +473,100 @@ test('resolves ticket-specific DevTools version metadata lazily and idempotently
   }
 });
 
+test('isolates Playwright discovery from Browser Use and accepts standard trailing-slash discovery', async () => {
+  const controlMessages: HostToExtensionMessage[] = [];
+  const relay = await BrowserRelay.listen({
+    onBrowserDisconnected: () => {},
+    onBrowserRegistered: () => {},
+    sendToExtension: message => {
+      controlMessages.push(message);
+      if (message.type === 'cdp.target.request' && message.operation.kind === 'list') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.target.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            targets: [],
+          });
+        });
+      }
+    },
+  });
+  const issue = async (
+    engine: 'browser-use' | 'playwright',
+    laneKey: string,
+  ): Promise<CdpBootstrapCreated> => {
+    const response = await fetch(`http://127.0.0.1:${relay.port}/cdp/bootstrap`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${relay.token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        protocol: PANERELAY_PROTOCOL_VERSION,
+        browser: { browserId: 'browser-1', generation: relay.generation },
+        actor: {
+          kind: 'automation',
+          name: engine === 'playwright' ? 'Playwright CLI' : 'Browser Use',
+        },
+        engine,
+        laneKey,
+        connectionPolicy: 'single',
+      }),
+    });
+    assert.equal(response.status, 201);
+    return (await response.json()) as CdpBootstrapCreated;
+  };
+  const clients: WebSocket[] = [];
+  try {
+    await register(relay);
+    const browserUseTicket = await issue('browser-use', 'browser-use:panerelay');
+    const browserUseVersion = await fetch(`${browserUseTicket.cdpUrl}/json/version`);
+    assert.equal(browserUseVersion.status, 200);
+    const browserUseMetadata = (await browserUseVersion.json()) as Record<string, unknown>;
+
+    const playwrightTicket = await issue('playwright', 'playwright:panerelay');
+    const playwrightVersion = await fetch(`${playwrightTicket.cdpUrl}/json/version/`);
+    assert.equal(playwrightVersion.status, 200);
+    assert.equal(playwrightVersion.headers.get('cache-control'), 'no-store');
+    const playwrightMetadata = (await playwrightVersion.json()) as Record<string, unknown>;
+    assert.deepEqual(Object.keys(playwrightMetadata).sort(), [
+      'Browser',
+      'Protocol-Version',
+      'User-Agent',
+      'V8-Version',
+      'WebKit-Version',
+      'webSocketDebuggerUrl',
+    ]);
+    const repeated = await fetch(`${playwrightTicket.cdpUrl}/json/version`);
+    assert.equal(repeated.status, 200);
+    assert.deepEqual(await repeated.json(), playwrightMetadata);
+
+    const browserUseClient = new WebSocket(String(browserUseMetadata.webSocketDebuggerUrl));
+    const playwrightClient = new WebSocket(String(playwrightMetadata.webSocketDebuggerUrl));
+    clients.push(browserUseClient, playwrightClient);
+    await Promise.all([waitForOpen(browserUseClient), waitForOpen(playwrightClient)]);
+    assert.equal((await command(browserUseClient, { id: 1, method: 'Browser.getVersion' })).id, 1);
+    assert.equal((await command(playwrightClient, { id: 1, method: 'Browser.getVersion' })).id, 1);
+    assert.ok(
+      controlMessages.some(
+        message =>
+          message.type === 'control.session.changed' && message.session.participantCount === 2,
+      ),
+    );
+
+    const competingPlaywright = await issue('playwright', 'playwright:panerelay');
+    const busy = await fetch(`${competingPlaywright.cdpUrl}/json/version/`);
+    assert.equal(busy.status, 409);
+    assert.equal(((await busy.json()) as { error: { code: string } }).error.code, 'lane-busy');
+    assert.equal((await command(browserUseClient, { id: 2, method: 'Browser.getVersion' })).id, 2);
+  } finally {
+    await Promise.all(clients.map(closeClient));
+    await relay.close();
+  }
+});
+
 test('consumes a bootstrap WebSocket credential once while keeping the connection usable', async () => {
   const relay = await BrowserRelay.listen({
     onBrowserDisconnected: () => {},
@@ -500,7 +620,7 @@ test('consumes a bootstrap WebSocket credential once while keeping the connectio
   }
 });
 
-test('invalidates bootstrap tickets and lanes on transport loss and Extension revocation', async () => {
+test('invalidates Playwright tickets and lanes on transport loss and Extension revocation', async () => {
   const relay = await BrowserRelay.listen({
     onBrowserDisconnected: () => {},
     onBrowserRegistered: () => {},
@@ -516,8 +636,8 @@ test('invalidates bootstrap tickets and lanes on transport loss and Extension re
       body: JSON.stringify({
         protocol: PANERELAY_PROTOCOL_VERSION,
         browser: { browserId: 'browser-1', generation: relay.generation },
-        actor: { kind: 'automation', name: 'Browser Use' },
-        engine: 'browser-use',
+        actor: { kind: 'automation', name: 'Playwright CLI' },
+        engine: 'playwright',
         laneKey,
         connectionPolicy: 'single',
       }),
@@ -537,12 +657,12 @@ test('invalidates bootstrap tickets and lanes on transport loss and Extension re
   let client: WebSocket | null = null;
   try {
     await register(relay);
-    const first = await issue('browser-use:default');
+    const first = await issue('playwright:panerelay');
     client = await connect(first);
     await closeClient(client);
     client = null;
 
-    const replacement = await issue('browser-use:default');
+    const replacement = await issue('playwright:panerelay');
     client = await connect(replacement);
     const revoked = waitForClose(client);
     await relay.handleExtensionMessage({
@@ -560,7 +680,7 @@ test('invalidates bootstrap tickets and lanes on transport loss and Extension re
       'ticket-invalid',
     );
 
-    const unused = await issue('browser-use:unused');
+    const unused = await issue('playwright:unused');
     await relay.handleExtensionMessage({
       type: 'cdp.detached',
       protocol: PANERELAY_PROTOCOL_VERSION,
@@ -839,6 +959,353 @@ test('implements the browser-level target handshake with lazy debugger attachmen
       method: 'Page.loadEventFired',
       params: { timestamp: 12.5 },
       sessionId: pageSessionId,
+    });
+  } finally {
+    await closeClient(client);
+    await relay.close();
+  }
+});
+
+test('physically attaches Playwright targets before publishing top-level sessions', async () => {
+  const extensionMessages: HostToExtensionMessage[] = [];
+  const fixtureTarget = target('playwright-target', 'https://playwright.test/', true);
+  const relay = await BrowserRelay.listen({
+    sendToExtension: message => {
+      extensionMessages.push(message);
+      if (message.type === 'cdp.target.request' && message.operation.kind === 'list') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.target.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            targets: [fixtureTarget],
+          });
+        });
+      } else if (message.type === 'cdp.attach') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.attached',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            target: { ...fixtureTarget, attached: true },
+          });
+        });
+      } else if (message.type === 'cdp.command') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            result:
+              message.method === 'Page.getFrameTree'
+                ? {
+                    frameTree: {
+                      frame: {
+                        id: 'chrome-main-frame',
+                        loaderId: 'loader-1',
+                        url: fixtureTarget.url,
+                        securityOrigin: 'https://playwright.test',
+                        mimeType: 'text/html',
+                      },
+                    },
+                  }
+                : {},
+          });
+        });
+      }
+    },
+    onBrowserRegistered: () => undefined,
+    onBrowserDisconnected: () => undefined,
+  });
+  await register(relay);
+  await relay.handleExtensionMessage({
+    type: 'cdp.event',
+    protocol: PANERELAY_PROTOCOL_VERSION,
+    targetId: fixtureTarget.targetId,
+    method: 'Runtime.executionContextCreated',
+    params: {
+      context: {
+        id: 7,
+        origin: 'https://playwright.test',
+        name: '',
+        auxData: {
+          frameId: 'chrome-main-frame',
+          isDefault: true,
+          type: 'default',
+        },
+      },
+    },
+  });
+
+  const client = await createPlaywrightClient(relay);
+  const messages: Record<string, unknown>[] = [];
+  client.on('message', data => {
+    messages.push(JSON.parse(data.toString()) as Record<string, unknown>);
+  });
+  try {
+    client.send(
+      JSON.stringify({
+        id: 1,
+        method: 'Target.setAutoAttach',
+        params: { autoAttach: true, waitForDebuggerOnStart: true, flatten: true },
+      }),
+    );
+    await waitForCondition(() => messages.length >= 2);
+
+    assert.equal(
+      extensionMessages.some(message => message.type === 'cdp.attach'),
+      true,
+    );
+    assert.equal(messages[0]?.method, 'Target.attachedToTarget');
+    assert.deepEqual(messages[1], { id: 1, result: {} });
+    assert.equal(
+      (messages[0]?.params as { targetInfo?: { targetId?: string } }).targetInfo?.targetId,
+      fixtureTarget.targetId,
+    );
+
+    const attachedParams = messages[0]?.params as { sessionId?: string };
+    assert.equal(typeof attachedParams.sessionId, 'string');
+    assert.deepEqual(
+      extensionMessages
+        .filter((message): message is CdpCommandMessage => message.type === 'cdp.command')
+        .slice(0, 2)
+        .map(message => message.method),
+      ['Target.setAutoAttach', 'Page.getFrameTree'],
+    );
+    const frameTree = await command(client, {
+      id: 2,
+      method: 'Page.getFrameTree',
+      sessionId: attachedParams.sessionId,
+    });
+    assert.equal(
+      (
+        frameTree.result as {
+          frameTree?: { frame?: { id?: string } };
+        }
+      ).frameTree?.frame?.id,
+      fixtureTarget.targetId,
+    );
+
+    const lifecycleEvent = waitForMessage(client);
+    await relay.handleExtensionMessage({
+      type: 'cdp.event',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      targetId: fixtureTarget.targetId,
+      method: 'Page.lifecycleEvent',
+      params: { frameId: 'chrome-main-frame', name: 'load', timestamp: 1 },
+    });
+    assert.equal(
+      ((await lifecycleEvent).params as { frameId?: string }).frameId,
+      fixtureTarget.targetId,
+    );
+
+    await command(client, {
+      id: 3,
+      method: 'Page.createIsolatedWorld',
+      sessionId: attachedParams.sessionId,
+      params: { frameId: fixtureTarget.targetId, worldName: 'playwright' },
+    });
+    const isolatedWorldCommand = extensionMessages.find(
+      (message): message is CdpCommandMessage =>
+        message.type === 'cdp.command' && message.method === 'Page.createIsolatedWorld',
+    );
+    assert.equal(isolatedWorldCommand?.params?.frameId, 'chrome-main-frame');
+
+    const runtimeMessageIndex = messages.length;
+    client.send(
+      JSON.stringify({
+        id: 4,
+        method: 'Runtime.enable',
+        sessionId: attachedParams.sessionId,
+      }),
+    );
+    await waitForCondition(() =>
+      messages.some(message => message.id === 4 && message.sessionId === attachedParams.sessionId),
+    );
+    const runtimeMessages = messages.slice(runtimeMessageIndex);
+    assert.equal(runtimeMessages[0]?.method, 'Runtime.executionContextCreated');
+    assert.equal(
+      (runtimeMessages[0]?.params as { context?: { auxData?: { frameId?: string } } }).context
+        ?.auxData?.frameId,
+      fixtureTarget.targetId,
+    );
+    assert.deepEqual(runtimeMessages.at(-1), {
+      id: 4,
+      result: {},
+      sessionId: attachedParams.sessionId,
+    });
+
+    assert.deepEqual(
+      await command(client, {
+        id: 5,
+        method: 'Target.detachFromTarget',
+        params: { sessionId: attachedParams.sessionId },
+      }),
+      { id: 5, result: {} },
+    );
+    await waitForCondition(() =>
+      extensionMessages.some(
+        message => message.type === 'cdp.detach' && message.targetId === fixtureTarget.targetId,
+      ),
+    );
+    assert.equal((await command(client, { id: 6, method: 'Browser.getVersion' })).id, 6);
+  } finally {
+    await closeClient(client);
+    await relay.close();
+  }
+});
+
+test('publishes a Playwright-created page before returning Target.createTarget', async () => {
+  const extensionMessages: HostToExtensionMessage[] = [];
+  const createdTarget = target('playwright-created', 'about:blank');
+  const relay = await BrowserRelay.listen({
+    sendToExtension: message => {
+      extensionMessages.push(message);
+      if (message.type === 'cdp.target.request' && message.operation.kind === 'list') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.target.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            targets: [],
+          });
+        });
+      } else if (message.type === 'cdp.target.request' && message.operation.kind === 'create') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.target.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            target: createdTarget,
+          });
+        });
+      } else if (message.type === 'cdp.attach') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.attached',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            target: { ...createdTarget, attached: true },
+          });
+        });
+      } else if (message.type === 'cdp.command') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            result:
+              message.method === 'Page.getFrameTree'
+                ? {
+                    frameTree: {
+                      frame: {
+                        id: 'created-main-frame',
+                        loaderId: 'loader-created',
+                        url: createdTarget.url,
+                        securityOrigin: '://',
+                        mimeType: 'text/html',
+                      },
+                    },
+                  }
+                : {},
+          });
+        });
+      }
+    },
+    onBrowserRegistered: () => undefined,
+    onBrowserDisconnected: () => undefined,
+  });
+  await register(relay);
+
+  const client = await createPlaywrightClient(relay);
+  const messages: Record<string, unknown>[] = [];
+  client.on('message', data => {
+    messages.push(JSON.parse(data.toString()) as Record<string, unknown>);
+  });
+  try {
+    client.send(
+      JSON.stringify({
+        id: 1,
+        method: 'Target.setAutoAttach',
+        params: { autoAttach: true, waitForDebuggerOnStart: true, flatten: true },
+      }),
+    );
+    await waitForCondition(() => messages.some(message => message.id === 1));
+    messages.length = 0;
+
+    client.send(
+      JSON.stringify({
+        id: 2,
+        method: 'Target.createTarget',
+        params: {
+          url: 'about:blank',
+          browserContextId: 'panerelay-default',
+          background: false,
+          focus: false,
+        },
+      }),
+    );
+    await waitForCondition(() => messages.some(message => message.id === 2));
+
+    assert.equal(messages[0]?.method, 'Target.attachedToTarget');
+    const attachedParams = messages[0]?.params as {
+      sessionId?: string;
+      targetInfo?: Record<string, unknown>;
+      waitingForDebugger?: boolean;
+    };
+    assert.equal(typeof attachedParams.sessionId, 'string');
+    assert.deepEqual(attachedParams.targetInfo, {
+      targetId: createdTarget.targetId,
+      type: 'page',
+      title: createdTarget.title,
+      url: createdTarget.url,
+      browserContextId: 'panerelay-default',
+      attached: true,
+    });
+    assert.equal(attachedParams.waitingForDebugger, false);
+    assert.deepEqual(messages[1], {
+      id: 2,
+      result: { targetId: createdTarget.targetId },
+    });
+    assert.deepEqual(
+      extensionMessages
+        .filter((message): message is CdpCommandMessage => message.type === 'cdp.command')
+        .map(message => message.method),
+      ['Target.setAutoAttach', 'Page.getFrameTree'],
+    );
+
+    const frameTree = await command(client, {
+      id: 3,
+      method: 'Page.getFrameTree',
+      sessionId: attachedParams.sessionId,
+    });
+    assert.equal(
+      (
+        frameTree.result as {
+          frameTree?: { frame?: { id?: string } };
+        }
+      ).frameTree?.frame?.id,
+      createdTarget.targetId,
+    );
+
+    const detached = waitForMessage(client);
+    await relay.handleExtensionMessage({
+      type: 'cdp.target.event',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      event: 'destroyed',
+      targetId: createdTarget.targetId,
+    });
+    assert.deepEqual(await detached, {
+      method: 'Target.detachedFromTarget',
+      params: {
+        sessionId: attachedParams.sessionId,
+        targetId: createdTarget.targetId,
+      },
     });
   } finally {
     await closeClient(client);
@@ -1849,6 +2316,66 @@ test('fails closed for top-level request pausing and browser contexts', async ()
   }
 });
 
+test('rejects Playwright browser ownership, isolated context, proxy, and close requests locally', async () => {
+  const extensionMessages: HostToExtensionMessage[] = [];
+  const relay = await BrowserRelay.listen({
+    sendToExtension: message => {
+      extensionMessages.push(message);
+      if (message.type === 'cdp.target.request' && message.operation.kind === 'list') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.target.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            targets: [],
+          });
+        });
+      }
+    },
+    onBrowserRegistered: () => undefined,
+    onBrowserDisconnected: () => undefined,
+  });
+  await register(relay);
+
+  const client = await createPlaywrightClient(relay);
+  try {
+    assert.deepEqual(
+      await command(client, {
+        id: 1,
+        method: 'Target.createBrowserContext',
+        params: { proxyServer: 'http://127.0.0.1:9999' },
+      }),
+      {
+        id: 1,
+        error: {
+          code: -32601,
+          message: 'Target.createBrowserContext is not supported by Panerelay',
+        },
+      },
+    );
+    assert.deepEqual(await command(client, { id: 2, method: 'Browser.close' }), {
+      id: 2,
+      error: {
+        code: -32000,
+        message:
+          'Browser.close requires browser-process ownership and is not supported by Panerelay',
+      },
+    });
+    assert.equal(
+      extensionMessages.some(
+        message =>
+          message.type === 'cdp.command' ||
+          (message.type === 'cdp.target.request' && message.operation.kind !== 'list'),
+      ),
+      false,
+    );
+  } finally {
+    await closeClient(client);
+    await relay.close();
+  }
+});
+
 test('keeps browser-process and cookie commands inside the authorized target boundary', async () => {
   const extensionMessages: HostToExtensionMessage[] = [];
   const fixtureTarget = target('target-1', 'http://127.0.0.1:41732/', true);
@@ -2177,13 +2704,26 @@ test('reuses target attachments and serializes commands across relay participant
           });
         });
       } else if (message.type === 'cdp.command') {
-        if (message.method === 'Target.setAutoAttach') {
+        if (message.method === 'Target.setAutoAttach' || message.method === 'Page.getFrameTree') {
           queueMicrotask(() => {
             void relay.handleExtensionMessage({
               type: 'cdp.result',
               protocol: PANERELAY_PROTOCOL_VERSION,
               requestId: message.requestId,
-              result: {},
+              result:
+                message.method === 'Page.getFrameTree'
+                  ? {
+                      frameTree: {
+                        frame: {
+                          id: 'shared-main-frame',
+                          loaderId: 'loader-shared',
+                          url: fixtureTarget.url,
+                          securityOrigin: 'https://shared.test',
+                          mimeType: 'text/html',
+                        },
+                      },
+                    }
+                  : {},
             });
           });
           return;
@@ -2198,12 +2738,9 @@ test('reuses target attachments and serializes commands across relay participant
   });
   await register(relay);
 
-  const firstSession = await createRelaySession(relay, 'first-participant');
-  const secondSession = await createRelaySession(relay, 'second-participant');
-  const firstClient = new WebSocket(firstSession.cdpUrl);
-  const secondClient = new WebSocket(secondSession.cdpUrl);
+  const firstClient = await createBrowserUseClient(relay);
+  const secondClient = await createPlaywrightClient(relay);
   try {
-    await Promise.all([waitForOpen(firstClient), waitForOpen(secondClient)]);
     await Promise.all([
       command(firstClient, { id: 1, method: 'Target.getTargets' }),
       command(secondClient, { id: 1, method: 'Target.getTargets' }),
@@ -2268,16 +2805,13 @@ test('reuses target attachments and serializes commands across relay participant
       result: { value: 'second' },
       sessionId: secondPageSession,
     });
+    assert.deepEqual(
+      forwardedCommands.map(message => message.engine),
+      ['browser-use', 'playwright'],
+    );
 
     assert.equal(extensionMessages.filter(message => message.type === 'cdp.attach').length, 1);
-    const firstRelease = await fetch(
-      `http://127.0.0.1:${relay.port}/sessions/${encodeURIComponent(firstSession.sessionId)}`,
-      {
-        method: 'DELETE',
-        headers: { authorization: `Bearer ${relay.token}` },
-      },
-    );
-    assert.equal(firstRelease.status, 204);
+    await closeClient(firstClient);
     assert.equal(
       extensionMessages.some(
         message => message.type === 'cdp.detach' && message.targetId === fixtureTarget.targetId,

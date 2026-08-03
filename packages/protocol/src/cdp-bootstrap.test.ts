@@ -19,10 +19,24 @@ const request = {
 
 test('validates bounded single-connection CDP bootstrap requests', () => {
   assert.equal(isCdpBootstrapRequest(request), true);
+  assert.equal(
+    isCdpBootstrapRequest({
+      ...request,
+      actor: { kind: 'automation', name: 'Playwright CLI', sessionLabel: 'panerelay' },
+      engine: 'playwright',
+      laneKey: 'playwright:panerelay',
+    }),
+    true,
+  );
   assert.equal(isCdpBootstrapRequest({ ...request, connectionPolicy: 'multiple' }), false);
   assert.equal(isCdpBootstrapRequest({ ...request, laneKey: '../lane' }), false);
+  assert.equal(
+    isCdpBootstrapRequest({ ...request, engine: 'playwright', laneKey: 'playwright/lane' }),
+    false,
+  );
   assert.equal(isCdpBootstrapRequest({ ...request, extra: true }), false);
   assert.equal(isCdpBootstrapRequest({ ...request, engine: 'Browser Use' }), false);
+  assert.equal(isCdpBootstrapRequest({ ...request, engine: 'playwright-cli' }), false);
   assert.equal(isCdpBootstrapRequest({ ...request, engine: 'agent-browser' }), true);
   assert.equal(
     isCdpBootstrapRequest({ ...request, actor: { ...request.actor, name: 'x'.repeat(65) } }),

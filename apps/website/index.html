@@ -779,17 +779,6 @@
                 >
                   <span>browser-use</span>
                 </button>
-                <button
-                  class="engine-rotation-toggle"
-                  type="button"
-                  aria-pressed="false"
-                  data-engine-rotation-toggle
-                  data-i18n-aria-label="workflow.engine.pause"
-                >
-                  <span data-engine-rotation-label data-i18n="workflow.engine.pause"
-                    >Pause rotation</span
-                  >
-                </button>
               </div>
             </div>
 
@@ -954,6 +943,72 @@ PY
                 </div>
               </section>
             </div>
+
+            <aside class="playwright-compat" aria-labelledby="playwright-compat-title">
+              <span class="playwright-compat-icon" aria-hidden="true">
+                <svg viewBox="0 0 128 128">
+                  <g stroke="#142631" stroke-width="2.4" stroke-linejoin="round">
+                    <path
+                      d="M20 45c8 3 19 4 31 0l21-9c-2 16-8 34-18 43-10 9-25 8-33-1-6-7-8-19-8-33Z"
+                      fill="#E85A51"
+                    />
+                    <path
+                      d="M31 58c8 3 15 2 22-1-2 8-7 12-14 12-4 0-7-4-8-11Z"
+                      fill="#142631"
+                      stroke="none"
+                    />
+                    <path d="M44 78c5-7 12-10 20-9-3 7-8 11-15 13Z" fill="#142631" stroke="none" />
+                    <path
+                      d="M57 14c10 10 23 18 38 22 10 3 20 4 29 2 1 19-4 42-17 55-13 14-35 14-49 3-12-10-18-27-17-45 1-17 6-30 16-37Z"
+                      fill="#2EAD33"
+                    />
+                    <path
+                      d="M63 43c8-2 14 1 19 8-7 0-13 1-19 5-1-5-1-9 0-13Z"
+                      fill="#142631"
+                      stroke="none"
+                    />
+                    <path
+                      d="M89 55c8-2 14 1 19 7-7 0-13 2-19 5-1-4-1-8 0-12Z"
+                      fill="#142631"
+                      stroke="none"
+                    />
+                    <path
+                      d="M67 72c11 5 22 8 34 9-5 10-15 14-25 11-7-2-11-8-9-20Z"
+                      fill="#142631"
+                    />
+                  </g>
+                  <circle
+                    cx="104"
+                    cy="104"
+                    r="21"
+                    fill="#16A34A"
+                    stroke="#FFFFFF"
+                    stroke-width="6"
+                  />
+                </svg>
+              </span>
+              <div class="playwright-compat-copy">
+                <span data-i18n="workflow.playwright.label">OPTIONAL PLAYWRIGHT CLI</span>
+                <strong id="playwright-compat-title" data-i18n="workflow.playwright.title"
+                  >Playwright CLI can connect too.</strong
+                >
+                <p data-i18n-html="workflow.playwright.body">
+                  Use the upstream CLI with an explicit Panerelay CDP endpoint for
+                  <code>attach</code>, <code>tab-list</code>, <code>tab-select</code>, snapshots,
+                  and page evaluation. Panerelay does not replace <code>playwright-cli</code> or set
+                  it as a default.
+                </p>
+              </div>
+              <a
+                class="text-link"
+                href="https://github.com/F-loat/panerelay/blob/main/docs/agent-setup.md#playwright-cli"
+                target="_blank"
+                rel="noreferrer"
+              >
+                <span data-i18n="workflow.playwright.link">Connection notes</span>
+                <span aria-hidden="true">↗</span>
+              </a>
+            </aside>
           </article>
 
           <article class="workflow workflow-panel" data-reveal>

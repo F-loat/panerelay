@@ -27,6 +27,7 @@ The Prepare Release job itself does not publish packages, create a tag or GitHub
 - [ ] Confirm the retained public manifest key derives official Extension ID `panplnkjlkoceaonlmpdekjphgmbggmi` and no private signing material exists in source or artifacts.
 - [ ] Confirm agent-browser 0.33.0 is the minimum and each version in the verified list has a version-specific compatibility record.
 - [ ] Confirm Browser Use 0.13.7 is the minimum supported version for the explicit Browser Use integration.
+- [ ] Confirm Playwright CLI 0.1.17 is the minimum and pinned verified baseline for the explicit Playwright integration.
 - [ ] Confirm Claude Code 2.1.206 is the minimum external CLI version and Panerelay does not package a Claude runtime.
 - [ ] Confirm the Bridge packages its ACP SDK runtime, excludes the Claude Agent SDK and Claude platform binaries, and keeps the bounded Claude/Qoder CLI compatibility probes current.
 - [ ] Run:
@@ -39,7 +40,7 @@ The Prepare Release job itself does not publish packages, create a tag or GitHub
   git diff --check
   ```
 
-- [ ] Confirm Windows Node.js 20 and 22 packed-consumer CI passes base setup, each explicit `--agent-browser` / `--browser-use` path, their combined path, doctor, update, and uninstall.
+- [ ] Confirm Windows Node.js 20 and 22 packed-consumer CI passes base setup, explicit `--agent-browser` and `--playwright` paths, their combined path, doctor, update, and uninstall. Retain the Browser Use 0.13.7 candidate evidence separately because its upstream runtime is not synthesized by the packed smoke test.
 
 ## Retained candidate inspection
 
@@ -51,8 +52,8 @@ release_version="$(node -p 'require("./release.config.json").version')"
 candidate_directory=".artifacts/panerelay-$release_version"
 ```
 
-- [ ] Confirm `$candidate_directory/inventory.json` records channel `stable`, the intended version and commit, `"dirty": false`, official Extension ID, minimum agent-browser and Claude Code versions, and the verified agent-browser version list.
-- [ ] Confirm the directory contains seven `@panerelay` npm tarballs, one shared Chrome/Edge Extension zip, `inventory.json`, and `SHA256SUMS`.
+- [ ] Confirm `$candidate_directory/inventory.json` records channel `stable`, the intended version and commit, `"dirty": false`, official Extension ID, minimum agent-browser, Playwright CLI, and Claude Code versions, and both verified automation-version lists.
+- [ ] Confirm the directory contains eight `@panerelay` npm tarballs, one shared Chrome/Edge Extension zip, `inventory.json`, and `SHA256SUMS`.
 - [ ] Verify checksums from inside the candidate directory:
 
   ```bash
@@ -61,13 +62,14 @@ candidate_directory=".artifacts/panerelay-$release_version"
 
 - [ ] Inspect every npm tarball for its intended public files, exact internal dependency pins matching the candidate version, the ACP dependency, no Claude Agent SDK or Claude platform runtime, and absence of tests, workspace ranges, credentials, logs, and signing keys.
 - [ ] Inspect the shared Chrome/Edge Extension archive for all manifest/HTML-referenced assets, versions, public key, and derived official ID; confirm it contains no Firefox manifest, Gecko identity, WebDriver transport, or browser launcher.
-- [ ] Install all seven packed tarballs in one disposable consumer and confirm browser administration plus setup → doctor → update → doctor → uninstall, including a persisted custom Extension ID. Exercise base setup, `--agent-browser`, `--browser-use`, and both flags together; diagnose each selected integration with the matching doctor flags.
+- [ ] Install all eight packed tarballs in one disposable consumer and confirm browser administration plus setup → doctor → update → doctor → uninstall, including a persisted custom Extension ID. Exercise base setup, `--agent-browser`, `--playwright`, and both flags together; diagnose each selected integration with the matching doctor flags. Validate Browser Use with its pinned upstream runtime acceptance evidence.
 
 ## Runtime acceptance
 
 - [ ] Extract and load the retained Extension archive in the daily Chrome profile.
-- [ ] Run `npx --yes @panerelay/setup doctor` and confirm the Native Host, exact Extension origin, actual registered Extension ID, and optional Agent side-panel status without engine checks. Then rerun it with `--agent-browser`, `--browser-use`, and both to confirm the selected version and registration checks.
+- [ ] Run `npx --yes @panerelay/setup doctor` and confirm the Native Host, exact Extension origin, actual registered Extension ID, and optional Agent side-panel status without engine checks. Then rerun it with `--agent-browser`, `--browser-use`, `--playwright`, and relevant combinations to confirm selected version and registration checks.
 - [ ] With agent-browser 0.33.0, authorize a local fixture tab, run one bounded Provider session, observe visible control, revoke it, and confirm debugger/session cleanup.
+- [ ] With Playwright CLI 0.1.17, explicitly attach to `/cdp/playwright`, exercise the compatibility record's command groups against authorized tabs, verify Browser Use coexistence, release/revocation cleanup, and unsupported browser-owned failures.
 - [ ] Load the same retained archive in a daily Edge profile, confirm Edge registration and side-panel identity, repeat the bounded fixture flow, and retain the result before changing Edge groups from `Forwarded` to `Verified`.
 - [ ] Run one bounded Codex browser-MCP turn, one external Claude Code CLI browser-MCP turn, and one Qoder ACP browser-MCP turn when each optional runtime is available. Exercise a permission decision, interruption, and browser authorization revocation without retaining prompts or page data.
 - [ ] On real Windows Chrome and Edge, repeat setup, registry discovery, Host launch, doctor, update, uninstall, and cleanup from paths containing spaces. Confirm only the exact Google Chrome and Microsoft Edge HKCU Panerelay Native Messaging keys and user-owned files change.
@@ -87,7 +89,7 @@ The manual [Release workflow](../.github/workflows/release.yml) publishes throug
 
 1. In GitHub repository settings, create an environment named `release`. Add required reviewers when a second human approval gate is desired; otherwise stable publication proceeds automatically after Prepare Release dispatches it.
 2. In GitHub repository Actions settings, allow `GITHUB_TOKEN` workflows to create pull requests so Prepare Release can open its version branch for checks and squash merge.
-3. In the npm settings for each of `@panerelay/protocol`, `@panerelay/browser-registry`, `@panerelay/cli`, `@panerelay/agent-browser`, `@panerelay/browser-use`, `@panerelay/bridge`, and `@panerelay/setup`, configure the same GitHub Actions trusted publisher:
+3. In the npm settings for each of `@panerelay/protocol`, `@panerelay/browser-registry`, `@panerelay/cli`, `@panerelay/agent-browser`, `@panerelay/browser-use`, `@panerelay/playwright`, `@panerelay/bridge`, and `@panerelay/setup`, configure the same GitHub Actions trusted publisher:
    - Organization or user: `F-loat`
    - Repository: `panerelay`
    - Workflow filename: `release.yml`
@@ -102,7 +104,7 @@ The workflow grants `id-token: write` only to the protected npm publication job.
 From GitHub Actions, open **Release**, choose **Run workflow**, select the source branch and `beta`, and enter that branch's full commit SHA as `source_sha`. Approve the `release` environment if it has an approval rule.
 
 - The workflow derives `<repository-version>-beta.<run-number>` without committing or pushing the temporary version.
-- npm receives the seven exact verified tarballs under the `beta` distribution tag.
+- npm receives the eight exact verified tarballs under the `beta` distribution tag.
 - The workflow run exposes `panerelay-extension-<version>`, containing the Extension zip, `inventory.json`, and `SHA256SUMS`.
 - No Git tag or GitHub Release is created.
 
@@ -112,7 +114,7 @@ Rerunning the same workflow reuses its beta package version and safely resumes o
 npx --yes @panerelay/setup@beta
 ```
 
-That command installs the Native Host and side-panel prerequisites only. Add `--agent-browser`, `--browser-use`, or both when validating the corresponding explicit adapter artifacts.
+That command installs the Native Host and side-panel prerequisites only. Add `--agent-browser`, `--browser-use`, and/or `--playwright` when validating the corresponding explicit adapter artifacts.
 
 Do not distribute or load a beta Extension archive until the exact `@panerelay/setup@<ExtensionVersion>` package referenced by that archive is visible from npm. The Extension's bounded install action invokes that exact lockstep version rather than a dist-tag.
 
@@ -123,7 +125,7 @@ Beta Extension archives are developer downloads, not Chrome Web Store updates. T
 Before running Prepare Release:
 
 - [ ] Complete the candidate and runtime acceptance sections above.
-- [ ] Confirm all seven npm packages have the trusted publisher configuration above.
+- [ ] Confirm all eight npm packages have the trusted publisher configuration above.
 
 After Prepare Release completes its merge, use these checks for verification or recovery:
 
@@ -154,6 +156,6 @@ Afterward:
 
 ## Retry and recovery
 
-npm publication is not transactional across seven packages. Before any new package is published, the workflow compares existing registry SHA-512 integrity with the candidate. A retry skips only an identical package and publishes the missing packages in dependency order; a different package with the same immutable version fails closed.
+npm publication is not transactional across eight packages. Before any new package is published, the workflow compares existing registry SHA-512 integrity with the candidate. A retry skips only an identical package and publishes the missing packages in dependency order; a different package with the same immutable version fails closed.
 
 If a beta fails, rerun it to produce a new beta version. If stable npm publication succeeds but GitHub Release creation fails before creating a tag or draft, rerun the same workflow: it accepts identical npm tarballs and retries the missing Release. If the failed attempt already created a tag or draft, finish that Release manually from the same commit and accepted assets. If public contents differ, prepare a new patch version rather than overwriting npm packages or reusing a tag.

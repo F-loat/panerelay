@@ -66,6 +66,7 @@
     "@panerelay/browser-use": "workspace:*",
     "@panerelay/cli": "workspace:*",
     "@panerelay/protocol": "workspace:*",
+    "@panerelay/playwright": "workspace:*",
     "ws": "^8.21.1"
   },
   "devDependencies": {}

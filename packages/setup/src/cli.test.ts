@@ -12,6 +12,7 @@ test('parses setup aliases and global default flags', () => {
   assert.deepEqual(parseSetupArgs([]), {
     agentBrowser: false,
     browserUse: false,
+    playwright: false,
     globalDefault: false,
     help: false,
     json: false,
@@ -24,6 +25,7 @@ test('parses setup aliases and global default flags', () => {
     {
       agentBrowser: true,
       browserUse: true,
+      playwright: false,
       globalDefault: true,
       help: false,
       json: false,
@@ -35,6 +37,7 @@ test('parses setup aliases and global default flags', () => {
   assert.deepEqual(parseSetupArgs(['doctor', '--agent-browser', '--global-default', '--json']), {
     agentBrowser: true,
     browserUse: false,
+    playwright: false,
     globalDefault: true,
     help: false,
     json: true,
@@ -58,10 +61,13 @@ test('parses setup aliases and global default flags', () => {
   assert.equal(parseSetupArgs(['setup', '--browser-use', '--global-default']).globalDefault, true);
   assert.equal(parseSetupArgs(['setup', '--agent-browser']).agentBrowser, true);
   assert.equal(parseSetupArgs(['doctor', '--browser-use']).browserUse, true);
+  assert.equal(parseSetupArgs(['doctor', '--playwright']).playwright, true);
+  assert.equal(parseSetupArgs(['setup', '--playwright']).globalDefault, false);
   assert.throws(
     () => parseSetupArgs(['uninstall', '--browser-use']),
     /--browser-use is not needed/,
   );
+  assert.throws(() => parseSetupArgs(['uninstall', '--playwright']), /--playwright is not needed/);
   assert.throws(
     () => parseSetupArgs(['uninstall', '--agent-browser']),
     /--agent-browser is not needed/,
@@ -195,6 +201,7 @@ test('offers interactive integration and default selections only for the unflagg
     assert.deepEqual(selections[1], {
       agentBrowser: false,
       browserUse: false,
+      playwright: false,
       environment: {},
       extensionId: undefined,
       globalDefault: false,
@@ -453,6 +460,52 @@ test('renders explicit commands only for selected integrations', async () => {
       defaults,
       /User default — \/tmp\/setup-home\/\.config\/browser-harness\/agent-workspace\/\.env/,
     );
+    output.length = 0;
+
+    assert.equal(
+      await main(['--playwright'], {
+        environment: { HOME: '/tmp/setup-home' },
+        setup: async () => ({
+          globalDefault: false,
+          host: (await setup()).host,
+          playwrightInstallation: {
+            executable: '/tmp/playwright-cli',
+            supported: true,
+            version: '0.1.17',
+          },
+          playwrightIntegration: {
+            paths: {
+              adapterArtifactPath: '/tmp/playwright-adapter.mjs',
+              adapterLauncherPath: '/tmp/panerelay-playwright-adapter',
+              adapterPackagePath: '/tmp/playwright-adapter/package.json',
+              adapterStorageDirectory: '/tmp/playwright-adapter',
+              configPath: '/tmp/panerelay/playwright/config.json',
+              dataDirectory: '/tmp/panerelay',
+            },
+            registration: {
+              adapterId: 'playwright',
+              version: '0.4.0',
+              executablePath: '/tmp/panerelay-playwright-adapter',
+              protocol: 'panerelay.cli-adapter.v1',
+              capabilities: ['connection.resolve', 'adapter.doctor'],
+              modes: ['direct', 'extension'],
+              childEnvironmentKeys: ['PLAYWRIGHT_MCP_CDP_ENDPOINT'],
+            },
+            registry: { protocol: 'panerelay.cli-adapter-registry.v1', adapters: [] },
+          },
+          playwrightSkillPath: '/tmp/setup-home/.agents/skills/panerelay-playwright',
+        }),
+        systemLocale: 'en',
+      }),
+      0,
+    );
+    const playwright = output.join('\n');
+    assert.match(playwright, /Playwright Agent Skill/);
+    assert.match(
+      playwright,
+      /playwright-cli attach --cdp http:\/\/127\.0\.0\.1:43827\/cdp\/playwright/,
+    );
+    assert.doesNotMatch(playwright, /User default/);
   } finally {
     console.log = originalLog;
   }

@@ -8,7 +8,7 @@ const fixtureRoot = resolve(fileURLToPath(new URL('.', import.meta.url)));
 const primaryPort = parsePort(process.env.PANERELAY_BROWSER_USE_FIXTURE_PORT, 41_741);
 const crossOriginPort = parsePort(process.env.PANERELAY_BROWSER_USE_CROSS_ORIGIN_PORT, 41_742);
 const crossSitePort = parsePort(process.env.PANERELAY_BROWSER_USE_CROSS_SITE_PORT, 41_743);
-const crossSiteHost = '127.0.0.2';
+const crossSiteHost = process.env.PANERELAY_BROWSER_USE_CROSS_SITE_HOST || '127.0.0.2';
 
 if (new Set([primaryPort, crossOriginPort, crossSitePort]).size !== 3) {
   throw new Error('Primary, cross-origin, and cross-site fixture ports must differ');

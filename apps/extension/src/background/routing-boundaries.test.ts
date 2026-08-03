@@ -56,7 +56,7 @@ test('keeps target-scoped automation failures out of the global error banner', a
   assert.doesNotMatch(attachHandler, /lastError\s*=/);
 });
 
-test('marks the current document with the routed engine without persisting across navigation', async () => {
+test('marks the current document asynchronously without blocking the routed CDP command', async () => {
   const source = await readFile(join(process.cwd(), 'src/background/index.ts'), 'utf8');
   const attachHandler = source.slice(
     source.indexOf('async function attachTarget'),
@@ -65,6 +65,10 @@ test('marks the current document with the routed engine without persisting acros
   const commandHandler = source.slice(
     source.indexOf('async function runCdpCommand'),
     source.indexOf('async function detachTarget'),
+  );
+  const detachHandler = source.slice(
+    source.indexOf('async function detachTarget'),
+    source.indexOf('async function releaseControl'),
   );
   const tabUpdatedHandler = source.slice(
     source.indexOf('chrome.tabs.onUpdated.addListener'),
@@ -75,11 +79,16 @@ test('marks the current document with the routed engine without persisting acros
     commandHandler.indexOf('cdpCommandTouchesDocument(message.method)') <
       commandHandler.indexOf('controlledTabs.set(message.targetId, current)') &&
       commandHandler.indexOf('controlledTabs.set(message.targetId, current)') <
-        commandHandler.indexOf('await applyControlledFavicon(current.id, message.engine)') &&
-      commandHandler.indexOf('await applyControlledFavicon(current.id, message.engine)') <
+        commandHandler.indexOf(
+          'renderTargetFavicon(message.targetId, current.id, message.engine)',
+        ) &&
+      commandHandler.indexOf('renderTargetFavicon(message.targetId, current.id, message.engine)') <
         commandHandler.indexOf('await chrome.debugger.sendCommand'),
   );
   assert.match(commandHandler, /if \(message\.engine\)/);
+  assert.doesNotMatch(commandHandler, /await renderTargetFavicon/);
+  assert.match(detachHandler, /void restoreTargetFavicon/);
+  assert.doesNotMatch(detachHandler, /await restoreTargetFavicon/);
   assert.match(attachHandler, /attachedTabs\.set\(targetId, summary\)/);
   assert.doesNotMatch(attachHandler, /controlledTabs\.set/);
   assert.doesNotMatch(attachHandler, /applyControlledFavicon/);
@@ -142,6 +151,15 @@ test('bounds target discovery to the initial inventory and controlled opener rel
   assert.match(lifecycle, /tab\.openerTabId/);
   assert.match(lifecycle, /onCreatedNavigationTarget/);
   assert.match(lifecycle, /targetPublicationQueue\s*\.enqueue/);
+  assert.match(
+    release,
+    /new Set\(\[\.\.\.attachedTabs\.keys\(\), \.\.\.controlledTabs\.keys\(\)\]\)/,
+  );
+  const detach = source.slice(
+    source.indexOf('async function detachTarget'),
+    source.indexOf('async function releaseControl'),
+  );
+  assert.match(detach, /attachedTabs\.get\(targetId\) \?\? controlledTabs\.get\(targetId\)/);
   assert.match(release, /targetExposure\.clear\(\)/);
 });
 

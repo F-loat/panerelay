@@ -5,6 +5,8 @@
   "extensionId": "panplnkjlkoceaonlmpdekjphgmbggmi",
   "agentBrowserMinimumVersion": "0.33.0",
   "agentBrowserVerifiedVersions": ["0.33.0"],
+  "playwrightCliMinimumVersion": "0.1.17",
+  "playwrightCliVerifiedVersions": ["0.1.17"],
   "claudeCodeMinimumVersion": "2.1.206",
   "packages": [
     "@panerelay/protocol",
@@ -12,6 +14,7 @@
     "@panerelay/cli",
     "@panerelay/agent-browser",
     "@panerelay/browser-use",
+    "@panerelay/playwright",
     "@panerelay/bridge",
     "@panerelay/setup"
   ]

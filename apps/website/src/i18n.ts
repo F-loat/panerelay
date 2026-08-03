@@ -153,7 +153,6 @@ const english = {
   'workflow.engine.explicit': 'Integration',
   'workflow.engine.explicitIntegration': 'Explicit integration',
   'workflow.engine.compatibility': 'Compatibility evidence',
-  'workflow.engine.pause': 'Pause rotation',
   'workflow.engine.resume': 'Resume rotation',
   'workflow.cli.title': 'Connect agent-browser<br>to your everyday tabs.',
   'workflow.cli.body':
@@ -180,6 +179,11 @@ const english = {
   'workflow.browserUse.comment1': '# Standard browser-use commands through Panerelay',
   'workflow.browserUse.output1': '→ Existing Chrome · authorized tabs',
   'workflow.browserUse.output2': '✓ Control visible · release stays available',
+  'workflow.playwright.label': 'OPTIONAL PLAYWRIGHT CLI',
+  'workflow.playwright.title': 'Playwright CLI can connect too.',
+  'workflow.playwright.body':
+    'Use the upstream CLI with an explicit Panerelay CDP endpoint for <code>attach</code>, <code>tab-list</code>, <code>tab-select</code>, snapshots, and page evaluation. Panerelay does not replace <code>playwright-cli</code> or set it as a default.',
+  'workflow.playwright.link': 'Connection notes',
   'workflow.panel.label': 'AGENT SIDE PANEL',
   'workflow.panel.title': 'Work with local Agents<br>beside the page.',
   'workflow.panel.body':
@@ -415,7 +419,6 @@ const simplifiedChinese: Record<TranslationKey, string> = {
   'workflow.engine.explicit': '集成',
   'workflow.engine.explicitIntegration': '显式集成',
   'workflow.engine.compatibility': '查看兼容性证据',
-  'workflow.engine.pause': '暂停轮播',
   'workflow.engine.resume': '恢复轮播',
   'workflow.cli.title': '把 agent-browser<br>接入日常标签页。',
   'workflow.cli.body':
@@ -441,6 +444,11 @@ const simplifiedChinese: Record<TranslationKey, string> = {
   'workflow.browserUse.comment1': '# 通过 Panerelay 运行标准 browser-use 命令',
   'workflow.browserUse.output1': '→ 现有 Chrome · 仅限已授权标签页',
   'workflow.browserUse.output2': '✓ 控制状态可见 · 随时可以释放',
+  'workflow.playwright.label': '可选 PLAYWRIGHT CLI 兼容接入',
+  'workflow.playwright.title': 'Playwright CLI 也可以接入。',
+  'workflow.playwright.body':
+    '使用上游 CLI 显式指定 Panerelay CDP 地址，即可运行 <code>attach</code>、<code>tab-list</code>、<code>tab-select</code>、snapshot 和页面求值。Panerelay 不会替换 <code>playwright-cli</code>，也不会把它设为默认连接。',
+  'workflow.playwright.link': '查看接入说明',
   'workflow.panel.label': 'AGENT 侧边栏',
   'workflow.panel.title': '在页面旁<br>和本地 Agent 协作。',
   'workflow.panel.body':

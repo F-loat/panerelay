@@ -17,13 +17,13 @@ Panerelay 提供两种接入方式：
 | 方向 | 适合场景 | 使用体验 |
 | --- | --- | --- |
 | **Agent 侧边栏** | 希望本地 Agent 就在当前页面旁工作 | 在侧边栏打开 Codex、Claude Code 或 Qoder，完成对话、审批、活动查看和项目关联会话 |
-| **自动化工具接入** | 希望其他应用或终端中的 Agent 操作浏览器 | 按需接入 [agent-browser](https://agent-browser.dev/) 或 [browser-use](https://docs.browser-use.com/open-source/browser-use-cli)，也可以同时接入两种工具；它们只能访问已授权标签页 |
+| **自动化工具接入** | 希望其他应用或终端中的 Agent 操作浏览器 | 按需接入 [agent-browser](https://agent-browser.dev/) 或 [browser-use](https://docs.browser-use.com/open-source/browser-use-cli)，也可以让 Playwright CLI 显式连接；它们只能访问已授权标签页 |
 
 ![Panerelay](https://github.com/user-attachments/assets/a54dfbaa-1c9f-45a3-b3ab-aa2e6ec4a5f6)
 
 ## 快速开始
 
-环境要求：macOS、Linux 或 Windows 上的 Chrome 或 Microsoft Edge，以及 Node.js 20 或更高版本。Panerelay 本身不依赖 agent-browser 或 browser-use；Browser Use 集成需要 browser-use 0.13.7+ 和 Browser Harness 0.1.8+。
+环境要求：macOS、Linux 或 Windows 上的 Chrome 或 Microsoft Edge，以及 Node.js 20 或更高版本。自动化工具均为可选集成；当前最低版本为 agent-browser 0.33.0+、browser-use 0.13.7+ 与 Browser Harness 0.1.8+，以及 Playwright CLI 0.1.17+。
 
 ### 1. 安装扩展
 
@@ -49,7 +49,13 @@ Panerelay 提供两种接入方式：
 请用 curl -fsSL 读取此指南，并执行 browser-use 场景：https://f-loat.github.io/panerelay/agent-setup.md
 ```
 
-官网发布的指南由仓库中版本受控的 [Agent 接入说明](docs/agent-setup.md)生成。`@panerelay/setup` 只安装 Panerelay 自有文件，不会自行安装或修改 agent-browser 和 browser-use。
+**Playwright CLI**
+
+```text
+请用 curl -fsSL 读取此指南，并执行 Playwright CLI 场景：https://f-loat.github.io/panerelay/agent-setup.md
+```
+
+官网发布的指南由仓库中版本受控的 [Agent 接入说明](docs/agent-setup.md)生成。`@panerelay/setup` 只安装 Panerelay 自有文件，不会自行安装或修改 agent-browser、browser-use 或 Playwright CLI。
 
 #### 自己安装 Panerelay
 
@@ -66,7 +72,7 @@ npx --yes @panerelay/setup
 ### 4. 开始使用
 
 - 使用 **Agent 侧边栏** 时，选择本机已安装并登录的 Codex、Claude Code 或 Qoder，可以按需选择项目目录，然后开始对话。
-- 使用 **agent-browser 或 browser-use** 时，照常运行相应工具；Panerelay 只负责提供经过授权的现有浏览器连接。
+- 使用 **agent-browser 或 browser-use** 时，照常运行相应工具；使用 **Playwright CLI** 时，显式连接 Panerelay 的 CDP 地址。
 
 agent-browser 最短的授权边界验证命令是：
 
@@ -117,6 +123,19 @@ panerelay connection use browser-use direct
 
 保存为 Extension 模式后可以省略命令前的 `BU_CDP_URL=`，Direct 模式会移除 Panerelay 管理的配置，而单次进程显式传入的环境变量优先级更高。
 
+Playwright CLI 是可选的显式接入。保留上游命令，直接指定 Panerelay CDP 地址即可：
+
+```bash
+npx --yes @panerelay/setup --playwright
+npx --yes @panerelay/setup doctor --playwright
+playwright-cli attach --cdp http://127.0.0.1:43827/cdp/playwright
+playwright-cli tab-list
+playwright-cli tab-select 1
+playwright-cli snapshot
+```
+
+Panerelay 不会安装 shim，也不会把 Playwright 设为默认连接。CLI 只能列出已授权标签页；需要多个具名会话时，继续使用 Playwright CLI 自身的 session 参数。
+
 ## 支持的工作流
 
 ### Agent 侧边栏
@@ -133,13 +152,18 @@ Panerelay 支持官方 browser-use CLI、附加 Skill 和 `browser-use --cli-mcp
 
 最低支持版本为 browser-use 0.13.7；精确验证基线为 browser-use 0.13.7 + Browser Harness 0.1.8。详见[接入说明](packages/browser-use/README.md)与[兼容性记录](docs/compatibility/browser-use-0.13.7.md)。
 
+### 接入 Playwright CLI
+
+Panerelay 为上游 Playwright CLI 0.1.17 或更高版本提供可选的显式 CDP 连接。`attach`、`tab-list`、`tab-select`、`snapshot` 和页面求值等现有标签页核心命令可在已授权 Chrome 标签页中运行。该连接不提供隔离 BrowserContext、启动参数、代理接管或关闭整个浏览器等 browser-process 能力。详见 [Agent 接入说明](docs/agent-setup.md#playwright-cli)。
+
 Microsoft Edge 能力组在完成有代表性的验收前仍归类为 `Forwarded`，详见[浏览器平台记录](docs/compatibility/browser-platforms.md)。
 
 ## 工作方式
 
 ```text
 外部 Agent ─┬─ agent-browser CLI / MCP ─┐
-            └─ browser-use CLI / MCP ───┤
+            ├─ browser-use CLI / MCP ───┤
+            └─ Playwright CLI / CDP ────┤
                                         ▼
                                  Panerelay Bridge
                                         ↕ Native Messaging

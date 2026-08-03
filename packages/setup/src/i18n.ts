@@ -21,6 +21,7 @@ const englishMessages = {
   browserUseDetachedDaemon:
     'Browser Use integration files were removed. A detached daemon and its current browser participant may remain until the user releases it or the Extension/Native Host disconnects; Panerelay did not kill processes by name.',
   browserUseSkill: 'Browser Use Agent Skill: {path}',
+  playwrightMissing: 'Warning: Playwright CLI was not found or is unsupported.',
   codexMissing: 'Warning: Codex CLI was not found.',
   doctorAttention: 'Panerelay needs attention.',
   doctorFailureCount: 'Failed checks: {count}',
@@ -58,6 +59,10 @@ const englishMessages = {
   setupBrowserUse: 'Browser Use',
   setupBrowserUseCommand: 'Browser Use command:',
   setupBrowserUseSkill: 'Browser Use Agent Skill',
+  setupPlaywright: 'Playwright CLI',
+  setupPlaywrightConfig: 'Playwright config:',
+  setupPlaywrightCommand: 'Playwright command:',
+  setupPlaywrightSkill: 'Playwright Agent Skill',
   setupCodex: 'Codex',
   setupExtensionId: 'Extension ID',
   setupFix: 'Fix',
@@ -74,8 +79,8 @@ const englishMessages = {
   help: `Panerelay Setup
 
 Usage:
-  npx --yes @panerelay/setup [--agent-browser] [--browser-use] [--global-default] [--extension-id <id>] [--lang <language>]
-  npx --yes @panerelay/setup doctor [--agent-browser] [--browser-use] [--global-default] [--extension-id <id>] [--json] [--lang <language>]
+  npx --yes @panerelay/setup [--agent-browser] [--browser-use] [--playwright] [--global-default] [--extension-id <id>] [--lang <language>]
+  npx --yes @panerelay/setup doctor [--agent-browser] [--browser-use] [--playwright] [--global-default] [--extension-id <id>] [--json] [--lang <language>]
   npx --yes @panerelay/setup uninstall [--yes] [--lang <language>]
 
 Commands:
@@ -86,6 +91,7 @@ Commands:
 Options:
   --agent-browser      Also install or diagnose the Panerelay agent-browser integration
   --browser-use        Also install or diagnose the Panerelay Browser Use integration
+  --playwright         Also install or diagnose the Panerelay Playwright CLI integration
   --global-default
               Set selected automation integrations as user-level defaults
   --extension-id
@@ -97,7 +103,8 @@ Options:
 
 Optional automation integrations:
   npx --yes @panerelay/setup --agent-browser
-  npx --yes @panerelay/setup --browser-use`,
+  npx --yes @panerelay/setup --browser-use
+  npx --yes @panerelay/setup --playwright`,
   nativeHost: 'Native Host: {path}',
   nonInteractiveUninstall: 'Non-interactive input detected. Re-run with --yes.',
   setupComplete: 'Panerelay setup complete.',
@@ -164,6 +171,11 @@ const chineseMessages: Record<MessageKey, string> = {
   setupBrowserUse: 'Browser Use',
   setupBrowserUseCommand: 'Browser Use 命令：',
   setupBrowserUseSkill: 'Browser Use Agent Skill',
+  playwrightMissing: '警告：未找到或不支持 Playwright CLI。',
+  setupPlaywrightConfig: 'Playwright 配置：',
+  setupPlaywrightCommand: 'Playwright 命令：',
+  setupPlaywrightSkill: 'Playwright Agent Skill',
+  setupPlaywright: 'Playwright CLI',
   setupCodex: 'Codex',
   setupExtensionId: '扩展 ID',
   setupFix: '处理',
@@ -180,8 +192,8 @@ const chineseMessages: Record<MessageKey, string> = {
   help: `Panerelay 安装工具
 
 用法：
-  npx --yes @panerelay/setup [--agent-browser] [--browser-use] [--global-default] [--extension-id <id>] [--lang <语言>]
-  npx --yes @panerelay/setup doctor [--agent-browser] [--browser-use] [--global-default] [--extension-id <id>] [--json] [--lang <语言>]
+  npx --yes @panerelay/setup [--agent-browser] [--browser-use] [--playwright] [--global-default] [--extension-id <id>] [--lang <语言>]
+  npx --yes @panerelay/setup doctor [--agent-browser] [--browser-use] [--playwright] [--global-default] [--extension-id <id>] [--json] [--lang <语言>]
   npx --yes @panerelay/setup uninstall [--yes] [--lang <语言>]
 
 命令：
@@ -192,6 +204,7 @@ const chineseMessages: Record<MessageKey, string> = {
 选项：
   --agent-browser      同时安装或诊断 Panerelay agent-browser 集成
   --browser-use        同时安装或诊断 Panerelay Browser Use 集成
+  --playwright         同时安装或诊断 Panerelay Playwright CLI 集成
   --global-default
               将选中的自动化集成设为用户级默认
   --extension-id
@@ -203,7 +216,8 @@ const chineseMessages: Record<MessageKey, string> = {
 
 可选自动化集成：
   npx --yes @panerelay/setup --agent-browser
-  npx --yes @panerelay/setup --browser-use`,
+  npx --yes @panerelay/setup --browser-use
+  npx --yes @panerelay/setup --playwright`,
   nativeHost: 'Native Host：{path}',
   nonInteractiveUninstall: '检测到非交互式输入，请添加 --yes 后重试。',
   setupComplete: 'Panerelay 安装完成。',

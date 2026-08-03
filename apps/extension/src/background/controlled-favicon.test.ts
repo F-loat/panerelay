@@ -5,6 +5,7 @@ import test from 'node:test';
 import {
   AGENT_BROWSER_CONTROLLED_FAVICON_DATA_URL,
   BROWSER_USE_CONTROLLED_FAVICON_DATA_URL,
+  PLAYWRIGHT_CONTROLLED_FAVICON_DATA_URL,
   applyControlledFavicon,
   controlledFaviconDataUrl,
   overrideControlledFavicon,
@@ -35,6 +36,7 @@ test('uses the Browser Use mark with the same green control dot', () => {
     AGENT_BROWSER_CONTROLLED_FAVICON_DATA_URL,
   );
   assert.equal(controlledFaviconDataUrl('browser-use'), BROWSER_USE_CONTROLLED_FAVICON_DATA_URL);
+  assert.equal(controlledFaviconDataUrl('playwright'), PLAYWRIGHT_CONTROLLED_FAVICON_DATA_URL);
 });
 
 test('uses the Mearl corner-radius ratio for the Panerelay icon', async () => {

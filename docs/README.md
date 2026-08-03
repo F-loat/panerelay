@@ -13,6 +13,7 @@ Start with the path that matches what you are trying to do. Product setup and us
 | Install only Panerelay for the browser side panel | [`@panerelay/setup` start guide](../packages/setup/README.md#start-here) |
 | Use agent-browser with authorized existing-browser tabs | [agent-browser integration guide](../packages/agent-browser/README.md) |
 | Use browser-use CLI, Skill, or CLI MCP with authorized Chrome tabs | [browser-use integration guide](../packages/browser-use/README.md) |
+| Explicitly attach Playwright CLI to authorized Chrome tabs | [Playwright CLI integration guide](../packages/playwright/README.md) |
 
 The published Agent guide is available at <https://f-loat.github.io/panerelay/agent-setup.md> so an Agent can fetch one stable, reviewable instruction file.
 
@@ -29,6 +30,7 @@ Compatibility records describe tested versions and capability classifications. A
 - [Browser platforms](compatibility/browser-platforms.md): Chrome and Microsoft Edge classifications.
 - [agent-browser 0.33.0](compatibility/agent-browser-0.33.0.md): Provider behavior and command coverage.
 - [browser-use 0.13.7](compatibility/browser-use-0.13.7.md): Browser Harness 0.1.8 baseline, supported surfaces, lifecycle, and limits.
+- [Playwright CLI 0.1.17](compatibility/playwright-cli-0.1.17.md): explicit CDP attach, command groups, lifecycle, and browser-owned limits.
 - [Claude Code](compatibility/claude-code.md): supported local Agent runtime boundary.
 
 ## Architecture and security decisions
