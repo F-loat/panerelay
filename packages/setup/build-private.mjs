@@ -20,3 +20,19 @@ await build({
   platform: 'node',
   target: 'node20',
 });
+
+const playwrightOutputDirectory = join(packageDirectory, 'dist', 'private', 'playwright');
+await rm(playwrightOutputDirectory, { force: true, recursive: true });
+await build({
+  absWorkingDir: packageDirectory,
+  bundle: true,
+  entryPoints: {
+    'panerelay-playwright-adapter': '../playwright/src/index.ts',
+  },
+  format: 'esm',
+  legalComments: 'none',
+  outdir: playwrightOutputDirectory,
+  outExtension: { '.js': '.mjs' },
+  platform: 'node',
+  target: 'node20',
+});

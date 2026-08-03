@@ -1,6 +1,6 @@
 # Panerelay setup instructions for Agents
 
-Use this guide when a user asks you to connect Panerelay to the Chrome or Microsoft Edge browser they already use. Follow the scenario named by the user. If no scenario is specified, ask them to choose Panerelay only, agent-browser, browser-use, or both before changing the environment.
+Use this guide when a user asks you to connect Panerelay to the Chrome or Microsoft Edge browser they already use. Follow the scenario named by the user. If no scenario is specified, ask them to choose Panerelay only, agent-browser, browser-use, Playwright CLI, or a combination before changing the environment.
 
 Respond in the user's language. Inspect first, make only the required changes, stop for user-controlled browser actions, and report evidence instead of assuming success.
 
@@ -10,13 +10,14 @@ Canonical URL: <https://f-loat.github.io/panerelay/agent-setup.md>
 
 Panerelay connects local Agents and supported automation tools to browser tabs the user explicitly authorizes. The browser profile, cookies, and signed-in state stay in the browser. Setup does not authorize a site or tab, and focus never grants authorization.
 
-The `@panerelay/setup` package installs Panerelay's Native Host and the selected Panerelay integration files. It does **not** install, update, downgrade, rewrite, or add `agent-browser` or `browser-use` to `PATH`.
+The `@panerelay/setup` package installs Panerelay's Native Host and the selected Panerelay integration files. It does **not** install, update, downgrade, rewrite, or add third-party tools to `PATH`, and it does not replace the upstream `playwright-cli` command.
 
 | Scenario | Upstream tool required | Panerelay result |
 | --- | --- | --- |
 | Panerelay only | None | Native Host and side-panel prerequisites |
 | agent-browser | agent-browser 0.33.0+ | Provider and additive Skill |
 | browser-use | browser-use 0.13.7+ with its complete CLI runtime | Adapter, managed Browser Harness environment, and additive Skill |
+| Playwright CLI | Playwright CLI 0.1.17+ | Explicit CDP adapter and connection config; no user-level default |
 | Both | Both supported tools | Both explicit integrations |
 
 ## Safety and scope
@@ -35,6 +36,7 @@ The `@panerelay/setup` package installs Panerelay's Native Host and the selected
 3. Check only the tools selected by the user:
    - `agent-browser --version`; Panerelay requires 0.33.0 or newer.
    - `browser-use --help` to confirm that the CLI is available. Panerelay setup and doctor probe the installed package and Browser Harness versions directly; they require browser-use 0.13.7 or newer with its complete CLI runtime. The exact verified baseline is browser-use 0.13.7 with Browser Harness 0.1.8.
+   - `playwright-cli --version`; Panerelay requires Playwright CLI 0.1.17 or newer when this optional integration is selected.
 4. Record whether each selected tool is missing, supported, or below the minimum.
 
 ## 2. Install or update selected upstream tools only when needed
@@ -76,6 +78,19 @@ npx --yes @panerelay/setup doctor --browser-use
 ```
 
 Preserve browser-use's CLI, CLI MCP, and helper semantics. Panerelay supplies only the explicitly authorized existing-Chrome connection.
+
+### Playwright CLI
+
+Run only after confirming a supported Playwright CLI installation:
+
+```sh
+npx --yes @panerelay/setup --playwright
+npx --yes @panerelay/setup doctor --playwright
+playwright-cli attach --cdp http://127.0.0.1:43827/cdp/playwright
+playwright-cli tab-list
+```
+
+The endpoint is intentionally explicit. Panerelay does not set Playwright as a default, edit shell startup files, or create a `playwright-cli` shim. A user may copy the endpoint into their own Playwright CLI config or set `PLAYWRIGHT_MCP_CDP_ENDPOINT`; the upstream CLI still requires an explicit `attach`/`open` session before `tab-list`.
 
 ### agent-browser and browser-use
 

@@ -5,6 +5,7 @@ import {
   PANERELAY_BROWSER_USE_GATEWAY_URL,
   browserUseEnvironmentPath,
 } from '@panerelay/browser-use';
+import { PANERELAY_PLAYWRIGHT_GATEWAY_URL } from '@panerelay/playwright';
 import { realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { stdin, stdout } from 'node:process';
@@ -22,6 +23,7 @@ export type SetupOperation = 'setup' | 'doctor' | 'uninstall';
 export interface ParsedSetupArgs {
   agentBrowser: boolean;
   browserUse: boolean;
+  playwright: boolean;
   extensionId?: string;
   globalDefault: boolean;
   help: boolean;
@@ -75,6 +77,7 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
     return {
       agentBrowser: false,
       browserUse: false,
+      playwright: false,
       globalDefault: false,
       help: true,
       json: false,
@@ -99,6 +102,7 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
   let globalDefault = false;
   let agentBrowser = false;
   let browserUse = false;
+  let playwright = false;
   let json = false;
   let yes = false;
   let extensionId: string | undefined;
@@ -107,6 +111,7 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
     if (argument === '--global-default') globalDefault = true;
     else if (argument === '--agent-browser') agentBrowser = true;
     else if (argument === '--browser-use') browserUse = true;
+    else if (argument === '--playwright') playwright = true;
     else if (argument === '--json') json = true;
     else if (argument === '--extension-id' || argument.startsWith('--extension-id=')) {
       if (extensionId !== undefined) throw new Error('EXTENSION_ID_REPEATED');
@@ -134,6 +139,9 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
   if (browserUse && operation === 'uninstall') {
     throw new Error('--browser-use is not needed with uninstall');
   }
+  if (playwright && operation === 'uninstall') {
+    throw new Error('--playwright is not needed with uninstall');
+  }
   if (extensionId && operation === 'uninstall') {
     throw new Error('--extension-id is not available with uninstall');
   }
@@ -143,6 +151,7 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
   return {
     agentBrowser,
     browserUse,
+    playwright,
     ...(extensionId ? { extensionId } : {}),
     globalDefault,
     help: false,
@@ -193,6 +202,7 @@ function browserUseCommand(globalDefault: boolean): string {
 const doctorLabels: Record<string, { en: string; 'zh-CN': string }> = {
   'agent-browser': { en: 'agent-browser', 'zh-CN': 'agent-browser' },
   'browser-use': { en: 'Browser Use', 'zh-CN': 'Browser Use' },
+  playwright: { en: 'Playwright CLI', 'zh-CN': 'Playwright CLI' },
   claude: { en: 'Claude Code (optional)', 'zh-CN': 'Claude Code（可选）' },
   codex: { en: 'Codex', 'zh-CN': 'Codex' },
   extension: { en: 'Extension', 'zh-CN': '扩展' },
@@ -227,7 +237,7 @@ const doctorLabels: Record<string, { en: string; 'zh-CN': string }> = {
 
 const doctorGroups = [
   {
-    ids: ['node', 'browser-use', 'agent-browser', 'codex', 'claude', 'qoder'],
+    ids: ['node', 'browser-use', 'playwright', 'agent-browser', 'codex', 'claude', 'qoder'],
     title: 'doctorGroupEnvironment',
   },
   {
@@ -286,6 +296,11 @@ function doctorHint(id: string, hint: string, locale: SupportedLocale): string {
     return hint.includes('doctor --browser-use')
       ? '请修复或升级到 Browser Use 0.13.7 或更高版本，然后重新运行：npx --yes @panerelay/setup doctor --browser-use'
       : '请安装 Browser Use 0.13.7 或更高版本，然后重新运行：npx --yes @panerelay/setup --browser-use';
+  }
+  if (id === 'playwright') {
+    return hint.includes('doctor --playwright')
+      ? '请修复或升级 Playwright CLI，然后重新运行：npx --yes @panerelay/setup doctor --playwright'
+      : '请安装 Playwright CLI，然后重新运行：npx --yes @panerelay/setup --playwright';
   }
   if (id === 'qoder') {
     return '请安装 Qoder CLI 或设置 PANERELAY_QODER_PATH，然后运行：npx --yes @panerelay/setup';
@@ -447,6 +462,9 @@ function localizeArgumentError(error: unknown, locale: SupportedLocale): string 
   if (message === '--browser-use is not needed with uninstall') {
     return translate(locale, 'errorBrowserUseUninstall');
   }
+  if (message === '--playwright is not needed with uninstall') {
+    return translate(locale, 'errorPlaywrightUninstall');
+  }
   if (message === '--extension-id is not available with uninstall') {
     return translate(locale, 'errorExtensionIdUninstall');
   }
@@ -481,6 +499,7 @@ export async function main(
       const report = await (dependencies.doctor ?? doctorPanerelay)({
         agentBrowser: parsed.agentBrowser,
         browserUse: parsed.browserUse,
+        playwright: parsed.playwright,
         environment: dependencies.environment,
         extensionId: parsed.extensionId,
         globalDefault: parsed.globalDefault,
@@ -511,6 +530,7 @@ export async function main(
     let setupOptions: PanerelaySetupOptions = {
       agentBrowser: parsed.agentBrowser,
       browserUse: parsed.browserUse,
+      playwright: parsed.playwright,
       environment: dependencies.environment,
       extensionId: parsed.extensionId,
       globalDefault: parsed.globalDefault,
@@ -522,6 +542,7 @@ export async function main(
       parsed.operation === 'setup' &&
       !parsed.agentBrowser &&
       !parsed.browserUse &&
+      !parsed.playwright &&
       !parsed.yes &&
       (dependencies.interactive ?? isInteractiveTerminal)()
     ) {
@@ -533,6 +554,7 @@ export async function main(
     }
     const selectedAgentBrowser = setupOptions.agentBrowser === true;
     const selectedBrowserUse = setupOptions.browserUse === true;
+    const selectedPlaywright = setupOptions.playwright === true;
     const selectedGlobalDefault = setupOptions.globalDefault === true;
     const result = await (dependencies.setup ?? setupPanerelay)(setupOptions);
     console.log(translate(locale, 'setupTitle'));
@@ -550,7 +572,7 @@ export async function main(
         : translate(locale, 'extensionCustomNextStep', { id: result.host.extensionId }),
     );
 
-    if (selectedAgentBrowser || selectedBrowserUse) {
+    if (selectedAgentBrowser || selectedBrowserUse || selectedPlaywright) {
       console.log('');
       console.log(translate(locale, 'setupGroupAutomation'));
     }
@@ -621,7 +643,36 @@ export async function main(
       }
     }
 
-    if (!selectedAgentBrowser && !selectedBrowserUse) {
+    if (selectedPlaywright) {
+      const playwrightReady = result.playwrightInstallation?.supported === true;
+      printSetupCheck(
+        playwrightReady ? 'pass' : 'fail',
+        translate(locale, 'setupPlaywright'),
+        result.playwrightInstallation?.executable
+          ? (result.playwrightInstallation.version ?? 'unknown')
+          : translate(locale, 'setupNotFound'),
+      );
+      if (result.playwrightIntegration) {
+        printSetupSubline(
+          translate(locale, 'setupPlaywrightConfig'),
+          result.playwrightIntegration.paths.configPath,
+        );
+        if (result.playwrightSkillPath) {
+          printSetupSubline(translate(locale, 'setupPlaywrightSkill'), result.playwrightSkillPath);
+        }
+        if (playwrightReady) {
+          printSetupCommand(
+            translate(locale, 'setupPlaywrightCommand'),
+            `playwright-cli attach --cdp ${PANERELAY_PLAYWRIGHT_GATEWAY_URL}`,
+          );
+        }
+      }
+      if (!playwrightReady) {
+        printSetupSubline(translate(locale, 'setupFix'), translate(locale, 'playwrightMissing'));
+      }
+    }
+
+    if (!selectedAgentBrowser && !selectedBrowserUse && !selectedPlaywright) {
       console.log('');
       console.log(`  ℹ️ ${translate(locale, 'automationChoices')}`);
     }
@@ -651,7 +702,8 @@ export async function main(
 
     const setupReady =
       (!selectedAgentBrowser || agentBrowserReady) &&
-      (!selectedBrowserUse || result.browserUseReady === true);
+      (!selectedBrowserUse || result.browserUseReady === true) &&
+      (!selectedPlaywright || result.playwrightInstallation?.supported === true);
     console.log('');
     console.log(
       `${setupReady ? '✅' : '❌'} ${translate(

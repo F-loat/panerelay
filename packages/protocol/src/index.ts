@@ -100,10 +100,10 @@ export interface CdpAttachedMessage {
   error?: string;
 }
 
-export type AutomationEngineId = 'agent-browser' | 'browser-use';
+export type AutomationEngineId = 'agent-browser' | 'browser-use' | 'playwright';
 
 export function isAutomationEngineId(value: unknown): value is AutomationEngineId {
-  return value === 'agent-browser' || value === 'browser-use';
+  return value === 'agent-browser' || value === 'browser-use' || value === 'playwright';
 }
 
 export interface CdpCommandMessage {

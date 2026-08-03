@@ -33,6 +33,8 @@ test('source contains the complete product and installation journey', async () =
     'This tab remains authorized.',
     'Connect agent-browser to your everyday tabs.',
     'Connect browser-use',
+    'Playwright CLI can connect too.',
+    'playwright-cli',
     'Work with local Agents',
     'Chrome Web Store',
     'agent-browser 0.33.0',
@@ -54,6 +56,11 @@ test('source contains the complete product and installation journey', async () =
   assert.match(html, /docs\/compatibility\/browser-use-0\.13\.7\.md/);
   assert.match(html, /browser-use CLI · Browser Harness/);
   assert.match(html, /browser-use CLI/);
+  assert.match(
+    html,
+    /Playwright CLI can connect too\.[\s\S]{0,1000}<code>attach<\/code>[\s\S]{0,1000}<code>playwright-cli<\/code>/,
+  );
+  assert.match(html, /docs\/agent-setup\.md#playwright-cli/);
   assert.match(
     html,
     /BU_CDP_URL=http:\/\/127\.0\.0\.1:43827\/cdp\/browser-use browser-use &lt;&lt;'PY'[\s\S]+print\(list_tabs\(\)\)/,
@@ -105,6 +112,7 @@ test('source preserves semantic and accessible interactions', async () => {
   assert.match(html, /role="tablist"/);
   assert.equal((html.match(/data-engine-tab=/g) ?? []).length, 2);
   assert.equal((html.match(/data-engine-panel=/g) ?? []).length, 2);
+  assert.equal((html.match(/data-engine-(?:tab|panel)="playwright"/g) ?? []).length, 0);
   assert.equal((html.match(/data-handoff-tab=/g) ?? []).length, 3);
   assert.equal((html.match(/data-handoff-panel=/g) ?? []).length, 3);
   assert.match(html, /class="setup-agent-step"/);
@@ -129,7 +137,7 @@ test('source preserves semantic and accessible interactions', async () => {
   assert.match(script, /getAttribute\('aria-expanded'\) !== 'true'/);
   assert.match(script, /ENGINE_ROTATION_INTERVAL_MS\s*=\s*6_000/);
   assert.match(script, /engineSelectionIsManual/);
-  assert.match(script, /engineRotationPaused/);
+  assert.doesNotMatch(script, /engineRotationPaused|data-engine-rotation-toggle/);
   assert.match(script, /pointerenter/);
   assert.match(script, /pointerleave/);
   assert.match(script, /focusin/);
@@ -168,6 +176,7 @@ test('source preserves semantic and accessible interactions', async () => {
   assert.match(styles, /\.language-switcher \+ \.button-small/);
   assert.match(styles, /\.engine-tabs/);
   assert.match(styles, /\.engine-panel/);
+  assert.match(styles, /\.playwright-compat/);
   assert.match(
     styles,
     /\.workflow \{[\s\S]+?--workflow-copy-track: 0\.88fr;[\s\S]+?--workflow-demo-track: 1\.12fr;[\s\S]+?grid-template-columns: var\(--workflow-copy-track\) var\(--workflow-demo-track\);/,
@@ -250,6 +259,7 @@ test('source provides complete English and Simplified Chinese language contracts
   assert.match(i18n, /获得访问，<br>不等于获得控制。<br><em>控制权始终可见。<\/em>/);
   assert.match(i18n, /把 agent-browser<br>接入日常标签页。/);
   assert.match(i18n, /把 browser-use<br>接入已登录的 Chrome。/);
+  assert.match(i18n, /Playwright CLI 也可以接入。/);
   assert.match(i18n, /AGENT 侧边栏 · 自动化工具接入/);
   assert.match(i18n, /在页面旁使用 Agent，<br><em>也能接入现有自动化工具。<\/em>/);
   assert.match(i18n, /browser-use 0\.13\.7 \+ Browser Harness 0\.1\.8/);

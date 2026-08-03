@@ -85,7 +85,6 @@ function applyLocale(locale: Locale): void {
   }
 
   setMenuOpen(navigation?.dataset.open === 'true');
-  updateEngineRotationToggle();
 }
 
 const navigation = document.querySelector<HTMLElement>('[data-navigation]');
@@ -144,9 +143,6 @@ const engineWorkflow = document.querySelector<HTMLElement>('[data-engine-workflo
 const engineSelectors = document.querySelectorAll<HTMLButtonElement>('[data-engine-select]');
 const engineTabs = document.querySelectorAll<HTMLButtonElement>('[data-engine-tab]');
 const enginePanels = document.querySelectorAll<HTMLElement>('[data-engine-panel]');
-const engineRotationToggle = document.querySelector<HTMLButtonElement>(
-  '[data-engine-rotation-toggle]',
-);
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const ENGINE_ROTATION_INTERVAL_MS = 6_000;
 let activeEngine: AutomationEngine = 'agent-browser';
@@ -154,7 +150,6 @@ let engineSelectionIsManual = false;
 let engineWorkflowHovered = false;
 let engineWorkflowFocused = false;
 let engineRotationTimer: number | undefined;
-let engineRotationPaused = false;
 
 function isAutomationEngine(value: string | undefined): value is AutomationEngine {
   return value === 'agent-browser' || value === 'browser-use';
@@ -174,7 +169,6 @@ function scheduleEngineRotation(): void {
     engineSelectionIsManual ||
     engineWorkflowHovered ||
     engineWorkflowFocused ||
-    engineRotationPaused ||
     reducedMotion.matches
   ) {
     return;
@@ -183,15 +177,6 @@ function scheduleEngineRotation(): void {
     setActiveEngine(activeEngine === 'agent-browser' ? 'browser-use' : 'agent-browser', false);
     scheduleEngineRotation();
   }, ENGINE_ROTATION_INTERVAL_MS);
-}
-
-function updateEngineRotationToggle(): void {
-  if (!engineRotationToggle) return;
-  engineRotationToggle.setAttribute('aria-pressed', String(engineRotationPaused));
-  const key = engineRotationPaused ? 'workflow.engine.resume' : 'workflow.engine.pause';
-  engineRotationToggle.setAttribute('aria-label', translation(key));
-  const label = engineRotationToggle.querySelector<HTMLElement>('[data-engine-rotation-label]');
-  if (label) label.textContent = translation(key);
 }
 
 function setActiveEngine(engine: AutomationEngine, manual: boolean): void {
@@ -239,13 +224,6 @@ for (const tab of engineTabs) {
     [...engineTabs].find(candidate => candidate.dataset.engineTab === engine)?.focus();
   });
 }
-
-engineRotationToggle?.addEventListener('click', () => {
-  engineRotationPaused = !engineRotationPaused;
-  updateEngineRotationToggle();
-  if (engineRotationPaused) clearEngineRotation();
-  else scheduleEngineRotation();
-});
 
 engineWorkflow?.addEventListener('pointerenter', () => {
   engineWorkflowHovered = true;

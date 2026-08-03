@@ -1,0 +1,52 @@
+{
+  "name": "@panerelay/playwright",
+  "version": "0.4.0",
+  "description": "Panerelay CDP connection adapter for Playwright CLI.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/F-loat/panerelay.git",
+    "directory": "packages/playwright"
+  },
+  "homepage": "https://github.com/F-loat/panerelay#readme",
+  "bugs": {
+    "url": "https://github.com/F-loat/panerelay/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./environment": {
+      "types": "./dist/environment.d.ts",
+      "import": "./dist/environment.js"
+    }
+  },
+  "bin": {
+    "panerelay-playwright-adapter": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.*",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm run build && node ../../scripts/run-compiled-tests.mjs dist"
+  },
+  "dependencies": {
+    "@panerelay/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43"
+  }
+}

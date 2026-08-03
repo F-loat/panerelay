@@ -127,6 +127,9 @@ importers:
       '@panerelay/cli':
         specifier: workspace:*
         version: link:../cli
+      '@panerelay/playwright':
+        specifier: workspace:*
+        version: link:../playwright
       '@panerelay/protocol':
         specifier: workspace:*
         version: link:../protocol
@@ -161,6 +164,16 @@ importers:
         specifier: workspace:*
         version: link:../protocol
 
+  packages/playwright:
+    dependencies:
+      '@panerelay/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+    devDependencies:
+      '@types/node':
+        specifier: ^20.19.43
+        version: 20.19.43
+
   packages/protocol: {}
 
   packages/setup:
@@ -177,6 +190,9 @@ importers:
       '@panerelay/cli':
         specifier: workspace:*
         version: link:../cli
+      '@panerelay/playwright':
+        specifier: workspace:*
+        version: link:../playwright
       '@panerelay/protocol':
         specifier: workspace:*
         version: link:../protocol

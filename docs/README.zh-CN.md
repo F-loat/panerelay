@@ -13,6 +13,7 @@
 | 只安装用于浏览器侧边栏的 Panerelay | [`@panerelay/setup` 入门说明](../packages/setup/README.md#start-here) |
 | 通过 agent-browser 使用现有浏览器中已授权的标签页 | [agent-browser 接入说明](../packages/agent-browser/README.md) |
 | 通过 browser-use CLI、Skill 或 CLI MCP 使用已授权的 Chrome 标签页 | [browser-use 接入说明](../packages/browser-use/README.md) |
+| 让 Playwright CLI 显式连接已授权的 Chrome 标签页 | [Playwright CLI 接入说明](../packages/playwright/README.md) |
 
 Agent 可以从 <https://f-loat.github.io/panerelay/agent-setup.md> 获取稳定、可审阅的公开接入指南。
 
@@ -29,6 +30,7 @@ Agent 可以从 <https://f-loat.github.io/panerelay/agent-setup.md> 获取稳定
 - [浏览器平台](compatibility/browser-platforms.md)：Chrome 与 Microsoft Edge 的能力分类。
 - [agent-browser 0.33.0](compatibility/agent-browser-0.33.0.md)：Provider 行为和命令覆盖范围。
 - [browser-use 0.13.7](compatibility/browser-use-0.13.7.md)：Browser Harness 0.1.8 基线、支持入口、生命周期和限制。
+- [Playwright CLI 0.1.17](compatibility/playwright-cli-0.1.17.md)：显式 CDP 连接、命令组、生命周期和浏览器所有权边界。
 - [Claude Code](compatibility/claude-code.md)：支持的本地 Agent Runtime 边界。
 
 ## 架构与安全决策

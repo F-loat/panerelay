@@ -1859,16 +1859,6 @@ button[data-copied='true']::after {
   color: var(--green-soft);
 }
 
-.engine-rotation-toggle {
-  min-width: auto !important;
-  color: var(--muted) !important;
-  font-size: 11px;
-}
-
-.engine-rotation-toggle:hover {
-  color: var(--ink) !important;
-}
-
 .engine-tabs small,
 .agent-handoff-picker small {
   color: var(--muted);
@@ -1895,6 +1885,73 @@ button[data-copied='true']::after {
 
 html:not(.js) .engine-panel[hidden] {
   display: grid;
+}
+
+.playwright-compat {
+  display: grid;
+  min-height: 124px;
+  align-items: center;
+  padding: 25px clamp(30px, 5vw, 68px);
+  border-top: 1px solid var(--line);
+  background: linear-gradient(90deg, rgb(32 230 143 / 5%), transparent 58%);
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 20px;
+}
+
+.playwright-compat-icon {
+  display: grid;
+  width: 54px;
+  height: 54px;
+  border: 1px solid var(--line-strong);
+  border-radius: 13px;
+  background: #101714;
+  place-items: center;
+}
+
+.playwright-compat-icon svg {
+  width: 44px;
+  height: 44px;
+}
+
+.playwright-compat-copy > span {
+  display: block;
+  margin-bottom: 5px;
+  color: var(--green);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+}
+
+.playwright-compat-copy strong {
+  font-size: 16px;
+}
+
+.playwright-compat-copy p {
+  max-width: 800px;
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.65;
+}
+
+.playwright-compat-copy code {
+  color: var(--warm);
+}
+
+.playwright-compat > .text-link {
+  white-space: nowrap;
+}
+
+@media (max-width: 700px) {
+  .playwright-compat {
+    align-items: start;
+    padding: 25px 23px;
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .playwright-compat > .text-link {
+    grid-column: 2;
+  }
 }
 
 .engine-status {
