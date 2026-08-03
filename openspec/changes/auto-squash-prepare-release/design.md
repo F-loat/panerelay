@@ -13,6 +13,7 @@ The generated branch is a same-repository branch created by the workflow. The ex
 - Merge only the exact commit pushed by the current workflow invocation, using squash semantics.
 - Dispatch stable publication only after the exact squash merge is reachable from the default branch, carrying that merge SHA through the handoff.
 - Make Release check out and target the carried merge SHA even if the default branch advances after dispatch.
+- Reject a manually supplied Release source SHA that is not part of the default branch history.
 - Let GitHub branch rules and merge conflicts reject the merge normally.
 
 **Non-Goals:**
@@ -37,7 +38,7 @@ The workflow deliberately waits for checks before invoking the merge rather than
 
 ### Dispatch the stable publication gate after the merge
 
-The squash merge only changes the lockstep version metadata on `main`. Prepare Release polls the GitHub compare API until the merge commit is reachable from the default branch, writes that SHA to a step output, and uses `workflow_dispatch` to start `Release` with `stable` and the required `source_sha` input. Release checks out that SHA, validates the checkout, and uses it as the GitHub Release target. It does not grant npm OIDC permission, enter the `release` environment, publish tarballs, create a tag, or create a GitHub Release itself; those remain inside the separate Release workflow.
+The squash merge only changes the lockstep version metadata on `main`. Prepare Release polls the GitHub compare API until the merge commit is reachable from the default branch, writes that SHA to a step output, and uses `workflow_dispatch` to start `Release` with `stable` and the required `source_sha` input. Release checks out that SHA, validates the checkout and its ancestry against `origin/$DEFAULT_BRANCH`, and uses it as the GitHub Release target. It does not grant npm OIDC permission, enter the `release` environment, publish tarballs, create a tag, or create a GitHub Release itself; those remain inside the separate Release workflow.
 
 ## Risks / Trade-offs
 
@@ -48,6 +49,7 @@ The squash merge only changes the lockstep version metadata on `main`. Prepare R
 - **GitHub repository settings do not allow the token to merge** → The merge step fails with no administrator fallback. The repository must retain `contents: write` and `pull-requests: write` for this feature.
 - **The merged commit is not visible before dispatch** → Poll the default branch for the exact merge commit and fail closed without dispatching Release if propagation times out.
 - **The default branch advances between merge discovery and publication** → Carry `merged_sha` as the required `source_sha` input, check out that SHA in Release, and use it as the GitHub Release target.
+- **A manual source SHA is outside the default branch history** → Validate `git merge-base --is-ancestor` before candidate preparation and fail before publication.
 - **Workflow dispatch is rejected or the source checkout is invalid** → Request `actions: write` for the Prepare workflow, fail before publication, and leave the already-merged version for deliberate manual recovery through Release with the same `source_sha`.
 
 ## Migration Plan

@@ -139,6 +139,14 @@ test('keeps release publication manual, protected, and channel-scoped', () => {
   assert.match(releaseWorkflow, /node scripts\/publish-release\.mjs/);
   assert.match(releaseWorkflow, /ref: \$\{\{ inputs\.source_sha \}\}/);
   assert.match(releaseWorkflow, /git rev-parse HEAD/);
+  assert.match(
+    releaseWorkflow,
+    /if \[\[ "\$checked_out_sha" != "\$SOURCE_SHA" \]\]; then[\s\S]+exit 1/,
+  );
+  assert.match(
+    releaseWorkflow,
+    /git merge-base --is-ancestor "\$checked_out_sha" "origin\/\$DEFAULT_BRANCH"/,
+  );
   assert.match(releaseWorkflow, /source_sha=\$checked_out_sha/);
   assert.match(releaseWorkflow, /if: needs\.prepare\.outputs\.channel == 'stable'/);
   assert.match(releaseWorkflow, /gh release create "\$RELEASE_TAG"/);

@@ -2,7 +2,7 @@
 
 ### Requirement: Stable version preparation is reviewable and dispatches publication
 
-Panerelay SHALL expose a manually triggered Prepare Release workflow that derives the next major, minor, or patch stable version from the currently released repository version, defaults to a minor increment, updates every lockstep package and Extension identity, validates the result, opens a pull request, waits for its reported checks, squash-merges that pull request into the default branch only after all validation passes, captures the exact squash-merge commit, confirms that commit is reachable from the default branch, and dispatches the Release workflow with channel `stable` and the required source SHA. Release SHALL check out and target that source SHA. Prepare Release SHALL NOT directly publish packages, create a tag or GitHub Release, submit to the Chrome Web Store, or bypass repository merge protections.
+Panerelay SHALL expose a manually triggered Prepare Release workflow that derives the next major, minor, or patch stable version from the currently released repository version, defaults to a minor increment, updates every lockstep package and Extension identity, validates the result, opens a pull request, waits for its reported checks, squash-merges that pull request into the default branch only after all validation passes, captures the exact squash-merge commit, confirms that commit is reachable from the default branch, and dispatches the Release workflow with channel `stable` and the required source SHA. Release SHALL check out that source SHA, verify it is reachable from the repository default branch, and target it for the GitHub Release. Prepare Release SHALL NOT directly publish packages, create a tag or GitHub Release, submit to the Chrome Web Store, or bypass repository merge protections.
 
 #### Scenario: Maintainer selects the release increment
 
@@ -57,7 +57,7 @@ Panerelay SHALL expose a manually triggered Prepare Release workflow that derive
 
 #### Scenario: Release source validation fails
 
-- **GIVEN** Release cannot check out the required `source_sha` or the checked-out commit differs from it
+- **GIVEN** Release cannot check out the required `source_sha`, the checked-out commit differs from it, or the source is not reachable from the default branch
 - **WHEN** Release begins candidate preparation
 - **THEN** Release fails before publishing packages or creating a GitHub Release
 

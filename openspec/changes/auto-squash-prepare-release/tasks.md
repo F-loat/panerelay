@@ -23,3 +23,6 @@
 - [x] 4.1 Preserve the squash-merge SHA through Prepare Release and validate the exact checked-out Release source and GitHub Release target.
 - [x] 4.2 Add manual recovery guidance for a post-merge propagation or dispatch failure.
 - [x] 4.3 Strengthen the workflow regression test so stable dispatch follows merge propagation confirmation.
+- [x] 4.4 Require the Release source SHA to be an ancestor of the default branch.
+- [x] 4.5 Assert the source-SHA mismatch failure path in the release workflow test.
+- [x] 4.6 Move post-merge stable-release checks out of the pre-run checklist.

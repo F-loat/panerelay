@@ -123,10 +123,13 @@ Beta Extension archives are developer downloads, not Chrome Web Store updates. T
 Before running Prepare Release:
 
 - [ ] Complete the candidate and runtime acceptance sections above.
-- [ ] Confirm Prepare Release squash-merged its version pull request into the default branch and CI is green.
+- [ ] Confirm all seven npm packages have the trusted publisher configuration above.
+
+After Prepare Release completes its merge, use these checks for verification or recovery:
+
+- [ ] Confirm the version pull request was squash-merged into the default branch and CI is green.
 - [ ] Confirm the repository version is the unused stable version to publish.
 - [ ] Confirm the matching remote tag and GitHub Release do not exist.
-- [ ] Confirm all seven npm packages have the trusted publisher configuration above.
 
 After the validated preparation merge, Prepare Release dispatches **Release** from the default branch with channel `stable` and the exact squash-merge `source_sha`. Approve the `release` environment only if it has an approval rule. The Release workflow:
 

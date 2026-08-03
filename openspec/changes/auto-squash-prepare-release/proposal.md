@@ -10,6 +10,7 @@
 - Pin the merge to the exact preparation commit and delete the temporary remote branch after a successful merge.
 - Wait until the squash merge is visible on the default branch, preserve its exact commit SHA, then dispatch `Release` with channel `stable` and that required source SHA.
 - Make `Release` check out and target the supplied source SHA so a later default-branch commit cannot change the release contents.
+- Require the Release source SHA to be an ancestor of the repository default branch, including for deliberate manual recovery.
 - Update release documentation and automated workflow assertions to describe the new merge behavior.
 
 Non-goals:
