@@ -1,6 +1,6 @@
 {
   "name": "@panerelay/playwright",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Panerelay CDP connection adapter for Playwright CLI.",
   "type": "module",
   "license": "MIT",
