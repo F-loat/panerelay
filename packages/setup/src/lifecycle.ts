@@ -178,17 +178,20 @@ export async function setupPanerelay(
         options.platform,
       )
     : undefined;
-  const playwrightIntegration = options.playwright
-    ? await installPlaywright({
-        environment: options.environment,
-        homeDirectory: options.homeDirectory,
-        nodePath: process.execPath,
-        platform: options.platform,
-        playwrightInstallation,
-      })
-    : undefined;
+  const playwrightReady =
+    playwrightInstallation?.supported === true && Boolean(playwrightInstallation.executable);
+  const playwrightIntegration =
+    options.playwright && playwrightReady
+      ? await installPlaywright({
+          environment: options.environment,
+          homeDirectory: options.homeDirectory,
+          nodePath: process.execPath,
+          platform: options.platform,
+          playwrightInstallation,
+        })
+      : undefined;
   const playwrightSkillPath =
-    playwrightIntegration && playwrightInstallation?.supported
+    playwrightIntegration && playwrightReady
       ? await installSelectedPlaywrightSkill({
           homeDirectory: options.homeDirectory,
           setupVersion: PANERELAY_PLAYWRIGHT_INTEGRATION_VERSION,

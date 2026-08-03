@@ -214,6 +214,41 @@ test('Playwright setup installs only Panerelay-owned adapter and additive Skill 
   assert.equal(result.playwrightSkillPath, '/home/.agents/skills/panerelay-playwright');
 });
 
+test('Playwright setup reports unavailable installations without writing integration artifacts', async () => {
+  for (const installation of [
+    { executable: '/bin/playwright-cli', supported: false, version: '0.1.16' },
+    { supported: true, version: '0.1.17' },
+  ]) {
+    const calls: string[] = [];
+    const result = await setupPanerelay(
+      { homeDirectory: '/home', playwright: true },
+      {
+        installHost: async () => {
+          calls.push('install-host');
+          return host;
+        },
+        probePlaywright: async () => {
+          calls.push('probe-playwright');
+          return installation;
+        },
+        installPlaywright: async () => {
+          calls.push('install-playwright');
+          throw new Error('Playwright integration must not be installed');
+        },
+        installPlaywrightSkill: async () => {
+          calls.push('install-playwright-skill');
+          throw new Error('Playwright Skill must not be installed');
+        },
+      },
+    );
+
+    assert.deepEqual(calls, ['install-host', 'probe-playwright']);
+    assert.deepEqual(result.playwrightInstallation, installation);
+    assert.equal(result.playwrightIntegration, undefined);
+    assert.equal(result.playwrightSkillPath, undefined);
+  }
+});
+
 test('rejects Provider scopes before installing the Native Host without agent-browser', async () => {
   for (const scope of [{ globalDefault: true }, { project: true }]) {
     let writes = 0;

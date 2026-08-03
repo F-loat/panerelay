@@ -5,6 +5,7 @@ import {
   PANERELAY_BROWSER_USE_GATEWAY_URL,
   browserUseEnvironmentPath,
 } from '@panerelay/browser-use';
+import { PANERELAY_PLAYWRIGHT_GATEWAY_URL } from '@panerelay/playwright';
 import { realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { stdin, stdout } from 'node:process';
@@ -462,7 +463,7 @@ function localizeArgumentError(error: unknown, locale: SupportedLocale): string 
     return translate(locale, 'errorBrowserUseUninstall');
   }
   if (message === '--playwright is not needed with uninstall') {
-    return '卸载时不需要指定 --playwright';
+    return translate(locale, 'errorPlaywrightUninstall');
   }
   if (message === '--extension-id is not available with uninstall') {
     return translate(locale, 'errorExtensionIdUninstall');
@@ -662,9 +663,12 @@ export async function main(
         if (playwrightReady) {
           printSetupCommand(
             translate(locale, 'setupPlaywrightCommand'),
-            'playwright-cli attach --cdp http://127.0.0.1:43827/cdp/playwright',
+            `playwright-cli attach --cdp ${PANERELAY_PLAYWRIGHT_GATEWAY_URL}`,
           );
         }
+      }
+      if (!playwrightReady) {
+        printSetupSubline(translate(locale, 'setupFix'), translate(locale, 'playwrightMissing'));
       }
     }
 

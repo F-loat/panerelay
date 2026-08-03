@@ -1056,7 +1056,12 @@ export class BrowserRelay {
         if (!result.success || !result.target)
           throw new Error(result.error || 'Tab creation failed');
         this.targets.set(result.target.targetId, result.target);
-        await this.emitPlaywrightPageAttachment(client, result.target);
+        try {
+          await this.emitPlaywrightPageAttachment(client, result.target);
+        } catch (error) {
+          await this.rollbackCreatedTarget(result.target.targetId);
+          throw error;
+        }
         this.sendResult(client, id, { targetId: result.target.targetId });
         return;
       }
@@ -1199,6 +1204,15 @@ export class BrowserRelay {
       operation,
     });
     return result;
+  }
+
+  private async rollbackCreatedTarget(targetId: string): Promise<void> {
+    try {
+      const result = await this.requestTarget({ kind: 'close', targetId });
+      if (result.success) this.removeTarget(targetId);
+    } catch {
+      // Preserve the attachment failure while making rollback best-effort.
+    }
   }
 
   private resolveTargetRequest(message: CdpTargetResultMessage): void {
@@ -2011,17 +2025,32 @@ export class BrowserRelay {
     if (!chromeFrameId) return payload;
     const from = direction === 'to-client' ? chromeFrameId : targetId;
     const to = direction === 'to-client' ? targetId : chromeFrameId;
-    return this.replaceCdpIdentifier(payload, from, to) as Record<string, unknown>;
+    return this.replaceCdpFrameIdentifiers(payload, from, to) as Record<string, unknown>;
   }
 
-  private replaceCdpIdentifier(value: unknown, from: string, to: string): unknown {
-    if (value === from) return to;
+  private replaceCdpFrameIdentifiers(value: unknown, from: string, to: string): unknown {
     if (Array.isArray(value)) {
-      return value.map(item => this.replaceCdpIdentifier(item, from, to));
+      return value.map(item => this.replaceCdpFrameIdentifiers(item, from, to));
     }
     if (!value || typeof value !== 'object') return value;
     return Object.fromEntries(
-      Object.entries(value).map(([key, item]) => [key, this.replaceCdpIdentifier(item, from, to)]),
+      Object.entries(value).map(([key, item]) => {
+        if ((key === 'frameId' || key === 'parentFrameId') && item === from) return [key, to];
+        if (key === 'frame' && item && typeof item === 'object' && !Array.isArray(item)) {
+          return [
+            key,
+            Object.fromEntries(
+              Object.entries(item).map(([frameKey, frameValue]) => [
+                frameKey,
+                (frameKey === 'id' || frameKey === 'parentId') && frameValue === from
+                  ? to
+                  : this.replaceCdpFrameIdentifiers(frameValue, from, to),
+              ]),
+            ),
+          ];
+        }
+        return [key, this.replaceCdpFrameIdentifiers(item, from, to)];
+      }),
     );
   }
 

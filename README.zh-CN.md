@@ -123,7 +123,7 @@ panerelay connection use browser-use direct
 
 保存为 Extension 模式后可以省略命令前的 `BU_CDP_URL=`，Direct 模式会移除 Panerelay 管理的配置，而单次进程显式传入的环境变量优先级更高。
 
-Playwright CLI 是可选的显式接入。保留上游命令，直接指定 Panerelay CDP 地址即可：
+Playwright CLI 是可选的显式接入。请先安装上游 Playwright CLI 0.1.17 或更高版本；Panerelay 只校验此前置条件，不会安装或替换它。然后保留上游命令，直接指定 Panerelay CDP 地址即可：
 
 ```bash
 npx --yes @panerelay/setup --playwright

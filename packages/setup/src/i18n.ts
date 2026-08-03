@@ -21,7 +21,8 @@ const englishMessages = {
   browserUseDetachedDaemon:
     'Browser Use integration files were removed. A detached daemon and its current browser participant may remain until the user releases it or the Extension/Native Host disconnects; Panerelay did not kill processes by name.',
   browserUseSkill: 'Browser Use Agent Skill: {path}',
-  playwrightMissing: 'Warning: Playwright CLI was not found or is unsupported.',
+  playwrightMissing:
+    'Warning: Playwright CLI 0.1.17 or newer was not found. Install or upgrade the upstream CLI, then run setup again with --playwright.',
   codexMissing: 'Warning: Codex CLI was not found.',
   doctorAttention: 'Panerelay needs attention.',
   doctorFailureCount: 'Failed checks: {count}',
@@ -37,6 +38,7 @@ const englishMessages = {
   doctorTitle: 'Panerelay doctor',
   doctorWarningCount: 'Warnings: {count}',
   errorBrowserUseUninstall: '--browser-use is not needed with uninstall',
+  errorPlaywrightUninstall: '--playwright is not needed with uninstall',
   errorGlobalDefaultSelection: '--global-default requires --agent-browser or --browser-use',
   errorAgentBrowserUninstall: '--agent-browser is not needed with uninstall',
   errorGlobalDefaultUninstall: '--global-default is not needed with uninstall',
@@ -149,6 +151,7 @@ const chineseMessages: Record<MessageKey, string> = {
   doctorTitle: 'Panerelay 诊断',
   doctorWarningCount: '警告项：{count}',
   errorBrowserUseUninstall: 'uninstall 无需使用 --browser-use',
+  errorPlaywrightUninstall: 'uninstall 无需使用 --playwright',
   errorGlobalDefaultSelection: '--global-default 必须同时使用 --agent-browser 或 --browser-use',
   errorAgentBrowserUninstall: 'uninstall 无需使用 --agent-browser',
   errorGlobalDefaultUninstall: 'uninstall 无需使用 --global-default',
@@ -171,7 +174,8 @@ const chineseMessages: Record<MessageKey, string> = {
   setupBrowserUse: 'Browser Use',
   setupBrowserUseCommand: 'Browser Use 命令：',
   setupBrowserUseSkill: 'Browser Use Agent Skill',
-  playwrightMissing: '警告：未找到或不支持 Playwright CLI。',
+  playwrightMissing:
+    '警告：未找到 Playwright CLI 0.1.17 或更高版本。请安装或升级上游 CLI 后，使用 --playwright 重新运行 setup。',
   setupPlaywrightConfig: 'Playwright 配置：',
   setupPlaywrightCommand: 'Playwright 命令：',
   setupPlaywrightSkill: 'Playwright Agent Skill',

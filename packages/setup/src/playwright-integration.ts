@@ -9,6 +9,7 @@ import {
   type CliAdapterRegistry,
 } from '@panerelay/cli';
 import {
+  PANERELAY_PLAYWRIGHT_GATEWAY_URL,
   playwrightAdapterManifest,
   PLAYWRIGHT_MINIMUM_VERSION,
   type PlaywrightInstallation,
@@ -154,7 +155,7 @@ export async function installPlaywrightIntegration(
   );
   await protectedFile(
     paths.configPath,
-    `${JSON.stringify({ adapterId: 'playwright', protocol: CONFIG_PROTOCOL, version: PANERELAY_PLAYWRIGHT_INTEGRATION_VERSION, executable: installation.executable, endpoint: 'http://127.0.0.1:43827/cdp/playwright' }, null, 2)}\n`,
+    `${JSON.stringify({ adapterId: 'playwright', protocol: CONFIG_PROTOCOL, version: PANERELAY_PLAYWRIGHT_INTEGRATION_VERSION, executable: installation.executable, endpoint: PANERELAY_PLAYWRIGHT_GATEWAY_URL }, null, 2)}\n`,
     0o600,
     platform,
   );

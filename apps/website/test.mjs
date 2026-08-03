@@ -56,7 +56,10 @@ test('source contains the complete product and installation journey', async () =
   assert.match(html, /docs\/compatibility\/browser-use-0\.13\.7\.md/);
   assert.match(html, /browser-use CLI · Browser Harness/);
   assert.match(html, /browser-use CLI/);
-  assert.match(html, /playwright-cli attach --cdp|<code>attach<\/code>/);
+  assert.match(
+    html,
+    /Playwright CLI can connect too\.[\s\S]{0,1000}<code>attach<\/code>[\s\S]{0,1000}<code>playwright-cli<\/code>/,
+  );
   assert.match(html, /docs\/agent-setup\.md#playwright-cli/);
   assert.match(
     html,

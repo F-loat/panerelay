@@ -34,18 +34,18 @@ export function parsePlaywrightGatewaySelection(
   const token = pathname.slice(prefix.length, -actualSuffix.length);
   if (!/^[A-Za-z0-9_-]+$/.test(token)) return null;
   try {
-    const value = JSON.parse(
-      Buffer.from(token, 'base64url').toString('utf8'),
-    ) as Partial<PlaywrightGatewaySelection>;
+    const value = JSON.parse(Buffer.from(token, 'base64url').toString('utf8')) as unknown;
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+    const selection = value as Partial<PlaywrightGatewaySelection>;
     if (
-      typeof value.browserId !== 'string' ||
-      value.browserId.length === 0 ||
-      value.browserId.length > 128 ||
-      typeof value.generation !== 'string' ||
-      !/^[A-Za-z0-9._:-]{1,128}$/.test(value.generation)
+      typeof selection.browserId !== 'string' ||
+      selection.browserId.length === 0 ||
+      selection.browserId.length > 128 ||
+      typeof selection.generation !== 'string' ||
+      !/^[A-Za-z0-9._:-]{1,128}$/.test(selection.generation)
     )
       return null;
-    return { browserId: value.browserId, generation: value.generation };
+    return { browserId: selection.browserId, generation: selection.generation };
   } catch {
     return null;
   }

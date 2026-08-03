@@ -1094,24 +1094,27 @@ test('physically attaches Playwright targets before publishing top-level session
       protocol: PANERELAY_PROTOCOL_VERSION,
       targetId: fixtureTarget.targetId,
       method: 'Page.lifecycleEvent',
-      params: { frameId: 'chrome-main-frame', name: 'load', timestamp: 1 },
+      params: { frameId: 'chrome-main-frame', name: 'chrome-main-frame', timestamp: 1 },
     });
-    assert.equal(
-      ((await lifecycleEvent).params as { frameId?: string }).frameId,
-      fixtureTarget.targetId,
-    );
+    const lifecycleParams = (await lifecycleEvent).params as {
+      frameId?: string;
+      name?: string;
+    };
+    assert.equal(lifecycleParams.frameId, fixtureTarget.targetId);
+    assert.equal(lifecycleParams.name, 'chrome-main-frame');
 
     await command(client, {
       id: 3,
       method: 'Page.createIsolatedWorld',
       sessionId: attachedParams.sessionId,
-      params: { frameId: fixtureTarget.targetId, worldName: 'playwright' },
+      params: { frameId: fixtureTarget.targetId, worldName: fixtureTarget.targetId },
     });
     const isolatedWorldCommand = extensionMessages.find(
       (message): message is CdpCommandMessage =>
         message.type === 'cdp.command' && message.method === 'Page.createIsolatedWorld',
     );
     assert.equal(isolatedWorldCommand?.params?.frameId, 'chrome-main-frame');
+    assert.equal(isolatedWorldCommand?.params?.worldName, fixtureTarget.targetId);
 
     const runtimeMessageIndex = messages.length;
     client.send(
@@ -1307,6 +1310,103 @@ test('publishes a Playwright-created page before returning Target.createTarget',
         targetId: createdTarget.targetId,
       },
     });
+  } finally {
+    await closeClient(client);
+    await relay.close();
+  }
+});
+
+test('rolls back a Playwright-created target when page attachment initialization fails', async () => {
+  const extensionMessages: HostToExtensionMessage[] = [];
+  const createdTarget = target('playwright-rollback', 'about:blank');
+  const relay = await BrowserRelay.listen({
+    sendToExtension: message => {
+      extensionMessages.push(message);
+      if (message.type === 'cdp.target.request' && message.operation.kind === 'list') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.target.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            targets: [],
+          });
+        });
+      } else if (message.type === 'cdp.target.request' && message.operation.kind === 'create') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.target.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            target: createdTarget,
+          });
+        });
+      } else if (message.type === 'cdp.target.request' && message.operation.kind === 'close') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.target.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+          });
+        });
+      } else if (message.type === 'cdp.attach') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.attached',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            target: { ...createdTarget, attached: true },
+          });
+        });
+      } else if (message.type === 'cdp.command') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            ...(message.method === 'Page.getFrameTree'
+              ? { error: { code: -32000, message: 'frame unavailable' } }
+              : { result: {} }),
+          });
+        });
+      }
+    },
+    onBrowserRegistered: () => undefined,
+    onBrowserDisconnected: () => undefined,
+  });
+  await register(relay);
+
+  const client = await createPlaywrightClient(relay);
+  try {
+    assert.deepEqual(
+      await command(client, {
+        id: 1,
+        method: 'Target.setAutoAttach',
+        params: { autoAttach: true, waitForDebuggerOnStart: true, flatten: true },
+      }),
+      { id: 1, result: {} },
+    );
+    assert.deepEqual(
+      await command(client, {
+        id: 2,
+        method: 'Target.createTarget',
+        params: { url: 'about:blank' },
+      }),
+      { id: 2, error: { code: -32000, message: 'frame unavailable' } },
+    );
+    assert.deepEqual(
+      extensionMessages
+        .filter(message => message.type === 'cdp.target.request')
+        .map(message => message.operation),
+      [
+        { kind: 'list' },
+        { kind: 'create', url: 'about:blank', active: false },
+        { kind: 'close', targetId: createdTarget.targetId },
+      ],
+    );
   } finally {
     await closeClient(client);
     await relay.close();

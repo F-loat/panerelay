@@ -25,6 +25,13 @@ test('encodes explicit Playwright gateway selections and accepts standard versio
     parsePlaywrightGatewaySelection('/cdp/playwright/browser/not-valid!/json/version'),
     null,
   );
+  for (const invalidSelection of [null, [], 'browser']) {
+    const token = Buffer.from(JSON.stringify(invalidSelection), 'utf8').toString('base64url');
+    assert.equal(
+      parsePlaywrightGatewaySelection(`/cdp/playwright/browser/${token}/json/version`),
+      null,
+    );
+  }
 });
 
 test('launches Windows Playwright command wrappers through the exact command interpreter', () => {

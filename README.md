@@ -123,7 +123,7 @@ panerelay connection use browser-use direct
 
 After saving Extension mode, the explicit `BU_CDP_URL=` prefix can be omitted. Direct mode removes Panerelay-managed keys, while an explicitly supplied process environment always takes precedence.
 
-For the optional Playwright CLI integration, keep the upstream command and attach explicitly:
+For the optional Playwright CLI integration, install the upstream Playwright CLI 0.1.17 or newer first. Panerelay validates that prerequisite but does not install or replace it. Then keep the upstream command and attach explicitly:
 
 ```bash
 npx --yes @panerelay/setup --playwright
