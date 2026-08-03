@@ -41,6 +41,7 @@
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
+    "@clack/prompts": "1.2.0",
     "@panerelay/bridge": "workspace:*",
     "@panerelay/browser-registry": "workspace:*",
     "@panerelay/browser-use": "workspace:*",

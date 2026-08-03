@@ -51,7 +51,7 @@ Base setup installs the Native Host required by the side panel:
 npx --yes @panerelay/setup
 ```
 
-In an interactive terminal it asks once for a comma-separated selection of agent-browser, Browser Use, and Playwright CLI, then asks at most once whether the selected agent-browser/Browser Use integrations should become user defaults. Playwright always remains explicit.
+In an interactive terminal it presents one keyboard multiselect for agent-browser, Browser Use, and Playwright CLI, then asks at most once whether the selected agent-browser/Browser Use integrations should become user defaults. Playwright always remains explicit.
 
 For automation or a specific repair, use flags directly:
 

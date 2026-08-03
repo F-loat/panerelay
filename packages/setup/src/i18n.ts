@@ -7,16 +7,16 @@ const englishMessages = {
   agentBrowserUnsupported:
     'Warning: agent-browser {version} is unsupported. Panerelay requires 0.33.0 or newer.',
   agentCommand: 'Agent command:',
-  automationChoices:
-    'Optional automation integrations: run setup in a terminal without flags to choose them interactively, or use --agent-browser, --browser-use, and/or --playwright.',
   browserUseIntegration: 'Browser Use integration: {path}',
   browserUseMissing:
     'Warning: a complete Browser Use 0.13.7 or newer installation was not found. Install, repair, or upgrade Browser Use, then run setup again with --browser-use.',
   browserUseReady: 'Browser Use: {browserUse}',
   browserUseDetachedDaemon:
     'Browser Use integration files were removed. A detached daemon and its current browser participant may remain until the user releases it or the Extension/Native Host disconnects; Panerelay did not kill processes by name.',
+  confirmNo: 'No',
+  confirmYes: 'Yes',
   defaultIntegrationsPrompt:
-    'Make Panerelay the user default for the selected agent-browser and Browser Use integrations? [y/N] ',
+    'Make Panerelay the user default for the selected agent-browser and Browser Use integrations?',
   playwrightMissing:
     'Warning: Playwright CLI 0.1.17 or newer was not found. Install or upgrade the upstream CLI, then run setup again with --playwright.',
   codexMissing: 'Warning: Codex CLI was not found.',
@@ -42,8 +42,6 @@ const englishMessages = {
   errorExtensionIdRepeated: '--extension-id can only be provided once',
   errorExtensionIdUninstall: '--extension-id is not available with uninstall',
   errorJsonDoctorOnly: '--json is only available with doctor',
-  errorIntegrationSelection:
-    'Choose unique values separated by commas: 1 (agent-browser), 2 (Browser Use), 3 (Playwright CLI), or press Enter for none.',
   errorLanguageMissing: '--lang requires a language',
   errorLanguageRepeated: '--lang can only be provided once',
   errorLanguageUnsupported: 'Unsupported language: {language}. Use en or zh-CN.',
@@ -73,11 +71,10 @@ const englishMessages = {
   setupUserDefault: 'User default',
   setupNativeHost: 'Native Host',
   setupTitle: 'Panerelay setup',
-  integrationSelectPrompt: `Select optional automation integrations (comma-separated; Enter for none):
-  1. agent-browser
-  2. Browser Use
-  3. Playwright CLI
-Selection: `,
+  integrationAgentBrowserHint: 'Panerelay Provider',
+  integrationBrowserUseHint: 'Browser Harness connection',
+  integrationPlaywrightHint: 'Explicit CDP connection',
+  integrationSelectPrompt: 'Select optional automation integrations',
   help: `Panerelay Setup
 
 Usage:
@@ -110,9 +107,10 @@ Optional automation integrations:
   nativeHost: 'Native Host: {path}',
   nonInteractiveUninstall: 'Non-interactive input detected. Re-run with --yes.',
   setupComplete: 'Panerelay setup complete.',
+  setupCancelled: 'Setup cancelled.',
   uninstallCancelled: 'Uninstall cancelled.',
   uninstallComplete: 'Panerelay local integration removed.',
-  uninstallPrompt: 'Uninstall Panerelay local integration? [y/N] ',
+  uninstallPrompt: 'Uninstall Panerelay local integration?',
 } as const;
 
 type MessageKey = keyof typeof englishMessages;
@@ -122,16 +120,16 @@ const chineseMessages: Record<MessageKey, string> = {
   agentBrowserUnsupported:
     '警告：agent-browser {version} 不受支持。Panerelay 需要 0.33.0 或更高版本。',
   agentCommand: 'Agent 命令：',
-  automationChoices:
-    '可选自动化集成：在终端中不带参数运行 setup 可交互选择，也可使用 --agent-browser、--browser-use 和/或 --playwright。',
   browserUseIntegration: 'Browser Use 集成：{path}',
   browserUseMissing:
     '警告：未找到完整的 Browser Use 0.13.7 或更高版本。请安装、修复或升级 Browser Use 后，使用 --browser-use 重新运行 setup。',
   browserUseReady: 'Browser Use：{browserUse}',
   browserUseDetachedDaemon:
     '已移除 Browser Use 集成文件。分离的 daemon 及其当前浏览器 participant 可能持续到用户主动释放，或 Extension/Native Host 断开；Panerelay 未按进程名终止进程。',
+  confirmNo: '否',
+  confirmYes: '是',
   defaultIntegrationsPrompt:
-    '将 Panerelay 设为所选 agent-browser 和 Browser Use 集成的用户级默认吗？[y/N] ',
+    '将 Panerelay 设为所选 agent-browser 和 Browser Use 集成的用户级默认吗？',
   codexMissing: '警告：未找到 Codex CLI。',
   doctorAttention: 'Panerelay 需要处理以下问题。',
   doctorFailureCount: '失败项：{count}',
@@ -155,8 +153,6 @@ const chineseMessages: Record<MessageKey, string> = {
   errorExtensionIdRepeated: '--extension-id 只能指定一次',
   errorExtensionIdUninstall: 'uninstall 不支持 --extension-id',
   errorJsonDoctorOnly: '--json 只能与 doctor 一起使用',
-  errorIntegrationSelection:
-    '请用逗号分隔且不要重复：1（agent-browser）、2（Browser Use）、3（Playwright CLI），或直接回车表示不选择。',
   errorLanguageMissing: '--lang 后需要指定语言',
   errorLanguageRepeated: '--lang 只能指定一次',
   errorLanguageUnsupported: '不支持的语言：{language}。请使用 en 或 zh-CN。',
@@ -188,11 +184,10 @@ const chineseMessages: Record<MessageKey, string> = {
   setupUserDefault: '用户级默认值',
   setupNativeHost: 'Native Host',
   setupTitle: 'Panerelay 安装',
-  integrationSelectPrompt: `请选择可选自动化集成（逗号分隔；直接回车表示不选择）：
-  1. agent-browser
-  2. Browser Use
-  3. Playwright CLI
-选择：`,
+  integrationAgentBrowserHint: 'Panerelay Provider',
+  integrationBrowserUseHint: 'Browser Harness 连接',
+  integrationPlaywrightHint: '显式 CDP 连接',
+  integrationSelectPrompt: '请选择可选自动化集成',
   help: `Panerelay 安装工具
 
 用法：
@@ -225,9 +220,10 @@ const chineseMessages: Record<MessageKey, string> = {
   nativeHost: 'Native Host：{path}',
   nonInteractiveUninstall: '检测到非交互式输入，请添加 --yes 后重试。',
   setupComplete: 'Panerelay 安装完成。',
+  setupCancelled: '已取消安装。',
   uninstallCancelled: '已取消卸载。',
   uninstallComplete: '已移除 Panerelay 本地集成。',
-  uninstallPrompt: '确定卸载 Panerelay 本地集成吗？[y/N] ',
+  uninstallPrompt: '确定卸载 Panerelay 本地集成吗？',
 };
 
 export interface LocaleResolutionOptions {

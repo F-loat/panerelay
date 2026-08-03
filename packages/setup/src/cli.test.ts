@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { PANERELAY_EXTENSION_ID } from '@panerelay/protocol';
-import { main, parseIntegrationSelection, parseSetupArgs } from './cli.js';
+import { main, parseSetupArgs } from './cli.js';
 import type { BrowserUseIntegrationInstallation } from './browser-use-integration.js';
 import type { DoctorReport } from './doctor.js';
 
@@ -175,12 +175,23 @@ test('offers interactive integration and default selections only for the unflagg
     const code = await main([], {
       environment: {},
       interactive: () => true,
-      prompt: async message => {
-        prompts.push(message);
-        return '1,2,3';
+      selectIntegrations: async prompt => {
+        prompts.push(prompt.message);
+        assert.deepEqual(
+          prompt.options.map(option => option.value),
+          ['agentBrowser', 'browserUse', 'playwright'],
+        );
+        assert.deepEqual(
+          prompt.options.map(option => option.label),
+          ['agent-browser', 'Browser Use', 'Playwright CLI'],
+        );
+        return ['agentBrowser', 'browserUse', 'playwright'];
       },
-      confirmDefault: async message => {
-        confirmations.push(message);
+      confirmDefault: async prompt => {
+        confirmations.push(prompt.message);
+        assert.equal(prompt.active, 'Yes');
+        assert.equal(prompt.inactive, 'No');
+        assert.equal(prompt.initialValue, false);
         return true;
       },
       setup: async options => {
@@ -221,7 +232,7 @@ test('offers interactive integration and default selections only for the unflagg
     await main(['--yes'], {
       environment: {},
       interactive: () => true,
-      prompt: async () => {
+      selectIntegrations: async () => {
         throw new Error('prompt should not run');
       },
       setup: async options => {
@@ -249,28 +260,12 @@ test('offers interactive integration and default selections only for the unflagg
       globalDefault: false,
     });
     assert.equal(prompts.length, 1);
-    assert.match(prompts[0]!, /comma-separated/);
-    assert.match(prompts[0]!, /3\. Playwright CLI/);
+    assert.equal(prompts[0], 'Select optional automation integrations');
     assert.equal(confirmations.length, 1);
     assert.match(confirmations[0]!, /user default/);
   } finally {
     console.log = originalLog;
   }
-});
-
-test('parses one bounded multiselect response and rejects invalid or duplicate entries', () => {
-  assert.deepEqual(parseIntegrationSelection('1, browser-use, playwright-cli'), {
-    agentBrowser: true,
-    browserUse: true,
-    playwright: true,
-  });
-  assert.deepEqual(parseIntegrationSelection(''), {
-    agentBrowser: false,
-    browserUse: false,
-    playwright: false,
-  });
-  assert.equal(parseIntegrationSelection('1,1'), undefined);
-  assert.equal(parseIntegrationSelection('4'), undefined);
 });
 
 test('does not ask for a default when only Playwright is selected interactively', async () => {
@@ -281,7 +276,7 @@ test('does not ask for a default when only Playwright is selected interactively'
     const code = await main([], {
       environment: {},
       interactive: () => true,
-      prompt: async () => '3',
+      selectIntegrations: async () => ['playwright'],
       confirmDefault: async () => {
         throw new Error('Playwright cannot become the user default');
       },
@@ -310,6 +305,83 @@ test('does not ask for a default when only Playwright is selected interactively'
   assert.equal(received?.browserUse, false);
   assert.equal(received?.playwright, true);
   assert.equal(received?.globalDefault, false);
+});
+
+test('allows an empty interactive selection without printing redundant integration guidance', async () => {
+  const output: string[] = [];
+  let received: Record<string, unknown> | undefined;
+  const originalLog = console.log;
+  console.log = (...values: unknown[]) => output.push(values.join(' '));
+  try {
+    const code = await main([], {
+      environment: {},
+      interactive: () => true,
+      selectIntegrations: async () => [],
+      confirmDefault: async () => {
+        throw new Error('No integration supports a user default');
+      },
+      setup: async options => {
+        received = { ...options };
+        return {
+          globalDefault: false,
+          host: {
+            extensionId: PANERELAY_EXTENSION_ID,
+            hostPath: '/tmp/host.mjs',
+            launchPath: '/tmp/host',
+            legacyHostPath: '/tmp/legacy-host',
+            manifestPaths: ['/tmp/manifest.json'],
+            runtimeConfigPath: '/tmp/runtime.json',
+          },
+        };
+      },
+      systemLocale: 'en',
+    });
+    assert.equal(code, 0);
+  } finally {
+    console.log = originalLog;
+  }
+  assert.equal(received?.agentBrowser, false);
+  assert.equal(received?.browserUse, false);
+  assert.equal(received?.playwright, false);
+  assert.doesNotMatch(output.join('\n'), /Optional automation integrations|ℹ️/);
+});
+
+test('cancels interactive setup before lifecycle changes', async () => {
+  const errors: string[] = [];
+  let setupCalls = 0;
+  const originalError = console.error;
+  console.error = (...values: unknown[]) => errors.push(values.join(' '));
+  const setup = async () => {
+    setupCalls += 1;
+    throw new Error('setup should not run after cancellation');
+  };
+  try {
+    assert.equal(
+      await main([], {
+        environment: {},
+        interactive: () => true,
+        selectIntegrations: async () => undefined,
+        setup,
+        systemLocale: 'en',
+      }),
+      2,
+    );
+    assert.equal(
+      await main(['--lang', 'zh-CN'], {
+        confirmDefault: async () => undefined,
+        environment: {},
+        interactive: () => true,
+        selectIntegrations: async () => ['agentBrowser'],
+        setup,
+        systemLocale: 'en',
+      }),
+      2,
+    );
+  } finally {
+    console.error = originalError;
+  }
+  assert.equal(setupCalls, 0);
+  assert.deepEqual(errors, ['Setup cancelled.', '已取消安装。']);
 });
 
 test('reports an incompatible selected Browser Use integration without installing it silently', async () => {
@@ -457,7 +529,7 @@ test('uses the Browser Use default selection as the global default', async () =>
     const code = await main([], {
       environment: {},
       interactive: () => true,
-      prompt: async () => '2',
+      selectIntegrations: async () => ['browserUse'],
       confirmDefault: async () => true,
       setup: async options => {
         received = { ...options };

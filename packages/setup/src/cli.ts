@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { confirm as confirmPrompt, isCancel, multiselect } from '@clack/prompts';
 import { PANERELAY_EXTENSION_ID } from '@panerelay/protocol';
 import {
   PANERELAY_BROWSER_USE_GATEWAY_URL,
@@ -9,7 +10,6 @@ import { PANERELAY_PLAYWRIGHT_GATEWAY_URL } from '@panerelay/playwright';
 import { realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { stdin, stdout } from 'node:process';
-import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 import { doctorPanerelay, type DoctorReport } from './doctor.js';
 import { normalizeLocale, resolveLocale, translate, type SupportedLocale } from './i18n.js';
@@ -38,8 +38,28 @@ interface LanguageArguments {
   language?: SupportedLocale;
 }
 
-type SetupPrompt = (message: string) => Promise<string>;
-type SetupConfirm = (message: string) => Promise<boolean>;
+type SetupIntegration = 'agentBrowser' | 'browserUse' | 'playwright';
+
+interface SetupIntegrationPrompt {
+  message: string;
+  options: ReadonlyArray<{
+    hint: string;
+    label: string;
+    value: SetupIntegration;
+  }>;
+}
+
+interface SetupConfirmationPrompt {
+  active: string;
+  inactive: string;
+  initialValue: boolean;
+  message: string;
+}
+
+type SetupSelectIntegrations = (
+  prompt: SetupIntegrationPrompt,
+) => Promise<readonly SetupIntegration[] | undefined>;
+type SetupConfirm = (prompt: SetupConfirmationPrompt) => Promise<boolean | undefined>;
 
 function languageValue(argv: string[]): string | undefined {
   for (let index = 0; index < argv.length; index += 1) {
@@ -367,26 +387,36 @@ function printDoctor(report: DoctorReport, locale: SupportedLocale): void {
   }
 }
 
-async function confirmUninstall(locale: SupportedLocale): Promise<boolean> {
+async function promptConfirmation(prompt: SetupConfirmationPrompt): Promise<boolean | undefined> {
+  const answer = await confirmPrompt({
+    ...prompt,
+    input: stdin,
+    output: stdout,
+  });
+  return isCancel(answer) ? undefined : answer;
+}
+
+function confirmationPrompt(locale: SupportedLocale, message: string): SetupConfirmationPrompt {
+  return {
+    active: translate(locale, 'confirmYes'),
+    inactive: translate(locale, 'confirmNo'),
+    initialValue: false,
+    message,
+  };
+}
+
+async function confirmUninstall(locale: SupportedLocale): Promise<boolean | undefined> {
   if (!stdin.isTTY || !stdout.isTTY) return false;
-  const input = createInterface({ input: stdin, output: stdout });
-  try {
-    const answer = (await input.question(translate(locale, 'uninstallPrompt')))
-      .trim()
-      .toLowerCase();
-    return answer === 'y' || answer === 'yes';
-  } finally {
-    input.close();
-  }
+  return promptConfirmation(confirmationPrompt(locale, translate(locale, 'uninstallPrompt')));
 }
 
 export interface CliDependencies {
-  confirm?: () => Promise<boolean>;
+  confirm?: () => Promise<boolean | undefined>;
   confirmDefault?: SetupConfirm;
   doctor?: typeof doctorPanerelay;
   environment?: NodeJS.ProcessEnv;
   interactive?: () => boolean;
-  prompt?: SetupPrompt;
+  selectIntegrations?: SetupSelectIntegrations;
   setup?: typeof setupPanerelay;
   systemLocale?: string;
   uninstall?: typeof uninstallPanerelay;
@@ -396,75 +426,66 @@ function isInteractiveTerminal(): boolean {
   return stdin.isTTY === true && stdout.isTTY === true;
 }
 
-async function promptYesNo(message: string): Promise<boolean> {
-  const input = createInterface({ input: stdin, output: stdout });
-  try {
-    const answer = (await input.question(message)).trim().toLowerCase();
-    return answer === 'y' || answer === 'yes';
-  } finally {
-    input.close();
-  }
-}
-
-async function promptLine(message: string): Promise<string> {
-  const input = createInterface({ input: stdin, output: stdout });
-  try {
-    return (await input.question(message)).trim();
-  } finally {
-    input.close();
-  }
-}
-
-export function parseIntegrationSelection(
-  answer: string,
-): Pick<ParsedSetupArgs, 'agentBrowser' | 'browserUse' | 'playwright'> | undefined {
-  const normalized = answer.trim().toLowerCase();
-  if (!normalized) return { agentBrowser: false, browserUse: false, playwright: false };
-  const aliases: ReadonlyMap<string, 'agentBrowser' | 'browserUse' | 'playwright'> = new Map([
-    ['1', 'agentBrowser'],
-    ['agent-browser', 'agentBrowser'],
-    ['2', 'browserUse'],
-    ['browser-use', 'browserUse'],
-    ['3', 'playwright'],
-    ['playwright', 'playwright'],
-    ['playwright-cli', 'playwright'],
-  ] as const);
-  const selected = new Set<'agentBrowser' | 'browserUse' | 'playwright'>();
-  for (const token of normalized.split(',').map(value => value.trim())) {
-    const integration = aliases.get(token);
-    if (!integration || selected.has(integration)) return undefined;
-    selected.add(integration);
-  }
-  return {
-    agentBrowser: selected.has('agentBrowser'),
-    browserUse: selected.has('browserUse'),
-    playwright: selected.has('playwright'),
-  };
+async function promptIntegrations(
+  prompt: SetupIntegrationPrompt,
+): Promise<readonly SetupIntegration[] | undefined> {
+  const selected = await multiselect<SetupIntegration>({
+    input: stdin,
+    message: prompt.message,
+    options: [...prompt.options],
+    output: stdout,
+    required: false,
+  });
+  return isCancel(selected) ? undefined : selected;
 }
 
 async function selectOptionalIntegrations(
   locale: SupportedLocale,
-  prompt: SetupPrompt,
+  selectIntegrations: SetupSelectIntegrations,
   confirmDefault: SetupConfirm,
 ): Promise<
-  Pick<ParsedSetupArgs, 'agentBrowser' | 'browserUse' | 'playwright' | 'globalDefault'> & {
-    browserUseDefault: 'direct' | 'extension';
-  }
+  | (Pick<ParsedSetupArgs, 'agentBrowser' | 'browserUse' | 'playwright' | 'globalDefault'> & {
+      browserUseDefault: 'direct' | 'extension';
+    })
+  | undefined
 > {
-  let selected: ReturnType<typeof parseIntegrationSelection>;
-  while (!selected) {
-    selected = parseIntegrationSelection(
-      await prompt(translate(locale, 'integrationSelectPrompt')),
+  const selection = await selectIntegrations({
+    message: translate(locale, 'integrationSelectPrompt'),
+    options: [
+      {
+        hint: translate(locale, 'integrationAgentBrowserHint'),
+        label: 'agent-browser',
+        value: 'agentBrowser',
+      },
+      {
+        hint: translate(locale, 'integrationBrowserUseHint'),
+        label: 'Browser Use',
+        value: 'browserUse',
+      },
+      {
+        hint: translate(locale, 'integrationPlaywrightHint'),
+        label: 'Playwright CLI',
+        value: 'playwright',
+      },
+    ],
+  });
+  if (!selection) return undefined;
+
+  const selected = new Set(selection);
+  let globalDefault = false;
+  if (selected.has('agentBrowser') || selected.has('browserUse')) {
+    const confirmed = await confirmDefault(
+      confirmationPrompt(locale, translate(locale, 'defaultIntegrationsPrompt')),
     );
-    if (!selected) console.error(translate(locale, 'errorIntegrationSelection'));
+    if (confirmed === undefined) return undefined;
+    globalDefault = confirmed;
   }
-  const globalDefault =
-    (selected.agentBrowser || selected.browserUse) &&
-    (await confirmDefault(translate(locale, 'defaultIntegrationsPrompt')));
   return {
-    ...selected,
+    agentBrowser: selected.has('agentBrowser'),
+    browserUse: selected.has('browserUse'),
     browserUseDefault: globalDefault ? 'extension' : 'direct',
     globalDefault,
+    playwright: selected.has('playwright'),
   };
 }
 
@@ -590,9 +611,13 @@ export async function main(
     ) {
       const selected = await selectOptionalIntegrations(
         locale,
-        dependencies.prompt ?? (message => promptLine(message)),
-        dependencies.confirmDefault ?? (message => promptYesNo(message)),
+        dependencies.selectIntegrations ?? promptIntegrations,
+        dependencies.confirmDefault ?? promptConfirmation,
       );
+      if (!selected) {
+        console.error(translate(locale, 'setupCancelled'));
+        return 2;
+      }
       setupOptions = { ...setupOptions, ...selected };
     }
     const selectedAgentBrowser = setupOptions.agentBrowser === true;
@@ -704,11 +729,6 @@ export async function main(
       if (!playwrightReady) {
         printSetupSubline(translate(locale, 'setupFix'), translate(locale, 'playwrightMissing'));
       }
-    }
-
-    if (!selectedAgentBrowser && !selectedBrowserUse && !selectedPlaywright) {
-      console.log('');
-      console.log(`  ℹ️ ${translate(locale, 'automationChoices')}`);
     }
 
     const optionalChecks = [

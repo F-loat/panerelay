@@ -211,7 +211,7 @@ test('keeps official installation guidance Store-first and version-neutral', () 
   assert.match(rootReadmeZhCn, /在 Chrome 或 Edge 中将 `apps\/extension\/dist` 加载为未打包扩展/);
   assert.match(rootReadme, /Let Agents work with the browser you already use/);
   assert.match(rootReadmeZhCn, /让 Agent 在你常用的浏览器里工作/);
-  assert.match(rootReadme, /asks once for a comma-separated selection/);
+  assert.match(rootReadme, /presents one keyboard multiselect/);
   assert.match(rootReadme, /asks at most once whether/);
   assert.match(rootReadmeZhCn, /只会先用一次多选/);
   assert.match(rootReadmeZhCn, /最多再询问一次/);
