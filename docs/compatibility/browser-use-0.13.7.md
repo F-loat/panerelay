@@ -25,7 +25,7 @@ This is exact evidence for Browser Use 0.13.7 and its Browser Harness 0.1.8 runt
 | Surface | Status | Evidence and boundary |
 | --- | --- | --- |
 | Official Browser Use CLI | Verified | The official executable read the setup-managed `BU_CDP_URL`, reached Browser Harness `/json/version`, and completed the single virtual-CDP WebSocket without Chrome Remote Debugging. |
-| Browser Use workflow in the unified Panerelay Skill | Verified | The independently managed Skill preserves the official Browser Use Skill; its commands use the same official CLI and setup-managed environment. |
+| Browser Use workflow in the unified Panerelay Skill | Verified | The independently managed Skill does not replace the official Browser Use Skill; its commands use the same official CLI and setup-managed environment. |
 | Browser Use CLI MCP | Verified | The official `browser-use --cli-mcp` read the same managed environment. A standard MCP client initialized the server, observed exactly `browser_exec` and `browser_screenshot`, and completed a fixture read without warmup output contaminating JSON-RPC stdout. |
 | Direct one-run override | Automated | Adapter/CLI tests prove Direct mode creates no ticket and injects no Panerelay connection state. Direct Chrome behavior remains Browser Use-owned. |
 | Arbitrary Python SDK construction | Unsupported | Applications must explicitly pass connection material themselves; Panerelay does not monkeypatch or transparently intercept `BrowserSession`/`Agent` construction. |

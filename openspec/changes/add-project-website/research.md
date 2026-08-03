@@ -11,9 +11,11 @@ The real zero-to-first-control journey is:
 ```text
 Install the Extension
         ↓
-Install the Panerelay Native Host
+Install the repository-level panerelay-browser Skill
         ↓
-Connect agent-browser, browser-use, both, or neither
+Ask the Agent to inspect and prepare the selected upstream engine
+        ↓
+Run Panerelay setup for the Native Host and selected integration
         ↓
 Explicitly authorize the current tab or all supported tabs
         ↓
@@ -40,7 +42,7 @@ Authoritative implementation references:
 The most useful pattern is not one competitor's complete layout. It is a combination of a clear dual setup entry and a product-accurate interface walkthrough.
 
 - [Browserbase](https://www.browserbase.com/) pairs a direct human action with a distinct “Setup for agents” action. Panerelay should borrow the human/Agent entry split, but say “the tabs you choose” rather than claiming access to the whole web.
-- [Browserbase Agent setup](https://docs.browserbase.com/welcome/getting-started) asks coding Agents to read a public `SKILL.md`, supporting Panerelay's short prompt plus authoritative published-guide approach.
+- [Browserbase Agent setup](https://docs.browserbase.com/welcome/getting-started) asks coding Agents to use a public `SKILL.md`, supporting Panerelay's short prompt plus independently installed repository Skill approach.
 - [Browser Use](https://browser-use.com/) demonstrates strong hierarchy, restrained color, and one dominant CTA. Its [Human Quickstart](https://docs.browser-use.com/open-source/quickstart) and [Agent-oriented prompts](https://docs.browser-use.com/open-source/vibecoding) validate separating human installation from Agent-guided integration.
 - [agent-browser](https://agent-browser.dev/) leads with a precise category statement and executable installation commands. Panerelay should keep that precision in docs and setup states, but its first screen must also show the authorization UI that differentiates the product.
 - [Linear](https://linear.app/) places a real product surface immediately below a confident, concise promise. Its useful pattern is a visible human-to-Agent state chain, not decorative motion.
@@ -71,7 +73,7 @@ The first screen should lead with the external-Agent outcome because it is the l
 Primary first-screen actions:
 
 1. Install the Extension / 安装扩展 — dominant product CTA.
-2. Set up with your Agent / 交给 Agent 接入 — copies the concise website-guide-backed handoff; centered copied feedback overlays the original content without changing its intrinsic button size.
+2. Set up with your Agent / 交给 Agent 接入 — copies the concise repository-Skill-backed handoff; centered copied feedback overlays the original content without changing its intrinsic button size.
 3. Documentation — a lower-emphasis text link rather than a third equal CTA.
 
 ## Approved-direction storyboard
@@ -91,19 +93,19 @@ The surrounding store layout is representative because Chrome-owned UI can chang
 
 ### 02 — Connect Local
 
-Accurately reproduce the Extension's missing-Native-Host state:
+Show installation of the unified Agent Skill:
 
-- “Install the Panerelay integration” / “安装 Panerelay 本地集成”;
-- the real description and benefit rows;
-- “Install the local integration” / “安装本地集成”;
-- the gray command surface containing `npx --yes @panerelay/setup`;
-- copy and retry controls.
+- “Install the Panerelay Agent Skill” / “安装 Panerelay Agent Skill”;
+- the browser-session reuse and explicit tab-authorization benefits;
+- “Install the Agent Skill” / “安装 Agent Skill”;
+- the gray command surface containing `npx skills add F-loat/panerelay --skill panerelay-browser`;
+- copy and ready-state controls.
 
-The terminal completion may show only actual setup vocabulary such as “Panerelay setup complete” and “Native Host”. This command must not imply that agent-browser or browser-use was installed.
+The completion state names the installed `panerelay-browser` Skill. The command must not imply that setup or any upstream automation engine has already run.
 
 ### 03 — Connect Tool
 
-Show a neutral “Your Agent” conversation surface with three peer choices: agent-browser, browser-use, and both. The default scenario is agent-browser. The Agent reads the authoritative published guide, checks the existing environment, and only then runs the selected Panerelay integration and doctor commands.
+Show a neutral “Your Agent” conversation surface with three peer choices: agent-browser, browser-use, and both. The default scenario is agent-browser. The Agent uses the installed repository Skill, checks the existing environment, and only then runs the selected Panerelay integration and doctor commands.
 
 The interface must distinguish detecting or installing an upstream tool from adding its Panerelay integration. It must not imply that `@panerelay/setup` installs an upstream automation tool.
 

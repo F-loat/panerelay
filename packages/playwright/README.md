@@ -11,9 +11,12 @@ npx --yes @panerelay/setup --playwright
 npx --yes @panerelay/setup doctor --playwright
 playwright-cli attach --cdp http://127.0.0.1:43827/cdp/playwright
 playwright-cli tab-list
-playwright-cli tab-select 1
+playwright-cli tab-select <tab-id-from-tab-list>
+playwright-cli tab-list
 playwright-cli snapshot
 ```
+
+Choose the intended authorized tab ID from the first `tab-list` result. After `tab-select`, run `tab-list` again and confirm the intended tab is selected before continuing.
 
 The setup package verifies the upstream executable and installs only Panerelay-owned adapter metadata. It does not install a shim, modify `PATH` or shell startup files, write `.playwright/cli.config.json`, set Playwright as a default, or manage an Agent Skill. The independently installed `panerelay-browser` Skill contains the Playwright workflow.
 

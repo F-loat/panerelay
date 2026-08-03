@@ -104,9 +104,12 @@ npx --yes @panerelay/setup --playwright
 npx --yes @panerelay/setup doctor --playwright
 playwright-cli attach --cdp http://127.0.0.1:43827/cdp/playwright
 playwright-cli tab-list
-playwright-cli tab-select 1
+playwright-cli tab-select <tab-id-from-tab-list>
+playwright-cli tab-list
 playwright-cli snapshot
 ```
+
+Choose the intended authorized tab ID from the first `tab-list` result. After `tab-select`, run `tab-list` again and confirm the intended tab is selected before continuing.
 
 Setup verifies the upstream executable and registers only Panerelay-owned adapter metadata. It does not install a shim, modify `PATH` or shell startup files, write user-owned Playwright configuration, or set Playwright as a default. Users who want persistent explicit configuration may set `PLAYWRIGHT_MCP_CDP_ENDPOINT` or manage their own `.playwright/cli.config.json`.
 

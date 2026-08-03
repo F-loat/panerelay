@@ -186,11 +186,11 @@ test('keeps release publication manual, protected, and channel-scoped', () => {
 test('keeps official installation guidance Store-first and version-neutral', () => {
   const englishQuickstart = rootReadme.slice(
     rootReadme.indexOf('## Quickstart'),
-    rootReadme.indexOf('## Advanced setup and manual use'),
+    rootReadme.indexOf('## How it works'),
   );
   const chineseQuickstart = rootReadmeZhCn.slice(
     rootReadmeZhCn.indexOf('## 快速开始'),
-    rootReadmeZhCn.indexOf('## 高级设置与手动使用'),
+    rootReadmeZhCn.indexOf('## 工作方式'),
   );
 
   for (const guidance of [englishQuickstart, chineseQuickstart]) {
@@ -215,6 +215,13 @@ test('keeps official installation guidance Store-first and version-neutral', () 
   assert.match(rootReadme, /asks at most once whether/);
   assert.match(rootReadmeZhCn, /只会先用一次多选/);
   assert.match(rootReadmeZhCn, /最多再询问一次/);
+  assert.match(
+    rootReadme,
+    /## Advanced setup and installation management[\s\S]+?<details>[\s\S]+?<\/details>/,
+  );
+  assert.match(rootReadmeZhCn, /## 高级设置与安装管理[\s\S]+?<details>[\s\S]+?<\/details>/);
+  assert.doesNotMatch(rootReadme, /^## (?:Supported workflows|Documentation)$/m);
+  assert.doesNotMatch(rootReadmeZhCn, /^## (?:支持的工作流|文档)$/m);
   const sharedImage =
     'https://github.com/user-attachments/assets/2eba77ae-5362-4803-9190-cf134dd2b8d7';
   assert.match(rootReadme, new RegExp(sharedImage.replaceAll('.', '\\.')));

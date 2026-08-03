@@ -4164,7 +4164,7 @@ html[lang='zh-CN'] .final-content > p {
 }
 
 .store-install-action,
-.retry-action {
+.ready-action {
   display: inline-flex;
   min-height: 38px;
   align-items: center;
@@ -4369,7 +4369,7 @@ html[lang='zh-CN'] .final-content > p {
   stroke: currentColor;
 }
 
-.retry-action {
+.ready-action {
   align-self: stretch;
   min-height: 39px;
   grid-column: 2;
@@ -5226,7 +5226,7 @@ html[lang='zh-CN'] .final-content > p {
   }
 
   .setup-command-surface,
-  .retry-action {
+  .ready-action {
     grid-column: 1;
     grid-row: auto;
   }

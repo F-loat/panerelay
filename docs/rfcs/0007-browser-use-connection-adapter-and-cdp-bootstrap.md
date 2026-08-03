@@ -7,7 +7,7 @@
 - Created: 2026-07-31
 - Updated: 2026-08-03
 - OpenSpec: `openspec/changes/archive/2026-08-01-add-browser-use-connection-adapter`
-- Amendments: `openspec/changes/archive/2026-08-01-relax-browser-use-version-gate`, `openspec/changes/archive/2026-08-01-add-browser-use-default-setting`, `openspec/changes/show-control-engine-favicon`, `openspec/changes/archive/2026-08-02-make-adapter-installation-explicit`, `openspec/changes/archive/2026-08-03-add-playwright-cdp-integration`, `openspec/changes/simplify-setup-skill-installation`
+- Amendments: `openspec/changes/archive/2026-08-01-relax-browser-use-version-gate`, `openspec/changes/archive/2026-08-01-add-browser-use-default-setting`, `openspec/changes/show-control-engine-favicon`, `openspec/changes/archive/2026-08-02-make-adapter-installation-explicit`, `openspec/changes/archive/2026-08-03-add-playwright-cdp-integration`, `openspec/changes/archive/2026-08-03-simplify-setup-skill-installation`
 
 ## Summary
 

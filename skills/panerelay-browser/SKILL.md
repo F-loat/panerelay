@@ -52,13 +52,11 @@ Explain the source and change before installing or upgrading a third-party tool.
 
 ### 3. Install the selected Panerelay integration
 
-Run the matching setup command:
+Run only the setup command for each selected engine:
 
-```bash
-npx --yes @panerelay/setup --agent-browser
-npx --yes @panerelay/setup --browser-use
-npx --yes @panerelay/setup --playwright
-```
+- If `agent-browser` is selected, run `npx --yes @panerelay/setup --agent-browser`.
+- If `browser-use` is selected, run `npx --yes @panerelay/setup --browser-use`.
+- If `playwright-cli` is selected, run `npx --yes @panerelay/setup --playwright`.
 
 Combine flags in one invocation when the user selected multiple engines. Add `--global-default` only when the user explicitly wants every selected default-capable integration to use Panerelay by default. It applies to agent-browser and Browser Use; Playwright always uses an explicit connection.
 
@@ -66,13 +64,13 @@ Setup owns the Native Host, selected Provider/adapter files, Browser Use's manag
 
 ### 4. Run targeted diagnostics
 
-Run doctor with the same engine flags and `--global-default` only when that setting was requested:
+Run doctor only for each selected engine, with `--global-default` only when that setting was requested:
 
-```bash
-npx --yes @panerelay/setup doctor --agent-browser
-npx --yes @panerelay/setup doctor --browser-use
-npx --yes @panerelay/setup doctor --playwright
-```
+- If `agent-browser` is selected, run `npx --yes @panerelay/setup doctor --agent-browser`.
+- If `browser-use` is selected, run `npx --yes @panerelay/setup doctor --browser-use`.
+- If `playwright-cli` is selected, run `npx --yes @panerelay/setup doctor --playwright`.
+
+When multiple engines are selected, combine only their matching flags in one doctor invocation.
 
 If the Extension check fails, ask the user to install the official [Chrome Web Store Extension](https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi), open its side panel, and confirm it is connected. Edge may require allowing extensions from other stores.
 
@@ -143,9 +141,12 @@ Playwright connects explicitly and is never made the Panerelay default:
 ```bash
 playwright-cli attach --cdp http://127.0.0.1:43827/cdp/playwright
 playwright-cli tab-list
-playwright-cli tab-select 1
+playwright-cli tab-select <tab-id-from-tab-list>
+playwright-cli tab-list
 playwright-cli snapshot
 ```
+
+Read the first `tab-list` result and select the ID for the intended authorized tab. After `tab-select`, run `tab-list` again and confirm that the intended tab is selected before taking a snapshot or performing any other action.
 
 For an explicitly configured invocation, use `PLAYWRIGHT_MCP_CDP_ENDPOINT=http://127.0.0.1:43827/cdp/playwright` or a user-managed `.playwright/cli.config.json` with `browser.cdpEndpoint`. Do not edit persistent user configuration unless asked.
 
@@ -156,10 +157,10 @@ The connection exposes only authorized existing tabs. It does not own Chrome or 
 Diagnose these layers separately and stop after the smallest repair that restores readiness:
 
 1. **Skill discovery**
-   - Inspect installed Skills with `npx skills list` and, for user-level installs, `npx skills list --global`.
+   - Ask the active Agent whether `$panerelay-browser` is available. Do not enumerate, read, or report other installed Skills or their files.
    - Install or repair with `npx skills add F-loat/panerelay --skill panerelay-browser`; choose the intended Agent and scope.
    - Update with `npx skills update panerelay-browser`; remove with `npx skills remove panerelay-browser` plus the matching scope/Agent options.
-   - If legacy `panerelay-browser-use` or `panerelay-playwright` copies are also loaded, report their locations. Remove them only through their owning Skill manager or with the user's explicit approval, then reinstall the unified Skill.
+   - Manage any known legacy Skill only through its owning Skill manager. Do not inspect or report unrelated Skill metadata or locations.
    - If the Agent still does not load the Skill, confirm the target Agent selected by `npx skills`, its supported Skill directory, valid YAML frontmatter, and whether the Agent must restart or begin a new session.
 
 2. **Upstream executable**

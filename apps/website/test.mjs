@@ -71,6 +71,18 @@ test('source contains the complete product and installation journey', async () =
   assert.doesNotMatch(html, /waiting for your approval|You authorize this tab/);
   assert.doesNotMatch(html, /agent-setup\.md|curl -fsSL/);
   assert.doesNotMatch(i18n, /agent-setup\.md|curl -fsSL/);
+  assert.match(
+    html,
+    /data-i18n="demo\.local\.body">\s*Work with local Agents beside this browser while keeping tab access under\s+your control\./,
+  );
+  assert.match(
+    html,
+    /data-i18n="demo\.tool\.prompt">\s*Use the panerelay-browser Skill\. Set up agent-browser, run doctor, and stop\s+when I need to authorize a tab\./,
+  );
+  assert.doesNotMatch(html, /retry-action|demo\.local\.retry/);
+  assert.match(i18n, /'setup\.authorization\.link': 'Read advanced setup and manual use'/);
+  assert.match(i18n, /'setup\.authorization\.link': '查看高级设置与手动使用'/);
+  assert.match(html, /F-loat\/panerelay#advanced-setup-and-installation-management/);
   assert.equal(
     (i18n.match(/npx skills add F-loat\/panerelay --skill panerelay-browser/g) ?? []).length,
     2,

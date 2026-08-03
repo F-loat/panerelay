@@ -9,7 +9,7 @@
 - Amendment: `openspec/changes/archive/2026-08-02-make-adapter-installation-explicit`
 - Amendment: `openspec/changes/archive/2026-08-01-add-browser-use-default-setting`
 - Amendment: `openspec/changes/archive/2026-08-01-improve-browser-authorization-controls`
-- Amendment: `openspec/changes/simplify-setup-skill-installation`
+- Amendment: `openspec/changes/archive/2026-08-03-simplify-setup-skill-installation`
 
 RFC-0004 supersedes this RFC's attachment-as-control and page-indicator semantics by separating visible read observation from active browser control.
 
