@@ -15,10 +15,13 @@ import {
   readCliAdapterPreferences,
   readCliAdapterRegistry,
   registerCliAdapter,
+  PANERELAY_CLI_ADAPTER_PREFERENCES_PATH_ENV,
+  PANERELAY_CLI_ADAPTER_REGISTRY_PATH_ENV,
   setCliAdapterMode,
 } from '@panerelay/cli';
 import {
   installBrowserUseIntegrationArtifacts,
+  browserUseLauncherContent,
   posixNodeLauncherContent,
   resolveBrowserUseIntegrationPaths,
   windowsNodeLauncherContent,
@@ -32,7 +35,7 @@ test('resolves private cross-platform Browser Use artifact and launcher paths', 
       unix.cliArtifactPath,
       '/Users/test/.panerelay/cli/browser-use/0.2.0/dist/panerelay-cli.mjs',
     );
-    assert.equal(unix.cliLauncherPath, '/Users/test/.panerelay/bin/panerelay-browser-use-cli');
+    assert.equal(unix.cliLauncherPath, '/Users/test/.panerelay/bin/panerelay-browser-use');
   }
   const windows = resolveBrowserUseIntegrationPaths({
     homeDirectory: 'C:\\Users\\Test User',
@@ -58,6 +61,78 @@ test('resolves private cross-platform Browser Use artifact and launcher paths', 
     posixNodeLauncherContent('/node path/node', "/user's path/cli.mjs"),
     "#!/bin/sh\nexec '/node path/node' '/user'\"'\"'s path/cli.mjs' \"$@\"\n",
   );
+  assert.equal(
+    browserUseLauncherContent(
+      '/node path/node',
+      '/cli.mjs',
+      '/browser use/bin/browser-use',
+      'darwin',
+    ),
+    "#!/bin/sh\nif [ \"$#\" -eq 0 ]; then\n  exec '/node path/node' '/cli.mjs' run browser-use -- '/browser use/bin/browser-use'\nfi\nexec '/node path/node' '/cli.mjs' \"$@\"\n",
+  );
+  assert.match(
+    browserUseLauncherContent(
+      'C:\\Program Files\\nodejs\\node.exe',
+      'C:\\Users\\Test User\\cli.mjs',
+      'C:\\Users\\Test User\\browser-use.exe',
+      'win32',
+    ),
+    /if "%\*"=="" goto :no_args\r\n"C:\\Program Files\\nodejs\\node\.exe".*%\*\r\nexit \/b %ERRORLEVEL%\r\n:no_args/s,
+  );
+});
+
+test('executes the generated Windows Browser Use launcher contract', async t => {
+  if (process.platform !== 'win32') {
+    t.skip('Windows launcher execution requires Windows');
+    return;
+  }
+  const root = await mkdtemp(join(tmpdir(), 'panerelay-browser-use-windows-'));
+  const launcherPath = join(root, 'panerelay-browser-use.cmd');
+  const fixturePath = join(root, 'fixture.mjs');
+  try {
+    await writeFile(
+      fixturePath,
+      `import { argv, stdin, stdout } from 'node:process';
+const args = argv.slice(2);
+stdin.pipe(stdout);
+stdin.on('end', () => {
+  process.exitCode = args.includes('run') ? 7 : args.includes('') ? 9 : args.includes('--pass-through') ? 8 : 0;
+});
+`,
+    );
+    await writeFile(
+      launcherPath,
+      browserUseLauncherContent(
+        process.execPath,
+        fixturePath,
+        join(root, 'browser-use.exe'),
+        'win32',
+      ),
+    );
+
+    const noArgs = spawnSync(launcherPath, [], {
+      encoding: 'utf8',
+      input: 'no-args\n',
+    });
+    assert.equal(noArgs.status, 7, noArgs.stderr);
+    assert.equal(noArgs.stdout, 'no-args\n');
+
+    const explicitEmpty = spawnSync(launcherPath, [''], {
+      encoding: 'utf8',
+      input: 'explicit-empty\n',
+    });
+    assert.equal(explicitEmpty.status, 9, explicitEmpty.stderr);
+    assert.equal(explicitEmpty.stdout, 'explicit-empty\n');
+
+    const passThrough = spawnSync(launcherPath, ['--pass-through'], {
+      encoding: 'utf8',
+      input: 'pass-through\n',
+    });
+    assert.equal(passThrough.status, 8, passThrough.stderr);
+    assert.equal(passThrough.stdout, 'pass-through\n');
+  } finally {
+    await rm(root, { force: true, recursive: true });
+  }
 });
 
 test('installs protected pinned bundles and preserves unrelated adapter registrations', async () => {
@@ -70,9 +145,13 @@ test('installs protected pinned bundles and preserves unrelated adapter registra
     await mkdir(join(dataDirectory, 'bin'), { recursive: true, mode: 0o700 });
     await chmod(dataDirectory, 0o700);
     await writeFile(unrelatedExecutable, '#!/bin/sh\nexit 0\n', { mode: 0o700 });
-    await writeFile(browserUseExecutable, '#!/bin/sh\nprintf "%s\\n" "$@"\n', {
-      mode: 0o700,
-    });
+    await writeFile(
+      browserUseExecutable,
+      '#!/bin/sh\nif [ "$1" = "--cli-mcp" ]; then printf "%s\\n" "$@"; else cat; fi\n',
+      {
+        mode: 0o700,
+      },
+    );
     await registerCliAdapter(
       {
         adapterId: 'other-engine',
@@ -109,6 +188,16 @@ test('installs protected pinned bundles and preserves unrelated adapter registra
     assert.equal(installation.config.browserUseVersion, '0.13.8');
     assert.equal(installation.config.browserHarnessVersion, '0.1.9');
     assert.equal(installation.config.mcpLauncherPath, installation.paths.mcpLauncherPath);
+    const childEnvironment = {
+      ...process.env,
+      HOME: homeDirectory,
+      USERPROFILE: homeDirectory,
+      [PANERELAY_CLI_ADAPTER_PREFERENCES_PATH_ENV]: join(
+        dataDirectory,
+        'cli-adapter-preferences.json',
+      ),
+      [PANERELAY_CLI_ADAPTER_REGISTRY_PATH_ENV]: join(dataDirectory, 'cli-adapters.json'),
+    };
 
     const cliBeforeRollback = await readFile(installation.paths.cliArtifactPath);
     await assert.rejects(
@@ -159,6 +248,7 @@ test('installs protected pinned bundles and preserves unrelated adapter registra
 
     const cli = spawnSync(installation.paths.cliLauncherPath, ['--help', '--lang', 'en'], {
       encoding: 'utf8',
+      env: childEnvironment,
     });
     assert.equal(cli.status, 0, cli.stderr);
     assert.match(cli.stdout, /Panerelay CLI/);
@@ -174,6 +264,13 @@ test('installs protected pinned bundles and preserves unrelated adapter registra
       homeDirectory,
     });
     assert.equal(await readCliAdapterMode('browser-use', { homeDirectory }), 'direct');
+    const shorthand = spawnSync(installation.paths.cliLauncherPath, [], {
+      encoding: 'utf8',
+      env: childEnvironment,
+      input: 'print(list_tabs())\n',
+    });
+    assert.equal(shorthand.status, 0, shorthand.stderr);
+    assert.equal(shorthand.stdout, 'print(list_tabs())\n');
     const mcpLauncher = await readFile(installation.paths.mcpLauncherPath, 'utf8');
     assert.match(mcpLauncher, /run browser-use --/);
     assert.match(mcpLauncher, /panerelay-browser-use-mcp-runner\.mjs/);
@@ -232,6 +329,11 @@ test('rolls back a fresh failed registration and uninstalls partial owned state'
     await assert.rejects(
       installBrowserUseIntegrationArtifacts({
         homeDirectory,
+        browserUseVersions: {
+          browserHarness: '0.1.9',
+          browserUse: '0.13.8',
+          browserUseExecutable: join(root, 'browser-use'),
+        },
         registerAdapter: async () => {
           throw new Error('fresh registration failure');
         },
@@ -269,6 +371,25 @@ test('rolls back a fresh failed registration and uninstalls partial owned state'
     await assert.rejects(readFile(join(paths.cliStorageDirectory, 'old-version', 'cli')), {
       code: 'ENOENT',
     });
+  } finally {
+    await rm(root, { force: true, recursive: true });
+  }
+});
+
+test('rejects Browser Use integration installation without an executable', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'panerelay-browser-use-missing-'));
+  try {
+    await assert.rejects(
+      installBrowserUseIntegrationArtifacts({
+        homeDirectory: join(root, 'home'),
+        browserUseVersions: { browserHarness: '0.1.9', browserUse: '0.13.8' },
+      }),
+      /Browser Use installation is incomplete/,
+    );
+    await assert.rejects(
+      installBrowserUseIntegrationArtifacts({ homeDirectory: join(root, 'other-home') }),
+      /Browser Use installation is incomplete/,
+    );
   } finally {
     await rm(root, { force: true, recursive: true });
   }

@@ -76,10 +76,12 @@ agent-browser --provider panerelay tab list
 
 It must list only the tabs you authorized. An empty list means no eligible tab is currently authorized; it does not necessarily mean installation failed.
 
-For browser-use, run its standard `tab list` command through the setup-managed launcher printed during installation. This POSIX example uses the default launcher path:
+For browser-use, run its pre-imported helpers through the setup-managed launcher printed during installation. This POSIX example uses the default launcher path:
 
 ```bash
-~/.panerelay/bin/panerelay-browser-use-cli run browser-use -- browser-use tab list
+~/.panerelay/bin/panerelay-browser-use <<'PY'
+print(list_tabs())
+PY
 ```
 
 The result must likewise contain only explicitly authorized tabs. On Windows or when browser-use is installed at a nonstandard path, use the exact launcher and executable paths printed by setup.

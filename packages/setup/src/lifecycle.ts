@@ -147,7 +147,6 @@ export async function setupPanerelay(
   const browserUseSkillPath =
     browserUseIntegration && browserUseReady
       ? await installSelectedBrowserUseSkill(browserUseIntegration.paths.cliLauncherPath, {
-          browserUseExecutable: browserUseVersions!.browserUseExecutable!,
           homeDirectory: options.homeDirectory,
           mcpLauncherPath: browserUseIntegration.config.mcpLauncherPath,
           platform: options.platform,

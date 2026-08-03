@@ -46,15 +46,13 @@ test('installs the additive Browser Use Skill with the exact private CLI path', 
   const root = await mkdtemp(join(tmpdir(), 'panerelay-browser-use-skill-'));
   const homeDirectory = join(root, 'home with space');
   const officialSkillPath = join(homeDirectory, '.agents', 'skills', 'browser-use', 'SKILL.md');
-  const cliLauncherPath = join(homeDirectory, '.panerelay', 'bin', 'panerelay-browser-use-cli');
+  const cliLauncherPath = join(homeDirectory, '.panerelay', 'bin', 'panerelay-browser-use');
   const mcpLauncherPath = join(homeDirectory, '.panerelay', 'bin', 'panerelay-browser-use-mcp');
-  const browserUseExecutable = join(homeDirectory, 'browser-use env', 'bin', 'browser-use');
   try {
     await mkdir(join(officialSkillPath, '..'), { recursive: true });
     await writeFile(officialSkillPath, 'official-browser-use-skill\n');
     await assert.rejects(
       installBrowserUseSkill(cliLauncherPath, {
-        browserUseExecutable,
         homeDirectory,
         mcpLauncherPath,
         platform: 'linux',
@@ -63,7 +61,6 @@ test('installs the additive Browser Use Skill with the exact private CLI path', 
       /setup version is invalid/i,
     );
     const target = await installBrowserUseSkill(cliLauncherPath, {
-      browserUseExecutable,
       homeDirectory,
       mcpLauncherPath,
       platform: 'linux',
@@ -73,8 +70,7 @@ test('installs the additive Browser Use Skill with the exact private CLI path', 
     assert.equal(target, globalBrowserUseSkillPath(homeDirectory));
     assert.equal(target.endsWith(PANERELAY_BROWSER_USE_SKILL_NAME), true);
     assert.match(content, /name: panerelay-browser-use/);
-    assert.equal(content.includes(`run browser-use -- '${browserUseExecutable}'`), true);
-    assert.match(content, /--mode extension/);
+    assert.match(content, /connection use browser-use extension/);
     assert.match(content, /Normal task completion does not close/);
     assert.match(content, /They are not task-isolated/);
     assert.equal(content.includes(`'${cliLauncherPath}'`), true);

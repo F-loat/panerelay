@@ -1,0 +1,3 @@
+schema: spec-driven
+created: 2026-08-03
+goal: Provide a dedicated panerelay-browser-use entry point while keeping browser selection in the unified Panerelay CLI and connection mode configuration available.

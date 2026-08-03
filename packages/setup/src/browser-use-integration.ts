@@ -130,11 +130,7 @@ export function resolveBrowserUseIntegrationPaths(
     adapterStorageDirectory,
     browserUseDirectory,
     cliArtifactPath: paths.join(cliVersionDirectory, 'dist', 'panerelay-cli.mjs'),
-    cliLauncherPath: paths.join(
-      dataDirectory,
-      'bin',
-      `panerelay-browser-use-cli${launcherExtension}`,
-    ),
+    cliLauncherPath: paths.join(dataDirectory, 'bin', `panerelay-browser-use${launcherExtension}`),
     cliStorageDirectory,
     dataDirectory,
     integrationConfigPath: paths.join(browserUseDirectory, 'config.json'),
@@ -172,6 +168,34 @@ export function windowsNodeLauncherContent(nodePath: string, scriptPath: string)
     `"${escapePercent(nodePath)}" "${escapePercent(scriptPath)}" %*`,
     '',
   ].join('\r\n');
+}
+
+export function browserUseLauncherContent(
+  nodePath: string,
+  cliArtifactPath: string,
+  browserUseExecutable: string,
+  platform: NodeJS.Platform,
+): string {
+  if (platform === 'win32') {
+    const escapePercent = (value: string): string => value.replaceAll('%', '%%');
+    return [
+      '@echo off',
+      'setlocal DisableDelayedExpansion',
+      'if "%*"=="" goto :no_args',
+      `"${escapePercent(nodePath)}" "${escapePercent(cliArtifactPath)}" %*`,
+      'exit /b %ERRORLEVEL%',
+      ':no_args',
+      `"${escapePercent(nodePath)}" "${escapePercent(cliArtifactPath)}" run browser-use -- "${escapePercent(browserUseExecutable)}"`,
+      'exit /b %ERRORLEVEL%',
+      '',
+    ].join('\r\n');
+  }
+  return `#!/bin/sh
+if [ "$#" -eq 0 ]; then
+  exec ${shellQuote(nodePath)} ${shellQuote(cliArtifactPath)} run browser-use -- ${shellQuote(browserUseExecutable)}
+fi
+exec ${shellQuote(nodePath)} ${shellQuote(cliArtifactPath)} "$@"
+`;
 }
 
 export function browserUseMcpLauncherContent(
@@ -321,6 +345,28 @@ export async function installBrowserUseIntegrationArtifacts(
   };
   const preferenceOptions = { homeDirectory: options.homeDirectory };
   const previousRegistration = await readCliAdapterRegistration('browser-use', registryOptions);
+  const previousConfig = await (async (): Promise<BrowserUseIntegrationConfig | null> => {
+    try {
+      return JSON.parse(
+        await readFile(paths.integrationConfigPath, 'utf8'),
+      ) as BrowserUseIntegrationConfig;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+      throw error;
+    }
+  })();
+  if (options.browserUseVersions && !options.browserUseVersions.browserUseExecutable) {
+    throw new Error(
+      'Browser Use installation is incomplete; reinstall or upgrade Browser Use 0.13.7 or newer',
+    );
+  }
+  const browserUseExecutable =
+    options.browserUseVersions?.browserUseExecutable ?? previousConfig?.browserUseExecutable;
+  if (!browserUseExecutable) {
+    throw new Error(
+      'Browser Use installation is incomplete; reinstall or upgrade Browser Use 0.13.7 or newer',
+    );
+  }
   const currentMode = await (options.readAdapterMode ?? readCliAdapterMode)(
     'browser-use',
     preferenceOptions,
@@ -376,7 +422,7 @@ export async function installBrowserUseIntegrationArtifacts(
           nodePath,
           paths.cliArtifactPath,
           paths.mcpRunnerArtifactPath,
-          options.browserUseVersions!.browserUseExecutable!,
+          browserUseExecutable,
           platform,
         ),
         0o700,
@@ -386,7 +432,12 @@ export async function installBrowserUseIntegrationArtifacts(
       await rm(paths.mcpLauncherPath, { force: true });
     }
     await Promise.all([
-      writeProtectedFile(paths.cliLauncherPath, launcher(paths.cliArtifactPath), 0o700, platform),
+      writeProtectedFile(
+        paths.cliLauncherPath,
+        browserUseLauncherContent(nodePath, paths.cliArtifactPath, browserUseExecutable, platform),
+        0o700,
+        platform,
+      ),
       writeProtectedFile(
         paths.adapterLauncherPath,
         launcher(paths.adapterArtifactPath),
@@ -410,9 +461,7 @@ export async function installBrowserUseIntegrationArtifacts(
       runtimeName: 'panerelay',
       version: PANERELAY_BROWSER_USE_INTEGRATION_VERSION,
       ...(browserUseCompatible ? { mcpLauncherPath: paths.mcpLauncherPath } : {}),
-      ...(options.browserUseVersions?.browserUseExecutable
-        ? { browserUseExecutable: options.browserUseVersions.browserUseExecutable }
-        : {}),
+      browserUseExecutable,
       ...(options.browserUseVersions?.browserUse
         ? { browserUseVersion: options.browserUseVersions.browserUse }
         : {}),

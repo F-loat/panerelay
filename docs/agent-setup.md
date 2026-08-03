@@ -106,7 +106,7 @@ agent-browser --provider panerelay tab list
 
 The result must contain only tabs the user explicitly authorized. An empty list is expected when no eligible tab is authorized and must not be reported as installation success or failure by itself.
 
-When browser-use is selected, require the browser-use compatibility and Extension-connection doctor checks to pass. Then use the exact setup-managed launcher and browser-use executable paths printed by setup to run `browser-use tab list` and confirm that it returns only explicitly authorized tabs. Preserve the normal setup-managed CLI, additive Skill, and CLI MCP workflow; do not substitute an arbitrary Python SDK construction as the verification path.
+When browser-use is selected, require the browser-use compatibility and Extension-connection doctor checks to pass. Then use the exact setup-managed launcher and browser-use executable paths printed by setup to run its pre-imported `list_tabs()` helper and confirm that it returns only explicitly authorized tabs. Preserve the normal setup-managed CLI, additive Skill, and CLI MCP workflow; do not substitute an arbitrary Python SDK construction as the verification path.
 
 ## Acceptance report
 
