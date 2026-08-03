@@ -77,7 +77,7 @@ test('resolves private cross-platform Browser Use artifact and launcher paths', 
       'C:\\Users\\Test User\\browser-use.exe',
       'win32',
     ),
-    /if "%~1"=="" \(\r\n\s{2}"C:\\Program Files\\nodejs\\node\.exe"/,
+    /if "%\*"=="" goto :no_args\r\n"C:\\Program Files\\nodejs\\node\.exe".*%\*\r\nexit \/b %ERRORLEVEL%\r\n:no_args/s,
   );
 });
 
@@ -275,6 +275,11 @@ test('rolls back a fresh failed registration and uninstalls partial owned state'
     await assert.rejects(
       installBrowserUseIntegrationArtifacts({
         homeDirectory,
+        browserUseVersions: {
+          browserHarness: '0.1.9',
+          browserUse: '0.13.8',
+          browserUseExecutable: join(root, 'browser-use'),
+        },
         registerAdapter: async () => {
           throw new Error('fresh registration failure');
         },
@@ -312,6 +317,25 @@ test('rolls back a fresh failed registration and uninstalls partial owned state'
     await assert.rejects(readFile(join(paths.cliStorageDirectory, 'old-version', 'cli')), {
       code: 'ENOENT',
     });
+  } finally {
+    await rm(root, { force: true, recursive: true });
+  }
+});
+
+test('rejects Browser Use integration installation without an executable', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'panerelay-browser-use-missing-'));
+  try {
+    await assert.rejects(
+      installBrowserUseIntegrationArtifacts({
+        homeDirectory: join(root, 'home'),
+        browserUseVersions: { browserHarness: '0.1.9', browserUse: '0.13.8' },
+      }),
+      /Browser Use installation is incomplete/,
+    );
+    await assert.rejects(
+      installBrowserUseIntegrationArtifacts({ homeDirectory: join(root, 'other-home') }),
+      /Browser Use installation is incomplete/,
+    );
   } finally {
     await rm(root, { force: true, recursive: true });
   }

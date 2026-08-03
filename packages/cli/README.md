@@ -26,8 +26,6 @@ Setup-managed connection adapters can also expose engine-neutral mode and run op
 ```bash
 panerelay connection use browser-use extension
 panerelay connection use browser-use direct
-panerelay connection use browser-use extension
-panerelay connection use browser-use direct
 ```
 
 The CLI invokes only the exact child command after `--`, applies only the adapter's declared environment keys, and does not interpret browser-use automation. One-run mode selection does not persist. Extension-mode browser-use uses a user-scoped concurrency lane; sequential processes share the upstream daemon state, while overlapping runs wait briefly or fail explicitly as busy.

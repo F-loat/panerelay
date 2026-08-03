@@ -181,11 +181,12 @@ export function browserUseLauncherContent(
     return [
       '@echo off',
       'setlocal DisableDelayedExpansion',
-      'if "%~1"=="" (',
-      `  "${escapePercent(nodePath)}" "${escapePercent(cliArtifactPath)}" run browser-use -- "${escapePercent(browserUseExecutable)}"`,
-      '  exit /b %ERRORLEVEL%',
-      ')',
+      'if "%*"=="" goto :no_args',
       `"${escapePercent(nodePath)}" "${escapePercent(cliArtifactPath)}" %*`,
+      'exit /b %ERRORLEVEL%',
+      ':no_args',
+      `"${escapePercent(nodePath)}" "${escapePercent(cliArtifactPath)}" run browser-use -- "${escapePercent(browserUseExecutable)}"`,
+      'exit /b %ERRORLEVEL%',
       '',
     ].join('\r\n');
   }
@@ -344,6 +345,28 @@ export async function installBrowserUseIntegrationArtifacts(
   };
   const preferenceOptions = { homeDirectory: options.homeDirectory };
   const previousRegistration = await readCliAdapterRegistration('browser-use', registryOptions);
+  const previousConfig = await (async (): Promise<BrowserUseIntegrationConfig | null> => {
+    try {
+      return JSON.parse(
+        await readFile(paths.integrationConfigPath, 'utf8'),
+      ) as BrowserUseIntegrationConfig;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+      throw error;
+    }
+  })();
+  if (options.browserUseVersions && !options.browserUseVersions.browserUseExecutable) {
+    throw new Error(
+      'Browser Use installation is incomplete; reinstall or upgrade Browser Use 0.13.7 or newer',
+    );
+  }
+  const browserUseExecutable =
+    options.browserUseVersions?.browserUseExecutable ?? previousConfig?.browserUseExecutable;
+  if (!browserUseExecutable) {
+    throw new Error(
+      'Browser Use installation is incomplete; reinstall or upgrade Browser Use 0.13.7 or newer',
+    );
+  }
   const currentMode = await (options.readAdapterMode ?? readCliAdapterMode)(
     'browser-use',
     preferenceOptions,
@@ -399,7 +422,7 @@ export async function installBrowserUseIntegrationArtifacts(
           nodePath,
           paths.cliArtifactPath,
           paths.mcpRunnerArtifactPath,
-          options.browserUseVersions!.browserUseExecutable!,
+          browserUseExecutable,
           platform,
         ),
         0o700,
@@ -411,12 +434,7 @@ export async function installBrowserUseIntegrationArtifacts(
     await Promise.all([
       writeProtectedFile(
         paths.cliLauncherPath,
-        browserUseLauncherContent(
-          nodePath,
-          paths.cliArtifactPath,
-          options.browserUseVersions?.browserUseExecutable ?? '',
-          platform,
-        ),
+        browserUseLauncherContent(nodePath, paths.cliArtifactPath, browserUseExecutable, platform),
         0o700,
         platform,
       ),
@@ -443,9 +461,7 @@ export async function installBrowserUseIntegrationArtifacts(
       runtimeName: 'panerelay',
       version: PANERELAY_BROWSER_USE_INTEGRATION_VERSION,
       ...(browserUseCompatible ? { mcpLauncherPath: paths.mcpLauncherPath } : {}),
-      ...(options.browserUseVersions?.browserUseExecutable
-        ? { browserUseExecutable: options.browserUseVersions.browserUseExecutable }
-        : {}),
+      browserUseExecutable,
       ...(options.browserUseVersions?.browserUse
         ? { browserUseVersion: options.browserUseVersions.browserUse }
         : {}),

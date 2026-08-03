@@ -54,7 +54,12 @@ test('source contains the complete product and installation journey', async () =
   assert.match(html, /docs\/compatibility\/browser-use-0\.13\.7\.md/);
   assert.match(html, /browser-use CLI · Browser Harness/);
   assert.match(html, /panerelay-browser-use/);
-  assert.match(html, /list_tabs\(\)/);
+  assert.match(
+    html,
+    /~\/\.panerelay\/bin\/panerelay-browser-use &lt;&lt;'PY'[\s\S]+print\(list_tabs\(\)\)/,
+  );
+  assert.doesNotMatch(html, /panerelay-browser-use-cli/);
+  assert.doesNotMatch(html, /browser-use tab list/);
   assert.doesNotMatch(html, /await browser\./);
   assert.doesNotMatch(html, /data-copy-command="[^\"]*--(?:agent-browser|browser-use)/);
   assert.doesNotMatch(html, /waiting for your approval|You authorize this tab/);

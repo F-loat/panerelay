@@ -86,8 +86,8 @@ The supported surfaces are the setup-managed browser-use CLI, additive Skill, an
 The private CLI supports a durable Panerelay-owned mode and a one-run override:
 
 ```bash
-panerelay connection use browser-use extension
-panerelay connection use browser-use direct
+~/.panerelay/bin/panerelay-browser-use connection use browser-use extension
+~/.panerelay/bin/panerelay-browser-use connection use browser-use direct
 ~/.panerelay/bin/panerelay-browser-use <<'PY'
 print(page_info())
 PY

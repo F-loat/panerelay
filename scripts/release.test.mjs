@@ -178,10 +178,11 @@ test('keeps official installation guidance Store-first and version-neutral', () 
   assert.match(rootReadmeZhCn, /让 Agent 在你常用的浏览器里工作/);
   assert.match(rootReadme, /interactively asks whether to connect optional automation engines/);
   assert.match(rootReadmeZhCn, /交互式选择是否接入自动化引擎/);
-  assert.match(rootReadme, /panerelay-browser-use/);
-  assert.match(rootReadmeZhCn, /panerelay-browser-use/);
-  assert.match(rootReadme, /print\(list_tabs\(\)\)/);
-  assert.match(rootReadmeZhCn, /print\(list_tabs\(\)\)/);
+  for (const readme of [rootReadme, rootReadmeZhCn]) {
+    assert.match(readme, /panerelay-browser-use[\s\S]+print\(list_tabs\(\)\)/);
+    assert.doesNotMatch(readme, /panerelay-browser-use-cli/);
+    assert.doesNotMatch(readme, /browser-use tab list/);
+  }
   assert.doesNotMatch(browserUseReadme, /browser-use --version/);
   assert.match(rootReadme, /packages\/setup\/dist\/cli\.js --agent-browser --project-provider/);
   assert.doesNotMatch(rootReadme, /packages\/setup\/dist\/cli\.js --project-provider/);
