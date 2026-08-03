@@ -81,6 +81,60 @@ test('resolves private cross-platform Browser Use artifact and launcher paths', 
   );
 });
 
+test('executes the generated Windows Browser Use launcher contract', async t => {
+  if (process.platform !== 'win32') {
+    t.skip('Windows launcher execution requires Windows');
+    return;
+  }
+  const root = await mkdtemp(join(tmpdir(), 'panerelay-browser-use-windows-'));
+  const launcherPath = join(root, 'panerelay-browser-use.cmd');
+  const fixturePath = join(root, 'fixture.mjs');
+  try {
+    await writeFile(
+      fixturePath,
+      `import { argv, stdin, stdout } from 'node:process';
+const args = argv.slice(2);
+stdin.pipe(stdout);
+stdin.on('end', () => {
+  process.exitCode = args.includes('run') ? 7 : args.includes('') ? 9 : args.includes('--pass-through') ? 8 : 0;
+});
+`,
+    );
+    await writeFile(
+      launcherPath,
+      browserUseLauncherContent(
+        process.execPath,
+        fixturePath,
+        join(root, 'browser-use.exe'),
+        'win32',
+      ),
+    );
+
+    const noArgs = spawnSync(launcherPath, [], {
+      encoding: 'utf8',
+      input: 'no-args\n',
+    });
+    assert.equal(noArgs.status, 7, noArgs.stderr);
+    assert.equal(noArgs.stdout, 'no-args\n');
+
+    const explicitEmpty = spawnSync(launcherPath, [''], {
+      encoding: 'utf8',
+      input: 'explicit-empty\n',
+    });
+    assert.equal(explicitEmpty.status, 9, explicitEmpty.stderr);
+    assert.equal(explicitEmpty.stdout, 'explicit-empty\n');
+
+    const passThrough = spawnSync(launcherPath, ['--pass-through'], {
+      encoding: 'utf8',
+      input: 'pass-through\n',
+    });
+    assert.equal(passThrough.status, 8, passThrough.stderr);
+    assert.equal(passThrough.stdout, 'pass-through\n');
+  } finally {
+    await rm(root, { force: true, recursive: true });
+  }
+});
+
 test('installs protected pinned bundles and preserves unrelated adapter registrations', async () => {
   const root = await mkdtemp(join(tmpdir(), 'panerelay-browser-use-install-'));
   const homeDirectory = join(root, 'home');
