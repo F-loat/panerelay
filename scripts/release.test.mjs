@@ -231,11 +231,34 @@ test('keeps selectable release preparation validated and auto-squashed', () => {
   assert.match(prepareReleaseWorkflow, /gh pr create/);
   assert.match(prepareReleaseWorkflow, /id: pr/);
   assert.match(prepareReleaseWorkflow, /echo "url=\$pr_url" >>"\$GITHUB_OUTPUT"/);
-  assert.match(prepareReleaseWorkflow, /gh pr checks "\$PR_URL"/);
-  assert.match(prepareReleaseWorkflow, /--watch/);
-  assert.match(prepareReleaseWorkflow, /--fail-fast/);
-  assert.match(prepareReleaseWorkflow, /--interval 10/);
-  assert.match(prepareReleaseWorkflow, /gh pr merge "\$PR_URL"/);
+  const checkGateStart = prepareReleaseWorkflow.indexOf(
+    '      - name: Wait for pull request checks',
+  );
+  const mergeStepStart = prepareReleaseWorkflow.indexOf(
+    '      - name: Squash merge validated pull request',
+  );
+  assert.ok(checkGateStart >= 0);
+  assert.ok(mergeStepStart > checkGateStart);
+  const checkGate = prepareReleaseWorkflow.slice(checkGateStart, mergeStepStart);
+  assert.match(
+    checkGate,
+    /expected_checks='\["check \(20\)","check \(22\)","windows-packed-consumer \(20\)","windows-packed-consumer \(22\)"\]'/,
+  );
+  assert.match(checkGate, /gh pr checks "\$PR_URL"[\s\S]+--json name,state,bucket 2>&1/);
+  assert.match(checkGate, /check_status=\$\?/);
+  assert.match(checkGate, /grep -qiE 'no checks reported on \.\* branch'/);
+  assert.match(checkGate, /echo "\$check_output" >&2/);
+  assert.match(checkGate, /exit "\$check_status"/);
+  assert.doesNotMatch(checkGate, /2>\/dev\/null\s+\|\|\s+true/);
+  assert.match(checkGate, /jq -r --argjson expected "\$expected_checks"/);
+  assert.match(checkGate, /checks_ready=true/);
+  assert.ok(checkGate.indexOf('checks_ready=true') < checkGate.indexOf('--watch'));
+  assert.match(checkGate, /--watch/);
+  assert.match(checkGate, /--fail-fast/);
+  assert.match(checkGate, /--interval 10/);
+  const mergeStep = prepareReleaseWorkflow.slice(mergeStepStart);
+  assert.match(mergeStep, /gh pr merge "\$PR_URL"/);
+  assert.ok(mergeStep.indexOf('baseRefName') < mergeStep.indexOf('gh pr merge'));
   assert.match(prepareReleaseWorkflow, /--squash/);
   assert.match(prepareReleaseWorkflow, /--delete-branch/);
   assert.match(prepareReleaseWorkflow, /--match-head-commit "\$PREPARE_SHA"/);

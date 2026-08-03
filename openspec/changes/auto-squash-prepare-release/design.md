@@ -23,7 +23,7 @@ The generated branch is a same-repository branch created by the workflow. The ex
 
 ### Wait for the generated pull request's checks explicitly
 
-After the branch push, the commit step exposes its exact `HEAD` SHA. The PR creation step exposes the created URL. A follow-up step polls `gh pr checks --json` until at least one check is reported, then runs `gh pr checks --watch --fail-fast` so any reported check failure stops the job. The initial poll is necessary because `gh pr checks --watch` exits immediately when the event-triggered CI has not registered a check run yet.
+After the branch push, the commit step exposes its exact `HEAD` SHA. The PR creation step exposes the created URL. A follow-up step polls `gh pr checks --json`, preserving its output and exit status. It retries only the explicit no-checks response; authentication, permission, rate-limit, network, and other command errors fail the job immediately. The poll waits until all four expected CI matrix checks are visible: `check (20)`, `check (22)`, `windows-packed-consumer (20)`, and `windows-packed-consumer (22)`. It then runs `gh pr checks --watch --fail-fast` so every discovered check completes before the merge is attempted. The initial poll is necessary because `gh pr checks --watch` exits immediately when the event-triggered CI has not registered a check run yet.
 
 The workflow does not use `--required`: the repository currently has no protected required-check configuration, while the release gate needs to observe the actual CI matrix on the generated PR. This also makes a future required-check policy additive; branch protection still decides whether GitHub accepts the merge.
 

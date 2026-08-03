@@ -257,28 +257,51 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_URL: ${{ steps.pr.outputs.url }}
         run: |
-          checks_started=false
+          expected_checks='["check (20)","check (22)","windows-packed-consumer (20)","windows-packed-consumer (22)"]'
+          checks_ready=false
           for ((attempt = 1; attempt <= CHECK_DISCOVERY_ATTEMPTS; attempt++)); do
-            check_count="$(
+            if check_output="$(
               gh pr checks "$PR_URL" \
                 --repo "$GITHUB_REPOSITORY" \
-                --json name,state,bucket \
-                --jq 'length' 2>/dev/null || true
-            )"
-            if [[ "$check_count" =~ ^[1-9][0-9]*$ ]]; then
-              checks_started=true
-              echo "Observed $check_count pull-request check(s)."
-              break
+                --json name,state,bucket 2>&1
+            )"; then
+              check_status=0
+            else
+              check_status=$?
             fi
+
+            if (( check_status != 0 )); then
+              if grep -qiE 'no checks reported on .* branch' <<<"$check_output"; then
+                echo "Pull-request checks have not appeared yet (attempt $attempt/$CHECK_DISCOVERY_ATTEMPTS)."
+              else
+                echo "$check_output" >&2
+                exit "$check_status"
+              fi
+            else
+              if ! missing_checks="$(
+                jq -r --argjson expected "$expected_checks" '($expected - [.[].name])[]' <<<"$check_output"
+              )"; then
+                echo "Unable to parse pull-request check results:" >&2
+                echo "$check_output" >&2
+                exit 1
+              fi
+              if [[ -z "$missing_checks" ]]; then
+                checks_ready=true
+                echo "Observed all expected pull-request checks."
+                break
+              fi
+              echo "Waiting for pull-request checks: $missing_checks"
+            fi
+
             if (( attempt == CHECK_DISCOVERY_ATTEMPTS )); then
-              echo "No pull-request checks appeared before the discovery timeout." >&2
+              echo "Expected pull-request checks did not appear before the discovery timeout." >&2
               exit 1
             fi
             sleep 10
           done
 
-          if [[ "$checks_started" != true ]]; then
-            echo "Pull-request checks did not start." >&2
+          if [[ "$checks_ready" != true ]]; then
+            echo "Expected pull-request checks did not become available." >&2
             exit 1
           fi
           gh pr checks "$PR_URL" \
