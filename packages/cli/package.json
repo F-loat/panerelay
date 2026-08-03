@@ -1,6 +1,6 @@
 {
   "name": "@panerelay/cli",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Engine-neutral browser administration CLI for Panerelay.",
   "type": "module",
   "license": "MIT",
