@@ -696,6 +696,21 @@ async function packedDoctor(cli, args, options) {
   return JSON.parse(result.stdout);
 }
 
+export async function resolveInstalledPlaywrightAdapter(homeDirectory) {
+  const config = await readJson(join(homeDirectory, '.panerelay/playwright/config.json'));
+  invariant(
+    typeof config.version === 'string' && SEMVER_PATTERN.test(config.version),
+    'Installed Playwright integration has an invalid adapter version',
+  );
+  return {
+    path: join(
+      homeDirectory,
+      `.panerelay/adapters/playwright/${config.version}/dist/panerelay-playwright-adapter.mjs`,
+    ),
+    version: config.version,
+  };
+}
+
 export async function smokePackedSetup(tarballs) {
   const smokeRoot = await mkdtemp(join(tmpdir(), 'panerelay release smoke-'));
   const consumerDirectory = join(smokeRoot, 'consumer');
@@ -741,6 +756,14 @@ export async function smokePackedSetup(tarballs) {
       cwd: consumerDirectory,
       env: environment,
     });
+    const installedSetupManifest = JSON.parse(
+      await readFile(join(consumerDirectory, 'node_modules/@panerelay/setup/package.json'), 'utf8'),
+    );
+    invariant(
+      installedSetupManifest.bin?.['panerelay-setup'] === './dist/cli.js' &&
+        installedSetupManifest.bin?.panerelay === undefined,
+      'Packed setup executable conflicts with the Panerelay administration CLI',
+    );
     const setupCliScript = join(consumerDirectory, 'node_modules/@panerelay/setup/dist/cli.js');
     const setupCliArguments = args => [setupCliScript, ...args];
     const browserCliScript = join(consumerDirectory, 'node_modules/@panerelay/cli/dist/cli.js');
@@ -785,15 +808,8 @@ export async function smokePackedSetup(tarballs) {
       cwd: consumerDirectory,
       env: environment,
     });
-    const installedSetupManifest = JSON.parse(
-      await readFile(join(consumerDirectory, 'node_modules/@panerelay/setup/package.json'), 'utf8'),
-    );
-    const playwrightAdapterVersion = installedSetupManifest.version;
-    const installedPlaywrightAdapter = join(
-      homeDirectory,
-      `.panerelay/adapters/playwright/${playwrightAdapterVersion}/dist/panerelay-playwright-adapter.mjs`,
-    );
-    const adapterManifest = await run(process.execPath, [installedPlaywrightAdapter], {
+    const installedPlaywrightAdapter = await resolveInstalledPlaywrightAdapter(homeDirectory);
+    const adapterManifest = await run(process.execPath, [installedPlaywrightAdapter.path], {
       cwd: consumerDirectory,
       env: environment,
       input: JSON.stringify({
@@ -807,7 +823,7 @@ export async function smokePackedSetup(tarballs) {
     invariant(
       adapterManifestResponse.success === true &&
         adapterManifestResponse.result?.adapterId === 'playwright' &&
-        adapterManifestResponse.result?.version === playwrightAdapterVersion,
+        adapterManifestResponse.result?.version === installedPlaywrightAdapter.version,
       'Packed Playwright adapter did not return its registered manifest',
     );
     const playwrightDoctorArgs = ['doctor', '--playwright', '--json'];

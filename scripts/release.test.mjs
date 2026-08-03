@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import {
   PACKAGE_DEFINITIONS,
@@ -7,6 +10,7 @@ import {
   commandInvocation,
   requiredExtensionHtmlEntries,
   requiredExtensionManifestEntries,
+  resolveInstalledPlaywrightAdapter,
   validateExtensionEntries,
   validatePackedPackage,
   validateReleaseIdentity,
@@ -43,6 +47,12 @@ const playwrightReadme = readFileSync(
 const unifiedSkill = readFileSync(
   new URL('../skills/panerelay-browser/SKILL.md', import.meta.url),
   'utf8',
+);
+const setupPackage = JSON.parse(
+  readFileSync(new URL('../packages/setup/package.json', import.meta.url), 'utf8'),
+);
+const cliPackage = JSON.parse(
+  readFileSync(new URL('../packages/cli/package.json', import.meta.url), 'utf8'),
 );
 const rootLicense = readFileSync(new URL('../LICENSE', import.meta.url), 'utf8');
 const chromeWebStoreUrl =
@@ -100,6 +110,32 @@ function releaseFixture() {
     rootPackage: { version, private: true, repository },
   };
 }
+
+test('keeps setup executable distinct from the administration CLI', () => {
+  assert.deepEqual(setupPackage.bin, { 'panerelay-setup': './dist/cli.js' });
+  assert.deepEqual(cliPackage.bin, { panerelay: './dist/cli.js' });
+});
+
+test('resolves a packed Playwright adapter from its installed integration version', async () => {
+  const home = await mkdtemp(join(tmpdir(), 'panerelay-release-playwright-'));
+  const configPath = join(home, '.panerelay/playwright/config.json');
+  try {
+    await mkdir(join(home, '.panerelay/playwright'), { recursive: true });
+    await writeFile(configPath, JSON.stringify({ version: '0.4.0' }));
+    assert.deepEqual(await resolveInstalledPlaywrightAdapter(home), {
+      path: join(
+        home,
+        '.panerelay/adapters/playwright/0.4.0/dist/panerelay-playwright-adapter.mjs',
+      ),
+      version: '0.4.0',
+    });
+
+    await writeFile(configPath, JSON.stringify({ version: '../outside' }));
+    await assert.rejects(resolveInstalledPlaywrightAdapter(home), /invalid adapter version/);
+  } finally {
+    await rm(home, { force: true, recursive: true });
+  }
+});
 
 test('invokes npm and pnpm through the Windows command processor', () => {
   const environment = { ComSpec: 'C:\\Windows\\System32\\cmd.exe' };
