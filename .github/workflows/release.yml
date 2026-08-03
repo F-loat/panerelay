@@ -218,6 +218,5 @@ jobs:
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
             --title "Panerelay $RELEASE_VERSION" \
-            --notes "Includes Codex, Claude Code, and Qoder side-panel Agents. Requires agent-browser 0.33.0 or newer." \
             --generate-notes \
             --latest

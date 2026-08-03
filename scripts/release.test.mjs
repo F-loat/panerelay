@@ -149,6 +149,7 @@ test('keeps release publication manual, protected, and channel-scoped', () => {
   assert.match(stableRelease, /release-assets\/panerelay-extension-"\$RELEASE_VERSION"\.zip/);
   assert.match(stableRelease, /release-assets\/SHA256SUMS/);
   assert.doesNotMatch(stableRelease, /release-assets\/inventory\.json/);
+  assert.doesNotMatch(stableRelease, /Includes Codex, Claude Code, and Qoder side-panel Agents\./);
   assert.doesNotMatch(releaseWorkflow, /NPM_TOKEN|git push|git tag/);
 });
 
