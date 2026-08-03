@@ -1086,6 +1086,7 @@ describe('React Side Panel', () => {
     expect(screen.getByText('npx --yes @panerelay/setup')).toBeVisible();
     const activityDetails = screen.getByText('agent-browser').closest('details');
     expect(activityDetails).not.toHaveAttribute('open');
+    expect(activityDetails?.querySelector('.activity-chevron')).toBeNull();
     await user.click(within(activityDetails as HTMLElement).getByLabelText('Show error details'));
     expect(activityDetails).toHaveAttribute('open');
     expect(

@@ -1893,7 +1893,7 @@ summary:focus-visible {
 .activity-card-summary {
   display: grid;
   min-height: 36px;
-  grid-template-columns: 12px 22px minmax(0, 1fr) auto;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
   align-items: center;
   gap: 7px;
   cursor: pointer;
@@ -1907,7 +1907,6 @@ summary:focus-visible {
   display: none;
 }
 
-.activity-chevron,
 .timeline-error-chevron,
 .error-chevron {
   width: 12px;
@@ -1918,7 +1917,6 @@ summary:focus-visible {
   transition: transform 120ms ease;
 }
 
-.activity-card-expandable[open] .activity-chevron,
 .timeline-error[open] .timeline-error-chevron,
 .error-copy[open] .error-chevron {
   transform: rotate(90deg);
