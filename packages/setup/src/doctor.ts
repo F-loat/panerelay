@@ -27,7 +27,6 @@ import {
 } from '@panerelay/browser-use';
 import { readCliAdapterMode } from '@panerelay/cli/adapter-config';
 import { readJsonObject, userAgentBrowserConfigPath } from './config.js';
-import { globalSkillPath } from './skill.js';
 import { probeAgentBrowserInstallation } from './agent-browser-integration.js';
 import { PLAYWRIGHT_MINIMUM_VERSION, probePlaywrightInstallation } from '@panerelay/playwright';
 
@@ -463,15 +462,6 @@ export async function doctorPanerelay(options: DoctorOptions = {}): Promise<Doct
           : { hint: `Run: ${SETUP_COMMAND} --agent-browser --global-default` }),
       });
     }
-    const skillPath = globalSkillPath(home);
-    const skillReady = await exists(join(skillPath, 'SKILL.md'));
-    checks.push({
-      id: 'skill',
-      label: 'Panerelay Agent Skill',
-      status: skillReady ? 'pass' : 'fail',
-      detail: skillPath,
-      ...(skillReady ? {} : { hint: `Run: ${SETUP_COMMAND} --agent-browser` }),
-    });
   }
 
   if (options.browserUse && options.globalDefault) {

@@ -17,14 +17,13 @@ test('source contains the complete product and installation journey', async () =
   for (const requiredText of [
     'Let Agents work with',
     'the browser you already use.',
-    'Set up with your Agent',
+    'Install the Agent Skill',
     'Work with an Agent beside the page.',
     'Connect your automation tools.',
     'npx --yes @panerelay/setup',
-    'Let your Agent handle the integration.',
-    'Fetch this guide with curl -fsSL',
-    'Install the Panerelay integration',
-    'Install the local integration',
+    'Two installation steps.',
+    'Install one Skill for all three engines.',
+    'npx skills add F-loat/panerelay --skill panerelay-browser',
     'Browser access',
     'This tab',
     'All tabs',
@@ -60,7 +59,7 @@ test('source contains the complete product and installation journey', async () =
     html,
     /Playwright CLI can connect too\.[\s\S]{0,1000}<code>attach<\/code>[\s\S]{0,1000}<code>playwright-cli<\/code>/,
   );
-  assert.match(html, /docs\/agent-setup\.md#playwright-cli/);
+  assert.match(html, /packages\/playwright\/README\.md/);
   assert.match(
     html,
     /BU_CDP_URL=http:\/\/127\.0\.0\.1:43827\/cdp\/browser-use browser-use &lt;&lt;'PY'[\s\S]+print\(list_tabs\(\)\)/,
@@ -70,11 +69,24 @@ test('source contains the complete product and installation journey', async () =
   assert.doesNotMatch(html, /await browser\./);
   assert.doesNotMatch(html, /data-copy-command="[^\"]*--(?:agent-browser|browser-use)/);
   assert.doesNotMatch(html, /waiting for your approval|You authorize this tab/);
-  assert.equal(
-    (i18n.match(/https:\/\/f-loat\.github\.io\/panerelay\/agent-setup\.md/g) ?? []).length,
-    8,
+  assert.doesNotMatch(html, /agent-setup\.md|curl -fsSL/);
+  assert.doesNotMatch(i18n, /agent-setup\.md|curl -fsSL/);
+  assert.match(
+    html,
+    /data-i18n="demo\.local\.body">\s*Work with local Agents beside this browser while keeping tab access under\s+your control\./,
   );
-  assert.equal((i18n.match(/curl -fsSL/g) ?? []).length, 8);
+  assert.match(
+    html,
+    /data-i18n="demo\.tool\.prompt">\s*Use the panerelay-browser Skill\. Set up agent-browser, run doctor, and stop\s+when I need to authorize a tab\./,
+  );
+  assert.doesNotMatch(html, /retry-action|demo\.local\.retry/);
+  assert.match(i18n, /'setup\.authorization\.link': 'Read advanced setup and manual use'/);
+  assert.match(i18n, /'setup\.authorization\.link': '查看高级设置与手动使用'/);
+  assert.match(html, /F-loat\/panerelay#advanced-setup-and-installation-management/);
+  assert.equal(
+    (i18n.match(/npx skills add F-loat\/panerelay --skill panerelay-browser/g) ?? []).length,
+    2,
+  );
 
   const englishCatalog = i18n.slice(
     i18n.indexOf('const english ='),
@@ -108,24 +120,21 @@ test('source preserves semantic and accessible interactions', async () => {
   assert.match(html, /aria-expanded="false"/);
   assert.match(html, /class="nav-github"[\s\S]+?aria-label="GitHub"/);
   assert.equal((html.match(/data-copy-command=/g) ?? []).length, 1);
-  assert.equal((html.match(/data-copy-text-key=/g) ?? []).length, 4);
+  assert.equal((html.match(/data-copy-text-key=/g) ?? []).length, 1);
   assert.match(html, /role="tablist"/);
   assert.equal((html.match(/data-engine-tab=/g) ?? []).length, 2);
   assert.equal((html.match(/data-engine-panel=/g) ?? []).length, 2);
   assert.equal((html.match(/data-engine-(?:tab|panel)="playwright"/g) ?? []).length, 0);
-  assert.equal((html.match(/data-handoff-tab=/g) ?? []).length, 3);
-  assert.equal((html.match(/data-handoff-panel=/g) ?? []).length, 3);
   assert.match(html, /class="setup-agent-step"/);
-  assert.match(html, /data-handoff-command/);
-  assert.match(html, /data-handoff-command-copy/);
+  assert.doesNotMatch(html, /data-handoff/);
   assert.equal((html.match(/data-demo-step=/g) ?? []).length, 6);
   assert.equal((html.match(/data-demo-panel=/g) ?? []).length, 6);
-  assert.equal((html.match(/role="tabpanel"/g) ?? []).length, 11);
+  assert.equal((html.match(/role="tabpanel"/g) ?? []).length, 8);
   assert.match(html, /data-product-demo/);
   assert.match(html, /data-demo-toggle/);
   assert.match(html, /data-demo-replay/);
   assert.match(script, /navigator\.clipboard\.writeText/);
-  assert.match(i18n, /'hero\.agentSetup': '交给 Agent 接入'/);
+  assert.match(i18n, /'hero\.agentSetup': '安装 Agent Skill'/);
   assert.match(script, /button\.dataset\.copiedLabel = translation\('command\.copied'\)/);
   assert.doesNotMatch(script, /label\.textContent = translation\('command\.copied'\)/);
   assert.match(
@@ -164,10 +173,7 @@ test('source preserves semantic and accessible interactions', async () => {
   assert.match(script, /demoMedia\.revert/);
   assert.doesNotMatch(script, /ScrollTrigger/);
   assert.match(script, /ArrowLeft[\s\S]+ArrowRight[\s\S]+Home[\s\S]+End/);
-  assert.match(script, /'agent-browser': 'npx --yes @panerelay\/setup --agent-browser'/);
-  assert.match(script, /'browser-use': 'npx --yes @panerelay\/setup --browser-use'/);
-  assert.match(script, /both: 'npx --yes @panerelay\/setup --agent-browser --browser-use'/);
-  assert.match(script, /handoffCommandCopy\.dataset\.copyCommand = command/);
+  assert.doesNotMatch(script, /HandoffChoice|handoffCommand|data-handoff/);
   assert.match(styles, /:focus-visible/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(styles, /@media \(max-width: 520px\)/);
@@ -186,21 +192,7 @@ test('source preserves semantic and accessible interactions', async () => {
     /\.engine-panel \{[\s\S]+?grid-template-columns: var\(--workflow-copy-track\) var\(--workflow-demo-track\);/,
   );
   assert.doesNotMatch(styles, /(?:^|\})\s*\.workflow-panel\s*\{[^}]*grid-template-columns:/);
-  assert.match(styles, /\.agent-handoff-picker/);
-  assert.match(styles, /\.agent-prompt/);
-  assert.match(
-    styles,
-    /\.agent-prompt \.agent-prompt-copy \{[\s\S]+?position: absolute;[\s\S]+?top: 50%;[\s\S]+?right: 14px;/,
-  );
   assert.match(styles, /\.copy-button \{[\s\S]+?min-width: 84px;[\s\S]+?min-height: 40px;/);
-  assert.doesNotMatch(
-    styles,
-    /\.agent-prompt \.agent-prompt-copy \{[^}]*\b(?:width|min-width|min-height|padding):/,
-  );
-  assert.doesNotMatch(
-    styles,
-    /\.agent-prompt \.agent-prompt-copy \[?[^\{]*copy-label[^\{]*\{\s*display: none;/,
-  );
   assert.match(styles, /\.setup-steps > \.setup-agent-step/);
   assert.match(styles, /\.setup-agent-step \.bridge-visual/);
   assert.match(styles, /\.bridge-visual \{[\s\S]+?justify-content: center;/);
@@ -249,11 +241,9 @@ test('source provides complete English and Simplified Chinese language contracts
   assert.match(i18n, /只在明确授权的标签页后台工作，不抢占焦点/);
   assert.match(i18n, /后台工作，不抢焦点/);
   assert.match(i18n, /已找出 2 个影响发布的问题/);
-  assert.match(i18n, /请用 curl -fsSL 读取此指南/);
-  assert.match(i18n, /执行 agent-browser 场景/);
-  assert.match(i18n, /执行 browser-use 场景/);
-  assert.match(i18n, /执行 agent-browser 与 browser-use 组合场景/);
-  assert.match(i18n, /Browser Harness 驱动的 CLI/);
+  assert.match(i18n, /使用 panerelay-browser Skill，完成 agent-browser 接入并运行 doctor/);
+  assert.match(i18n, /一个 Skill 覆盖三种集成/);
+  assert.match(i18n, /统一 Skill 中的 Browser Harness CLI/);
   assert.match(i18n, /控制权始终看得见/);
   assert.match(i18n, /当前标签页仍保持授权；再次点击已选范围，才会取消授权/);
   assert.match(i18n, /获得访问，<br>不等于获得控制。<br><em>控制权始终可见。<\/em>/);
@@ -278,32 +268,24 @@ test('source provides complete English and Simplified Chinese language contracts
   }
 });
 
-test('published Agent setup guide keeps upstream installation and user authorization explicit', async () => {
-  const guide = await read('../../docs/agent-setup.md');
-  const publishedGuide = await read('dist/agent-setup.md');
+test('unified Agent Skill keeps upstream installation and user authorization explicit', async () => {
+  const skill = await read('../../skills/panerelay-browser/SKILL.md');
   const packageJson = JSON.parse(await read('package.json'));
 
-  assert.equal(publishedGuide, guide);
   assert.equal(packageJson.dependencies.gsap.startsWith('^3.'), true);
-  assert.match(guide, /does \*\*not\*\* install, update, downgrade/);
-  assert.match(guide, /https:\/\/agent-browser\.dev\/installation/);
-  assert.match(guide, /https:\/\/docs\.browser-use\.com\/open-source\/browser-use-cli/);
-  assert.match(guide, /npx --yes @panerelay\/setup --agent-browser/);
-  assert.match(guide, /npx --yes @panerelay\/setup --browser-use/);
-  assert.match(guide, /npx --yes @panerelay\/setup --agent-browser --browser-use/);
-  assert.match(guide, /doctor --agent-browser --browser-use/);
-  assert.match(guide, /agent-browser --provider panerelay tab list/);
-  assert.match(
-    guide,
-    /invoke the official CLI with the fixed discovery URL[\s\S]+On POSIX shells use `BU_CDP_URL=http:\/\/127\.0\.0\.1:43827\/cdp\/browser-use browser-use/,
-  );
-  assert.match(guide, /BU_CDP_URL=http:\/\/127\.0\.0\.1:43827\/cdp\/browser-use/);
-  assert.match(guide, /Browser Harness listed only explicitly authorized tabs/);
-  assert.doesNotMatch(guide, /browser-use --version/);
-  assert.match(guide, /Stop and ask the user to authorize/);
-  assert.match(guide, /Do not claim completion/);
-  assert.match(guide, /https:\/\/f-loat\.github\.io\/panerelay\/agent-setup\.md/);
-  assert.doesNotMatch(guide, /\]\(\.\.\/packages\//);
+  assert.match(skill, /https:\/\/agent-browser\.dev\/installation/);
+  assert.match(skill, /https:\/\/docs\.browser-use\.com\/open-source\/browser-use-cli/);
+  assert.match(skill, /https:\/\/github\.com\/microsoft\/playwright-cli/);
+  assert.match(skill, /npx --yes @panerelay\/setup --agent-browser/);
+  assert.match(skill, /npx --yes @panerelay\/setup --browser-use/);
+  assert.match(skill, /npx --yes @panerelay\/setup --playwright/);
+  assert.match(skill, /agent-browser --session panerelay-task --provider panerelay tab list/);
+  assert.match(skill, /BU_CDP_URL=http:\/\/127\.0\.0\.1:43827\/cdp\/browser-use/);
+  assert.match(skill, /playwright-cli attach --cdp http:\/\/127\.0\.0\.1:43827\/cdp\/playwright/);
+  assert.match(skill, /Stop for user-owned browser authorization/);
+  assert.match(skill, /Do not claim completion/);
+  assert.match(skill, /npx skills add F-loat\/panerelay --skill panerelay-browser/);
+  await assert.rejects(read('dist/agent-setup.md'), /ENOENT/);
 });
 
 test('source has no analytics, advertising, external scripts, or unapproved fonts', async () => {

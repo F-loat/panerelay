@@ -1,4 +1,0 @@
-interface:
-  display_name: 'Panerelay Playwright'
-  short_description: 'Use Playwright CLI through authorized Chrome tabs'
-  default_prompt: 'Use $panerelay-playwright to work in my authorized current-browser tab.'

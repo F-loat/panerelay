@@ -11,14 +11,6 @@ import {
   unregisterPanerelayProvider,
 } from './config.js';
 import {
-  installBrowserUseSkill,
-  installPanerelaySkill,
-  installPlaywrightSkill,
-  uninstallBrowserUseSkill,
-  uninstallPanerelaySkill,
-  uninstallPlaywrightSkill,
-} from './skill.js';
-import {
   installBrowserUseIntegrationArtifacts,
   uninstallBrowserUseIntegrationArtifacts,
   type BrowserUseIntegrationInstallation,
@@ -35,7 +27,6 @@ import {
 } from './agent-browser-integration.js';
 import {
   installPlaywrightIntegration,
-  PANERELAY_PLAYWRIGHT_INTEGRATION_VERSION,
   type PlaywrightIntegrationInstallation,
   uninstallPlaywrightIntegration,
 } from './playwright-integration.js';
@@ -59,29 +50,21 @@ export interface PanerelaySetupResult {
   agentBrowserInstallation?: AgentBrowserInstallation;
   agentBrowserConfigPath?: string;
   globalDefault: boolean;
-  globalSkillPath?: string;
   host: NativeHostInstallationResult;
   browserUseRequested?: boolean;
   browserUseIntegration?: BrowserUseIntegrationInstallation;
   browserUseReady?: boolean;
-  browserUseSkillPath?: string;
   browserUseVersions?: BrowserUseVersions;
   playwrightInstallation?: PlaywrightInstallation;
   playwrightIntegration?: PlaywrightIntegrationInstallation;
-  playwrightSkillPath?: string;
   projectConfigPath?: string;
-  projectSkillPath?: string;
 }
 
 export interface PanerelayUninstallResult {
   agentBrowserConfigPath: string;
   browserUseIntegration: BrowserUseIntegrationUninstallResult;
   playwrightIntegration: Awaited<ReturnType<typeof uninstallPlaywrightIntegration>>;
-  playwrightSkillPath: string;
-  browserUseSkillPath: string;
-  globalSkillPath: string;
   projectConfigPath?: string;
-  projectSkillPath?: string;
 }
 
 export interface LifecycleDependencies {
@@ -89,21 +72,15 @@ export interface LifecycleDependencies {
   configureProject?: typeof configureProjectProvider;
   installHost?: typeof installNativeHost;
   installBrowserUse?: typeof installBrowserUseIntegrationArtifacts;
-  installBrowserUseSkill?: typeof installBrowserUseSkill;
   probeBrowserUse?: typeof probeBrowserUseVersions;
   probeAgentBrowser?: typeof probeAgentBrowserInstallation;
-  installSkill?: typeof installPanerelaySkill;
   registerProvider?: typeof registerPanerelayProvider;
   removeProject?: typeof removeProjectProvider;
   uninstallHost?: typeof uninstallNativeHost;
   uninstallBrowserUse?: typeof uninstallBrowserUseIntegrationArtifacts;
-  uninstallBrowserUseSkill?: typeof uninstallBrowserUseSkill;
   installPlaywright?: typeof installPlaywrightIntegration;
-  installPlaywrightSkill?: typeof installPlaywrightSkill;
   probePlaywright?: typeof probePlaywrightInstallation;
   uninstallPlaywright?: typeof uninstallPlaywrightIntegration;
-  uninstallPlaywrightSkill?: typeof uninstallPlaywrightSkill;
-  uninstallSkill?: typeof uninstallPanerelaySkill;
   unregisterProvider?: typeof unregisterPanerelayProvider;
 }
 
@@ -114,14 +91,9 @@ export async function setupPanerelay(
   const installHost = dependencies.installHost ?? installNativeHost;
   const registerProvider = dependencies.registerProvider ?? registerPanerelayProvider;
   const configureGlobal = dependencies.configureGlobal ?? configureGlobalProvider;
-  const installSkill = dependencies.installSkill ?? installPanerelaySkill;
   const installBrowserUse = dependencies.installBrowserUse ?? installBrowserUseIntegrationArtifacts;
-  const installSelectedBrowserUseSkill =
-    dependencies.installBrowserUseSkill ?? installBrowserUseSkill;
   const configureProject = dependencies.configureProject ?? configureProjectProvider;
   const installPlaywright = dependencies.installPlaywright ?? installPlaywrightIntegration;
-  const installSelectedPlaywrightSkill =
-    dependencies.installPlaywrightSkill ?? installPlaywrightSkill;
   if (options.globalDefault && !options.agentBrowser && !options.browserUse) {
     throw new Error('--global-default requires agentBrowser or browserUse: true');
   }
@@ -148,11 +120,6 @@ export async function setupPanerelay(
   if (options.globalDefault && options.agentBrowser) {
     await configureGlobal({ homeDirectory: options.homeDirectory });
   }
-  const globalSkillPath = options.agentBrowser
-    ? await installSkill('global', {
-        homeDirectory: options.homeDirectory,
-      })
-    : undefined;
   const browserUseVersions = options.browserUse
     ? await (dependencies.probeBrowserUse ?? probeBrowserUseVersions)(
         options.environment,
@@ -190,21 +157,6 @@ export async function setupPanerelay(
           playwrightInstallation,
         })
       : undefined;
-  const playwrightSkillPath =
-    playwrightIntegration && playwrightReady
-      ? await installSelectedPlaywrightSkill({
-          homeDirectory: options.homeDirectory,
-          setupVersion: PANERELAY_PLAYWRIGHT_INTEGRATION_VERSION,
-        })
-      : undefined;
-  const browserUseSkillPath =
-    browserUseIntegration && browserUseReady
-      ? await installSelectedBrowserUseSkill({
-          homeDirectory: options.homeDirectory,
-          setupVersion: browserUseIntegration.config.version,
-        })
-      : undefined;
-
   if (!options.project) {
     return {
       host,
@@ -212,7 +164,6 @@ export async function setupPanerelay(
       ...(agentBrowserConfigPath ? { agentBrowserConfigPath } : {}),
       browserUseRequested: options.browserUse === true,
       ...(browserUseIntegration ? { browserUseIntegration } : {}),
-      ...(browserUseSkillPath ? { browserUseSkillPath } : {}),
       ...(browserUseVersions
         ? {
             browserUseVersions,
@@ -221,15 +172,10 @@ export async function setupPanerelay(
         : {}),
       ...(playwrightInstallation ? { playwrightInstallation } : {}),
       ...(playwrightIntegration ? { playwrightIntegration } : {}),
-      ...(playwrightSkillPath ? { playwrightSkillPath } : {}),
       globalDefault: options.globalDefault === true,
-      ...(globalSkillPath ? { globalSkillPath } : {}),
     };
   }
   const projectConfigPath = await configureProject({
-    projectDirectory: options.projectDirectory,
-  });
-  const projectSkillPath = await installSkill('project', {
     projectDirectory: options.projectDirectory,
   });
   return {
@@ -238,7 +184,6 @@ export async function setupPanerelay(
     ...(agentBrowserConfigPath ? { agentBrowserConfigPath } : {}),
     browserUseRequested: options.browserUse === true,
     ...(browserUseIntegration ? { browserUseIntegration } : {}),
-    ...(browserUseSkillPath ? { browserUseSkillPath } : {}),
     ...(browserUseVersions
       ? {
           browserUseVersions,
@@ -247,11 +192,8 @@ export async function setupPanerelay(
       : {}),
     ...(playwrightInstallation ? { playwrightInstallation } : {}),
     ...(playwrightIntegration ? { playwrightIntegration } : {}),
-    ...(playwrightSkillPath ? { playwrightSkillPath } : {}),
     globalDefault: options.globalDefault === true,
-    ...(globalSkillPath ? { globalSkillPath } : {}),
     projectConfigPath,
-    projectSkillPath,
   };
 }
 
@@ -261,20 +203,14 @@ export async function uninstallPanerelay(
 ): Promise<PanerelayUninstallResult> {
   const uninstallHost = dependencies.uninstallHost ?? uninstallNativeHost;
   const unregisterProvider = dependencies.unregisterProvider ?? unregisterPanerelayProvider;
-  const uninstallSkill = dependencies.uninstallSkill ?? uninstallPanerelaySkill;
   const uninstallSelectedBrowserUse =
     dependencies.uninstallBrowserUse ?? uninstallBrowserUseIntegrationArtifacts;
-  const uninstallSelectedBrowserUseSkill =
-    dependencies.uninstallBrowserUseSkill ?? uninstallBrowserUseSkill;
   const removeProject = dependencies.removeProject ?? removeProjectProvider;
   await uninstallHost({
     homeDirectory: options.homeDirectory,
     platform: options.platform,
   });
   const agentBrowserConfigPath = await unregisterProvider({
-    homeDirectory: options.homeDirectory,
-  });
-  const globalSkillPath = await uninstallSkill('global', {
     homeDirectory: options.homeDirectory,
   });
   const browserUseIntegration = await uninstallSelectedBrowserUse({
@@ -289,35 +225,20 @@ export async function uninstallPanerelay(
     homeDirectory: options.homeDirectory,
     platform: options.platform,
   });
-  const playwrightSkillPath = await (
-    dependencies.uninstallPlaywrightSkill ?? uninstallPlaywrightSkill
-  )(options.homeDirectory);
-  const browserUseSkillPath = await uninstallSelectedBrowserUseSkill(options.homeDirectory);
-
   if (!options.project) {
     return {
       agentBrowserConfigPath,
       browserUseIntegration,
       playwrightIntegration,
-      playwrightSkillPath,
-      browserUseSkillPath,
-      globalSkillPath,
     };
   }
   const projectConfigPath = await removeProject({
-    projectDirectory: options.projectDirectory,
-  });
-  const projectSkillPath = await uninstallSkill('project', {
     projectDirectory: options.projectDirectory,
   });
   return {
     agentBrowserConfigPath,
     browserUseIntegration,
     playwrightIntegration,
-    playwrightSkillPath,
-    browserUseSkillPath,
-    globalSkillPath,
     projectConfigPath,
-    projectSkillPath,
   };
 }

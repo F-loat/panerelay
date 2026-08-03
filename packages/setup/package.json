@@ -31,17 +31,17 @@
   "files": [
     "dist",
     "!dist/**/*.test.*",
-    "skills",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json && node build-private.mjs",
+    "build": "node clean.mjs && tsc -p tsconfig.json && node build-private.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "pnpm run build && node ../../scripts/run-compiled-tests.mjs dist",
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {
+    "@clack/prompts": "1.2.0",
     "@panerelay/bridge": "workspace:*",
     "@panerelay/browser-registry": "workspace:*",
     "@panerelay/browser-use": "workspace:*",

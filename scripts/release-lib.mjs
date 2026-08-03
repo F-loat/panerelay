@@ -118,12 +118,6 @@ export const PACKAGE_DEFINITIONS = [
       'package/dist/private/browser-use/panerelay-browser-use-adapter.mjs',
       'package/dist/private/playwright/panerelay-playwright-adapter.mjs',
       'package/package.json',
-      'package/skills/panerelay-browser/SKILL.md',
-      'package/skills/panerelay-browser/agents/openai.yaml',
-      'package/skills/panerelay-browser-use/SKILL.md',
-      'package/skills/panerelay-browser-use/agents/openai.yaml',
-      'package/skills/panerelay-playwright/SKILL.md',
-      'package/skills/panerelay-playwright/agents/openai.yaml',
     ],
   },
 ];
@@ -707,12 +701,16 @@ export async function smokePackedSetup(tarballs) {
   const consumerDirectory = join(smokeRoot, 'consumer');
   const homeDirectory = join(smokeRoot, 'home');
   const binDirectory = join(smokeRoot, 'bin');
+  const independentSkillDirectory = join(homeDirectory, '.agents/skills/panerelay-browser');
+  const independentSkillPath = join(independentSkillDirectory, 'SKILL.md');
   try {
     await Promise.all([
       mkdir(consumerDirectory, { recursive: true }),
       mkdir(homeDirectory, { recursive: true }),
       mkdir(binDirectory, { recursive: true }),
+      mkdir(independentSkillDirectory, { recursive: true }),
     ]);
+    await writeFile(independentSkillPath, 'independently managed by npx skills\n');
     const dependencies = Object.fromEntries(
       tarballs.map(tarball => [tarball.name, `file:${resolve(tarball.path)}`]),
     );
@@ -778,6 +776,10 @@ export async function smokePackedSetup(tarballs) {
       { cwd: consumerDirectory, env: environment },
     );
     invariant(baseDoctor.ok === true, 'Packed base setup doctor did not report readiness');
+    invariant(
+      baseDoctor.checks.every(check => check.id !== 'skill'),
+      'Packed setup doctor still reported a Skill check',
+    );
 
     await run(process.execPath, setupCliArguments(['--playwright', '--yes']), {
       cwd: consumerDirectory,
@@ -864,14 +866,14 @@ export async function smokePackedSetup(tarballs) {
       cwd: consumerDirectory,
       env: environment,
     });
-    await Promise.all([
-      assertMissing(join(homeDirectory, '.panerelay/bin/panerelay-native-host.cjs'), 'Native Host'),
-      assertMissing(join(homeDirectory, '.agents/skills/panerelay-browser'), 'Global Agent Skill'),
-      assertMissing(
-        join(homeDirectory, '.agents/skills/panerelay-playwright'),
-        'Playwright Agent Skill',
-      ),
-    ]);
+    await assertMissing(
+      join(homeDirectory, '.panerelay/bin/panerelay-native-host.cjs'),
+      'Native Host',
+    );
+    invariant(
+      (await readFile(independentSkillPath, 'utf8')) === 'independently managed by npx skills\n',
+      'Packed setup changed or removed the independently managed Agent Skill',
+    );
   } finally {
     await rm(smokeRoot, { force: true, recursive: true });
   }
@@ -906,8 +908,7 @@ async function validateStableDistributionSources(root) {
     'docs/compatibility/playwright-cli-0.1.17.md',
     'docs/compatibility/claude-code.md',
     ...PACKAGE_DEFINITIONS.map(definition => `${definition.directory}/README.md`),
-    'packages/setup/skills/panerelay-browser/SKILL.md',
-    'packages/setup/skills/panerelay-playwright/SKILL.md',
+    'skills/panerelay-browser/SKILL.md',
   ];
   for (const relativePath of distributionFiles) {
     const source = await readFile(join(root, relativePath), 'utf8');

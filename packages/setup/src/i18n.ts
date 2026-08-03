@@ -3,24 +3,20 @@ import { execFileSync } from 'node:child_process';
 export type SupportedLocale = 'en' | 'zh-CN';
 
 const englishMessages = {
-  agentBrowserDefaultPrompt: 'Make Panerelay the default agent-browser Provider? [y/N] ',
-  agentBrowserPrompt: 'Install the agent-browser integration? [y/N] ',
   agentBrowserMissing: 'Warning: agent-browser was not found.',
   agentBrowserUnsupported:
     'Warning: agent-browser {version} is unsupported. Panerelay requires 0.33.0 or newer.',
   agentCommand: 'Agent command:',
-  agentSkill: 'Agent Skill: {path}',
-  automationChoices:
-    'Optional automation integrations: run setup in a terminal without flags to choose them interactively, or use --agent-browser and/or --browser-use.',
   browserUseIntegration: 'Browser Use integration: {path}',
-  browserUseDefaultPrompt: 'Use Panerelay as the default Browser Use connection? [y/N] ',
-  browserUsePrompt: 'Install the Browser Use integration? [y/N] ',
   browserUseMissing:
     'Warning: a complete Browser Use 0.13.7 or newer installation was not found. Install, repair, or upgrade Browser Use, then run setup again with --browser-use.',
   browserUseReady: 'Browser Use: {browserUse}',
   browserUseDetachedDaemon:
     'Browser Use integration files were removed. A detached daemon and its current browser participant may remain until the user releases it or the Extension/Native Host disconnects; Panerelay did not kill processes by name.',
-  browserUseSkill: 'Browser Use Agent Skill: {path}',
+  confirmNo: 'No',
+  confirmYes: 'Yes',
+  defaultIntegrationsPrompt:
+    'Make Panerelay the user default for the selected agent-browser and Browser Use integrations?',
   playwrightMissing:
     'Warning: Playwright CLI 0.1.17 or newer was not found. Install or upgrade the upstream CLI, then run setup again with --playwright.',
   codexMissing: 'Warning: Codex CLI was not found.',
@@ -56,15 +52,12 @@ const englishMessages = {
   extensionStoreNextStep: 'Extension: Install or open Panerelay in the Chrome Web Store: {url}',
   globalDefault: 'Global default configuration: {path}',
   setupAgentBrowser: 'agent-browser',
-  setupAgentSkill: 'Agent Skill',
   setupBrowserHarnessEnvironment: 'Browser Harness environment',
   setupBrowserUse: 'Browser Use',
   setupBrowserUseCommand: 'Browser Use command:',
-  setupBrowserUseSkill: 'Browser Use Agent Skill',
   setupPlaywright: 'Playwright CLI',
   setupPlaywrightConfig: 'Playwright config:',
   setupPlaywrightCommand: 'Playwright command:',
-  setupPlaywrightSkill: 'Playwright Agent Skill',
   setupCodex: 'Codex',
   setupExtensionId: 'Extension ID',
   setupFix: 'Fix',
@@ -78,6 +71,10 @@ const englishMessages = {
   setupUserDefault: 'User default',
   setupNativeHost: 'Native Host',
   setupTitle: 'Panerelay setup',
+  integrationAgentBrowserHint: 'Panerelay Provider',
+  integrationBrowserUseHint: 'Browser Harness connection',
+  integrationPlaywrightHint: 'Explicit CDP connection',
+  integrationSelectPrompt: 'Select optional automation integrations',
   help: `Panerelay Setup
 
 Usage:
@@ -110,32 +107,29 @@ Optional automation integrations:
   nativeHost: 'Native Host: {path}',
   nonInteractiveUninstall: 'Non-interactive input detected. Re-run with --yes.',
   setupComplete: 'Panerelay setup complete.',
+  setupCancelled: 'Setup cancelled.',
   uninstallCancelled: 'Uninstall cancelled.',
   uninstallComplete: 'Panerelay local integration removed.',
-  uninstallPrompt: 'Uninstall Panerelay local integration? [y/N] ',
+  uninstallPrompt: 'Uninstall Panerelay local integration?',
 } as const;
 
 type MessageKey = keyof typeof englishMessages;
 
 const chineseMessages: Record<MessageKey, string> = {
-  agentBrowserDefaultPrompt: '将 Panerelay 设为 agent-browser 的默认 Provider 吗？[y/N] ',
-  agentBrowserPrompt: '需要接入 agent-browser 吗？[y/N] ',
   agentBrowserMissing: '警告：未找到 agent-browser。',
   agentBrowserUnsupported:
     '警告：agent-browser {version} 不受支持。Panerelay 需要 0.33.0 或更高版本。',
   agentCommand: 'Agent 命令：',
-  agentSkill: 'Agent Skill：{path}',
-  automationChoices:
-    '可选自动化集成：在终端中不带参数运行 setup 可交互选择，也可使用 --agent-browser 和/或 --browser-use。',
   browserUseIntegration: 'Browser Use 集成：{path}',
-  browserUseDefaultPrompt: '将 Panerelay 设为 Browser Use 的默认连接吗？[y/N] ',
-  browserUsePrompt: '需要接入 Browser Use 吗？[y/N] ',
   browserUseMissing:
     '警告：未找到完整的 Browser Use 0.13.7 或更高版本。请安装、修复或升级 Browser Use 后，使用 --browser-use 重新运行 setup。',
   browserUseReady: 'Browser Use：{browserUse}',
   browserUseDetachedDaemon:
     '已移除 Browser Use 集成文件。分离的 daemon 及其当前浏览器 participant 可能持续到用户主动释放，或 Extension/Native Host 断开；Panerelay 未按进程名终止进程。',
-  browserUseSkill: 'Browser Use Agent Skill：{path}',
+  confirmNo: '否',
+  confirmYes: '是',
+  defaultIntegrationsPrompt:
+    '将 Panerelay 设为所选 agent-browser 和 Browser Use 集成的用户级默认吗？',
   codexMissing: '警告：未找到 Codex CLI。',
   doctorAttention: 'Panerelay 需要处理以下问题。',
   doctorFailureCount: '失败项：{count}',
@@ -169,16 +163,13 @@ const chineseMessages: Record<MessageKey, string> = {
   extensionStoreNextStep: '扩展：请从 Chrome 应用商店安装或打开 Panerelay：{url}',
   globalDefault: '全局默认配置：{path}',
   setupAgentBrowser: 'agent-browser',
-  setupAgentSkill: 'Agent Skill',
   setupBrowserHarnessEnvironment: 'Browser Harness 环境',
   setupBrowserUse: 'Browser Use',
   setupBrowserUseCommand: 'Browser Use 命令：',
-  setupBrowserUseSkill: 'Browser Use Agent Skill',
   playwrightMissing:
     '警告：未找到 Playwright CLI 0.1.17 或更高版本。请安装或升级上游 CLI 后，使用 --playwright 重新运行 setup。',
   setupPlaywrightConfig: 'Playwright 配置：',
   setupPlaywrightCommand: 'Playwright 命令：',
-  setupPlaywrightSkill: 'Playwright Agent Skill',
   setupPlaywright: 'Playwright CLI',
   setupCodex: 'Codex',
   setupExtensionId: '扩展 ID',
@@ -193,6 +184,10 @@ const chineseMessages: Record<MessageKey, string> = {
   setupUserDefault: '用户级默认值',
   setupNativeHost: 'Native Host',
   setupTitle: 'Panerelay 安装',
+  integrationAgentBrowserHint: 'Panerelay Provider',
+  integrationBrowserUseHint: 'Browser Harness 连接',
+  integrationPlaywrightHint: '显式 CDP 连接',
+  integrationSelectPrompt: '请选择可选自动化集成',
   help: `Panerelay 安装工具
 
 用法：
@@ -225,9 +220,10 @@ const chineseMessages: Record<MessageKey, string> = {
   nativeHost: 'Native Host：{path}',
   nonInteractiveUninstall: '检测到非交互式输入，请添加 --yes 后重试。',
   setupComplete: 'Panerelay 安装完成。',
+  setupCancelled: '已取消安装。',
   uninstallCancelled: '已取消卸载。',
   uninstallComplete: '已移除 Panerelay 本地集成。',
-  uninstallPrompt: '确定卸载 Panerelay 本地集成吗？[y/N] ',
+  uninstallPrompt: '确定卸载 Panerelay 本地集成吗？',
 };
 
 export interface LocaleResolutionOptions {

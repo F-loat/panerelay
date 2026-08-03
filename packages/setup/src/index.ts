@@ -45,18 +45,3 @@ export type {
   PlaywrightIntegrationOptions,
   PlaywrightIntegrationPaths,
 } from './playwright-integration.js';
-export {
-  globalBrowserUseSkillPath,
-  globalPlaywrightSkillPath,
-  globalSkillPath,
-  installBrowserUseSkill,
-  installPanerelaySkill,
-  installPlaywrightSkill,
-  PANERELAY_BROWSER_USE_SKILL_NAME,
-  PANERELAY_PLAYWRIGHT_SKILL_NAME,
-  PANERELAY_SKILL_NAME,
-  projectSkillPath,
-  uninstallBrowserUseSkill,
-  uninstallPanerelaySkill,
-  uninstallPlaywrightSkill,
-} from './skill.js';

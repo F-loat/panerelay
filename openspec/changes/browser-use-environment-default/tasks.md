@@ -20,7 +20,7 @@
 
 ## 4. Official Browser Use integration
 
-- [x] 4.1 Update the additive Skill and all README/website/setup examples to invoke official `browser-use` and `browser-use --cli-mcp` directly.
+- [x] 4.1 Update the unified Panerelay Skill and all README/website/setup examples to invoke official `browser-use` and `browser-use --cli-mcp` directly.
 - [x] 4.2 Verify Browser Harness 0.1.8 loads the managed environment default and preserves explicit process environment precedence.
 - [x] 4.3 Run real daily-Chrome verification for official CLI helpers, CLI MCP, sequential reuse, concurrent startup, browser-default switching, authorization revocation, stale daemon recovery, and cleanup. Evidence: `docs/spikes/0006-browser-use-0.13.7.md` and the compatibility record.
 - [x] 4.4 Update `docs/compatibility/browser-use-0.13.7.md` with Verified/Forwarded/Partial/Unsupported results and record reproducible spike evidence.

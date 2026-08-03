@@ -7,11 +7,11 @@
 - Created: 2026-07-31
 - Updated: 2026-08-03
 - OpenSpec: `openspec/changes/archive/2026-08-01-add-browser-use-connection-adapter`
-- Amendments: `openspec/changes/archive/2026-08-01-relax-browser-use-version-gate`, `openspec/changes/archive/2026-08-01-add-browser-use-default-setting`, `openspec/changes/show-control-engine-favicon`, `openspec/changes/archive/2026-08-02-make-adapter-installation-explicit`, `openspec/changes/archive/2026-08-03-add-playwright-cdp-integration`
+- Amendments: `openspec/changes/archive/2026-08-01-relax-browser-use-version-gate`, `openspec/changes/archive/2026-08-01-add-browser-use-default-setting`, `openspec/changes/show-control-engine-favicon`, `openspec/changes/archive/2026-08-02-make-adapter-installation-explicit`, `openspec/changes/archive/2026-08-03-add-playwright-cdp-integration`, `openspec/changes/archive/2026-08-03-simplify-setup-skill-installation`
 
 ## Summary
 
-Panerelay defines an explicitly selected Browser Use integration alongside the agent-browser Provider. `--browser-use` installs the integration, a user-scoped fixed CDP gateway, and a Panerelay Browser Use Skill. Setup writes Browser Harness's `BU_CDP_URL` default to the gateway, so the official `browser-use` CLI and `browser-use --cli-mcp` consume the same connection without a Panerelay process wrapper. The gateway mints short-lived authenticated CDP tickets only after selecting the saved browser and routes discovery to explicitly authorized targets in the user's existing Chromium browser.
+Panerelay defines an explicitly selected Browser Use integration alongside the agent-browser Provider. `--browser-use` installs the integration and a user-scoped fixed CDP gateway. Setup writes Browser Harness's `BU_CDP_URL` default to the gateway, so the official `browser-use` CLI and `browser-use --cli-mcp` consume the same connection without a Panerelay process wrapper. The independent unified `panerelay-browser` Skill documents this workflow and is managed through `npx skills`, not setup. The gateway mints short-lived authenticated CDP tickets only after selecting the saved browser and routes discovery to explicitly authorized targets in the user's existing Chromium browser.
 
 Browser Harness uses one stable, lazily started user-scoped daemon lane and keeps its virtual CDP WebSocket participant connected across sequential commands. Task completion does not stop that lane. Extension revocation, authorization loss, WebSocket or heartbeat failure, and Native Host shutdown remain authoritative cleanup boundaries.
 
@@ -33,7 +33,7 @@ The Playwright amendment adds a separate `/cdp/playwright` route and `playwright
 
 ### Goals
 
-1. Connect Browser Use CLI, its installed Panerelay Skill, and Browser Harness-backed CLI MCP to authorized daily-browser targets without modifying Browser Use upstream.
+1. Connect Browser Use CLI, the independently installed unified Panerelay Skill, and Browser Harness-backed CLI MCP to authorized daily-browser targets without modifying Browser Use upstream.
 2. Keep mode persistence and browser selection in the engine-neutral Panerelay CLI while allowing the official Browser Use process to run directly.
 3. Allocate a Browser Use participant only when the fixed gateway receives a valid discovery request.
 4. Keep Direct and Extension Browser Use lanes independently selectable and reusable.
@@ -50,7 +50,7 @@ The Playwright amendment adds a separate `/cdp/playwright` route and `playwright
 ## Architecture
 
 ```text
-Panerelay Browser Use Skill
+Unified panerelay-browser Skill
           │
           ▼
   @panerelay/cli
@@ -79,7 +79,7 @@ Each adapter registration contains an identifier, exact absolute executable path
 
 The Browser Use gateway selects the saved opaque browser ID for the fixed environment URL, rereads only that protected live registration, requests a bootstrap ticket using its Bridge bearer, and returns only bounded DevTools version metadata to Browser Harness. A one-run adapter resolution may provide an opaque browser ID and generation in a scoped gateway URL; that route pins the live registration to the supplied generation and ignores inherited browser-selector environment variables. Bridge bearers and ticket WebSocket URLs never appear in command arguments, standard output, or Panerelay logs.
 
-Setup installs the gateway and integration metadata without installing a Browser Use wrapper or changing shell PATH. The official Browser Use executable remains the user's installation.
+Setup installs the gateway and integration metadata without installing a Browser Use wrapper, changing shell PATH, or managing an Agent Skill. The official Browser Use executable remains the user's installation.
 
 The implemented user-facing surfaces are `panerelay connection use <adapter> <mode>` and the shared browser-selection commands. Browser Use is invoked as the ordinary `browser-use` command; `connection resolve` and `run` are not required for its normal path.
 
@@ -136,7 +136,7 @@ The Extension settings surface may change the saved Browser Use preference throu
 
 The user-facing minimum is Browser Use 0.13.7. Setup and doctor accept stable Browser Use releases at or above that floor only when the Browser Use environment is complete; they report one Browser Use status and tell users to install, repair, or upgrade Browser Use rather than manage its internal packages. Panerelay continues to probe the Browser Harness distribution internally with a 0.1.8 floor because the supported CLI, daemon, Skill-helper, and CLI MCP paths require it.
 
-The exact verified integration baseline remains Browser Use 0.13.7 with Browser Harness 0.1.8. A newer pair that passes the minimum gate is eligible to run but is not automatically `Verified`. Claims cover the Panerelay Browser Use Skill, Browser Use CLI, and Browser Use CLI MCP. Python SDK transparency is not claimed.
+The exact verified integration baseline remains Browser Use 0.13.7 with Browser Harness 0.1.8. A newer pair that passes the minimum gate is eligible to run but is not automatically `Verified`. Claims cover the Browser Use workflow in the unified `panerelay-browser` Skill, Browser Use CLI, and Browser Use CLI MCP. Python SDK transparency is not claimed.
 
 Compatibility must be recorded as `Verified`, `Forwarded`, `Partial`, or `Unsupported` for bootstrap, initialization, core page operations, tab and popup lifecycle, child sessions, revocation, persistent reuse, concurrency behavior, Native Host reload, stale-daemon recovery, and browser-ownership limitations. agent-browser 0.33.0 remains the unchanged regression baseline for the shared Bridge.
 
@@ -172,6 +172,6 @@ Rejected because Browser Harness is intentionally persistent and the Skill canno
 
 ## Delivery and acceptance
 
-The linked OpenSpec change owns implementation tasks and verification details. The committed bounded spike records the pinned Browser Harness initialization trace, lifecycle behavior, focus-emulation resolution, and OOPIF child-session capability. The development candidate implements and regresses the two generic virtual-CDP prerequisites, adapter protocol, authenticated bootstrap, setup integration, Skill, CLI MCP surface, and user-scoped persistent lane. Product acceptance covers bootstrap races, core operations, tabs, popups, frames, single-tab cross-origin loss, visible user release, independent-target exclusion, reuse, reload, stale recovery, simultaneous invocation handling, and credential boundaries.
+The linked OpenSpec change owns implementation tasks and verification details. The committed bounded spike records the pinned Browser Harness initialization trace, lifecycle behavior, focus-emulation resolution, and OOPIF child-session capability. The development candidate implements and regresses the two generic virtual-CDP prerequisites, adapter protocol, authenticated bootstrap, setup integration, independently distributed Skill workflow, CLI MCP surface, and user-scoped persistent lane. Product acceptance covers bootstrap races, core operations, tabs, popups, frames, single-tab cross-origin loss, visible user release, independent-target exclusion, reuse, reload, stale recovery, simultaneous invocation handling, and credential boundaries.
 
 This RFC remains Accepted while the development candidate is tested. It must not move to Implemented until the lockstep Panerelay release and Browser Use compatibility record are published.

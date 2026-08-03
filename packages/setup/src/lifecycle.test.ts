@@ -88,20 +88,11 @@ test('setup can opt into global and project default providers', async () => {
           },
         };
       },
-      installBrowserUseSkill: async options => {
-        calls.push('install-browser-use-skill');
-        assert.equal(options.setupVersion, '0.2.0');
-        return '/home/.agents/skills/panerelay-browser-use';
-      },
       probeBrowserUse: async () => ({
         browserHarness: '0.1.9',
         browserUse: '0.13.8',
         browserUseExecutable: '/bin/browser-use',
       }),
-      installSkill: async scope => {
-        calls.push(`install-skill:${scope}`);
-        return `/${scope}/skill`;
-      },
       registerProvider: async () => {
         calls.push('register-provider');
         return '/home/.agent-browser/config.json';
@@ -114,11 +105,8 @@ test('setup can opt into global and project default providers', async () => {
     'install-host',
     'register-provider',
     'configure-global',
-    'install-skill:global',
     'install-browser-use',
-    'install-browser-use-skill',
     'configure-project',
-    'install-skill:project',
   ]);
   assert.equal(result.globalDefault, true);
   assert.equal(browserUseDefault, 'extension');
@@ -141,10 +129,6 @@ test('base setup installs only the Native Host and skips both engine integration
         calls.push('install-browser-use');
         throw new Error('Browser Use should not be installed');
       },
-      installSkill: async () => {
-        calls.push('install-agent-browser-skill');
-        throw new Error('agent-browser Skill should not be installed');
-      },
       registerProvider: async () => {
         calls.push('register-agent-browser-provider');
         throw new Error('agent-browser Provider should not be registered');
@@ -155,11 +139,10 @@ test('base setup installs only the Native Host and skips both engine integration
   assert.deepEqual(calls, ['install-host']);
   assert.equal(result.agentBrowserInstallation, undefined);
   assert.equal(result.agentBrowserConfigPath, undefined);
-  assert.equal(result.globalSkillPath, undefined);
   assert.equal(result.browserUseIntegration, undefined);
 });
 
-test('Playwright setup installs only Panerelay-owned adapter and additive Skill artifacts', async () => {
+test('Playwright setup installs only Panerelay-owned adapter artifacts', async () => {
   const calls: string[] = [];
   const result = await setupPanerelay(
     { homeDirectory: '/home', playwright: true },
@@ -196,22 +179,11 @@ test('Playwright setup installs only Panerelay-owned adapter and additive Skill 
           registry: { protocol: 'panerelay.cli-adapter-registry.v1', adapters: [] },
         };
       },
-      installPlaywrightSkill: async options => {
-        calls.push('install-playwright-skill');
-        assert.equal(options.setupVersion, '0.4.0');
-        return '/home/.agents/skills/panerelay-playwright';
-      },
     },
   );
 
-  assert.deepEqual(calls, [
-    'install-host',
-    'probe-playwright',
-    'install-playwright',
-    'install-playwright-skill',
-  ]);
+  assert.deepEqual(calls, ['install-host', 'probe-playwright', 'install-playwright']);
   assert.equal(result.playwrightInstallation?.version, '0.1.17');
-  assert.equal(result.playwrightSkillPath, '/home/.agents/skills/panerelay-playwright');
 });
 
 test('Playwright setup reports unavailable installations without writing integration artifacts', async () => {
@@ -235,17 +207,12 @@ test('Playwright setup reports unavailable installations without writing integra
           calls.push('install-playwright');
           throw new Error('Playwright integration must not be installed');
         },
-        installPlaywrightSkill: async () => {
-          calls.push('install-playwright-skill');
-          throw new Error('Playwright Skill must not be installed');
-        },
       },
     );
 
     assert.deepEqual(calls, ['install-host', 'probe-playwright']);
     assert.deepEqual(result.playwrightInstallation, installation);
     assert.equal(result.playwrightIntegration, undefined);
-    assert.equal(result.playwrightSkillPath, undefined);
   }
 });
 
@@ -300,10 +267,6 @@ test('uninstall removes only Panerelay-owned integration through scoped operatio
           runtimeStateRemoved: false,
         };
       },
-      uninstallBrowserUseSkill: async () => {
-        calls.push('uninstall-browser-use-skill');
-        return '/home/.agents/skills/panerelay-browser-use';
-      },
       uninstallPlaywright: async () => {
         calls.push('uninstall-playwright');
         return {
@@ -318,14 +281,6 @@ test('uninstall removes only Panerelay-owned integration through scoped operatio
           registry: { protocol: 'panerelay.cli-adapter-registry.v1', adapters: [] },
         };
       },
-      uninstallPlaywrightSkill: async () => {
-        calls.push('uninstall-playwright-skill');
-        return '/home/.agents/skills/panerelay-playwright';
-      },
-      uninstallSkill: async scope => {
-        calls.push(`uninstall-skill:${scope}`);
-        return `/${scope}/skill`;
-      },
       unregisterProvider: async () => {
         calls.push('unregister-provider');
         return '/home/.agent-browser/config.json';
@@ -336,12 +291,8 @@ test('uninstall removes only Panerelay-owned integration through scoped operatio
   assert.deepEqual(calls, [
     'uninstall-host',
     'unregister-provider',
-    'uninstall-skill:global',
     'uninstall-browser-use',
     'uninstall-playwright',
-    'uninstall-playwright-skill',
-    'uninstall-browser-use-skill',
     'remove-project',
-    'uninstall-skill:project',
   ]);
 });

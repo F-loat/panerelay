@@ -9,6 +9,7 @@
 - Amendment: `openspec/changes/archive/2026-08-02-make-adapter-installation-explicit`
 - Amendment: `openspec/changes/archive/2026-08-01-add-browser-use-default-setting`
 - Amendment: `openspec/changes/archive/2026-08-01-improve-browser-authorization-controls`
+- Amendment: `openspec/changes/archive/2026-08-03-simplify-setup-skill-installation`
 
 RFC-0004 supersedes this RFC's attachment-as-control and page-indicator semantics by separating visible read observation from active browser control.
 
@@ -526,7 +527,7 @@ RFC-0001 can move from `Draft` to `Accepted` when:
 | The browser visibly identifies controlled state and offers immediate release. | Pass | The Extension shows a substantively controlled-tab count in its action badge, marks each document touched by an Agent page command with the agent-browser favicon and a green status dot, and keeps release in the side panel. Virtual target discovery and page-session bootstrap remain unmarked. |
 | Codex uses the provider-neutral conversation contract for lifecycle, streaming, approvals, and interruption. | Pass | Bridge contract tests cover provider discovery, normalized events, and approval requests. |
 | Qoder ACP uses the same provider-neutral boundary without becoming a prerequisite. | Pass | Adapter tests cover capabilities, streaming, permissions, interruption, process restart, project working directories, bounded tab context, and the absence of Panerelay-injected browser MCPs or engine cleanup. |
-| Local setup installs, diagnoses, and removes only the selected components. | Pass | Plain setup covers the Native Host and side-panel prerequisites. `--agent-browser` and `--browser-use` independently gate their probes, registrations, Skills, output, success, settings availability, and doctor checks; project/global agent-browser defaults require the explicit agent-browser selection. The settings installer accepts only the two fixed adapter identifiers, pins the lockstep setup package, revalidates registration, and then changes only that adapter's default. |
+| Local setup installs, diagnoses, and removes only the selected components. | Pass | Plain setup covers the Native Host and side-panel prerequisites. `--agent-browser`, `--browser-use`, and `--playwright` independently gate their program probes, Provider/adapter registrations, output, success, settings availability, and doctor checks; user defaults require an explicitly selected default-capable integration. Agent Skill lifecycle is independent and belongs to `npx skills`. The settings installer accepts only fixed adapter identifiers, pins the lockstep setup package, revalidates registration, and then changes only that adapter's default. |
 | Real Windows Chrome launches and removes the installed Native Host. | Pending | Windows path, launcher, registry, update, and uninstall behavior has deterministic coverage; the stable release gate still requires a real Windows Chrome run from a path containing spaces. |
 
 ## Open questions

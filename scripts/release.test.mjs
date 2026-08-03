@@ -40,6 +40,10 @@ const playwrightReadme = readFileSync(
   new URL('../packages/playwright/README.md', import.meta.url),
   'utf8',
 );
+const unifiedSkill = readFileSync(
+  new URL('../skills/panerelay-browser/SKILL.md', import.meta.url),
+  'utf8',
+);
 const rootLicense = readFileSync(new URL('../LICENSE', import.meta.url), 'utf8');
 const chromeWebStoreUrl =
   'https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi';
@@ -182,18 +186,22 @@ test('keeps release publication manual, protected, and channel-scoped', () => {
 test('keeps official installation guidance Store-first and version-neutral', () => {
   const englishQuickstart = rootReadme.slice(
     rootReadme.indexOf('## Quickstart'),
-    rootReadme.indexOf('## Supported workflows'),
+    rootReadme.indexOf('## How it works'),
   );
   const chineseQuickstart = rootReadmeZhCn.slice(
     rootReadmeZhCn.indexOf('## 快速开始'),
-    rootReadmeZhCn.indexOf('## 支持的工作流'),
+    rootReadmeZhCn.indexOf('## 工作方式'),
   );
 
-  for (const guidance of [englishQuickstart, chineseQuickstart, setupReadme]) {
+  for (const guidance of [englishQuickstart, chineseQuickstart]) {
     assert.match(guidance, new RegExp(chromeWebStoreUrl.replaceAll('.', '\\.')));
-    assert.match(guidance, /npx --yes @panerelay\/setup/);
+    assert.match(guidance, /npx skills add F-loat\/panerelay --skill panerelay-browser/);
+    assert.doesNotMatch(guidance, /npx --yes @panerelay\/setup/);
     assert.doesNotMatch(guidance, /@panerelay\/setup@\d+\.\d+\.\d+/);
   }
+  assert.match(setupReadme, new RegExp(chromeWebStoreUrl.replaceAll('.', '\\.')));
+  assert.match(setupReadme, /npx skills add F-loat\/panerelay --skill panerelay-browser/);
+  assert.match(setupReadme, /npx --yes @panerelay\/setup/);
   assert.doesNotMatch(englishQuickstart, /Panerelay Releases|chrome:\/\/extensions/);
   assert.doesNotMatch(chineseQuickstart, /Panerelay Releases|chrome:\/\/extensions/);
   assert.match(
@@ -203,8 +211,21 @@ test('keeps official installation guidance Store-first and version-neutral', () 
   assert.match(rootReadmeZhCn, /在 Chrome 或 Edge 中将 `apps\/extension\/dist` 加载为未打包扩展/);
   assert.match(rootReadme, /Let Agents work with the browser you already use/);
   assert.match(rootReadmeZhCn, /让 Agent 在你常用的浏览器里工作/);
-  assert.match(rootReadme, /interactively asks whether to connect optional automation engines/);
-  assert.match(rootReadmeZhCn, /交互式选择是否接入自动化引擎/);
+  assert.match(rootReadme, /presents one keyboard multiselect/);
+  assert.match(rootReadme, /asks at most once whether/);
+  assert.match(rootReadmeZhCn, /只会先用一次多选/);
+  assert.match(rootReadmeZhCn, /最多再询问一次/);
+  assert.match(
+    rootReadme,
+    /## Advanced setup and installation management[\s\S]+?<details>[\s\S]+?<\/details>/,
+  );
+  assert.match(rootReadmeZhCn, /## 高级设置与安装管理[\s\S]+?<details>[\s\S]+?<\/details>/);
+  assert.doesNotMatch(rootReadme, /^## (?:Supported workflows|Documentation)$/m);
+  assert.doesNotMatch(rootReadmeZhCn, /^## (?:支持的工作流|文档)$/m);
+  const sharedImage =
+    'https://github.com/user-attachments/assets/2eba77ae-5362-4803-9190-cf134dd2b8d7';
+  assert.match(rootReadme, new RegExp(sharedImage.replaceAll('.', '\\.')));
+  assert.match(rootReadmeZhCn, new RegExp(sharedImage.replaceAll('.', '\\.')));
   for (const readme of [rootReadme, rootReadmeZhCn]) {
     assert.match(
       readme,
@@ -220,9 +241,21 @@ test('keeps official installation guidance Store-first and version-neutral', () 
     playwrightReadme,
     /playwright-cli attach --cdp http:\/\/127\.0\.0\.1:43827\/cdp\/playwright/,
   );
-  assert.match(playwrightReadme, /does not install a shim[\s\S]+or set Playwright as a default/i);
+  assert.match(playwrightReadme, /does not install a shim[\s\S]+set Playwright as a default/i);
   assert.match(rootReadme, /packages\/setup\/dist\/cli\.js --agent-browser --global-default/);
   assert.doesNotMatch(rootReadme, /--project-provider|--global-provider/);
+  for (const guidance of [
+    rootReadme,
+    rootReadmeZhCn,
+    setupReadme,
+    documentationIndex,
+    documentationIndexZhCn,
+  ]) {
+    assert.doesNotMatch(guidance, /agent-setup\.md|curl -fsSL/);
+  }
+  assert.match(unifiedSkill, /## agent-browser workflow/);
+  assert.match(unifiedSkill, /## Browser Use workflow/);
+  assert.match(unifiedSkill, /## Playwright CLI workflow/);
 });
 
 test('keeps localized README documentation navigation in the selected language', () => {

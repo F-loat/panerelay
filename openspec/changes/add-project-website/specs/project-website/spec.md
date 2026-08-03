@@ -22,7 +22,7 @@ The website SHALL explain Panerelay through two clearly named paths: **Agent sid
 
 ### Requirement: First-screen standard workflow walkthrough
 
-The website SHALL demonstrate the representative zero-to-first-control automation-tool journey on the first screen through six separate, product-accurate interface states: installing the Extension, installing the engine-neutral Panerelay local integration, asking an Agent to connect agent-browser, Browser Use, or both through the authoritative website-published guide, authorizing a tab in the Extension, observing and controlling that authorized tab, and releasing control while preserving the selected authorization scope. The first screen SHALL lead with a primary Extension installation action and a separate copyable Agent-setup action; documentation SHALL remain available at lower visual emphasis.
+The website SHALL demonstrate the representative zero-to-first-control automation-tool journey on the first screen through six separate, product-accurate interface states: installing the Extension, installing the repository-level `panerelay-browser` Skill, asking an Agent to use that Skill with agent-browser, Browser Use, or both, authorizing a tab in the Extension, observing and controlling that authorized tab, and releasing control while preserving the selected authorization scope. The first screen SHALL lead with a primary Extension installation action and a separate copyable Skill-backed Agent-setup action; documentation SHALL remain available at lower visual emphasis.
 
 At wide desktop widths, the hero and its positioning strip SHALL fit within one dynamic viewport, with shorter desktop heights tightening internal spacing instead of clipping content. Intermediate and mobile layouts SHALL expand naturally when a side-by-side composition is no longer readable. Localized headline text SHALL remain inside the copy column without painting beneath the product stage.
 
@@ -74,38 +74,38 @@ JavaScript enhancement SHALL coordinate one restrained pass through the six stat
 
 ### Requirement: Actionable installation journey
 
-The website SHALL provide direct paths to the Chrome Web Store, the Panerelay GitHub repository, project documentation, and the upstream agent-browser and Browser Use websites. Its initial human installation journey SHALL show the engine-neutral `npx --yes @panerelay/setup` product command after Extension installation. Repository quickstarts MAY briefly note that `--agent-browser` and `--browser-use` add the corresponding Panerelay integration files and can be combined, while stating that setup does not install the upstream tools. The website SHALL provide separate copyable Agent handoffs for configuring agent-browser, Browser Use, or both integrations. In the Agent-guided tool chooser, a secondary manual integration command SHALL mirror the selected scenario by adding `--agent-browser`, `--browser-use`, or both flags; this command SHALL remain visibly subordinate to the Agent handoff and SHALL NOT imply that Panerelay installs the upstream automation tools. The checked-in guide SHALL be emitted unchanged at `https://f-loat.github.io/panerelay/agent-setup.md`. Each handoff SHALL contain only the stable guide URL, the selected scenario, and a concise instruction to fetch and follow it; environment inspection, installation boundaries, diagnostics, authorization stops, and acceptance details SHALL live in the guide rather than being duplicated in entry copy. The base command, selected integration command, and prompts SHALL remain readable without JavaScript, and supported browsers SHALL offer copy interactions with accessible success indications.
+The website SHALL provide direct paths to the Chrome Web Store, the Panerelay GitHub repository, project documentation, and the upstream agent-browser and Browser Use websites. Its initial installation journey SHALL contain two steps: install the Extension and install the repository-level `panerelay-browser` Skill with `npx skills add F-loat/panerelay --skill panerelay-browser`. The website SHALL state that the unified Skill contains agent-browser, Browser Use, and Playwright CLI workflows, while `@panerelay/setup` remains an advanced command for selected upstream program probes and Panerelay-owned Provider, adapter, and default management. The website SHALL NOT publish or reference a separate Agent setup document. The Skill command SHALL remain readable without JavaScript, and supported browsers SHALL offer a copy interaction with an accessible success indication.
 
-The checked-in Agent setup guide SHALL state that Panerelay setup does not install upstream automation tools. It SHALL provide deterministic steps for environment inspection, official-source installation or update only when needed, the selected Panerelay integration, doctor diagnostics, authorization-aware success verification, combined setup, supported-version boundaries, and platform-appropriate command execution without modifying unrelated Agent configuration.
+The repository-level `panerelay-browser` Skill SHALL state that Panerelay setup does not install upstream automation tools. It SHALL provide deterministic steps for selected-engine environment inspection, official-source installation or update only when needed, the selected Panerelay integration, targeted doctor diagnostics, authorization-aware success verification, combined setup, supported-version boundaries, and platform-appropriate command execution without modifying unrelated Agent or Skill configuration.
 
 #### Scenario: Visitor installs from the primary call to action
 
 - **GIVEN** the landing page has loaded
 - **WHEN** the visitor follows the primary installation path
-- **THEN** the website exposes the Extension installation link and one engine-neutral Panerelay setup command before any workflow-specific Agent handoff
+- **THEN** the website exposes the Extension installation link and the repository Skill installation command before any workflow-specific Agent handoff
 
-#### Scenario: Visitor copies the setup command
+#### Scenario: Visitor copies the Skill installation command
 
 - **GIVEN** clipboard APIs are available and JavaScript enhancement has loaded
-- **WHEN** the visitor activates the setup command copy control
-- **THEN** the exact setup command is written to the clipboard and the control communicates completion without removing the visible command
+- **WHEN** the visitor activates the Skill command copy control
+- **THEN** the exact `npx skills add F-loat/panerelay --skill panerelay-browser` command is written to the clipboard and the control communicates completion without removing the visible command
 
 #### Scenario: Visitor delegates workflow setup to an Agent
 
 - **GIVEN** the visitor has installed Panerelay and wants agent-browser, Browser Use, or both
 - **WHEN** the visitor selects and copies the corresponding Agent handoff
-- **THEN** the copied instruction identifies the selected scenario, points to the stable website-hosted Agent guide, requests a read-only fetch, and relies on that guide for the detailed safety and acceptance sequence while the subordinate manual command reflects the same selected integration flags
+- **THEN** the copied instruction identifies the selected scenario, asks the Agent to use the installed `panerelay-browser` Skill, and relies on that Skill for the detailed safety and acceptance sequence while the subordinate manual command reflects the same selected integration flags
 
 #### Scenario: Selected manual integration command stays synchronized
 
 - **GIVEN** the visitor is viewing the Agent-guided tool chooser with JavaScript enhancement available
 - **WHEN** the visitor selects agent-browser, Browser Use, or both
-- **THEN** the visible secondary command and its copy action use the matching `@panerelay/setup` integration flags without changing the initial engine-neutral product installation command
+- **THEN** the visible secondary command and its copy action use the matching `@panerelay/setup` integration flags without changing the initial repository Skill installation command
 
-#### Scenario: Agent follows the published guide
+#### Scenario: Agent follows the installed Skill
 
 - **GIVEN** an Agent receives one of the website or README handoffs
-- **WHEN** it fetches the referenced website guide and follows the selected scenario
+- **WHEN** it invokes the installed `panerelay-browser` Skill for the selected scenario
 - **THEN** it can distinguish upstream-tool installation from Panerelay integration, run the exact integration and doctor steps, and report either verified authorized access or a concrete user action still required
 
 #### Scenario: Visitor continues to upstream agent-browser documentation
@@ -124,11 +124,11 @@ The checked-in Agent setup guide SHALL state that Panerelay setup does not insta
 
 - **GIVEN** JavaScript is disabled or fails to load
 - **WHEN** the visitor opens the website
-- **THEN** the product narrative, both engine descriptions, source links, Extension link, documentation links, base setup command, and all Agent handoff prompts remain available
+- **THEN** the product narrative, both engine descriptions, source links, Extension link, documentation links, repository Skill installation command, and all Agent handoff prompts remain available
 
 ### Requirement: Accessible automation-engine comparison
 
-The website SHALL expose the agent-browser and Browser Use comparison as a compact, content-sized, keyboard-operable tab interface within the workflow introduction when JavaScript enhancement is available and as two readable sections without JavaScript. It SHALL NOT use full-width tool buttons or redundant status sublabels. The enhanced comparison MAY rotate automatically at a restrained interval, but SHALL stop automatic rotation after manual selection, pause while hovered or keyboard-focused, and disable automatic rotation when reduced motion is requested. Selecting an engine SHALL update the associated description and upstream and compatibility links without changing the global navigation, the human-facing product installation command, or the separate Agent handoff choices.
+The website SHALL expose the agent-browser and Browser Use comparison as a compact, content-sized, keyboard-operable tab interface within the workflow introduction when JavaScript enhancement is available and as two readable sections without JavaScript. It SHALL NOT use full-width tool buttons or redundant status sublabels. The enhanced comparison MAY rotate automatically at a restrained interval, but SHALL stop automatic rotation after manual selection, pause while hovered or keyboard-focused, and disable automatic rotation when reduced motion is requested. Selecting an engine SHALL update the associated description and upstream and compatibility links without changing the global navigation, the repository Skill installation command, or the separate Agent handoff choices.
 
 #### Scenario: Visitor selects Browser Use
 
@@ -150,7 +150,7 @@ The website SHALL expose the agent-browser and Browser Use comparison as a compa
 
 ### Requirement: Honest safety and compatibility claims
 
-The website SHALL state that site permission, tab authorization, and active control are separate; that access is visible and revocable; and that Panerelay does not own browser-process features. It SHALL identify agent-browser 0.33.0 and Browser Use 0.13.7 with Browser Harness 0.1.8 as pinned evidence baselines, distinguish an accepted minimum from an exact verified baseline, and SHALL NOT describe Edge capability groups as `Verified` while the checked-in compatibility record classifies them as `Forwarded`. Browser Use claims SHALL cover its setup-managed CLI, additive Skill, and CLI MCP surfaces and SHALL NOT imply transparent interception of arbitrary Python SDK construction.
+The website SHALL state that site permission, tab authorization, and active control are separate; that access is visible and revocable; and that Panerelay does not own browser-process features. It SHALL identify agent-browser 0.33.0 and Browser Use 0.13.7 with Browser Harness 0.1.8 as pinned evidence baselines, distinguish an accepted minimum from an exact verified baseline, and SHALL NOT describe Edge capability groups as `Verified` while the checked-in compatibility record classifies them as `Forwarded`. Browser Use claims SHALL cover its Browser Harness-backed CLI and CLI MCP surfaces in the unified Skill and SHALL NOT imply transparent interception of arbitrary Python SDK construction.
 
 #### Scenario: Visitor reviews the trust boundary
 
@@ -166,19 +166,19 @@ The website SHALL state that site permission, tab authorization, and active cont
 
 ### Requirement: Coherent repository onboarding
 
-The root English and Simplified Chinese READMEs SHALL lead with Agent side panel and Automation tool integrations, show one engine-neutral Panerelay installation command, briefly identify the optional combinable integration flags, and offer concise, website-guide-backed Agent handoffs for configuring agent-browser, Browser Use, or both. Integration READMEs SHALL lead with the supported user outcome, prerequisites, Agent-guided setup, success criteria, upstream documentation, and compatibility record before internal adapter terminology, while technical CLI reference remains discoverable. Repository guidance SHALL use consistent labels for the two product paths, peer automation integrations, accepted minimums, and exact verified baselines.
+The root English and Simplified Chinese READMEs SHALL lead with Agent side panel and Automation tool integrations, present Extension installation plus the repository Skill as the complete normal onboarding path, and end the quickstart with a concise instruction for asking the Agent to use the Skill. They SHALL group optional setup flags, manual verification, Skill lifecycle commands, and Panerelay installation management into one default-collapsed advanced section after the architecture overview. They SHALL omit redundant supported-workflow and documentation sections while preserving top navigation and targeted inline links. Integration READMEs SHALL lead with the supported user outcome, prerequisites, Agent-guided setup, success criteria, upstream documentation, and compatibility record before internal adapter terminology, while technical CLI reference remains discoverable. Repository guidance SHALL use consistent labels for the two product paths, peer automation integrations, accepted minimums, and exact verified baselines.
 
 #### Scenario: New user chooses a setup path
 
 - **GIVEN** a user opens either root README without prior Panerelay knowledge
 - **WHEN** the user reaches the quickstart
-- **THEN** the user sees one Panerelay installation command and can copy or adapt a natural-language instruction for an Agent to configure agent-browser, Browser Use, or both
+- **THEN** the user sees the Extension-plus-Skill installation path and can ask an Agent to use the Skill with agent-browser, Browser Use, or Playwright CLI
 
 #### Scenario: Browser Use user finds the supported boundary
 
 - **GIVEN** a user opens the Browser Use integration README
 - **WHEN** the user reviews prerequisites and compatibility
-- **THEN** the document links to upstream Browser Use documentation, identifies supported CLI, additive Skill, and CLI MCP surfaces, and states that arbitrary Python SDK construction is outside the transparent integration
+- **THEN** the document links to upstream Browser Use documentation, identifies supported Browser Harness-backed CLI and CLI MCP surfaces in the unified Skill, and states that arbitrary Python SDK construction is outside the transparent integration
 
 ### Requirement: Responsive and accessible experience
 

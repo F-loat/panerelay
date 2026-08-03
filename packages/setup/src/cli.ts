@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import { confirm as confirmPrompt, isCancel, multiselect } from '@clack/prompts';
 import { PANERELAY_EXTENSION_ID } from '@panerelay/protocol';
 import {
   PANERELAY_BROWSER_USE_GATEWAY_URL,
@@ -9,7 +10,6 @@ import { PANERELAY_PLAYWRIGHT_GATEWAY_URL } from '@panerelay/playwright';
 import { realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { stdin, stdout } from 'node:process';
-import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 import { doctorPanerelay, type DoctorReport } from './doctor.js';
 import { normalizeLocale, resolveLocale, translate, type SupportedLocale } from './i18n.js';
@@ -38,7 +38,28 @@ interface LanguageArguments {
   language?: SupportedLocale;
 }
 
-type SetupPrompt = (message: string) => Promise<boolean>;
+type SetupIntegration = 'agentBrowser' | 'browserUse' | 'playwright';
+
+interface SetupIntegrationPrompt {
+  message: string;
+  options: ReadonlyArray<{
+    hint: string;
+    label: string;
+    value: SetupIntegration;
+  }>;
+}
+
+interface SetupConfirmationPrompt {
+  active: string;
+  inactive: string;
+  initialValue: boolean;
+  message: string;
+}
+
+type SetupSelectIntegrations = (
+  prompt: SetupIntegrationPrompt,
+) => Promise<readonly SetupIntegration[] | undefined>;
+type SetupConfirm = (prompt: SetupConfirmationPrompt) => Promise<boolean | undefined>;
 
 function languageValue(argv: string[]): string | undefined {
   for (let index = 0; index < argv.length; index += 1) {
@@ -224,7 +245,6 @@ const doctorLabels: Record<string, { en: string; 'zh-CN': string }> = {
     'zh-CN': 'agent-browser Provider',
   },
   qoder: { en: 'Qoder (optional)', 'zh-CN': 'Qoder（可选）' },
-  skill: { en: 'Agent Skill', 'zh-CN': 'Agent Skill' },
   'windows-registry-chrome': {
     en: 'Chrome Native Messaging registry',
     'zh-CN': 'Chrome Native Messaging 注册表',
@@ -249,7 +269,6 @@ const doctorGroups = [
       'windows-registry-edge',
       'extension-id',
       'provider',
-      'skill',
     ],
     title: 'doctorGroupIntegration',
   },
@@ -368,25 +387,36 @@ function printDoctor(report: DoctorReport, locale: SupportedLocale): void {
   }
 }
 
-async function confirmUninstall(locale: SupportedLocale): Promise<boolean> {
+async function promptConfirmation(prompt: SetupConfirmationPrompt): Promise<boolean | undefined> {
+  const answer = await confirmPrompt({
+    ...prompt,
+    input: stdin,
+    output: stdout,
+  });
+  return isCancel(answer) ? undefined : answer;
+}
+
+function confirmationPrompt(locale: SupportedLocale, message: string): SetupConfirmationPrompt {
+  return {
+    active: translate(locale, 'confirmYes'),
+    inactive: translate(locale, 'confirmNo'),
+    initialValue: false,
+    message,
+  };
+}
+
+async function confirmUninstall(locale: SupportedLocale): Promise<boolean | undefined> {
   if (!stdin.isTTY || !stdout.isTTY) return false;
-  const input = createInterface({ input: stdin, output: stdout });
-  try {
-    const answer = (await input.question(translate(locale, 'uninstallPrompt')))
-      .trim()
-      .toLowerCase();
-    return answer === 'y' || answer === 'yes';
-  } finally {
-    input.close();
-  }
+  return promptConfirmation(confirmationPrompt(locale, translate(locale, 'uninstallPrompt')));
 }
 
 export interface CliDependencies {
-  confirm?: () => Promise<boolean>;
+  confirm?: () => Promise<boolean | undefined>;
+  confirmDefault?: SetupConfirm;
   doctor?: typeof doctorPanerelay;
   environment?: NodeJS.ProcessEnv;
   interactive?: () => boolean;
-  prompt?: SetupPrompt;
+  selectIntegrations?: SetupSelectIntegrations;
   setup?: typeof setupPanerelay;
   systemLocale?: string;
   uninstall?: typeof uninstallPanerelay;
@@ -396,34 +426,67 @@ function isInteractiveTerminal(): boolean {
   return stdin.isTTY === true && stdout.isTTY === true;
 }
 
-async function promptYesNo(message: string): Promise<boolean> {
-  const input = createInterface({ input: stdin, output: stdout });
-  try {
-    const answer = (await input.question(message)).trim().toLowerCase();
-    return answer === 'y' || answer === 'yes';
-  } finally {
-    input.close();
-  }
+async function promptIntegrations(
+  prompt: SetupIntegrationPrompt,
+): Promise<readonly SetupIntegration[] | undefined> {
+  const selected = await multiselect<SetupIntegration>({
+    input: stdin,
+    message: prompt.message,
+    options: [...prompt.options],
+    output: stdout,
+    required: false,
+  });
+  return isCancel(selected) ? undefined : selected;
 }
 
 async function selectOptionalIntegrations(
   locale: SupportedLocale,
-  prompt: SetupPrompt,
+  selectIntegrations: SetupSelectIntegrations,
+  confirmDefault: SetupConfirm,
 ): Promise<
-  Pick<ParsedSetupArgs, 'agentBrowser' | 'browserUse' | 'globalDefault'> & {
-    browserUseDefault: 'direct' | 'extension';
-  }
+  | (Pick<ParsedSetupArgs, 'agentBrowser' | 'browserUse' | 'playwright' | 'globalDefault'> & {
+      browserUseDefault: 'direct' | 'extension';
+    })
+  | undefined
 > {
-  const agentBrowser = await prompt(translate(locale, 'agentBrowserPrompt'));
-  const agentBrowserGlobalDefault = agentBrowser
-    ? await prompt(translate(locale, 'agentBrowserDefaultPrompt'))
-    : false;
-  const browserUse = await prompt(translate(locale, 'browserUsePrompt'));
-  const browserUseGlobalDefault =
-    browserUse && (await prompt(translate(locale, 'browserUseDefaultPrompt')));
-  const browserUseDefault = browserUseGlobalDefault ? 'extension' : 'direct';
-  const globalDefault = agentBrowserGlobalDefault || browserUseGlobalDefault;
-  return { agentBrowser, browserUse, browserUseDefault, globalDefault };
+  const selection = await selectIntegrations({
+    message: translate(locale, 'integrationSelectPrompt'),
+    options: [
+      {
+        hint: translate(locale, 'integrationAgentBrowserHint'),
+        label: 'agent-browser',
+        value: 'agentBrowser',
+      },
+      {
+        hint: translate(locale, 'integrationBrowserUseHint'),
+        label: 'Browser Use',
+        value: 'browserUse',
+      },
+      {
+        hint: translate(locale, 'integrationPlaywrightHint'),
+        label: 'Playwright CLI',
+        value: 'playwright',
+      },
+    ],
+  });
+  if (!selection) return undefined;
+
+  const selected = new Set(selection);
+  let globalDefault = false;
+  if (selected.has('agentBrowser') || selected.has('browserUse')) {
+    const confirmed = await confirmDefault(
+      confirmationPrompt(locale, translate(locale, 'defaultIntegrationsPrompt')),
+    );
+    if (confirmed === undefined) return undefined;
+    globalDefault = confirmed;
+  }
+  return {
+    agentBrowser: selected.has('agentBrowser'),
+    browserUse: selected.has('browserUse'),
+    browserUseDefault: globalDefault ? 'extension' : 'direct',
+    globalDefault,
+    playwright: selected.has('playwright'),
+  };
 }
 
 function localizeArgumentError(error: unknown, locale: SupportedLocale): string {
@@ -548,8 +611,13 @@ export async function main(
     ) {
       const selected = await selectOptionalIntegrations(
         locale,
-        dependencies.prompt ?? (message => promptYesNo(message)),
+        dependencies.selectIntegrations ?? promptIntegrations,
+        dependencies.confirmDefault ?? promptConfirmation,
       );
+      if (!selected) {
+        console.error(translate(locale, 'setupCancelled'));
+        return 2;
+      }
       setupOptions = { ...setupOptions, ...selected };
     }
     const selectedAgentBrowser = setupOptions.agentBrowser === true;
@@ -587,9 +655,6 @@ export async function main(
           ? (agentBrowserVersion ?? 'unknown')
           : translate(locale, 'setupNotFound'),
       );
-      if (result.globalSkillPath) {
-        printSetupSubline(translate(locale, 'setupAgentSkill'), result.globalSkillPath);
-      }
       if (selectedGlobalDefault && result.agentBrowserConfigPath) {
         printSetupSubline(translate(locale, 'setupUserDefault'), result.agentBrowserConfigPath);
       }
@@ -630,9 +695,6 @@ export async function main(
           );
         }
       }
-      if (result.browserUseSkillPath) {
-        printSetupSubline(translate(locale, 'setupBrowserUseSkill'), result.browserUseSkillPath);
-      }
       if (browserUseReady) {
         printSetupCommand(
           translate(locale, 'setupBrowserUseCommand'),
@@ -657,9 +719,6 @@ export async function main(
           translate(locale, 'setupPlaywrightConfig'),
           result.playwrightIntegration.paths.configPath,
         );
-        if (result.playwrightSkillPath) {
-          printSetupSubline(translate(locale, 'setupPlaywrightSkill'), result.playwrightSkillPath);
-        }
         if (playwrightReady) {
           printSetupCommand(
             translate(locale, 'setupPlaywrightCommand'),
@@ -670,11 +729,6 @@ export async function main(
       if (!playwrightReady) {
         printSetupSubline(translate(locale, 'setupFix'), translate(locale, 'playwrightMissing'));
       }
-    }
-
-    if (!selectedAgentBrowser && !selectedBrowserUse && !selectedPlaywright) {
-      console.log('');
-      console.log(`  ℹ️ ${translate(locale, 'automationChoices')}`);
     }
 
     const optionalChecks = [
