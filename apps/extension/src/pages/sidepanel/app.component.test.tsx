@@ -327,8 +327,11 @@ describe('React Side Panel', () => {
     render(<SidepanelApp client={client} />);
 
     expect(await screen.findByRole('heading', { name: '配置 Codex' })).toBeVisible();
-    expect(screen.getByText('安装或重新连接 Codex，然后重试 Provider 检测。')).toBeVisible();
+    expect(screen.getByRole('button', { name: '重试' }).closest('p')).toHaveTextContent(
+      '安装或重新连接 Codex，然后重试。',
+    );
     expect(screen.getByText('npm install -g @openai/codex')).toBeVisible();
+    expect(screen.getByRole('button', { name: '重试' })).toHaveClass('provider-discovery-inline');
     expect(document.documentElement.lang).toBe('zh-CN');
   });
 
@@ -351,6 +354,83 @@ describe('React Side Panel', () => {
 
     await waitFor(() => expect(client.status.authorizationMode).toBe('all-tabs'));
     expect(screen.getByText('All web tabs authorized')).toBeVisible();
+  });
+
+  it('lists installed providers before unavailable providers', async () => {
+    const client = new AppClient();
+    client.providers = [
+      {
+        id: 'codex',
+        name: 'Codex',
+        status: 'unavailable',
+        description: 'Codex fixture',
+      },
+      {
+        id: 'claude',
+        name: 'Claude Code',
+        status: 'unavailable',
+        description: 'Claude fixture',
+      },
+      {
+        id: 'qoder',
+        name: 'Qoder',
+        status: 'ready',
+        description: 'Qoder fixture',
+      },
+      {
+        id: 'opencode',
+        name: 'OpenCode',
+        status: 'ready',
+        description: 'OpenCode fixture',
+      },
+    ];
+    const user = userEvent.setup();
+    render(<SidepanelApp client={client} />);
+
+    await user.click(await screen.findByRole('button', { name: /Agent provider: Codex/ }));
+
+    expect(screen.getAllByRole('option').map(option => option.textContent)).toEqual([
+      'Qoder · Ready',
+      'OpenCode · Ready',
+      'Codex · Not installed',
+      'Claude Code · Not installed',
+    ]);
+  });
+
+  it('shows localized OpenCode install, login, and ACP documentation guidance', async () => {
+    const { client, user } = await renderReady();
+
+    await user.click(screen.getByRole('button', { name: /Agent provider: Codex/ }));
+    await user.click(screen.getByRole('option', { name: 'OpenCode · Not installed' }));
+
+    expect(await screen.findByRole('heading', { name: 'Set up OpenCode' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'retry' }).closest('p')).toHaveTextContent(
+      'Install OpenCode, run opencode auth login, then run npx --yes @panerelay/setup and retry.',
+    );
+    expect(screen.getByText('npm install -g opencode-ai')).toBeVisible();
+    expect(screen.getByText('opencode auth login')).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Open setup documentation' })).toHaveAttribute(
+      'href',
+      'https://opencode.ai/docs/acp/',
+    );
+
+    const requestsBeforeRediscovery = client.requests.length;
+    client.providers = [
+      ...readyProviders,
+      {
+        id: 'opencode',
+        name: 'OpenCode',
+        status: 'ready',
+        description: 'OpenCode fixture',
+      },
+    ];
+    await user.click(screen.getByRole('button', { name: 'retry' }));
+
+    expect(await screen.findByRole('heading', { name: 'What should OpenCode do?' })).toBeVisible();
+    expect(client.requests.slice(requestsBeforeRediscovery)).toEqual([
+      { type: 'panerelay.agent.providers' },
+    ]);
+    expect(client.status.authorizationMode).toBe('none');
   });
 
   it('uses the Chrome UI language when the user has not chosen one', async () => {

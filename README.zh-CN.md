@@ -17,7 +17,7 @@ Panerelay 提供两种接入方式：
 
 | 方向 | 适合场景 | 使用体验 |
 | --- | --- | --- |
-| **Agent 侧边栏** | 希望本地 Agent 就在当前页面旁工作 | 在侧边栏打开 Codex、Claude Code 或 Qoder，完成对话、审批、活动查看和项目关联会话 |
+| **Agent 侧边栏** | 希望本地 Agent 就在当前页面旁工作 | 在侧边栏打开 Codex、Claude Code、Qoder 或 OpenCode，完成对话、审批、活动查看和项目关联会话 |
 | **自动化工具接入** | 希望其他应用或终端中的 Agent 操作浏览器 | 按需接入 [agent-browser](https://agent-browser.dev/) 或 [browser-use](https://docs.browser-use.com/open-source/browser-use-cli)，也可以让 Playwright CLI 显式连接；它们只能访问已授权标签页 |
 
 ![Panerelay](https://github.com/user-attachments/assets/2eba77ae-5362-4803-9190-cf134dd2b8d7)

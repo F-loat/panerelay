@@ -1439,9 +1439,11 @@ function Welcome({
         ? t(
             provider.id === 'qoder'
               ? 'qoderSetupBody'
-              : provider.id === 'claude'
-                ? 'claudeSetupBody'
-                : 'codexSetupBody',
+              : provider.id === 'opencode'
+                ? 'opencodeSetupBody'
+                : provider.id === 'claude'
+                  ? 'claudeSetupBody'
+                  : 'codexSetupBody',
           )
         : t('emptyProviderBody')
       : t('emptyBody');
@@ -1484,7 +1486,24 @@ function Welcome({
       ) : (
         <>
           <h2>{title}</h2>
-          <p>{body}</p>
+          <p>
+            {body}
+            {bridgeConnected && !providerReady && provider && setup && (
+              <>
+                {state.locale === 'en' ? ' ' : ''}
+                <button
+                  aria-busy={state.providerDiscoveryPending}
+                  className="provider-discovery-inline"
+                  disabled={state.providerDiscoveryPending}
+                  onClick={() => void controller.retryProviderDiscovery()}
+                  type="button"
+                >
+                  {t('providerDiscoveryRetry')}
+                </button>
+                {state.locale === 'en' ? '.' : '。'}
+              </>
+            )}
+          </p>
         </>
       )}
       {bridgeConnected && !providerReady && setup && (

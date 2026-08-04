@@ -39,6 +39,7 @@ export interface SidepanelState {
   historyLoadedProviderId: string;
   historyQuery: string;
   currentProviderId: string;
+  providerDiscoveryPending: boolean;
   providerPreparations: Record<
     string,
     { status: 'idle' | 'preparing' | 'ready' | 'error'; error?: string }
@@ -102,6 +103,7 @@ export function createInitialSidepanelState(language?: string): SidepanelState {
     historyLoadedProviderId: '',
     historyQuery: '',
     currentProviderId: 'codex',
+    providerDiscoveryPending: false,
     providerPreparations: {},
     workspace: null,
     currentConversation: null,

@@ -21,6 +21,7 @@ This record distinguishes deterministic installation and artifact coverage from 
 | Native Messaging                                            | Verified          | Forwarded      |
 | Side panel                                                  | Verified          | Forwarded      |
 | Codex, Claude Code, and Qoder conversations                 | Verified          | Forwarded      |
+| OpenCode 1.18.12 conversations                              | Forwarded         | Forwarded      |
 | Project selection and page comments                         | Verified          | Forwarded      |
 | Explicit site and tab authorization                         | Verified          | Forwarded      |
 | Browser-level CDP relay                                     | Verified          | Forwarded      |

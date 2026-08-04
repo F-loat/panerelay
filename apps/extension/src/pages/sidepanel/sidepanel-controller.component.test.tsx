@@ -99,6 +99,8 @@ class FakeSidepanelClient implements SidepanelClient {
   projectError = '';
   installError = '';
   installPromise: Promise<void> | null = null;
+  providerDiscoveryPromise: Promise<void> | null = null;
+  providerResponse = providers;
   sendError = '';
   resumeHandler:
     | ((message: Extract<SidePanelRequest, { type: 'panerelay.conversation.resume' }>) => Promise<{
@@ -122,8 +124,12 @@ class FakeSidepanelClient implements SidepanelClient {
     switch (message.type) {
       case 'panerelay.status.get':
         return { success: true as const, status: this.status };
-      case 'panerelay.agent.providers':
-        return { success: true as const, providers };
+      case 'panerelay.agent.providers': {
+        const pending = this.providerDiscoveryPromise;
+        const response = this.providerResponse;
+        if (pending) await pending;
+        return { success: true as const, providers: response };
+      }
       case 'panerelay.agent.prepare':
         return { success: true as const };
       case 'panerelay.workspace.get':
@@ -487,6 +493,86 @@ describe('Side Panel controller', () => {
     expect(hook.result.current.state.browserDefaultPending).toBe(false);
     expect(hook.result.current.state.controlledTabPendingId).toBeNull();
     expect(hook.result.current.state.nativeRetryPending).toBe(false);
+  });
+
+  it('deduplicates manual provider rediscovery without touching workspace or authorization', async () => {
+    const { client, hook } = await readyController();
+    let releaseDiscovery: (() => void) | undefined;
+    client.providerDiscoveryPromise = new Promise<void>(resolve => {
+      releaseDiscovery = resolve;
+    });
+    client.providerResponse = [
+      ...providers,
+      {
+        id: 'opencode',
+        name: 'OpenCode',
+        status: 'ready',
+        description: 'OpenCode fixture',
+      },
+    ];
+    client.requests.length = 0;
+
+    let first: Promise<void> | undefined;
+    await act(async () => {
+      first = hook.result.current.retryProviderDiscovery();
+      await Promise.resolve();
+    });
+    await act(() => hook.result.current.retryProviderDiscovery());
+
+    expect(client.requests).toEqual([{ type: 'panerelay.agent.providers' }]);
+    expect(hook.result.current.state.providerDiscoveryPending).toBe(true);
+
+    releaseDiscovery?.();
+    await act(() => first);
+
+    expect(hook.result.current.state.providerDiscoveryPending).toBe(false);
+    expect(
+      hook.result.current.state.providers.find(provider => provider.id === 'opencode')?.status,
+    ).toBe('ready');
+    expect(hook.result.current.state.workspace).toEqual({
+      kind: 'draft',
+      providerId: 'codex',
+      revision: 'workspace-1',
+    });
+    expect(hook.result.current.state.extensionStatus?.authorizationMode).toBe('none');
+  });
+
+  it('ignores a stale provider rediscovery response after switching providers', async () => {
+    const { client, hook } = await readyController();
+    let releaseDiscovery: (() => void) | undefined;
+    client.providerResponse = providers.map(provider => ({
+      ...provider,
+      description: `${provider.name} stale`,
+    }));
+    client.providerDiscoveryPromise = new Promise<void>(resolve => {
+      releaseDiscovery = resolve;
+    });
+
+    let discovery: Promise<void> | undefined;
+    await act(async () => {
+      discovery = hook.result.current.retryProviderDiscovery();
+      await Promise.resolve();
+    });
+
+    client.providerDiscoveryPromise = null;
+    client.providerResponse = providers.map(provider => ({
+      ...provider,
+      description: `${provider.name} refreshed`,
+    }));
+    await act(() => hook.result.current.setProvider('qoder'));
+    await waitFor(() =>
+      expect(hook.result.current.state.providerPreparations.qoder?.status).toBe('ready'),
+    );
+
+    releaseDiscovery?.();
+    await act(() => discovery);
+
+    expect(hook.result.current.state.providerDiscoveryPending).toBe(false);
+    expect(hook.result.current.state.currentProviderId).toBe('qoder');
+    expect(hook.result.current.state.providerPreparations.qoder?.status).toBe('ready');
+    expect(
+      hook.result.current.state.providers.find(provider => provider.id === 'qoder')?.description,
+    ).toBe('Qoder refreshed');
   });
 
   it('routes fixed integration installs and localizes installation failures', async () => {

@@ -378,3 +378,39 @@ test('doctor reports an installed Claude CLI below 2.1.206 as optional but incom
     await rm(homeDirectory, { force: true, recursive: true });
   }
 });
+
+test('doctor reports OpenCode version metadata without making it a core health requirement', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'panerelay-opencode-doctor-'));
+  const homeDirectory = join(root, 'home');
+  const binDirectory = join(root, 'bin');
+  const bundledHostPath = join(root, 'native-host.bundle.cjs');
+  const codexPath = join(binDirectory, 'codex');
+  const opencodePath = join(binDirectory, 'opencode');
+  await mkdir(binDirectory, { recursive: true });
+  await writeFile(bundledHostPath, '#!/usr/bin/env node\n');
+  await writeFile(codexPath, '#!/bin/sh\nexit 0\n');
+  await writeFile(opencodePath, '#!/bin/sh\necho "1.18.12"\n');
+  await chmod(codexPath, 0o755);
+  await chmod(opencodePath, 0o755);
+  try {
+    await installNativeHost({
+      bundledHostPath,
+      environment: { PATH: binDirectory },
+      homeDirectory,
+      platform: 'linux',
+    });
+    const ready = await doctorPanerelay({ homeDirectory, platform: 'linux' });
+    const readyCheck = ready.checks.find(check => check.id === 'opencode');
+    assert.equal(readyCheck?.status, 'pass');
+    assert.match(readyCheck?.detail ?? '', /opencode \(1\.18\.12\)/);
+
+    await rm(opencodePath, { force: true });
+    const missing = await doctorPanerelay({ homeDirectory, platform: 'linux' });
+    const missingCheck = missing.checks.find(check => check.id === 'opencode');
+    assert.equal(missing.ok, true);
+    assert.equal(missingCheck?.status, 'warn');
+    assert.match(missingCheck?.hint ?? '', /PANERELAY_OPENCODE_PATH/);
+  } finally {
+    await rm(root, { force: true, recursive: true });
+  }
+});

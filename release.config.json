@@ -8,6 +8,7 @@
   "playwrightCliMinimumVersion": "0.1.17",
   "playwrightCliVerifiedVersions": ["0.1.17"],
   "claudeCodeMinimumVersion": "2.1.206",
+  "openCodeVerifiedVersions": ["1.18.12"],
   "packages": [
     "@panerelay/protocol",
     "@panerelay/browser-registry",

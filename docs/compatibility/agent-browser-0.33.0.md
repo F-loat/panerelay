@@ -131,6 +131,8 @@ Side-panel providers do not create or close agent-browser MCP connections. They 
 
 Daily-Chrome verification of provider warm-up, lazy history, draft-first send, active-tab restoration, related-tab inheritance, project selection, page comments, clipboard image input, automatic Agent approval, authorization isolation, and narrow and wide layouts passed on 2026-07-30.
 
+OpenCode 1.18.12 was added after that retained daily-Chrome run. Its real ACP runtime is covered separately, but its user-configured browser-tool path remains `Forwarded` until the same shared-Bridge Chrome matrix is rerun with OpenCode selected; the established agent-browser 0.33.0 classification is unchanged.
+
 ## Stable distribution boundaries
 
 - The Extension, protocol, browser registry, administration CLI, Provider, Bridge, and setup package are one lockstep compatibility unit; different Panerelay versions do not negotiate with each other.

@@ -32,6 +32,7 @@ Compatibility records describe tested versions and capability classifications. A
 - [browser-use 0.13.7](compatibility/browser-use-0.13.7.md): Browser Harness 0.1.8 baseline, supported surfaces, lifecycle, and limits.
 - [Playwright CLI 0.1.17](compatibility/playwright-cli-0.1.17.md): explicit CDP attach, command groups, lifecycle, and browser-owned limits.
 - [Claude Code](compatibility/claude-code.md): supported local Agent runtime boundary.
+- [OpenCode 1.18.12](compatibility/opencode-1.18.12.md): ACP Side Panel provider capabilities and limits.
 
 ## Architecture and security decisions
 

@@ -1098,6 +1098,25 @@ summary:focus-visible {
   text-decoration: underline;
 }
 
+.provider-discovery-inline {
+  display: inline;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+}
+
+.provider-discovery-inline:hover:not(:disabled) {
+  text-decoration: underline;
+}
+
+.provider-discovery-inline:disabled {
+  cursor: default;
+  opacity: 0.65;
+}
+
 .setup-guidance {
   display: grid;
   width: min(330px, 100%);

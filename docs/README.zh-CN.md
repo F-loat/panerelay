@@ -32,6 +32,7 @@
 - [browser-use 0.13.7](compatibility/browser-use-0.13.7.md)：Browser Harness 0.1.8 基线、支持入口、生命周期和限制。
 - [Playwright CLI 0.1.17](compatibility/playwright-cli-0.1.17.md)：显式 CDP 连接、命令组、生命周期和浏览器所有权边界。
 - [Claude Code](compatibility/claude-code.md)：支持的本地 Agent Runtime 边界。
+- [OpenCode 1.18.12](compatibility/opencode-1.18.12.md)：ACP 侧边栏 Provider 的能力与边界。
 
 ## 架构与安全决策
 

@@ -364,6 +364,8 @@ export async function doctorPanerelay(options: DoctorOptions = {}): Promise<Doct
     typeof runtimeConfig.claudePath === 'string' ? runtimeConfig.claudePath : undefined;
   const qoderPath =
     typeof runtimeConfig.qoderPath === 'string' ? runtimeConfig.qoderPath : undefined;
+  const opencodePath =
+    typeof runtimeConfig.opencodePath === 'string' ? runtimeConfig.opencodePath : undefined;
   checks.push(
     await executableCheck(
       'codex',
@@ -392,6 +394,24 @@ export async function doctorPanerelay(options: DoctorOptions = {}): Promise<Doct
           hint: claudeExecutable
             ? `Upgrade Claude Code to ${CLAUDE_CODE_MINIMUM_VERSION} or newer, then run: ${SETUP_COMMAND}`
             : `Install Claude Code or set PANERELAY_CLAUDE_PATH, then run: ${SETUP_COMMAND}`,
+        }),
+  });
+  const opencodeReady = opencodePath ? await isExecutableFile(opencodePath, platform) : false;
+  checks.push({
+    id: 'opencode',
+    label: 'OpenCode (optional)',
+    status: opencodeReady ? 'pass' : 'warn',
+    detail: opencodeReady
+      ? `${opencodePath}${
+          typeof runtimeConfig.opencodeVersion === 'string'
+            ? ` (${runtimeConfig.opencodeVersion})`
+            : ''
+        }`
+      : 'Not found',
+    ...(opencodeReady
+      ? {}
+      : {
+          hint: `Install OpenCode or set PANERELAY_OPENCODE_PATH, then run: ${SETUP_COMMAND}`,
         }),
   });
   const qoderReady = qoderPath ? await isExecutableFile(qoderPath, platform) : false;

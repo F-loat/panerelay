@@ -245,6 +245,7 @@ const doctorLabels: Record<string, { en: string; 'zh-CN': string }> = {
     'zh-CN': 'agent-browser Provider',
   },
   qoder: { en: 'Qoder (optional)', 'zh-CN': 'Qoder（可选）' },
+  opencode: { en: 'OpenCode (optional)', 'zh-CN': 'OpenCode（可选）' },
   'windows-registry-chrome': {
     en: 'Chrome Native Messaging registry',
     'zh-CN': 'Chrome Native Messaging 注册表',
@@ -257,7 +258,16 @@ const doctorLabels: Record<string, { en: string; 'zh-CN': string }> = {
 
 const doctorGroups = [
   {
-    ids: ['node', 'browser-use', 'playwright', 'agent-browser', 'codex', 'claude', 'qoder'],
+    ids: [
+      'node',
+      'browser-use',
+      'playwright',
+      'agent-browser',
+      'codex',
+      'claude',
+      'qoder',
+      'opencode',
+    ],
     title: 'doctorGroupEnvironment',
   },
   {
@@ -323,6 +333,9 @@ function doctorHint(id: string, hint: string, locale: SupportedLocale): string {
   }
   if (id === 'qoder') {
     return '请安装 Qoder CLI 或设置 PANERELAY_QODER_PATH，然后运行：npx --yes @panerelay/setup';
+  }
+  if (id === 'opencode') {
+    return '请安装 OpenCode 或设置 PANERELAY_OPENCODE_PATH，然后运行：npx --yes @panerelay/setup';
   }
   if (id === 'extension') return '请加载或重新加载扩展，然后打开侧边栏';
   if (id === 'extension-id') return '请使用仅包含 a 到 p 的 32 位 Chrome 扩展 ID';
@@ -743,8 +756,21 @@ export async function main(
             detail: translate(locale, 'setupNotFound'),
             status: 'warn',
           } as const),
+      result.host.opencodePath
+        ? ({
+            label: translate(locale, 'setupOpenCode'),
+            detail: `${result.host.opencodePath}${
+              result.host.opencodeVersion ? ` (${result.host.opencodeVersion})` : ''
+            }`,
+            status: 'pass',
+          } as const)
+        : ({
+            label: translate(locale, 'setupOpenCode'),
+            detail: translate(locale, 'setupNotFound'),
+            status: 'warn',
+          } as const),
     ];
-    if (optionalChecks.some(check => check.status !== 'pass')) {
+    if (optionalChecks.length > 0) {
       console.log('');
       console.log(translate(locale, 'setupGroupOptional'));
       for (const check of optionalChecks) {
@@ -752,6 +778,8 @@ export async function main(
       }
       if (!result.host.codexPath)
         printSetupSubline(translate(locale, 'setupFix'), translate(locale, 'codexMissing'));
+      if (!result.host.opencodePath)
+        printSetupSubline(translate(locale, 'setupFix'), translate(locale, 'openCodeMissing'));
     }
 
     const setupReady =

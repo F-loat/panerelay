@@ -20,6 +20,7 @@ export const copy = {
     noConversationMatches: 'No matching conversations',
     providerPreparationFailed: 'Could not start {agent}',
     providerPreparationRetry: 'Retry connection',
+    providerDiscoveryRetry: 'retry',
     browserAuthorization: 'Browser authorization',
     theme: 'Theme',
     themeSystem: 'System',
@@ -77,11 +78,13 @@ export const copy = {
       'Run npx --yes @panerelay/setup to register the Native Host, then retry the Agent action.',
     emptyProviderTitle: 'Set up {agent}',
     emptyProviderBody: 'Install or reconnect the selected Agent, then retry provider discovery.',
-    codexSetupBody: 'Install or reconnect Codex, then retry provider discovery.',
+    codexSetupBody: 'Install or reconnect Codex, then',
     qoderSetupBody:
-      'Install Qoder CLI, run qodercli to sign in, then run npx --yes @panerelay/setup and retry.',
+      'Install Qoder CLI, run qodercli to sign in, then run npx --yes @panerelay/setup and',
+    opencodeSetupBody:
+      'Install OpenCode, run opencode auth login, then run npx --yes @panerelay/setup and',
     claudeSetupBody:
-      'Install Claude Code, run claude to sign in, then run npx --yes @panerelay/setup and retry.',
+      'Install Claude Code, run claude to sign in, then run npx --yes @panerelay/setup and',
     providerInstallCommand: 'Install',
     providerLoginCommand: 'Sign in',
     providerSetupDocs: 'Open setup documentation',
@@ -216,6 +219,7 @@ export const copy = {
     noConversationMatches: '没有匹配的会话',
     providerPreparationFailed: '{agent} 启动失败',
     providerPreparationRetry: '重试连接',
+    providerDiscoveryRetry: '重试',
     browserAuthorization: '浏览器授权',
     theme: '主题',
     themeSystem: '跟随系统',
@@ -272,11 +276,11 @@ export const copy = {
       '运行 npx --yes @panerelay/setup 注册 Native Host，再重试 Agent 操作。',
     emptyProviderTitle: '配置 {agent}',
     emptyProviderBody: '安装或重新连接所选 Agent，然后重试 Provider 检测。',
-    codexSetupBody: '安装或重新连接 Codex，然后重试 Provider 检测。',
-    qoderSetupBody:
-      '安装 Qoder CLI，运行 qodercli 完成登录，再运行 npx --yes @panerelay/setup 后重试。',
-    claudeSetupBody:
-      '安装 Claude Code，运行 claude 完成登录，再运行 npx --yes @panerelay/setup 后重试。',
+    codexSetupBody: '安装或重新连接 Codex，然后',
+    qoderSetupBody: '安装 Qoder CLI，运行 qodercli 完成登录，再运行 npx --yes @panerelay/setup 后',
+    opencodeSetupBody:
+      '安装 OpenCode，运行 opencode auth login 完成登录，再运行 npx --yes @panerelay/setup 后',
+    claudeSetupBody: '安装 Claude Code，运行 claude 完成登录，再运行 npx --yes @panerelay/setup 后',
     providerInstallCommand: '安装',
     providerLoginCommand: '登录',
     providerSetupDocs: '打开配置文档',

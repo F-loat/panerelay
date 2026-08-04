@@ -69,6 +69,7 @@ function releaseFixture() {
     playwrightCliMinimumVersion: '0.1.17',
     playwrightCliVerifiedVersions: ['0.1.17'],
     claudeCodeMinimumVersion: '2.1.206',
+    openCodeVerifiedVersions: ['1.18.12'],
     packages: PACKAGE_DEFINITIONS.map(definition => definition.name),
   };
   const repository = { url: 'git+https://github.com/F-loat/panerelay.git' };
@@ -93,7 +94,11 @@ function releaseFixture() {
         }),
   }));
   return {
-    compatibilityRecords: ['agent-browser-0.33.0.md', 'playwright-cli-0.1.17.md'],
+    compatibilityRecords: [
+      'agent-browser-0.33.0.md',
+      'opencode-1.18.12.md',
+      'playwright-cli-0.1.17.md',
+    ],
     descriptor,
     extensionManifest: { version: '0.1.0.2', version_name: version, key: extensionKey },
     extensionPackage: { version, private: true },
@@ -104,7 +109,8 @@ function releaseFixture() {
       hostInstallation:
         "allowed_origins: [`chrome-extension://${extensionId}/`]\nsetlocal DisableDelayedExpansion\n'reg.exe'",
       protocolConstants: "export const PANERELAY_EXTENSION_ID = 'panplnkjlkoceaonlmpdekjphgmbggmi'",
-      qoderProvider: "spawn(command, ['--acp'])",
+      opencodeProvider: "launchArgs: ['acp']",
+      qoderProvider: "launchArgs: ['--acp']",
     },
     packageManifests,
     rootPackage: { version, private: true, repository },
@@ -487,10 +493,23 @@ test('rejects stale prerelease metadata, identity drift, missing evidence, and i
   assert.throws(() => validateReleaseMetadata(missingEvidence), /Missing compatibility record/);
 
   const missingPlaywrightEvidence = releaseFixture();
-  missingPlaywrightEvidence.compatibilityRecords = ['agent-browser-0.33.0.md'];
+  missingPlaywrightEvidence.compatibilityRecords = [
+    'agent-browser-0.33.0.md',
+    'opencode-1.18.12.md',
+  ];
   assert.throws(
     () => validateReleaseMetadata(missingPlaywrightEvidence),
     /Missing compatibility record for Playwright CLI 0\.1\.17/,
+  );
+
+  const missingOpenCodeEvidence = releaseFixture();
+  missingOpenCodeEvidence.compatibilityRecords = [
+    'agent-browser-0.33.0.md',
+    'playwright-cli-0.1.17.md',
+  ];
+  assert.throws(
+    () => validateReleaseMetadata(missingOpenCodeEvidence),
+    /Missing compatibility record for OpenCode 1\.18\.12/,
   );
 
   const unsupportedAcp = releaseFixture();
