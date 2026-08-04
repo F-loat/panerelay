@@ -13,13 +13,19 @@ Can Panerelay ship an optional OpenCode Side Panel provider through the existing
 From the repository root, install the pinned runtime into a disposable directory and run the checked-in probe:
 
 ```bash
+set -euo pipefail
 probe_root=$(mktemp -d /tmp/panerelay-opencode-1.18.12.XXXXXX)
+cleanup_probe_root() {
+  node --input-type=module -e \
+    "import { rm } from 'node:fs/promises'; await rm(process.argv[1], { recursive: true, force: true })" \
+    "$probe_root"
+}
+trap cleanup_probe_root EXIT
 npm install --prefix "$probe_root" --no-audit --no-fund opencode-ai@1.18.12
 node packages/bridge/spikes/run-opencode-acp.mjs "$probe_root/node_modules/.bin/opencode"
-node --input-type=module -e "import { rm } from 'node:fs/promises'; await rm(process.argv[1], { recursive: true, force: true })" "$probe_root"
 ```
 
-The probe creates and removes separate XDG state and workspace directories. It removes credential-like environment variables, uses an isolated `permission.* = ask` policy for the approval check, and prints only capability counts and terminal classifications—not prompts, model output, session IDs, tool arguments, or local paths.
+The probe creates and removes separate XDG state and workspace directories. It removes credential-like environment variables, uses an isolated `permission.* = ask` policy for the approval check, and prints only capability counts and terminal classifications—not prompts, model output, session IDs, tool arguments, or local paths. It exits unsuccessfully unless both the reject and one-time approval evidence complete with their expected file-system outcomes.
 
 ## Observations
 
@@ -27,7 +33,7 @@ The probe creates and removes separate XDG state and workspace directories. It r
 - Capabilities included session load/list/resume/fork/close, embedded context, image input, and HTTP/SSE MCP.
 - Session list, new, load, model selection, text prompt, PNG prompt, cancel, and close all succeeded.
 - Real notifications included text, reasoning, tool-call, tool-call-update, usage, and available-command updates.
-- The isolated permission policy emitted one request; selecting its reject option prevented the requested file from being created.
+- The isolated permission policy emitted separate requests for rejection and one-time approval. Rejection prevented its requested file from being created; selecting `allow_once` created only the approved file with the expected bounded content.
 - New/load used an empty `mcpServers` array, and no Panerelay, agent-browser, or Browser Use tool activity appeared.
 - The final run closed the session, closed ACP, terminated on `SIGTERM`, and left no temporary runtime, profile, workspace, log, or process behind.
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execFileSync, spawn } from 'node:child_process';
-import { access, mkdtemp, rm } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
@@ -27,8 +27,10 @@ for (const key of Object.keys(childEnvironment)) {
 const updates = new Map();
 let assistantTextChars = 0;
 let browserToolUpdates = 0;
+let permissionDecision = 'reject';
 let permissionRequests = 0;
 let permissionResponses = 0;
+const permissionSelections = { allowOnce: 0, reject: 0 };
 
 function withTimeout(promise, label) {
   let timer;
@@ -95,10 +97,15 @@ const app = acp
   .client({ name: 'panerelay-opencode-spike' })
   .onRequest(acp.methods.client.session.requestPermission, context => {
     permissionRequests += 1;
-    const reject = context.params.options.find(option => option.kind.startsWith('reject'));
+    const selected = context.params.options.find(option =>
+      permissionDecision === 'allowOnce'
+        ? option.kind === 'allow_once'
+        : option.kind.startsWith('reject'),
+    );
     permissionResponses += 1;
-    return reject
-      ? { outcome: { outcome: 'selected', optionId: reject.optionId } }
+    if (selected) permissionSelections[permissionDecision] += 1;
+    return selected
+      ? { outcome: { outcome: 'selected', optionId: selected.optionId } }
       : { outcome: { outcome: 'cancelled' } };
   })
   .onNotification(acp.methods.client.session.update, context => {
@@ -190,20 +197,67 @@ try {
       'ACP image prompt',
     ),
   );
-  const permissionProbe = await attempt(() =>
-    withTimeout(
-      connection.agent.request(acp.methods.agent.session.prompt, {
-        sessionId: created.sessionId,
-        prompt: [
-          {
-            type: 'text',
-            text: 'Use the write tool to create acp-permission-probe.txt containing PANE_RELAY_PERMISSION_PROBE, then stop.',
-          },
-        ],
-      }),
-      'ACP permission prompt',
-    ),
-  );
+  const rejectedPermissionAttempts = [];
+  const rejectedPermissionPrompts = [
+    'Use the write tool to create acp-permission-reject-probe.txt containing PANE_RELAY_PERMISSION_REJECT, then stop.',
+    'Call the write tool now; do not answer without calling it. Create acp-permission-reject-probe.txt containing exactly PANE_RELAY_PERMISSION_REJECT.',
+  ];
+  for (const promptText of rejectedPermissionPrompts) {
+    rejectedPermissionAttempts.push(
+      await attempt(() =>
+        withTimeout(
+          connection.agent.request(acp.methods.agent.session.prompt, {
+            sessionId: created.sessionId,
+            prompt: [{ type: 'text', text: promptText }],
+          }),
+          'ACP rejected permission prompt',
+        ),
+      ),
+    );
+    if (permissionSelections.reject > 0) break;
+  }
+  let rejectedPermissionFileExists = true;
+  try {
+    await access(join(workspace, 'acp-permission-reject-probe.txt'));
+  } catch {
+    rejectedPermissionFileExists = false;
+  }
+  permissionDecision = 'allowOnce';
+  const approvedPermissionAttempts = [];
+  const approvedPermissionPrompts = [
+    'Use the write tool to create acp-permission-allow-probe.txt containing exactly PANE_RELAY_PERMISSION_ALLOW, then stop.',
+    'Call the write tool now; do not answer without calling it. Create acp-permission-allow-probe.txt containing exactly PANE_RELAY_PERMISSION_ALLOW.',
+  ];
+  for (const promptText of approvedPermissionPrompts) {
+    approvedPermissionAttempts.push(
+      await attempt(() =>
+        withTimeout(
+          connection.agent.request(acp.methods.agent.session.prompt, {
+            sessionId: created.sessionId,
+            prompt: [{ type: 'text', text: promptText }],
+          }),
+          'ACP approved permission prompt',
+        ),
+      ),
+    );
+    if (permissionSelections.allowOnce > 0) break;
+  }
+  let approvedPermissionFileContent = null;
+  try {
+    approvedPermissionFileContent = await readFile(
+      join(workspace, 'acp-permission-allow-probe.txt'),
+      'utf8',
+    );
+  } catch {
+    // The bounded result below records that the approved write did not complete.
+  }
+  const permissionEvidenceComplete =
+    rejectedPermissionAttempts.at(-1)?.ok === true &&
+    permissionSelections.reject > 0 &&
+    !rejectedPermissionFileExists &&
+    approvedPermissionAttempts.at(-1)?.ok === true &&
+    permissionSelections.allowOnce > 0 &&
+    approvedPermissionFileContent?.trim() === 'PANE_RELAY_PERMISSION_ALLOW';
   const interruptedPrompt = connection.agent.request(acp.methods.agent.session.prompt, {
     sessionId: created.sessionId,
     prompt: [{ type: 'text', text: 'Write a detailed numbered list with one hundred items.' }],
@@ -222,13 +276,6 @@ try {
       'ACP session/close',
     ),
   );
-  let permissionProbeFileExists = true;
-  try {
-    await access(join(workspace, 'acp-permission-probe.txt'));
-  } catch {
-    permissionProbeFileExists = false;
-  }
-
   process.stdout.write(
     `${JSON.stringify(
       {
@@ -257,10 +304,22 @@ try {
           stopReason: imagePrompt.ok ? imagePrompt.value.stopReason : null,
         },
         permission: {
-          promptCompleted: permissionProbe.ok,
+          complete: permissionEvidenceComplete,
           requests: permissionRequests,
           responses: permissionResponses,
-          fileCreatedAfterRejection: permissionProbeFileExists,
+          rejection: {
+            attempts: rejectedPermissionAttempts.length,
+            promptCompleted: rejectedPermissionAttempts.at(-1)?.ok === true,
+            optionSelected: permissionSelections.reject > 0,
+            fileCreated: rejectedPermissionFileExists,
+          },
+          approval: {
+            attempts: approvedPermissionAttempts.length,
+            promptCompleted: approvedPermissionAttempts.at(-1)?.ok === true,
+            optionSelected: permissionSelections.allowOnce > 0,
+            fileContentMatched:
+              approvedPermissionFileContent?.trim() === 'PANE_RELAY_PERMISSION_ALLOW',
+          },
         },
         interruption: {
           requestSettled: interruption.ok,
@@ -275,6 +334,7 @@ try {
       2,
     )}\n`,
   );
+  if (!permissionEvidenceComplete) process.exitCode = 1;
 } finally {
   const processExit =
     child.exitCode !== null

@@ -550,19 +550,22 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
     ) {
       return;
     }
-    patch({ providerDiscoveryPending: true });
+    const generation = activationGenerationRef.current;
+    const providerId = stateRef.current.currentProviderId;
+    patch({ providerDiscoveryPending: true, error: '' });
     try {
       const response = await client.request({ type: 'panerelay.agent.providers' });
-      const currentProviderId = stateRef.current.currentProviderId;
+      if (generation !== activationGenerationRef.current) return;
       const providerPreparations = { ...stateRef.current.providerPreparations };
-      delete providerPreparations[currentProviderId];
+      delete providerPreparations[providerId];
       patch({
         providers: supportedProviders(response.providers ?? stateRef.current.providers),
-        providerDiscoveryPending: false,
         providerPreparations,
       });
     } catch (error) {
-      patch({ providerDiscoveryPending: false, error: errorText(error) });
+      if (generation === activationGenerationRef.current) patch({ error: errorText(error) });
+    } finally {
+      patch({ providerDiscoveryPending: false });
     }
   }, [client, patch]);
 

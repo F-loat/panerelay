@@ -554,6 +554,42 @@ test('prints localized optional OpenCode setup guidance', async () => {
   assert.match(rendered, /Panerelay 安装完成/);
 });
 
+test('prints detected optional provider paths and the OpenCode version', async () => {
+  const output: string[] = [];
+  const originalLog = console.log;
+  console.log = (...values: unknown[]) => output.push(values.join(' '));
+  try {
+    assert.equal(
+      await main(['--lang', 'en'], {
+        environment: {},
+        setup: async () => ({
+          globalDefault: false,
+          host: {
+            codexPath: '/tmp/codex',
+            extensionId: PANERELAY_EXTENSION_ID,
+            hostPath: '/tmp/host.mjs',
+            launchPath: '/tmp/host',
+            legacyHostPath: '/tmp/legacy-host',
+            manifestPaths: ['/tmp/manifest.json'],
+            opencodePath: '/tmp/opencode',
+            opencodeVersion: '1.18.12',
+            runtimeConfigPath: '/tmp/runtime.json',
+          },
+        }),
+        systemLocale: 'en',
+      }),
+      0,
+    );
+  } finally {
+    console.log = originalLog;
+  }
+  const rendered = output.join('\n');
+  assert.match(rendered, /Optional tools/);
+  assert.match(rendered, /Codex — \/tmp\/codex/);
+  assert.match(rendered, /OpenCode — \/tmp\/opencode \(1\.18\.12\)/);
+  assert.doesNotMatch(rendered, /PANERELAY_OPENCODE_PATH/);
+});
+
 test('uses the Browser Use default selection as the global default', async () => {
   let received: Record<string, unknown> | undefined;
   const originalLog = console.log;

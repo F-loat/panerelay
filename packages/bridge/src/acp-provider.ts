@@ -581,7 +581,9 @@ export class AcpProvider implements AgentProvider {
     if (!this.sessions.has(conversationId)) {
       throw new Error(`Unknown ${this.profile.name} conversation: ${conversationId}`);
     }
-    await this.runtime!.notify(acp.methods.agent.session.cancel, {
+    const runtime = this.runtime;
+    if (!runtime) throw new Error(`${this.profile.name} ACP is unavailable`);
+    await runtime.notify(acp.methods.agent.session.cancel, {
       sessionId: conversationId,
     });
     this.cancelPermissions(conversationId);

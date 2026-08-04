@@ -25,7 +25,7 @@ The real-runtime probe installed `opencode-ai@1.18.12` in a temporary directory,
 | --- | --- | --- |
 | Executable and version discovery | Verified | macOS/Linux/Windows candidates include explicit configuration, `PATH`, npm wrappers, user-local locations, and the official `~/.opencode/bin` fallback. Wrapper and failed-probe tests keep local paths and command output private. |
 | Provider discovery and setup guidance | Verified | AgentService registers OpenCode independently; setup, doctor, and the Side Panel expose localized install, `opencode auth login`, and ACP documentation guidance. Missing OpenCode remains a warning. |
-| ACP initialization | Verified | OpenCode 1.18.12 returned protocol 1, its exact agent name/version, no stderr, and capabilities for load, list, resume, fork, close, embedded context, image input, and HTTP/SSE MCP. |
+| ACP initialization | Verified | OpenCode 1.18.12 returned protocol 1, its exact agent name/version, and capabilities for load, list, resume, fork, close, embedded context, image input, and HTTP/SSE MCP. The probe retains no stderr content and reports only its bounded byte count. |
 | Session list, new, and load | Verified | The isolated runtime listed zero initial sessions, returned an opaque ID for `session/new`, and loaded the created session. Panerelay sends an empty `mcpServers` array and preserves the session working directory for later load/resume. |
 | Text and reasoning streaming | Verified | A real prompt completed with `end_turn` and emitted bounded agent-message and agent-thought chunks. Deterministic tests cover fragmented and oversized update handling. |
 | Tool activity and token usage | Verified | The real runtime emitted tool-call, tool-call-update, and usage-update notifications; provider tests cover sanitized status, failure detail, and usage mapping. |
@@ -37,7 +37,7 @@ The real-runtime probe installed `opencode-ai@1.18.12` in a temporary directory,
 
 | Capability | Status | Evidence and boundary |
 | --- | --- | --- |
-| ACP permission response | Verified | With isolated OpenCode configuration setting `permission.*` to `ask`, a real file-write request produced one ACP permission request. The probe selected a reject option, received terminal completion, and verified that the file was not created. |
+| ACP permission response | Verified | With isolated OpenCode configuration setting `permission.*` to `ask`, real file-write requests exercised both rejection and `allow_once`. Rejection left its target absent; the correlated one-time approval created only its target with the expected bounded content. |
 | Default OpenCode permission policy | Partial | Panerelay preserves the user's OpenCode policy. OpenCode's shipped build agent allows most actions by default and asks only for selected boundaries such as external directories; project reads, edits, and commands are therefore not guaranteed to create Side Panel approvals. Configure OpenCode permissions to `ask` where interactive approval is required. See the [OpenCode permissions reference](https://opencode.ai/docs/permissions/). |
 | OpenCode-owned MCP, plugins, skills, and tools | Forwarded | Panerelay neither injects nor removes these definitions. OpenCode loads its isolated or user-owned configuration normally, and Panerelay cannot claim compatibility for arbitrary third-party integrations. |
 | Panerelay browser-tool injection | Verified | New/load requests contain `mcpServers: []`; the isolated real probe observed no Panerelay, agent-browser, or Browser Use tool update. |

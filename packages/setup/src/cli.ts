@@ -770,7 +770,7 @@ export async function main(
             status: 'warn',
           } as const),
     ];
-    if (optionalChecks.some(check => check.status !== 'pass')) {
+    if (optionalChecks.length > 0) {
       console.log('');
       console.log(translate(locale, 'setupGroupOptional'));
       for (const check of optionalChecks) {

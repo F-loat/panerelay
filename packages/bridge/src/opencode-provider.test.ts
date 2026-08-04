@@ -8,6 +8,17 @@ import {
   type OpenCodeRuntime,
 } from './opencode-provider.js';
 
+async function waitForEvent(
+  events: ConversationEvent[],
+  predicate: (event: ConversationEvent) => boolean,
+): Promise<boolean> {
+  const deadline = Date.now() + 2_000;
+  while (Date.now() < deadline && !events.some(predicate)) {
+    await new Promise<void>(resolve => setTimeout(resolve, 5));
+  }
+  return events.some(predicate);
+}
+
 class FakeOpenCodeRuntime implements OpenCodeRuntime {
   readonly notifications: Array<{ method: string; params: unknown }> = [];
   readonly requests: Array<{ method: string; params: unknown }> = [];
@@ -534,14 +545,15 @@ test('bounds prompt timeouts and leaves the provider reusable', async () => {
   await provider.startConversation();
   runtimes[0]!.prompt = async () => new Promise(() => {});
   await provider.sendMessage('opencode-new', 'Timeout safely');
-  await new Promise<void>(resolve => setTimeout(resolve, 15));
-  assert.ok(
-    events.some(
+  assert.equal(
+    await waitForEvent(
+      events,
       event =>
         event.kind === 'turn.completed' &&
         event.status === 'failed' &&
-        event.error?.includes('timed out'),
+        event.error?.includes('timed out') === true,
     ),
+    true,
   );
   runtimes[0]!.prompt = undefined;
   await provider.sendMessage('opencode-new', 'Try again');
