@@ -296,3 +296,212 @@ test('uninstall removes only Panerelay-owned integration through scoped operatio
     'remove-project',
   ]);
 });
+
+test('interactive empty selection removes every optional Panerelay integration but keeps the host', async () => {
+  const calls: string[] = [];
+  const result = await setupPanerelay(
+    { homeDirectory: '/home', reconcileIntegrations: true },
+    {
+      installHost: async () => {
+        calls.push('install-host');
+        return host;
+      },
+      unregisterProvider: async () => {
+        calls.push('unregister-provider');
+        return '/home/.agent-browser/config.json';
+      },
+      uninstallBrowserUse: async () => {
+        calls.push('uninstall-browser-use');
+        return { detachedDaemonMayRemain: true } as never;
+      },
+      uninstallPlaywright: async () => {
+        calls.push('uninstall-playwright');
+        return { registry: { adapters: [] } } as never;
+      },
+    },
+  );
+
+  assert.deepEqual(calls, [
+    'install-host',
+    'unregister-provider',
+    'uninstall-browser-use',
+    'uninstall-playwright',
+  ]);
+  assert.equal(result.host, host);
+  assert.equal(result.removedAgentBrowserConfigPath, '/home/.agent-browser/config.json');
+  assert.equal(result.removedBrowserUseIntegration?.detachedDaemonMayRemain, true);
+  assert.ok(result.removedPlaywrightIntegration);
+});
+
+test('interactive partial selection installs checked and removes unchecked integrations sequentially', async () => {
+  const calls: string[] = [];
+  let browserUseDefault: 'direct' | 'extension' | undefined;
+  await setupPanerelay(
+    {
+      browserUse: true,
+      globalDefault: false,
+      homeDirectory: '/home',
+      reconcileIntegrations: true,
+    },
+    {
+      installHost: async () => {
+        calls.push('install-host');
+        return host;
+      },
+      installBrowserUse: async options => {
+        calls.push('install-browser-use');
+        browserUseDefault = options?.browserUseDefault;
+        return {} as never;
+      },
+      probeBrowserUse: async () => {
+        calls.push('probe-browser-use');
+        return {
+          browserHarness: '0.1.8',
+          browserUse: '0.13.7',
+          browserUseExecutable: '/bin/browser-use',
+        };
+      },
+      unregisterProvider: async () => {
+        calls.push('unregister-provider');
+        return '/home/.agent-browser/config.json';
+      },
+      uninstallPlaywright: async () => {
+        calls.push('uninstall-playwright');
+        return {} as never;
+      },
+    },
+  );
+
+  assert.deepEqual(calls, [
+    'install-host',
+    'unregister-provider',
+    'probe-browser-use',
+    'install-browser-use',
+    'uninstall-playwright',
+  ]);
+  assert.equal(browserUseDefault, 'direct');
+});
+
+test('interactive all-selected setup clears only Panerelay defaults when No is submitted', async () => {
+  const calls: string[] = [];
+  await setupPanerelay(
+    {
+      agentBrowser: true,
+      browserUse: true,
+      globalDefault: false,
+      homeDirectory: '/home',
+      playwright: true,
+      reconcileIntegrations: true,
+    },
+    {
+      clearGlobal: async () => {
+        calls.push('clear-global');
+        return '/home/.agent-browser/config.json';
+      },
+      installBrowserUse: async options => {
+        calls.push(`install-browser-use:${options?.browserUseDefault}`);
+        return {} as never;
+      },
+      installHost: async () => {
+        calls.push('install-host');
+        return host;
+      },
+      installPlaywright: async () => {
+        calls.push('install-playwright');
+        return {} as never;
+      },
+      probeAgentBrowser: async () => {
+        calls.push('probe-agent-browser');
+        return { executable: '/bin/agent-browser', supported: true, version: '0.33.0' };
+      },
+      probeBrowserUse: async () => {
+        calls.push('probe-browser-use');
+        return {
+          browserHarness: '0.1.8',
+          browserUse: '0.13.7',
+          browserUseExecutable: '/bin/browser-use',
+        };
+      },
+      probePlaywright: async () => {
+        calls.push('probe-playwright');
+        return { executable: '/bin/playwright-cli', supported: true, version: '0.1.17' };
+      },
+      registerProvider: async () => {
+        calls.push('register-provider');
+        return '/home/.agent-browser/config.json';
+      },
+    },
+  );
+
+  assert.deepEqual(calls, [
+    'probe-agent-browser',
+    'install-host',
+    'register-provider',
+    'clear-global',
+    'probe-browser-use',
+    'install-browser-use:direct',
+    'probe-playwright',
+    'install-playwright',
+  ]);
+});
+
+test('explicit setup flags remain additive and do not remove or clear unmentioned integrations', async () => {
+  const calls: string[] = [];
+  await setupPanerelay(
+    { agentBrowser: true, homeDirectory: '/home' },
+    {
+      clearGlobal: async () => {
+        throw new Error('explicit setup must not clear a default');
+      },
+      installHost: async () => {
+        calls.push('install-host');
+        return host;
+      },
+      probeAgentBrowser: async () => ({
+        executable: '/bin/agent-browser',
+        supported: true,
+        version: '0.33.0',
+      }),
+      registerProvider: async () => {
+        calls.push('register-provider');
+        return '/home/.agent-browser/config.json';
+      },
+      uninstallBrowserUse: async () => {
+        throw new Error('explicit setup must not remove Browser Use');
+      },
+      uninstallPlaywright: async () => {
+        throw new Error('explicit setup must not remove Playwright');
+      },
+    },
+  );
+  assert.deepEqual(calls, ['install-host', 'register-provider']);
+});
+
+test('interactive reconciliation stops after a thrown scoped removal', async () => {
+  const calls: string[] = [];
+  await assert.rejects(
+    setupPanerelay(
+      { homeDirectory: '/home', reconcileIntegrations: true },
+      {
+        installHost: async () => {
+          calls.push('install-host');
+          return host;
+        },
+        unregisterProvider: async () => {
+          calls.push('unregister-provider');
+          return '/home/.agent-browser/config.json';
+        },
+        uninstallBrowserUse: async () => {
+          calls.push('uninstall-browser-use');
+          throw new Error('browser-use removal failed');
+        },
+        uninstallPlaywright: async () => {
+          calls.push('uninstall-playwright');
+          return {} as never;
+        },
+      },
+    ),
+    /browser-use removal failed/,
+  );
+  assert.deepEqual(calls, ['install-host', 'unregister-provider', 'uninstall-browser-use']);
+});

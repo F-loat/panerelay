@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { access, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { access, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -78,13 +78,15 @@ test('installed Playwright adapter retains its package version and can serve its
 
 test('uninstalls only the Playwright adapter, config, and registration artifacts', async () => {
   const fixture = await mkdtemp(join(tmpdir(), 'panerelay-playwright-uninstall-'));
+  const playwrightExecutable = join(fixture, 'playwright-cli');
   try {
+    await writeFile(playwrightExecutable, '#!/bin/sh\n', { mode: 0o700 });
     const installation = await installPlaywrightIntegration({
       dataDirectory: join(fixture, '.panerelay'),
       homeDirectory: fixture,
       nodePath: process.execPath,
       playwrightInstallation: {
-        executable: '/fixture/playwright-cli',
+        executable: playwrightExecutable,
         supported: true,
         version: '0.1.17',
       },
@@ -107,6 +109,7 @@ test('uninstalls only the Playwright adapter, config, and registration artifacts
     ]) {
       await assert.rejects(access(removedPath), { code: 'ENOENT' });
     }
+    assert.equal(await readFile(playwrightExecutable, 'utf8'), '#!/bin/sh\n');
   } finally {
     await rm(fixture, { force: true, recursive: true });
   }

@@ -17,6 +17,7 @@ export type {
   UninstallBrowserUseIntegrationOptions,
 } from './browser-use-integration.js';
 export {
+  clearGlobalProvider,
   configureGlobalProvider,
   configureProjectProvider,
   projectAgentBrowserConfigPath,

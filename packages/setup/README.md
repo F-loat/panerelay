@@ -15,7 +15,7 @@ npx --yes @panerelay/setup
 npx --yes @panerelay/setup doctor
 ```
 
-The base command installs the Native Host and side-panel prerequisites. It does not probe an automation engine, register an agent-browser Provider, manage an Agent Skill, or change `PATH`.
+The base command always installs the Native Host and side-panel prerequisites. In an interactive terminal it also offers one automation-integration selector; in non-interactive use it remains engine-neutral. Setup does not manage an Agent Skill or change `PATH`.
 
 Agents in the side panel keep the selected project as their working directory and receive only bounded current-tab URL and title context. Browser MCP servers and Skills continue to come from the Agent's own configuration.
 
@@ -48,6 +48,8 @@ npx --yes @panerelay/setup
 npx --yes @panerelay/setup doctor
 npx --yes @panerelay/setup uninstall --yes
 ```
+
+An unflagged interactive setup initializes its integration selector from the current protected Panerelay Provider and adapter configuration. Checked integrations are installed or updated, while unchecked integrations have only their Panerelay-owned Provider, adapter, configuration, and default artifacts removed. The upstream agent-browser, browser-use, Browser Harness, and Playwright CLI installations are never removed. The shared default answer is also initialized from current Panerelay defaults, so a later setup run reflects the state produced by the previous successful run without a separate selection cache. After the final answer, a localized timer shows that reconciliation is still running. Explicit integration flags retain additive behavior and do not remove omitted integrations.
 
 ### Explicit agent-browser integration
 
@@ -117,7 +119,7 @@ The independently installed `panerelay-browser` Skill contains the Playwright wo
 
 This connection reuses authorized tabs and does not provide isolated BrowserContexts, launch-time executable or proxy options, or browser-wide close. The fixed endpoint is loopback discovery, not a reusable browser credential.
 
-Omitting an action runs base `setup` and installs only the Native Messaging host and side-panel prerequisites. Add `--agent-browser`, `--browser-use`, and/or `--playwright` to install integrations explicitly.
+Omitting an action runs `setup`. In an interactive terminal, the unflagged command presents the desired-state selector described above. In non-interactive use it installs only the Native Messaging host and side-panel prerequisites. Add `--agent-browser`, `--browser-use`, and/or `--playwright` to install integrations explicitly without removing omitted integrations.
 
 ```bash
 npx --yes @panerelay/setup --agent-browser --browser-use

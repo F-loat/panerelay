@@ -4,6 +4,7 @@ import {
   type NativeHostInstallationResult,
 } from '@panerelay/bridge/install';
 import {
+  clearGlobalProvider,
   configureGlobalProvider,
   configureProjectProvider,
   registerPanerelayProvider,
@@ -44,6 +45,7 @@ export interface PanerelaySetupOptions {
   platform?: NodeJS.Platform;
   project?: boolean;
   projectDirectory?: string;
+  reconcileIntegrations?: boolean;
 }
 
 export interface PanerelaySetupResult {
@@ -57,6 +59,9 @@ export interface PanerelaySetupResult {
   browserUseVersions?: BrowserUseVersions;
   playwrightInstallation?: PlaywrightInstallation;
   playwrightIntegration?: PlaywrightIntegrationInstallation;
+  removedAgentBrowserConfigPath?: string;
+  removedBrowserUseIntegration?: BrowserUseIntegrationUninstallResult;
+  removedPlaywrightIntegration?: Awaited<ReturnType<typeof uninstallPlaywrightIntegration>>;
   projectConfigPath?: string;
 }
 
@@ -68,6 +73,7 @@ export interface PanerelayUninstallResult {
 }
 
 export interface LifecycleDependencies {
+  clearGlobal?: typeof clearGlobalProvider;
   configureGlobal?: typeof configureGlobalProvider;
   configureProject?: typeof configureProjectProvider;
   installHost?: typeof installNativeHost;
@@ -91,9 +97,11 @@ export async function setupPanerelay(
   const installHost = dependencies.installHost ?? installNativeHost;
   const registerProvider = dependencies.registerProvider ?? registerPanerelayProvider;
   const configureGlobal = dependencies.configureGlobal ?? configureGlobalProvider;
+  const clearGlobal = dependencies.clearGlobal ?? clearGlobalProvider;
   const installBrowserUse = dependencies.installBrowserUse ?? installBrowserUseIntegrationArtifacts;
   const configureProject = dependencies.configureProject ?? configureProjectProvider;
   const installPlaywright = dependencies.installPlaywright ?? installPlaywrightIntegration;
+  const reconcileIntegrations = options.reconcileIntegrations === true;
   if (options.globalDefault && !options.agentBrowser && !options.browserUse) {
     throw new Error('--global-default requires agentBrowser or browserUse: true');
   }
@@ -119,7 +127,15 @@ export async function setupPanerelay(
     : undefined;
   if (options.globalDefault && options.agentBrowser) {
     await configureGlobal({ homeDirectory: options.homeDirectory });
+  } else if (reconcileIntegrations && options.agentBrowser) {
+    await clearGlobal({ homeDirectory: options.homeDirectory });
   }
+  const removedAgentBrowserConfigPath =
+    reconcileIntegrations && !options.agentBrowser
+      ? await (dependencies.unregisterProvider ?? unregisterPanerelayProvider)({
+          homeDirectory: options.homeDirectory,
+        })
+      : undefined;
   const browserUseVersions = options.browserUse
     ? await (dependencies.probeBrowserUse ?? probeBrowserUseVersions)(
         options.environment,
@@ -132,13 +148,22 @@ export async function setupPanerelay(
   const browserUseIntegration = options.browserUse
     ? await installBrowserUse({
         browserUseDefault:
-          options.browserUseDefault ?? (options.globalDefault ? 'extension' : undefined),
+          options.browserUseDefault ??
+          (options.globalDefault ? 'extension' : reconcileIntegrations ? 'direct' : undefined),
         browserUseVersions,
         environment: options.environment,
         homeDirectory: options.homeDirectory,
         platform: options.platform,
       })
     : undefined;
+  const removedBrowserUseIntegration =
+    reconcileIntegrations && !options.browserUse
+      ? await (dependencies.uninstallBrowserUse ?? uninstallBrowserUseIntegrationArtifacts)({
+          environment: options.environment,
+          homeDirectory: options.homeDirectory,
+          platform: options.platform,
+        })
+      : undefined;
   const playwrightInstallation = options.playwright
     ? await (dependencies.probePlaywright ?? probePlaywrightInstallation)(
         options.environment,
@@ -157,6 +182,14 @@ export async function setupPanerelay(
           playwrightInstallation,
         })
       : undefined;
+  const removedPlaywrightIntegration =
+    reconcileIntegrations && !options.playwright
+      ? await (dependencies.uninstallPlaywright ?? uninstallPlaywrightIntegration)({
+          environment: options.environment,
+          homeDirectory: options.homeDirectory,
+          platform: options.platform,
+        })
+      : undefined;
   if (!options.project) {
     return {
       host,
@@ -172,6 +205,9 @@ export async function setupPanerelay(
         : {}),
       ...(playwrightInstallation ? { playwrightInstallation } : {}),
       ...(playwrightIntegration ? { playwrightIntegration } : {}),
+      ...(removedAgentBrowserConfigPath ? { removedAgentBrowserConfigPath } : {}),
+      ...(removedBrowserUseIntegration ? { removedBrowserUseIntegration } : {}),
+      ...(removedPlaywrightIntegration ? { removedPlaywrightIntegration } : {}),
       globalDefault: options.globalDefault === true,
     };
   }
@@ -192,6 +228,9 @@ export async function setupPanerelay(
       : {}),
     ...(playwrightInstallation ? { playwrightInstallation } : {}),
     ...(playwrightIntegration ? { playwrightIntegration } : {}),
+    ...(removedAgentBrowserConfigPath ? { removedAgentBrowserConfigPath } : {}),
+    ...(removedBrowserUseIntegration ? { removedBrowserUseIntegration } : {}),
+    ...(removedPlaywrightIntegration ? { removedPlaywrightIntegration } : {}),
     globalDefault: options.globalDefault === true,
     projectConfigPath,
   };

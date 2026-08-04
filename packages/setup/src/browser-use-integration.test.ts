@@ -99,6 +99,7 @@ test('installs the official Browser Use integration without private CLI or MCP l
     assert.equal(removed.gatewayStop, 'absent');
     await assert.rejects(readFile(paths.adapterLauncherPath), { code: 'ENOENT' });
     await assert.rejects(readFile(browserUseEnvironmentPath(homeDirectory)), { code: 'ENOENT' });
+    assert.equal(await readFile(browserUseExecutable, 'utf8'), '#!/bin/sh\n');
     assert.deepEqual(
       (await readCliAdapterRegistry({ dataDirectory: paths.dataDirectory, homeDirectory }))
         .adapters,

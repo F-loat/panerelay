@@ -1,9 +1,19 @@
 import assert from 'node:assert/strict';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import { PANERELAY_EXTENSION_ID } from '@panerelay/protocol';
 import { main, parseSetupArgs } from './cli.js';
-import type { BrowserUseIntegrationInstallation } from './browser-use-integration.js';
+import {
+  installBrowserUseIntegrationArtifacts,
+  type BrowserUseIntegrationInstallation,
+} from './browser-use-integration.js';
+import { configureGlobalProvider, registerPanerelayProvider } from './config.js';
 import type { DoctorReport } from './doctor.js';
+import { readInteractiveSetupState } from './interactive-setup-state.js';
+import { setupPanerelay } from './lifecycle.js';
+import { installPlaywrightIntegration } from './playwright-integration.js';
 
 const chromeWebStoreUrl =
   'https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi';
@@ -169,14 +179,26 @@ test('offers interactive integration and default selections only for the unflagg
   const selections: Array<Record<string, unknown>> = [];
   const prompts: string[] = [];
   const confirmations: string[] = [];
+  const progressEvents: string[] = [];
   const originalLog = console.log;
   console.log = () => undefined;
   try {
     const code = await main([], {
       environment: {},
       interactive: () => true,
+      createSetupProgress: () => ({
+        error: message => progressEvents.push(`error:${message}`),
+        start: message => progressEvents.push(`start:${message}`),
+        stop: message => progressEvents.push(`stop:${message}`),
+      }),
+      readInteractiveState: async () => ({
+        defaultIntegrations: ['agentBrowser', 'browserUse'],
+        globalDefault: true,
+        integrations: ['agentBrowser', 'browserUse', 'playwright'],
+      }),
       selectIntegrations: async prompt => {
         prompts.push(prompt.message);
+        assert.deepEqual(prompt.initialValues, ['agentBrowser', 'browserUse', 'playwright']);
         assert.deepEqual(
           prompt.options.map(option => option.value),
           ['agentBrowser', 'browserUse', 'playwright'],
@@ -191,7 +213,7 @@ test('offers interactive integration and default selections only for the unflagg
         confirmations.push(prompt.message);
         assert.equal(prompt.active, 'Yes');
         assert.equal(prompt.inactive, 'No');
-        assert.equal(prompt.initialValue, false);
+        assert.equal(prompt.initialValue, true);
         return true;
       },
       setup: async options => {
@@ -228,10 +250,14 @@ test('offers interactive integration and default selections only for the unflagg
     assert.equal(selections[0]?.playwright, true);
     assert.equal(selections[0]?.globalDefault, true);
     assert.equal(selections[0]?.browserUseDefault, 'extension');
+    assert.equal(selections[0]?.reconcileIntegrations, true);
 
     await main(['--yes'], {
       environment: {},
       interactive: () => true,
+      readInteractiveState: async () => {
+        throw new Error('state should not be read');
+      },
       selectIntegrations: async () => {
         throw new Error('prompt should not run');
       },
@@ -260,11 +286,217 @@ test('offers interactive integration and default selections only for the unflagg
       globalDefault: false,
     });
     assert.equal(prompts.length, 1);
-    assert.equal(prompts[0], 'Select optional automation integrations');
+    assert.equal(
+      prompts[0],
+      'Select integrations (checked: install/update; unchecked: remove Panerelay integration)',
+    );
     assert.equal(confirmations.length, 1);
     assert.match(confirmations[0]!, /user default/);
+    assert.deepEqual(progressEvents, [
+      'start:Applying Panerelay setup changes',
+      'stop:Panerelay setup changes applied',
+    ]);
   } finally {
     console.log = originalLog;
+  }
+});
+
+test('ends interactive progress with localized failure feedback when setup throws', async () => {
+  const progressEvents: string[] = [];
+  const errors: string[] = [];
+  const originalError = console.error;
+  console.error = (...values: unknown[]) => errors.push(values.join(' '));
+  try {
+    assert.equal(
+      await main(['--lang', 'zh-CN'], {
+        createSetupProgress: () => ({
+          error: message => progressEvents.push(`error:${message}`),
+          start: message => progressEvents.push(`start:${message}`),
+          stop: message => progressEvents.push(`stop:${message}`),
+        }),
+        environment: {},
+        interactive: () => true,
+        readInteractiveState: async () => ({
+          defaultIntegrations: [],
+          globalDefault: false,
+          integrations: [],
+        }),
+        selectIntegrations: async () => [],
+        setup: async () => {
+          throw new Error('fixture setup failure');
+        },
+        systemLocale: 'en',
+      }),
+      1,
+    );
+  } finally {
+    console.error = originalError;
+  }
+  assert.deepEqual(progressEvents, [
+    'start:正在应用 Panerelay 安装变更',
+    'error:Panerelay 安装失败',
+  ]);
+  assert.deepEqual(errors, ['fixture setup failure']);
+});
+
+test('reads protected setup state again on each interactive run instead of caching selections', async () => {
+  let currentState: {
+    defaultIntegrations: Array<'agentBrowser' | 'browserUse'>;
+    globalDefault: boolean;
+    integrations: Array<'agentBrowser' | 'browserUse' | 'playwright'>;
+  } = {
+    defaultIntegrations: ['agentBrowser'],
+    globalDefault: false,
+    integrations: ['agentBrowser', 'browserUse'],
+  };
+  const initialValues: string[][] = [];
+  const defaultValues: boolean[] = [];
+  const reconciliations: Array<Record<string, unknown>> = [];
+  const originalLog = console.log;
+  console.log = () => undefined;
+  try {
+    const run = async () =>
+      main([], {
+        confirmDefault: async prompt => {
+          defaultValues.push(prompt.initialValue);
+          return false;
+        },
+        environment: {},
+        interactive: () => true,
+        readInteractiveState: async () => ({
+          defaultIntegrations: [...currentState.defaultIntegrations],
+          globalDefault: currentState.globalDefault,
+          integrations: [...currentState.integrations],
+        }),
+        selectIntegrations: async prompt => {
+          initialValues.push([...prompt.initialValues]);
+          return ['agentBrowser'];
+        },
+        setup: async options => {
+          reconciliations.push({ ...options });
+          currentState = {
+            defaultIntegrations: [],
+            globalDefault: false,
+            integrations: ['agentBrowser'],
+          };
+          return {
+            agentBrowserInstallation: {
+              executable: '/tmp/agent-browser',
+              supported: true,
+              version: '0.33.0',
+            },
+            globalDefault: false,
+            host: {
+              extensionId: PANERELAY_EXTENSION_ID,
+              hostPath: '/tmp/host.mjs',
+              launchPath: '/tmp/host',
+              legacyHostPath: '/tmp/legacy-host',
+              manifestPaths: ['/tmp/manifest.json'],
+              runtimeConfigPath: '/tmp/runtime.json',
+            },
+          };
+        },
+        systemLocale: 'en',
+      });
+
+    assert.equal(await run(), 0);
+    assert.equal(await run(), 0);
+  } finally {
+    console.log = originalLog;
+  }
+  assert.deepEqual(initialValues, [['agentBrowser', 'browserUse'], ['agentBrowser']]);
+  assert.deepEqual(defaultValues, [true, false]);
+  assert.equal(reconciliations[0]?.browserUse, false);
+  assert.equal(reconciliations[0]?.reconcileIntegrations, true);
+  assert.equal(reconciliations[1]?.reconcileIntegrations, true);
+});
+
+test('reconciles an isolated interactive selection while preserving upstream executables', async () => {
+  const fixture = await mkdtemp(join(tmpdir(), 'panerelay-interactive-reconcile-'));
+  const homeDirectory = join(fixture, 'home');
+  const browserUseExecutable = join(fixture, 'browser-use');
+  const playwrightExecutable = join(fixture, 'playwright-cli');
+  const agentBrowserExecutable = join(fixture, 'agent-browser');
+  const browserUseBundle = join(fixture, 'browser-use-adapter.mjs');
+  const playwrightBundle = join(fixture, 'playwright-adapter.mjs');
+  const originalLog = console.log;
+  console.log = () => undefined;
+  try {
+    await Promise.all([
+      writeFile(agentBrowserExecutable, '#!/bin/sh\n', { mode: 0o700 }),
+      writeFile(browserUseExecutable, '#!/bin/sh\n', { mode: 0o700 }),
+      writeFile(playwrightExecutable, '#!/bin/sh\n', { mode: 0o700 }),
+      writeFile(browserUseBundle, 'browser-use adapter\n'),
+      writeFile(playwrightBundle, 'playwright adapter\n'),
+    ]);
+    await registerPanerelayProvider('/tmp/panerelay-host', { homeDirectory });
+    await configureGlobalProvider({ homeDirectory });
+    await installBrowserUseIntegrationArtifacts({
+      adapterBundlePath: browserUseBundle,
+      browserUseVersions: {
+        browserHarness: '0.1.8',
+        browserUse: '0.13.7',
+        browserUseExecutable,
+      },
+      homeDirectory,
+    });
+    await installPlaywrightIntegration({
+      adapterBundlePath: playwrightBundle,
+      homeDirectory,
+      nodePath: process.execPath,
+      playwrightInstallation: {
+        executable: playwrightExecutable,
+        supported: true,
+        version: '0.1.17',
+      },
+    });
+    assert.deepEqual(await readInteractiveSetupState({ homeDirectory }), {
+      defaultIntegrations: ['agentBrowser', 'browserUse'],
+      globalDefault: true,
+      integrations: ['agentBrowser', 'browserUse', 'playwright'],
+    });
+
+    assert.equal(
+      await main([], {
+        confirmDefault: async () => {
+          throw new Error('An empty selection must not ask for a default');
+        },
+        environment: { HOME: homeDirectory },
+        interactive: () => true,
+        selectIntegrations: async prompt => {
+          assert.deepEqual(prompt.initialValues, ['agentBrowser', 'browserUse', 'playwright']);
+          return [];
+        },
+        setup: options =>
+          setupPanerelay(
+            { ...options, homeDirectory },
+            {
+              installHost: async () => ({
+                extensionId: PANERELAY_EXTENSION_ID,
+                hostPath: '/tmp/host.mjs',
+                launchPath: '/tmp/host',
+                legacyHostPath: '/tmp/legacy-host',
+                manifestPaths: ['/tmp/manifest.json'],
+                runtimeConfigPath: '/tmp/runtime.json',
+              }),
+            },
+          ),
+        systemLocale: 'en',
+      }),
+      0,
+    );
+
+    assert.deepEqual(await readInteractiveSetupState({ homeDirectory }), {
+      defaultIntegrations: [],
+      globalDefault: false,
+      integrations: [],
+    });
+    assert.equal(await readFile(agentBrowserExecutable, 'utf8'), '#!/bin/sh\n');
+    assert.equal(await readFile(browserUseExecutable, 'utf8'), '#!/bin/sh\n');
+    assert.equal(await readFile(playwrightExecutable, 'utf8'), '#!/bin/sh\n');
+  } finally {
+    console.log = originalLog;
+    await rm(fixture, { force: true, recursive: true });
   }
 });
 
@@ -276,6 +508,11 @@ test('does not ask for a default when only Playwright is selected interactively'
     const code = await main([], {
       environment: {},
       interactive: () => true,
+      readInteractiveState: async () => ({
+        defaultIntegrations: [],
+        globalDefault: false,
+        integrations: [],
+      }),
       selectIntegrations: async () => ['playwright'],
       confirmDefault: async () => {
         throw new Error('Playwright cannot become the user default');
@@ -305,6 +542,7 @@ test('does not ask for a default when only Playwright is selected interactively'
   assert.equal(received?.browserUse, false);
   assert.equal(received?.playwright, true);
   assert.equal(received?.globalDefault, false);
+  assert.equal(received?.reconcileIntegrations, true);
 });
 
 test('allows an empty interactive selection without printing redundant integration guidance', async () => {
@@ -316,6 +554,11 @@ test('allows an empty interactive selection without printing redundant integrati
     const code = await main([], {
       environment: {},
       interactive: () => true,
+      readInteractiveState: async () => ({
+        defaultIntegrations: [],
+        globalDefault: false,
+        integrations: ['browserUse'],
+      }),
       selectIntegrations: async () => [],
       confirmDefault: async () => {
         throw new Error('No integration supports a user default');
@@ -332,6 +575,22 @@ test('allows an empty interactive selection without printing redundant integrati
             manifestPaths: ['/tmp/manifest.json'],
             runtimeConfigPath: '/tmp/runtime.json',
           },
+          removedBrowserUseIntegration: {
+            detachedDaemonMayRemain: true,
+            gatewayStop: 'remaining',
+            paths: {
+              adapterArtifactPath: '/tmp/browser-use-adapter.mjs',
+              adapterLauncherPath: '/tmp/browser-use-adapter',
+              adapterPackagePath: '/tmp/browser-use/package.json',
+              adapterStorageDirectory: '/tmp/browser-use',
+              browserUseDirectory: '/tmp/browser-use',
+              dataDirectory: '/tmp/panerelay',
+              integrationConfigPath: '/tmp/browser-use/config.json',
+              runtimeDirectory: '/tmp/browser-use/runtime',
+            },
+            registry: { adapters: [], protocol: 'panerelay.cli-adapter-registry.v1' },
+            runtimeStateRemoved: true,
+          },
         };
       },
       systemLocale: 'en',
@@ -343,7 +602,9 @@ test('allows an empty interactive selection without printing redundant integrati
   assert.equal(received?.agentBrowser, false);
   assert.equal(received?.browserUse, false);
   assert.equal(received?.playwright, false);
+  assert.equal(received?.reconcileIntegrations, true);
   assert.doesNotMatch(output.join('\n'), /Optional automation integrations|ℹ️/);
+  assert.match(output.join('\n'), /detached daemon/);
 });
 
 test('cancels interactive setup before lifecycle changes', async () => {
@@ -360,6 +621,11 @@ test('cancels interactive setup before lifecycle changes', async () => {
       await main([], {
         environment: {},
         interactive: () => true,
+        readInteractiveState: async () => ({
+          defaultIntegrations: [],
+          globalDefault: false,
+          integrations: [],
+        }),
         selectIntegrations: async () => undefined,
         setup,
         systemLocale: 'en',
@@ -371,6 +637,11 @@ test('cancels interactive setup before lifecycle changes', async () => {
         confirmDefault: async () => undefined,
         environment: {},
         interactive: () => true,
+        readInteractiveState: async () => ({
+          defaultIntegrations: [],
+          globalDefault: false,
+          integrations: ['agentBrowser'],
+        }),
         selectIntegrations: async () => ['agentBrowser'],
         setup,
         systemLocale: 'en',
@@ -521,7 +792,7 @@ test('runs setup when the action is omitted', async () => {
   }
 });
 
-test('prints localized optional OpenCode setup guidance', async () => {
+test('does not print missing optional-tool guidance after setup', async () => {
   const output: string[] = [];
   const originalLog = console.log;
   console.log = (...values: unknown[]) => output.push(values.join(' '));
@@ -549,12 +820,11 @@ test('prints localized optional OpenCode setup guidance', async () => {
     console.log = originalLog;
   }
   const rendered = output.join('\n');
-  assert.match(rendered, /OpenCode — 未找到/);
-  assert.match(rendered, /PANERELAY_OPENCODE_PATH/);
+  assert.doesNotMatch(rendered, /OpenCode|可选工具|PANERELAY_OPENCODE_PATH/);
   assert.match(rendered, /Panerelay 安装完成/);
 });
 
-test('prints detected optional provider paths and the OpenCode version', async () => {
+test('does not print detected optional tools after setup', async () => {
   const output: string[] = [];
   const originalLog = console.log;
   console.log = (...values: unknown[]) => output.push(values.join(' '));
@@ -585,10 +855,7 @@ test('prints detected optional provider paths and the OpenCode version', async (
     console.log = originalLog;
   }
   const rendered = output.join('\n');
-  assert.match(rendered, /Optional tools/);
-  assert.match(rendered, /Codex — \/tmp\/codex/);
-  assert.match(rendered, /OpenCode — \/tmp\/opencode \(1\.18\.12\)/);
-  assert.doesNotMatch(rendered, /PANERELAY_OPENCODE_PATH/);
+  assert.doesNotMatch(rendered, /Optional tools|Codex|OpenCode|PANERELAY_OPENCODE_PATH/);
 });
 
 test('uses the Browser Use default selection as the global default', async () => {
@@ -599,6 +866,11 @@ test('uses the Browser Use default selection as the global default', async () =>
     const code = await main([], {
       environment: {},
       interactive: () => true,
+      readInteractiveState: async () => ({
+        defaultIntegrations: [],
+        globalDefault: false,
+        integrations: ['browserUse'],
+      }),
       selectIntegrations: async () => ['browserUse'],
       confirmDefault: async () => true,
       setup: async options => {

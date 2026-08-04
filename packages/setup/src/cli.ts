@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 
-import { confirm as confirmPrompt, isCancel, multiselect } from '@clack/prompts';
+import {
+  confirm as confirmPrompt,
+  isCancel,
+  multiselect,
+  spinner as createSpinner,
+} from '@clack/prompts';
 import { PANERELAY_EXTENSION_ID } from '@panerelay/protocol';
 import {
   PANERELAY_BROWSER_USE_GATEWAY_URL,
@@ -13,6 +18,11 @@ import { stdin, stdout } from 'node:process';
 import { fileURLToPath } from 'node:url';
 import { doctorPanerelay, type DoctorReport } from './doctor.js';
 import { normalizeLocale, resolveLocale, translate, type SupportedLocale } from './i18n.js';
+import {
+  readInteractiveSetupState,
+  type InteractiveSetupState,
+  type SetupIntegration,
+} from './interactive-setup-state.js';
 import { setupPanerelay, uninstallPanerelay, type PanerelaySetupOptions } from './lifecycle.js';
 
 const PANERELAY_CHROME_WEB_STORE_URL =
@@ -38,9 +48,8 @@ interface LanguageArguments {
   language?: SupportedLocale;
 }
 
-type SetupIntegration = 'agentBrowser' | 'browserUse' | 'playwright';
-
 interface SetupIntegrationPrompt {
+  initialValues: readonly SetupIntegration[];
   message: string;
   options: ReadonlyArray<{
     hint: string;
@@ -60,6 +69,12 @@ type SetupSelectIntegrations = (
   prompt: SetupIntegrationPrompt,
 ) => Promise<readonly SetupIntegration[] | undefined>;
 type SetupConfirm = (prompt: SetupConfirmationPrompt) => Promise<boolean | undefined>;
+
+export interface SetupProgress {
+  error(message?: string): void;
+  start(message?: string): void;
+  stop(message?: string): void;
+}
 
 function languageValue(argv: string[]): string | undefined {
   for (let index = 0; index < argv.length; index += 1) {
@@ -409,11 +424,15 @@ async function promptConfirmation(prompt: SetupConfirmationPrompt): Promise<bool
   return isCancel(answer) ? undefined : answer;
 }
 
-function confirmationPrompt(locale: SupportedLocale, message: string): SetupConfirmationPrompt {
+function confirmationPrompt(
+  locale: SupportedLocale,
+  message: string,
+  initialValue = false,
+): SetupConfirmationPrompt {
   return {
     active: translate(locale, 'confirmYes'),
     inactive: translate(locale, 'confirmNo'),
-    initialValue: false,
+    initialValue,
     message,
   };
 }
@@ -426,9 +445,11 @@ async function confirmUninstall(locale: SupportedLocale): Promise<boolean | unde
 export interface CliDependencies {
   confirm?: () => Promise<boolean | undefined>;
   confirmDefault?: SetupConfirm;
+  createSetupProgress?: () => SetupProgress;
   doctor?: typeof doctorPanerelay;
   environment?: NodeJS.ProcessEnv;
   interactive?: () => boolean;
+  readInteractiveState?: typeof readInteractiveSetupState;
   selectIntegrations?: SetupSelectIntegrations;
   setup?: typeof setupPanerelay;
   systemLocale?: string;
@@ -439,10 +460,16 @@ function isInteractiveTerminal(): boolean {
   return stdin.isTTY === true && stdout.isTTY === true;
 }
 
+function terminalSetupProgress(): SetupProgress | undefined {
+  if (!isInteractiveTerminal()) return undefined;
+  return createSpinner({ indicator: 'timer', output: stdout });
+}
+
 async function promptIntegrations(
   prompt: SetupIntegrationPrompt,
 ): Promise<readonly SetupIntegration[] | undefined> {
   const selected = await multiselect<SetupIntegration>({
+    initialValues: [...prompt.initialValues],
     input: stdin,
     message: prompt.message,
     options: [...prompt.options],
@@ -454,15 +481,18 @@ async function promptIntegrations(
 
 async function selectOptionalIntegrations(
   locale: SupportedLocale,
+  currentState: InteractiveSetupState,
   selectIntegrations: SetupSelectIntegrations,
   confirmDefault: SetupConfirm,
 ): Promise<
   | (Pick<ParsedSetupArgs, 'agentBrowser' | 'browserUse' | 'playwright' | 'globalDefault'> & {
       browserUseDefault: 'direct' | 'extension';
+      reconcileIntegrations: true;
     })
   | undefined
 > {
   const selection = await selectIntegrations({
+    initialValues: currentState.integrations,
     message: translate(locale, 'integrationSelectPrompt'),
     options: [
       {
@@ -487,8 +517,16 @@ async function selectOptionalIntegrations(
   const selected = new Set(selection);
   let globalDefault = false;
   if (selected.has('agentBrowser') || selected.has('browserUse')) {
+    const selectedDefaultIntegrations = (['agentBrowser', 'browserUse'] as const).filter(
+      integration => selected.has(integration),
+    );
+    const currentDefaults = new Set(currentState.defaultIntegrations);
     const confirmed = await confirmDefault(
-      confirmationPrompt(locale, translate(locale, 'defaultIntegrationsPrompt')),
+      confirmationPrompt(
+        locale,
+        translate(locale, 'defaultIntegrationsPrompt'),
+        selectedDefaultIntegrations.every(integration => currentDefaults.has(integration)),
+      ),
     );
     if (confirmed === undefined) return undefined;
     globalDefault = confirmed;
@@ -499,6 +537,7 @@ async function selectOptionalIntegrations(
     browserUseDefault: globalDefault ? 'extension' : 'direct',
     globalDefault,
     playwright: selected.has('playwright'),
+    reconcileIntegrations: true,
   };
 }
 
@@ -570,6 +609,7 @@ export async function main(
     return 0;
   }
 
+  let setupProgress: SetupProgress | undefined;
   try {
     if (parsed.operation === 'doctor') {
       const report = await (dependencies.doctor ?? doctorPanerelay)({
@@ -614,6 +654,7 @@ export async function main(
         ? { browserUseDefault: 'extension' as const }
         : {}),
     };
+    let interactiveSetup = false;
     if (
       parsed.operation === 'setup' &&
       !parsed.agentBrowser &&
@@ -622,8 +663,12 @@ export async function main(
       !parsed.yes &&
       (dependencies.interactive ?? isInteractiveTerminal)()
     ) {
+      const currentState = await (dependencies.readInteractiveState ?? readInteractiveSetupState)({
+        environment: dependencies.environment,
+      });
       const selected = await selectOptionalIntegrations(
         locale,
+        currentState,
         dependencies.selectIntegrations ?? promptIntegrations,
         dependencies.confirmDefault ?? promptConfirmation,
       );
@@ -632,12 +677,19 @@ export async function main(
         return 2;
       }
       setupOptions = { ...setupOptions, ...selected };
+      interactiveSetup = true;
     }
     const selectedAgentBrowser = setupOptions.agentBrowser === true;
     const selectedBrowserUse = setupOptions.browserUse === true;
     const selectedPlaywright = setupOptions.playwright === true;
     const selectedGlobalDefault = setupOptions.globalDefault === true;
+    if (interactiveSetup) {
+      setupProgress = dependencies.createSetupProgress?.() ?? terminalSetupProgress();
+      setupProgress?.start(translate(locale, 'setupProgress'));
+    }
     const result = await (dependencies.setup ?? setupPanerelay)(setupOptions);
+    setupProgress?.stop(translate(locale, 'setupProgressComplete'));
+    setupProgress = undefined;
     console.log(translate(locale, 'setupTitle'));
 
     console.log('');
@@ -656,6 +708,10 @@ export async function main(
     if (selectedAgentBrowser || selectedBrowserUse || selectedPlaywright) {
       console.log('');
       console.log(translate(locale, 'setupGroupAutomation'));
+    }
+
+    if (result.removedBrowserUseIntegration?.detachedDaemonMayRemain) {
+      console.log(translate(locale, 'browserUseDetachedDaemon'));
     }
 
     const agentBrowserReady = result.agentBrowserInstallation?.supported === true;
@@ -744,44 +800,6 @@ export async function main(
       }
     }
 
-    const optionalChecks = [
-      result.host.codexPath
-        ? ({
-            label: translate(locale, 'setupCodex'),
-            detail: result.host.codexPath,
-            status: 'pass',
-          } as const)
-        : ({
-            label: translate(locale, 'setupCodex'),
-            detail: translate(locale, 'setupNotFound'),
-            status: 'warn',
-          } as const),
-      result.host.opencodePath
-        ? ({
-            label: translate(locale, 'setupOpenCode'),
-            detail: `${result.host.opencodePath}${
-              result.host.opencodeVersion ? ` (${result.host.opencodeVersion})` : ''
-            }`,
-            status: 'pass',
-          } as const)
-        : ({
-            label: translate(locale, 'setupOpenCode'),
-            detail: translate(locale, 'setupNotFound'),
-            status: 'warn',
-          } as const),
-    ];
-    if (optionalChecks.length > 0) {
-      console.log('');
-      console.log(translate(locale, 'setupGroupOptional'));
-      for (const check of optionalChecks) {
-        printSetupCheck(check.status, check.label, check.detail);
-      }
-      if (!result.host.codexPath)
-        printSetupSubline(translate(locale, 'setupFix'), translate(locale, 'codexMissing'));
-      if (!result.host.opencodePath)
-        printSetupSubline(translate(locale, 'setupFix'), translate(locale, 'openCodeMissing'));
-    }
-
     const setupReady =
       (!selectedAgentBrowser || agentBrowserReady) &&
       (!selectedBrowserUse || result.browserUseReady === true) &&
@@ -795,6 +813,7 @@ export async function main(
     );
     return setupReady ? 0 : 1;
   } catch (error) {
+    setupProgress?.error(translate(locale, 'setupProgressFailed'));
     console.error(error instanceof Error ? error.message : String(error));
     return 1;
   }

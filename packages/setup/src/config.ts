@@ -1,6 +1,7 @@
 import { constants } from 'node:fs';
 import { access, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import {
+  clearPanerelayUserDefaultProvider,
   setPanerelayUserDefaultProvider,
   userAgentBrowserConfigPath,
 } from '@panerelay/bridge/agent-browser-config';
@@ -87,6 +88,10 @@ export async function registerPanerelayProvider(
 
 export async function configureGlobalProvider(options: ConfigPathOptions = {}): Promise<string> {
   return (await setPanerelayUserDefaultProvider({ homeDirectory: options.homeDirectory })).path;
+}
+
+export async function clearGlobalProvider(options: ConfigPathOptions = {}): Promise<string> {
+  return (await clearPanerelayUserDefaultProvider({ homeDirectory: options.homeDirectory })).path;
 }
 
 export async function unregisterPanerelayProvider(

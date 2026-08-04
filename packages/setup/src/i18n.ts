@@ -19,9 +19,6 @@ const englishMessages = {
     'Make Panerelay the user default for the selected agent-browser and Browser Use integrations?',
   playwrightMissing:
     'Warning: Playwright CLI 0.1.17 or newer was not found. Install or upgrade the upstream CLI, then run setup again with --playwright.',
-  codexMissing: 'Warning: Codex CLI was not found.',
-  openCodeMissing:
-    'Warning: OpenCode was not found. Install it or set PANERELAY_OPENCODE_PATH, then run setup again.',
   doctorAttention: 'Panerelay needs attention.',
   doctorFailureCount: 'Failed checks: {count}',
   doctorFix: 'Fix',
@@ -51,7 +48,7 @@ const englishMessages = {
   errorUnknownOption: 'Unknown option: {option}',
   extensionCustomNextStep: 'Extension: Load the build matching ID {id}, then open its side panel.',
   extensionIdentity: 'Extension ID: {id}',
-  extensionStoreNextStep: 'Extension: Install or open Panerelay in the Chrome Web Store: {url}',
+  extensionStoreNextStep: 'Extension: Install Panerelay in the Chrome Web Store: {url}',
   globalDefault: 'Global default configuration: {path}',
   setupAgentBrowser: 'agent-browser',
   setupBrowserHarnessEnvironment: 'Browser Harness environment',
@@ -60,15 +57,15 @@ const englishMessages = {
   setupPlaywright: 'Playwright CLI',
   setupPlaywrightConfig: 'Playwright config:',
   setupPlaywrightCommand: 'Playwright command:',
-  setupCodex: 'Codex',
-  setupOpenCode: 'OpenCode',
   setupExtensionId: 'Extension ID',
   setupFix: 'Fix',
   setupGroupAutomation: 'Automation integrations',
   setupGroupLocal: 'Local integration',
-  setupGroupOptional: 'Optional tools',
   setupNextStep: 'Next step',
   setupNotFound: 'Not found',
+  setupProgress: 'Applying Panerelay setup changes',
+  setupProgressComplete: 'Panerelay setup changes applied',
+  setupProgressFailed: 'Panerelay setup failed',
   setupReady: 'Panerelay setup complete.',
   setupAttention: 'Panerelay setup needs attention.',
   setupUserDefault: 'User default',
@@ -77,7 +74,8 @@ const englishMessages = {
   integrationAgentBrowserHint: 'Panerelay Provider',
   integrationBrowserUseHint: 'Browser Harness connection',
   integrationPlaywrightHint: 'Explicit CDP connection',
-  integrationSelectPrompt: 'Select optional automation integrations',
+  integrationSelectPrompt:
+    'Select integrations (checked: install/update; unchecked: remove Panerelay integration)',
   help: `Panerelay Setup
 
 Usage:
@@ -133,9 +131,6 @@ const chineseMessages: Record<MessageKey, string> = {
   confirmYes: '是',
   defaultIntegrationsPrompt:
     '将 Panerelay 设为所选 agent-browser 和 Browser Use 集成的用户级默认吗？',
-  codexMissing: '警告：未找到 Codex CLI。',
-  openCodeMissing:
-    '警告：未找到 OpenCode。请安装 OpenCode 或设置 PANERELAY_OPENCODE_PATH，然后重新运行 setup。',
   doctorAttention: 'Panerelay 需要处理以下问题。',
   doctorFailureCount: '失败项：{count}',
   doctorFix: '修复',
@@ -176,15 +171,15 @@ const chineseMessages: Record<MessageKey, string> = {
   setupPlaywrightConfig: 'Playwright 配置：',
   setupPlaywrightCommand: 'Playwright 命令：',
   setupPlaywright: 'Playwright CLI',
-  setupCodex: 'Codex',
-  setupOpenCode: 'OpenCode',
   setupExtensionId: '扩展 ID',
   setupFix: '处理',
   setupGroupAutomation: '自动化集成',
   setupGroupLocal: '本地集成',
-  setupGroupOptional: '可选工具',
   setupNextStep: '下一步',
   setupNotFound: '未找到',
+  setupProgress: '正在应用 Panerelay 安装变更',
+  setupProgressComplete: 'Panerelay 安装变更已应用',
+  setupProgressFailed: 'Panerelay 安装失败',
   setupReady: 'Panerelay 安装完成。',
   setupAttention: 'Panerelay 安装需要处理。',
   setupUserDefault: '用户级默认值',
@@ -193,7 +188,7 @@ const chineseMessages: Record<MessageKey, string> = {
   integrationAgentBrowserHint: 'Panerelay Provider',
   integrationBrowserUseHint: 'Browser Harness 连接',
   integrationPlaywrightHint: '显式 CDP 连接',
-  integrationSelectPrompt: '请选择可选自动化集成',
+  integrationSelectPrompt: '选择集成（勾选：安装或更新；未勾选：移除 Panerelay 集成）',
   help: `Panerelay 安装工具
 
 用法：
