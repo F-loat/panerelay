@@ -23,6 +23,7 @@
   --text-secondary: #a2aaa6;
   --text-tertiary: #7d8681;
   --accent: #35d07f;
+  --accent-hover: #56df96;
   --accent-soft: rgb(53 208 127 / 11%);
   --accent-contrast: #06150d;
   --danger: #ff7777;
@@ -56,6 +57,7 @@
   --text-secondary: #5f6863;
   --text-tertiary: #68716c;
   --accent: #087f46;
+  --accent-hover: #066c3c;
   --accent-soft: rgb(8 127 70 / 8%);
   --accent-contrast: #ffffff;
   --danger: #c94343;
@@ -95,6 +97,7 @@ select {
 }
 
 button:focus-visible,
+input:focus-visible,
 select:focus-visible,
 textarea:focus-visible,
 a:focus-visible,

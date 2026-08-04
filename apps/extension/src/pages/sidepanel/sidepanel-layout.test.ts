@@ -71,3 +71,17 @@ test('aligns the missing-Host card stack with the connected welcome layout', asy
   assert.match(sharedSectionTitle, /font-size: 11px/);
   assert.doesNotMatch(styles, /setup-integration-check/);
 });
+
+test('keeps the accent picker and theme selector together at narrow widths', async () => {
+  const styles = await readSidepanelStyles();
+  const field = styles.match(/\.settings-theme-field\s*\{[^}]*\}/)?.[0] ?? '';
+  const controls = styles.match(/\.settings-theme-controls\s*\{[^}]*\}/)?.[0] ?? '';
+  const picker = styles.match(/\.settings-color-picker\s*\{[^}]*\}/)?.[0] ?? '';
+
+  assert.match(field, /grid-template-columns: minmax\(0, 1fr\) 136px/);
+  assert.match(controls, /grid-template-columns: 22px minmax\(0, 1fr\)/);
+  assert.match(controls, /gap: 6px/);
+  assert.match(picker, /width: 22px/);
+  assert.match(picker, /height: 22px/);
+  assert.match(picker, /border-radius: 50%/);
+});

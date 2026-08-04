@@ -8,6 +8,7 @@ import type {
   ConversationSummary,
 } from '@panerelay/protocol';
 import type { ConversationWorkspaceSnapshot } from '../../shared/conversation-workspaces.js';
+import { DEFAULT_ACCENT_COLOR } from '../../shared/appearance.js';
 import type { ExtensionStatus } from '../../shared/messages.js';
 import type { PageElementComment } from '../../shared/page-comments.js';
 import { defaultLocale, type Locale, type ThemeSetting } from './i18n.js';
@@ -34,6 +35,7 @@ export interface PastedImage extends ConversationImageInput {
 export interface SidepanelState {
   locale: Locale;
   themeSetting: ThemeSetting;
+  accentColor: string;
   extensionStatus: ExtensionStatus | null;
   providers: AgentProviderSummary[];
   conversations: ConversationSummary[];
@@ -103,6 +105,7 @@ export function createInitialSidepanelState(
   return {
     locale: defaultLocale(language),
     themeSetting: 'system',
+    accentColor: DEFAULT_ACCENT_COLOR,
     extensionStatus: null,
     providers,
     conversations: [],

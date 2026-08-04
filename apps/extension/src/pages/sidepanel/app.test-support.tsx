@@ -263,6 +263,7 @@ export class AppClient implements SidepanelClient {
       case 'panerelay.controlled-tab.activate':
       case 'panerelay.controlled-tab.close':
       case 'panerelay.page-comments.start':
+      case 'panerelay.page-comments.appearance':
       case 'panerelay.page-comments.stop':
       case 'panerelay.page-comments.edit':
       case 'panerelay.page-comments.remove':

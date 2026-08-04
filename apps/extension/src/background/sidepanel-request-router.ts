@@ -12,7 +12,10 @@ type WorkspaceRequests = Pick<
   ConversationWorkspaceService,
   'get' | 'reset' | 'resume' | 'send' | 'setDirectory'
 >;
-type PageCommentRequests = Pick<PageCommentService, 'clear' | 'edit' | 'remove' | 'start' | 'stop'>;
+type PageCommentRequests = Pick<
+  PageCommentService,
+  'clear' | 'edit' | 'remove' | 'start' | 'stop' | 'updateAppearance'
+>;
 
 export interface SidePanelRequestRouterOptions {
   activateControlledTab: (tabId: number) => Promise<void>;
@@ -104,7 +107,11 @@ export function createSidePanelRequestRouter(options: SidePanelRequestRouterOpti
           message.continuous === true,
           message.locale,
           message.theme,
+          message.accent,
         );
+        return { success: true };
+      case 'panerelay.page-comments.appearance':
+        await options.pageComments.updateAppearance(message.theme, message.accent);
         return { success: true };
       case 'panerelay.page-comments.stop':
         await options.pageComments.stop();

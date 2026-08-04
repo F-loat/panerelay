@@ -36,6 +36,43 @@
   font-size: 10px;
 }
 
+.settings-theme-field {
+  grid-template-columns: minmax(0, 1fr) 136px;
+}
+
+.settings-theme-controls {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+}
+
+.settings-color-picker {
+  width: 22px;
+  height: 22px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-raised);
+  cursor: pointer;
+  padding: 2px;
+}
+
+.settings-color-picker:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+}
+
+.settings-color-picker::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.settings-color-picker::-webkit-color-swatch {
+  border: 0;
+  border-radius: 50%;
+}
+
 .settings-provider-toggle {
   display: flex;
   width: 100%;

@@ -1,3 +1,4 @@
+import type { AccentPalette } from '../shared/appearance.js';
 import type { TabSummary } from '../shared/messages.js';
 
 interface PageCommentTopPage {
@@ -46,6 +47,7 @@ export class PageCommentService {
     continuous = false,
     locale?: 'en' | 'zh-CN',
     theme?: 'dark' | 'light',
+    accent?: AccentPalette,
   ): Promise<void> {
     const tab = await this.requireAuthorizedActiveTab();
     if (this.tabId !== null && this.tabId !== tab.id) await this.reset();
@@ -58,7 +60,17 @@ export class PageCommentService {
       continuous,
       ...(locale ? { locale } : {}),
       ...(theme ? { theme } : {}),
+      ...(accent ? { accent } : {}),
       topPage: topPageFor(tab),
+    });
+  }
+
+  async updateAppearance(theme: 'dark' | 'light', accent: AccentPalette): Promise<void> {
+    const tab = await this.requireCommentTab();
+    await this.options.sendToTab(tab.id, {
+      type: 'panerelay.page-comments.appearance',
+      theme,
+      accent,
     });
   }
 

@@ -7,6 +7,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { ExtensionStatus, SidePanelRequest } from '../../shared/messages.js';
 import type { ConversationWorkspaceSnapshot } from '../../shared/conversation-workspaces.js';
+import { ACCENT_COLOR_KEY, accentPalette, DEFAULT_ACCENT_COLOR } from '../../shared/appearance.js';
 import type { PageElementComment } from '../../shared/page-comments.js';
 import {
   AUTO_APPROVE_KEY,
@@ -266,6 +267,7 @@ class FakeSidepanelClient implements SidepanelClient {
       case 'panerelay.controlled-tab.activate':
       case 'panerelay.controlled-tab.close':
       case 'panerelay.page-comments.start':
+      case 'panerelay.page-comments.appearance':
       case 'panerelay.page-comments.stop':
       case 'panerelay.page-comments.edit':
       case 'panerelay.page-comments.remove':
@@ -771,6 +773,17 @@ describe('Side Panel controller', () => {
       continuous: true,
       locale: 'en',
       theme: 'light',
+      accent: accentPalette(DEFAULT_ACCENT_COLOR, 'light'),
+    });
+
+    client.requests.length = 0;
+    await act(() => hook.result.current.setAccentColor('#336699'));
+    expect(hook.result.current.state.themeSetting).toBe('system');
+    expect(client.storedWrites).toContainEqual({ [ACCENT_COLOR_KEY]: '#336699' });
+    expect(client.requests).toContainEqual({
+      type: 'panerelay.page-comments.appearance',
+      theme: 'light',
+      accent: accentPalette('#336699', 'light'),
     });
     act(() => {
       client.emit({
@@ -780,6 +793,21 @@ describe('Side Panel controller', () => {
       });
     });
     expect(hook.result.current.state.pageComments).toEqual([comment]);
+
+    act(() => {
+      client.emit({
+        type: 'panerelay.page-comment.mode',
+        source: 'panerelay-page-comments',
+        active: false,
+      });
+    });
+    client.requests.length = 0;
+    await act(() => hook.result.current.setAccentColor('#884466'));
+    expect(client.requests).toContainEqual({
+      type: 'panerelay.page-comments.appearance',
+      theme: 'light',
+      accent: accentPalette('#884466', 'light'),
+    });
 
     await act(() => hook.result.current.sendMessage());
     const sent = client.requests.find(request => request.type === 'panerelay.conversation.send');

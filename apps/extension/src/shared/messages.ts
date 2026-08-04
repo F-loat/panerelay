@@ -12,6 +12,7 @@ import type {
   IntegrationBrowserUseDefaultResult,
   IntegrationDefaultProviderResult,
 } from '@panerelay/protocol';
+import type { AccentPalette } from './appearance.js';
 import type {
   ConversationWorkspaceChangedMessage,
   ConversationWorkspaceSnapshot,
@@ -91,6 +92,12 @@ export type SidePanelRequest =
       continuous?: boolean;
       locale?: 'en' | 'zh-CN';
       theme?: 'dark' | 'light';
+      accent?: AccentPalette;
+    }
+  | {
+      type: 'panerelay.page-comments.appearance';
+      theme: 'dark' | 'light';
+      accent: AccentPalette;
     }
   | { type: 'panerelay.page-comments.stop' }
   | { type: 'panerelay.page-comments.edit'; commentId: string }

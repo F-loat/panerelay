@@ -23,6 +23,7 @@ const entryPoints = [
   'src/pages/sidepanel/setup-guidance.test.ts',
   'src/pages/sidepanel/sidepanel-build-output.test.ts',
   'src/pages/sidepanel/sidepanel-layout.test.ts',
+  'src/shared/appearance.test.ts',
   'src/shared/authorization.test.ts',
   'src/shared/browser-runtime.test.ts',
   'src/shared/identity.test.ts',

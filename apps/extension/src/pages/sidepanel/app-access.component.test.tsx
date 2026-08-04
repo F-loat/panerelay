@@ -1,10 +1,44 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 import { SidepanelApp } from './app.js';
+import { ACCENT_COLOR_KEY, accentPalette, DEFAULT_ACCENT_COLOR } from '../../shared/appearance.js';
 import { AppClient, readyStatus, renderReady } from './app.test-support.js';
 
 describe('React Side Panel browser access and settings', () => {
+  it('places a persisted accent picker before the independent theme selector', async () => {
+    const client = new AppClient();
+    client.stored[ACCENT_COLOR_KEY] = '#336699';
+    const { user } = await renderReady(client);
+
+    await user.click(screen.getByRole('button', { name: /Browser access:/ }));
+    const picker = screen.getByLabelText('Accent color');
+    const theme = screen.getByRole('button', { name: 'Theme' });
+    expect(picker).toHaveAttribute('type', 'color');
+    expect(picker).toHaveValue('#336699');
+    expect(picker.nextElementSibling).toContainElement(theme);
+    expect(document.documentElement.style.getPropertyValue('--accent')).toBe(
+      accentPalette('#336699', 'light').color,
+    );
+
+    fireEvent.change(picker, { target: { value: '#aabbcc' } });
+
+    await waitFor(() => expect(client.stored[ACCENT_COLOR_KEY]).toBe('#aabbcc'));
+    expect(theme).toHaveTextContent('System');
+    expect(document.documentElement.style.getPropertyValue('--accent')).toBe(
+      accentPalette('#aabbcc', 'light').color,
+    );
+  });
+
+  it('falls back to the default accent when local storage is malformed', async () => {
+    const client = new AppClient();
+    client.stored[ACCENT_COLOR_KEY] = 'red; background: white';
+    const { user } = await renderReady(client);
+
+    await user.click(screen.getByRole('button', { name: /Browser access:/ }));
+    expect(screen.getByLabelText('Accent color')).toHaveValue(DEFAULT_ACCENT_COLOR);
+  });
+
   it('opens settings, changes authorization, and persists language', async () => {
     const { client, user } = await renderReady();
 

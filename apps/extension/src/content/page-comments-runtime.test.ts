@@ -72,6 +72,92 @@ describe('page comment runtime', () => {
     listener?.({ type: 'panerelay.page-comments.clear' });
   });
 
+  it('updates active highlights, markers, and editors from validated appearance messages', async () => {
+    let listener: ((message: unknown) => void) | undefined;
+    vi.stubGlobal('chrome', {
+      runtime: {
+        onMessage: {
+          addListener(next: (message: unknown) => void) {
+            listener = next;
+          },
+        },
+        async sendMessage() {},
+      },
+    });
+    const target = document.createElement('button');
+    target.textContent = 'Continue';
+    document.body.append(target);
+    const firstAccent = {
+      color: '#336699',
+      contrast: '#ffffff',
+      hover: '#527da8',
+      outline: '#0b0c0c',
+      soft: 'rgb(51 102 153 / 14%)',
+    };
+    const secondAccent = {
+      color: '#884466',
+      contrast: '#ffffff',
+      hover: '#773b59',
+      outline: '#ffffff',
+      soft: 'rgb(136 68 102 / 10%)',
+    };
+
+    installPageCommentsRuntime(PAGE_COMMENT_RUNTIME_ASSETS);
+    listener?.({
+      type: 'panerelay.page-comments.start',
+      continuous: true,
+      theme: 'dark',
+      accent: firstAccent,
+    });
+    target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+    const firstEditor = document.querySelector<HTMLElement>(
+      '[data-panerelay-page-comment-ui="editor"]',
+    );
+    const textarea = firstEditor?.shadowRoot?.querySelector('textarea');
+    if (textarea) {
+      textarea.value = 'Keep this visible';
+      textarea.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+    }
+    firstEditor?.shadowRoot
+      ?.querySelector<HTMLButtonElement>('button[aria-label="Add comment"]')
+      ?.click();
+    await Promise.resolve();
+
+    target.dispatchEvent(new MouseEvent('pointermove', { bubbles: true }));
+    const highlighter = document.querySelector<HTMLElement>(
+      '[data-panerelay-page-comment-ui="highlight"]',
+    );
+    const marker = document.querySelector<HTMLElement>('[data-panerelay-page-comment-ui="marker"]');
+    listener?.({
+      type: 'panerelay.page-comments.appearance',
+      theme: 'light',
+      accent: secondAccent,
+    });
+
+    expect(highlighter?.style.borderColor).toBe(secondAccent.color);
+    expect(marker?.style.getPropertyValue('--panerelay-accent')).toBe(secondAccent.color);
+    expect(document.querySelector('[data-panerelay-page-comment-ui="cursor"]')).not.toBeNull();
+
+    marker?.shadowRoot?.querySelector<HTMLButtonElement>('button')?.click();
+    const nextEditor = document.querySelector<HTMLElement>(
+      '[data-panerelay-page-comment-ui="editor"]',
+    );
+    listener?.({
+      type: 'panerelay.page-comments.appearance',
+      theme: 'dark',
+      accent: {
+        ...firstAccent,
+        color: '#112233; background: red',
+      },
+    });
+    const editorStyle = nextEditor?.shadowRoot?.querySelector('style')?.textContent;
+    expect(editorStyle).toContain('color-scheme:dark');
+    expect(editorStyle).toContain('--accent:#35d07f');
+    expect(editorStyle).not.toContain('background: red');
+    expect(marker).not.toBeNull();
+    listener?.({ type: 'panerelay.page-comments.clear' });
+  });
+
   it('does not capture form values and redacts sensitive page URL fields', async () => {
     const sent: Array<Record<string, unknown>> = [];
     let listener: ((message: unknown) => void) | undefined;

@@ -498,27 +498,37 @@ export function SettingsPopover({
           </button>
         </div>
       </div>
-      <div className="settings-field">
+      <div className="settings-field settings-theme-field">
         <span>{t('theme')}</span>
-        <span className="settings-select">
-          <SelectMenu
-            alignment="end"
-            minWidth={148}
-            onChange={value => void controller.setTheme(value as ThemeSetting)}
-            options={themeOptions}
-            renderTrigger={props => (
-              <button
-                {...props}
-                aria-label={t('theme')}
-                className="settings-select-trigger"
-                type="button"
-              >
-                <span>{themeLabel}</span>
-                <ChevronDown aria-hidden="true" />
-              </button>
-            )}
-            value={state.themeSetting}
+        <span className="settings-theme-controls">
+          <input
+            aria-label={t('accentColor')}
+            className="settings-color-picker"
+            onChange={event => void controller.setAccentColor(event.currentTarget.value)}
+            title={t('accentColor')}
+            type="color"
+            value={state.accentColor}
           />
+          <span className="settings-select">
+            <SelectMenu
+              alignment="end"
+              minWidth={148}
+              onChange={value => void controller.setTheme(value as ThemeSetting)}
+              options={themeOptions}
+              renderTrigger={props => (
+                <button
+                  {...props}
+                  aria-label={t('theme')}
+                  className="settings-select-trigger"
+                  type="button"
+                >
+                  <span>{themeLabel}</span>
+                  <ChevronDown aria-hidden="true" />
+                </button>
+              )}
+              value={state.themeSetting}
+            />
+          </span>
         </span>
       </div>
       <div className="settings-field">

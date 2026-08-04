@@ -8,6 +8,12 @@ import {
 } from '@panerelay/protocol';
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef } from 'react';
 import { ALL_WEB_ORIGIN_PATTERNS, originAuthorizationForUrl } from '../../shared/authorization.js';
+import {
+  ACCENT_COLOR_KEY,
+  accentPalette,
+  normalizeAccentColor,
+  type ResolvedTheme,
+} from '../../shared/appearance.js';
 import type { ConversationWorkspaceSnapshot } from '../../shared/conversation-workspaces.js';
 import type { AuthorizationMode } from '../../shared/messages.js';
 import {
@@ -59,6 +65,29 @@ export const AUTO_APPROVE_KEY = 'panerelay.agentAutoApprove';
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error || '');
+}
+
+function resolvedTheme(client: SidepanelClient, setting: ThemeSetting): ResolvedTheme {
+  return setting === 'system' ? (client.prefersLightTheme() ? 'light' : 'dark') : setting;
+}
+
+function applyDocumentAppearance(theme: ResolvedTheme, accentColor: string): void {
+  const root = document.documentElement;
+  const palette = accentPalette(accentColor, theme);
+  root.dataset.theme = theme;
+  root.style.setProperty('--accent', palette.color);
+  root.style.setProperty('--accent-hover', palette.hover);
+  root.style.setProperty('--accent-soft', palette.soft);
+  root.style.setProperty('--accent-contrast', palette.contrast);
+}
+
+function pageCommentAppearance(
+  client: SidepanelClient,
+  themeSetting: ThemeSetting,
+  accentColor: string,
+) {
+  const theme = resolvedTheme(client, themeSetting);
+  return { theme, accent: accentPalette(accentColor, theme) };
 }
 
 function assertNeverIntegration(integration: never): never {
@@ -124,6 +153,7 @@ export interface SidepanelController {
   ): Promise<void>;
   setLocale(locale: Locale): Promise<void>;
   setTheme(theme: ThemeSetting): Promise<void>;
+  setAccentColor(color: string): Promise<void>;
   setSettingsOpen(open: boolean): void;
   dismissError(): void;
 }
@@ -391,6 +421,7 @@ export function useSidepanelController(
         PROVIDER_KEY,
         PROVIDER_CACHE_KEY,
         THEME_KEY,
+        ACCENT_COLOR_KEY,
         AUTO_APPROVE_KEY,
       ]);
       const locale =
@@ -404,9 +435,11 @@ export function useSidepanelController(
           ? stored[THEME_KEY]
           : stateRef.current.themeSetting;
       const cached = createProviderBootstrap(stored[PROVIDER_KEY], stored[PROVIDER_CACHE_KEY]);
+      const accentColor = normalizeAccentColor(stored[ACCENT_COLOR_KEY]);
       patch({
         locale,
         themeSetting,
+        ...(accentColor ? { accentColor } : {}),
         autoApprove: stored[AUTO_APPROVE_KEY] === true,
         ...(cached.providers.length > 0
           ? {
@@ -784,6 +817,21 @@ export function useSidepanelController(
 
   const setComposerText = useCallback((composerText: string) => patch({ composerText }), [patch]);
 
+  const syncPageCommentAppearance = useCallback(
+    async (themeSetting: ThemeSetting, accentColor: string) => {
+      if (!stateRef.current.commentMode && stateRef.current.pageComments.length === 0) return;
+      try {
+        await client.request({
+          type: 'panerelay.page-comments.appearance',
+          ...pageCommentAppearance(client, themeSetting, accentColor),
+        });
+      } catch (error) {
+        patch({ error: errorText(error) });
+      }
+    },
+    [client, patch],
+  );
+
   const selectProject = useCallback(async () => {
     const workspace = stateRef.current.workspace;
     if (!workspace || workspace.kind !== 'draft' || stateRef.current.selectingProject) return;
@@ -832,22 +880,22 @@ export function useSidepanelController(
   const togglePageComments = useCallback(async () => {
     if (stateRef.current.pageCommentsPending) return;
     const wasActive = stateRef.current.commentMode;
+    const appearance = pageCommentAppearance(
+      client,
+      stateRef.current.themeSetting,
+      stateRef.current.accentColor,
+    );
     patch({ pageCommentsPending: true, error: '' });
     try {
-      await client.request({
-        type: wasActive ? 'panerelay.page-comments.stop' : 'panerelay.page-comments.start',
-        ...(!wasActive
-          ? {
+      await client.request(
+        wasActive
+          ? { type: 'panerelay.page-comments.stop' }
+          : {
+              type: 'panerelay.page-comments.start',
               locale: stateRef.current.locale,
-              theme:
-                stateRef.current.themeSetting === 'system'
-                  ? client.prefersLightTheme()
-                    ? 'light'
-                    : 'dark'
-                  : stateRef.current.themeSetting,
-            }
-          : {}),
-      });
+              ...appearance,
+            },
+      );
       patch({ commentMode: !wasActive });
     } catch (error) {
       patch({ error: errorText(error) });
@@ -863,12 +911,11 @@ export function useSidepanelController(
         type: 'panerelay.page-comments.start',
         continuous: true,
         locale: stateRef.current.locale,
-        theme:
-          stateRef.current.themeSetting === 'system'
-            ? client.prefersLightTheme()
-              ? 'light'
-              : 'dark'
-            : stateRef.current.themeSetting,
+        ...pageCommentAppearance(
+          client,
+          stateRef.current.themeSetting,
+          stateRef.current.accentColor,
+        ),
       });
       patch({ commentMode: true });
     } catch (error) {
@@ -1163,8 +1210,20 @@ export function useSidepanelController(
     async (themeSetting: ThemeSetting) => {
       patch({ themeSetting });
       await client.setStored({ [THEME_KEY]: themeSetting });
+      await syncPageCommentAppearance(themeSetting, stateRef.current.accentColor);
     },
-    [client, patch],
+    [client, patch, syncPageCommentAppearance],
+  );
+
+  const setAccentColor = useCallback(
+    async (value: string) => {
+      const accentColor = normalizeAccentColor(value);
+      if (!accentColor) return;
+      patch({ accentColor });
+      await client.setStored({ [ACCENT_COLOR_KEY]: accentColor });
+      await syncPageCommentAppearance(stateRef.current.themeSetting, accentColor);
+    },
+    [client, patch, syncPageCommentAppearance],
   );
 
   const setSettingsOpen = useCallback(
@@ -1185,22 +1244,24 @@ export function useSidepanelController(
 
   useLayoutEffect(() => {
     document.documentElement.lang = state.locale;
-    document.documentElement.dataset.theme =
-      state.themeSetting === 'system'
-        ? client.prefersLightTheme()
-          ? 'light'
-          : 'dark'
-        : state.themeSetting;
-  }, [client, state.locale, state.themeSetting]);
+    applyDocumentAppearance(resolvedTheme(client, state.themeSetting), state.accentColor);
+  }, [client, state.accentColor, state.locale, state.themeSetting]);
 
   useEffect(
     () =>
       client.subscribeColorScheme(() => {
         if (stateRef.current.themeSetting === 'system') {
-          document.documentElement.dataset.theme = client.prefersLightTheme() ? 'light' : 'dark';
+          applyDocumentAppearance(
+            resolvedTheme(client, stateRef.current.themeSetting),
+            stateRef.current.accentColor,
+          );
+          void syncPageCommentAppearance(
+            stateRef.current.themeSetting,
+            stateRef.current.accentColor,
+          );
         }
       }),
-    [client],
+    [client, syncPageCommentAppearance],
   );
 
   useEffect(
@@ -1341,6 +1402,7 @@ export function useSidepanelController(
     respondToApproval,
     setLocale,
     setTheme,
+    setAccentColor,
     setSettingsOpen,
     dismissError,
   };

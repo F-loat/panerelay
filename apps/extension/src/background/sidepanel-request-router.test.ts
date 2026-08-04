@@ -52,6 +52,7 @@ function router(overrides: Partial<SidePanelRequestRouterOptions> = {}) {
       remove: async (id: string) => calls.push(`comments:remove:${id}`),
       start: async (continuous: boolean) => calls.push(`comments:start:${continuous}`),
       stop: async () => calls.push('comments:stop'),
+      updateAppearance: async () => calls.push('comments:appearance'),
     },
     releaseControl: async () => {
       calls.push('control:release');
@@ -160,11 +161,23 @@ test('routes page-comment commands to the existing service boundary', async () =
     theme: 'dark',
   });
   await handle({ type: 'panerelay.page-comments.edit', commentId: 'comment-1' });
+  await handle({
+    type: 'panerelay.page-comments.appearance',
+    theme: 'light',
+    accent: {
+      color: '#336699',
+      contrast: '#ffffff',
+      hover: '#224466',
+      outline: '#ffffff',
+      soft: 'rgb(51 102 153 / 10%)',
+    },
+  });
   await handle({ type: 'panerelay.page-comments.remove', commentId: 'comment-1' });
   await handle({ type: 'panerelay.page-comments.clear' });
   assert.deepEqual(calls, [
     'comments:start:true',
     'comments:edit:comment-1',
+    'comments:appearance',
     'comments:remove:comment-1',
     'comments:clear',
   ]);

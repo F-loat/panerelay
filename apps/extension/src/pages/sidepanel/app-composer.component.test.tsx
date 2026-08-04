@@ -2,6 +2,7 @@ import type { ConversationDetail } from '@panerelay/protocol';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { ConversationWorkspaceSnapshot } from '../../shared/conversation-workspaces.js';
+import { accentPalette, DEFAULT_ACCENT_COLOR } from '../../shared/appearance.js';
 import { AppClient, detail, readyProviders, renderReady } from './app.test-support.js';
 
 describe('React Side Panel composer', () => {
@@ -48,6 +49,7 @@ describe('React Side Panel composer', () => {
       type: 'panerelay.page-comments.start',
       locale: 'en',
       theme: 'light',
+      accent: accentPalette(DEFAULT_ACCENT_COLOR, 'light'),
     });
     expect(screen.getByRole('button', { name: 'Stop commenting' })).toBeVisible();
     fireEvent.doubleClick(commentButton);
@@ -57,6 +59,7 @@ describe('React Side Panel composer', () => {
         continuous: true,
         locale: 'en',
         theme: 'light',
+        accent: accentPalette(DEFAULT_ACCENT_COLOR, 'light'),
       }),
     );
 

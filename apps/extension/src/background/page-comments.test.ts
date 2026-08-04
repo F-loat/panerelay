@@ -3,6 +3,22 @@ import test from 'node:test';
 import type { TabSummary } from '../shared/messages.js';
 import { PageCommentService } from './page-comments.js';
 
+const darkAccent = {
+  color: '#336699',
+  contrast: '#ffffff',
+  hover: '#527da8',
+  outline: '#0b0c0c',
+  soft: 'rgb(51 102 153 / 14%)',
+};
+
+const lightAccent = {
+  color: '#224466',
+  contrast: '#ffffff',
+  hover: '#1e3c5a',
+  outline: '#ffffff',
+  soft: 'rgb(34 68 102 / 10%)',
+};
+
 function harness() {
   let active: TabSummary | null = {
     id: 11,
@@ -42,7 +58,8 @@ function harness() {
 
 test('starts and routes page comment actions only on the authorized active tab', async () => {
   const { messages, service } = harness();
-  await service.start(false, 'zh-CN', 'dark');
+  await service.start(false, 'zh-CN', 'dark', darkAccent);
+  await service.updateAppearance('light', lightAccent);
   await service.edit('comment-1');
   await service.remove('comment-1');
   await service.stop();
@@ -55,11 +72,13 @@ test('starts and routes page comment actions only on the authorized active tab',
         continuous: false,
         locale: 'zh-CN',
         theme: 'dark',
+        accent: darkAccent,
         topPage: {
           title: 'Fixture',
           url: 'https://example.com/page',
         },
       },
+      { type: 'panerelay.page-comments.appearance', theme: 'light', accent: lightAccent },
       { type: 'panerelay.page-comments.edit', commentId: 'comment-1' },
       { type: 'panerelay.page-comments.remove', commentId: 'comment-1' },
       { type: 'panerelay.page-comments.stop' },
@@ -114,4 +133,12 @@ test('clears comments on tab, document, and authorization lifecycle changes', as
   await revoked.service.start();
   revoked.setAuthorized(false);
   await assert.rejects(revoked.service.stop(), /Authorize this page/);
+  await assert.rejects(
+    revoked.service.updateAppearance('light', lightAccent),
+    /Authorize this page/,
+  );
+  assert.equal(
+    revoked.messages.some(item => item.message.type === 'panerelay.page-comments.appearance'),
+    false,
+  );
 });

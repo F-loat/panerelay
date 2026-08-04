@@ -59,6 +59,14 @@ export function installPageCommentsRuntime(assets: PageCommentRuntimeAssets): bo
     cancel: () => void;
     commentId?: string;
     destroy: (restore: boolean) => void;
+    updateAppearance: () => void;
+  };
+  type RuntimeAccent = {
+    color: string;
+    contrast: string;
+    hover: string;
+    outline: string;
+    soft: string;
   };
 
   const runtimeWindow = window as RuntimeWindow;
@@ -88,6 +96,7 @@ export function installPageCommentsRuntime(assets: PageCommentRuntimeAssets): bo
     typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: light)').matches
       ? 'light'
       : 'dark';
+  let uiAccent: RuntimeAccent | null = null;
 
   const bounded = (value: string | null | undefined, maximum: number) =>
     (value || '').replace(/\s+/g, ' ').trim().slice(0, maximum);
@@ -122,7 +131,7 @@ export function installPageCommentsRuntime(assets: PageCommentRuntimeAssets): bo
   const touchPrimary = () =>
     (typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches) ||
     navigator.maxTouchPoints > 0;
-  const commentAccent = () =>
+  const defaultCommentAccent = (): RuntimeAccent =>
     uiTheme === 'light'
       ? {
           color: '#087f46',
@@ -138,6 +147,67 @@ export function installPageCommentsRuntime(assets: PageCommentRuntimeAssets): bo
           outline: '#0b0c0c',
           soft: 'rgba(53,208,127,.14)',
         };
+  const commentAccent = () => uiAccent ?? defaultCommentAccent();
+  const validHexColor = (value: unknown): value is string =>
+    typeof value === 'string' && /^#[\da-f]{6}$/i.test(value);
+  const validSoftColor = (value: unknown): value is string => {
+    if (typeof value !== 'string') return false;
+    const match = /^rgb\((\d{1,3}) (\d{1,3}) (\d{1,3}) \/ (\d{1,3})%\)$/.exec(value);
+    return Boolean(
+      match &&
+      match.slice(1, 4).every(channel => Number(channel) <= 255) &&
+      Number(match[4]) <= 100,
+    );
+  };
+  const suppliedAccent = (value: unknown): RuntimeAccent | null => {
+    if (!value || typeof value !== 'object') return null;
+    const accent = value as Record<string, unknown>;
+    return validHexColor(accent.color) &&
+      validHexColor(accent.contrast) &&
+      validHexColor(accent.hover) &&
+      validHexColor(accent.outline) &&
+      validSoftColor(accent.soft)
+      ? {
+          color: accent.color.toLowerCase(),
+          contrast: accent.contrast.toLowerCase(),
+          hover: accent.hover.toLowerCase(),
+          outline: accent.outline.toLowerCase(),
+          soft: accent.soft,
+        }
+      : null;
+  };
+  const editorPalette = () => {
+    const accent = commentAccent();
+    return uiTheme === 'light'
+      ? {
+          accent: accent.color,
+          accentContrast: accent.contrast,
+          accentHover: accent.hover,
+          accentSoft: accent.soft,
+          background: '#f7f8f7',
+          border: '#dfe3e1',
+          hover: '#e9ecea',
+          muted: '#5f6863',
+          raised: '#f1f3f2',
+          shadow: '0 16px 40px rgba(23,26,24,.18)',
+          surface: '#ffffff',
+          text: '#171a18',
+        }
+      : {
+          accent: accent.color,
+          accentContrast: accent.contrast,
+          accentHover: accent.hover,
+          accentSoft: accent.soft,
+          background: '#0b0c0c',
+          border: '#272a2a',
+          hover: '#1d2020',
+          muted: '#a2aaa6',
+          raised: '#171919',
+          shadow: '0 16px 40px rgba(0,0,0,.42)',
+          surface: '#111313',
+          text: '#f3f5f4',
+        };
+  };
   const colorToHex = (value: string): string | null => {
     const trimmed = value.trim();
     const shortHex = /^#([\da-f])([\da-f])([\da-f])$/i.exec(trimmed);
@@ -377,6 +447,13 @@ export function installPageCommentsRuntime(assets: PageCommentRuntimeAssets): bo
     highlighter.style.height = `${rect.height}px`;
   };
 
+  const updateHighlighterAppearance = () => {
+    if (!highlighter) return;
+    const accent = commentAccent();
+    highlighter.style.borderColor = accent.color;
+    highlighter.style.background = accent.soft;
+  };
+
   const highlight = (target: Element) => {
     highlighted = target;
     if (!highlighter) {
@@ -447,6 +524,14 @@ export function installPageCommentsRuntime(assets: PageCommentRuntimeAssets): bo
     if (notify) send({ type: 'panerelay.page-comment.removed', commentId });
   };
 
+  const updateMarkerAppearance = (host: HTMLElement) => {
+    const accent = commentAccent();
+    host.style.setProperty('--panerelay-accent', accent.color);
+    host.style.setProperty('--panerelay-accent-contrast', accent.contrast);
+    host.style.setProperty('--panerelay-accent-hover', accent.hover);
+    host.style.setProperty('--panerelay-accent-outline', accent.outline);
+  };
+
   const createMarker = (
     id: string,
     target: Element,
@@ -462,18 +547,20 @@ export function installPageCommentsRuntime(assets: PageCommentRuntimeAssets): bo
       `height:${markerSize}px`,
       'pointer-events:auto',
     ].join(';');
+    updateMarkerAppearance(host);
     const shadow = host.attachShadow({ mode: 'open' });
     const style = document.createElement('style');
-    const accent = commentAccent();
     style.textContent = `
       button {
         display:grid; width:22px; height:22px; place-items:center;
-        border:2px solid ${accent.outline}; border-radius:50%; padding:0;
-        background:${accent.color}; color:${accent.contrast};
+        border:2px solid var(--panerelay-accent-outline); border-radius:50%; padding:0;
+        background:var(--panerelay-accent); color:var(--panerelay-accent-contrast);
         box-shadow:0 2px 8px rgba(0,0,0,.28); cursor:pointer; outline:0;
         transition:transform 100ms ease, background 100ms ease;
       }
-      button:hover, button:focus-visible { background:${accent.hover}; transform:scale(1.12); }
+      button:hover, button:focus-visible {
+        background:var(--panerelay-accent-hover); transform:scale(1.12);
+      }
       svg { width:11px; height:11px; fill:none; stroke:currentColor; stroke-width:2;
         stroke-linecap:round; stroke-linejoin:round; }
       @media (pointer:coarse) {
@@ -534,6 +621,19 @@ export function installPageCommentsRuntime(assets: PageCommentRuntimeAssets): bo
     pickerFrameActive = false;
   };
 
+  const touchHintColors = () =>
+    uiTheme === 'light'
+      ? { background: '#ffffff', border: '#dfe3e1', color: '#171a18' }
+      : { background: '#111313', border: '#272a2a', color: '#f3f5f4' };
+
+  const updateTouchHintAppearance = () => {
+    if (!touchHint) return;
+    const colors = touchHintColors();
+    touchHint.style.borderColor = colors.border;
+    touchHint.style.background = colors.background;
+    touchHint.style.color = colors.color;
+  };
+
   const resumeSelection = () => {
     if (!modeActive || editor) return;
     pauseSelection();
@@ -545,10 +645,7 @@ export function installPageCommentsRuntime(assets: PageCommentRuntimeAssets): bo
     `;
     document.documentElement.append(cursorStyle);
     if (touchPrimary()) {
-      const hintColors =
-        uiTheme === 'light'
-          ? { background: '#ffffff', border: '#dfe3e1', color: '#171a18' }
-          : { background: '#111313', border: '#272a2a', color: '#f3f5f4' };
+      const hintColors = touchHintColors();
       touchHint = document.createElement('div');
       touchHint.setAttribute(UI_ATTRIBUTE, 'hint');
       touchHint.textContent = uiLabels.touchHint;
@@ -606,44 +703,18 @@ export function installPageCommentsRuntime(assets: PageCommentRuntimeAssets): bo
       'all:initial;position:fixed;inset:0;z-index:2147483647;pointer-events:none;';
     const shadow = host.attachShadow({ mode: 'open' });
     const style = document.createElement('style');
-    const palette =
-      uiTheme === 'light'
-        ? {
-            accent: '#087f46',
-            accentContrast: '#ffffff',
-            accentHover: '#066c3c',
-            accentSoft: 'rgba(8,127,70,.12)',
-            background: '#f7f8f7',
-            border: '#dfe3e1',
-            hover: '#e9ecea',
-            muted: '#5f6863',
-            raised: '#f1f3f2',
-            shadow: '0 16px 40px rgba(23,26,24,.18)',
-            surface: '#ffffff',
-            text: '#171a18',
-          }
-        : {
-            accent: '#35d07f',
-            accentContrast: '#06150d',
-            accentHover: '#56df96',
-            accentSoft: 'rgba(53,208,127,.14)',
-            background: '#0b0c0c',
-            border: '#272a2a',
-            hover: '#1d2020',
-            muted: '#a2aaa6',
-            raised: '#171919',
-            shadow: '0 16px 40px rgba(0,0,0,.42)',
-            surface: '#111313',
-            text: '#f3f5f4',
-          };
-    style.textContent = `
-      :host { color-scheme:${uiTheme}; --bg:${palette.surface}; --strong:${palette.raised};
-        --toolbar:${palette.background}; --text:${palette.text}; --muted:${palette.muted};
-        --border:${palette.border}; --hover:${palette.hover}; --accent:${palette.accent};
-        --accent-hover:${palette.accentHover}; --accent-contrast:${palette.accentContrast};
-        --accent-soft:${palette.accentSoft}; --shadow:${palette.shadow}; }
-      ${assets.editorCss}
-    `;
+    const updateEditorAppearance = () => {
+      const palette = editorPalette();
+      style.textContent = `
+        :host { color-scheme:${uiTheme}; --bg:${palette.surface}; --strong:${palette.raised};
+          --toolbar:${palette.background}; --text:${palette.text}; --muted:${palette.muted};
+          --border:${palette.border}; --hover:${palette.hover}; --accent:${palette.accent};
+          --accent-hover:${palette.accentHover}; --accent-contrast:${palette.accentContrast};
+          --accent-soft:${palette.accentSoft}; --shadow:${palette.shadow}; }
+        ${assets.editorCss}
+      `;
+    };
+    updateEditorAppearance();
     const anchor = document.createElement('div');
     anchor.className = 'anchor';
     const card = document.createElement('section');
@@ -1075,6 +1146,7 @@ export function installPageCommentsRuntime(assets: PageCommentRuntimeAssets): bo
     editor = {
       cancel: cancelEditor,
       destroy,
+      updateAppearance: updateEditorAppearance,
       ...(existing ? { commentId: existing.id } : {}),
     };
     position();
@@ -1153,8 +1225,23 @@ export function installPageCommentsRuntime(assets: PageCommentRuntimeAssets): bo
     if (event instanceof KeyboardEvent && event.key === 'Escape') stopMode();
   }
 
-  const startMode = (continuous: boolean, locale?: unknown, theme?: unknown, topPage?: unknown) => {
+  const applyRuntimeAppearance = (theme?: unknown, accent?: unknown) => {
     if (theme === 'dark' || theme === 'light') uiTheme = theme;
+    uiAccent = suppliedAccent(accent);
+    updateHighlighterAppearance();
+    for (const comment of comments.values()) updateMarkerAppearance(comment.marker);
+    updateTouchHintAppearance();
+    editor?.updateAppearance();
+  };
+
+  const startMode = (
+    continuous: boolean,
+    locale?: unknown,
+    theme?: unknown,
+    topPage?: unknown,
+    accent?: unknown,
+  ) => {
+    applyRuntimeAppearance(theme, accent);
     const localeAssets = locale === 'zh-CN' ? assets.locales['zh-CN'] : assets.locales.en;
     propertyLabels = localeAssets.properties;
     uiLabels = localeAssets.ui;
@@ -1188,7 +1275,16 @@ export function installPageCommentsRuntime(assets: PageCommentRuntimeAssets): bo
     const value = message as Record<string, unknown>;
     switch (value.type) {
       case 'panerelay.page-comments.start':
-        startMode(value.continuous === true, value.locale, value.theme, value.topPage);
+        startMode(
+          value.continuous === true,
+          value.locale,
+          value.theme,
+          value.topPage,
+          value.accent,
+        );
+        break;
+      case 'panerelay.page-comments.appearance':
+        applyRuntimeAppearance(value.theme, value.accent);
         break;
       case 'panerelay.page-comments.stop':
         stopMode(false);

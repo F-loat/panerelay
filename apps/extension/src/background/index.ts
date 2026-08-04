@@ -24,7 +24,7 @@ import {
   type IntegrationResult,
   type IntegrationWorkspaceDirectoryResult,
 } from '@panerelay/protocol';
-import { controlBadgeText } from './action-badge.js';
+import { controlBadgeColors, controlBadgeText } from './action-badge.js';
 import { createControlActivityState, reduceControlActivity } from './control-activity-state.js';
 import type {
   AuthorizationMode,
@@ -62,6 +62,7 @@ import { PageCommentService } from './page-comments.js';
 import { detectBrowserRuntime } from '../shared/browser-runtime.js';
 import { PendingRequestTracker } from './pending-request-tracker.js';
 import { createSidePanelRequestRouter } from './sidepanel-request-router.js';
+import { ACCENT_COLOR_KEY } from '../shared/appearance.js';
 
 const BROWSER_ID_KEY = 'panerelay.browserId';
 const ALL_TABS_AUTHORIZATION_KEY = 'panerelay.authorization.allTabs';
@@ -160,8 +161,10 @@ const handleSidePanelRequest = createSidePanelRequestRouter({
 });
 
 async function updateActionBadge(): Promise<void> {
-  await chrome.action.setBadgeBackgroundColor({ color: '#20e68f' });
-  await chrome.action.setBadgeTextColor({ color: '#111513' });
+  const stored = await chrome.storage.local.get(ACCENT_COLOR_KEY);
+  const colors = controlBadgeColors(stored[ACCENT_COLOR_KEY]);
+  await chrome.action.setBadgeBackgroundColor({ color: colors.background });
+  await chrome.action.setBadgeTextColor({ color: colors.text });
   await chrome.action.setBadgeText({ text: controlBadgeText(controlledTabs.size) });
 }
 
@@ -1263,6 +1266,12 @@ chrome.permissions.onRemoved.addListener(() => {
     await pageCommentService.reset();
     await releaseControl('Chrome site access was revoked', true);
   })();
+});
+
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === 'local' && ACCENT_COLOR_KEY in changes) {
+    void updateActionBadge().catch(() => undefined);
+  }
 });
 
 void updateActionBadge();
