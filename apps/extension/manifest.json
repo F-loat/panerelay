@@ -26,6 +26,7 @@
   "side_panel": { "default_path": "src/pages/sidepanel/index.html" },
   "optional_host_permissions": ["http://*/*", "https://*/*", "file:///*"],
   "permissions": [
+    "contextMenus",
     "debugger",
     "nativeMessaging",
     "scripting",

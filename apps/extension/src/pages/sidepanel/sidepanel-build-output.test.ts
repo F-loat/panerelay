@@ -8,3 +8,29 @@ test('does not emit unusable cross-world module preloads into the side panel', a
 
   assert.doesNotMatch(html, /rel=["']modulepreload["']/);
 });
+
+test('packages the localized action-menu release entry and its background wiring', async () => {
+  const dist = join(process.cwd(), 'dist');
+  const manifest = JSON.parse(await readFile(join(dist, 'manifest.json'), 'utf8')) as {
+    background?: { service_worker?: string };
+    permissions?: string[];
+  };
+  const [english, simplifiedChinese] = await Promise.all(
+    ['en', 'zh_CN'].map(
+      async locale =>
+        JSON.parse(
+          await readFile(join(dist, '_locales', locale, 'messages.json'), 'utf8'),
+        ) as Record<string, { message?: string }>,
+    ),
+  );
+  const loader = await readFile(join(dist, manifest.background?.service_worker ?? ''), 'utf8');
+  const backgroundEntry = loader.match(/import\s+["']\.\/(.+?)["']/)?.[1];
+
+  assert.ok(manifest.permissions?.includes('contextMenus'));
+  assert.equal(english.releaseAllControl?.message, 'Release all control');
+  assert.equal(simplifiedChinese.releaseAllControl?.message, '全部释放');
+  assert.ok(backgroundEntry, 'service worker loader should import the compiled background entry');
+  const background = await readFile(join(dist, backgroundEntry!), 'utf8');
+  assert.match(background, /panerelay\.release-all-control/);
+  assert.match(background, /contextMenus/);
+});

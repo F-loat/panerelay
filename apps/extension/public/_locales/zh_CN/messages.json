@@ -7,5 +7,8 @@
   },
   "actionTitle": {
     "message": "打开 Panerelay"
+  },
+  "releaseAllControl": {
+    "message": "全部释放"
   }
 }

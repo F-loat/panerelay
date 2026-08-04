@@ -27,6 +27,7 @@ test('does not request the redundant activeTab permission', async () => {
     permissions?: string[];
   };
   assert.ok(!manifest.permissions?.includes('activeTab'));
+  assert.ok(manifest.permissions?.includes('contextMenus'));
   assert.ok(manifest.permissions?.includes('webNavigation'));
 });
 
@@ -55,7 +56,10 @@ test('localizes Extension metadata in English and Simplified Chinese', async () 
     assert.ok(messages.extensionName?.message);
     assert.ok(messages.extensionDescription?.message);
     assert.ok(messages.actionTitle?.message);
+    assert.ok(messages.releaseAllControl?.message);
   }
+  assert.equal(english.releaseAllControl?.message, 'Release all control');
+  assert.equal(simplifiedChinese.releaseAllControl?.message, '全部释放');
   assert.match(
     english.extensionDescription?.message ?? '',
     /one tab or all supported tabs in your existing browser/,

@@ -63,6 +63,7 @@ import { detectBrowserRuntime } from '../shared/browser-runtime.js';
 import { PendingRequestTracker } from './pending-request-tracker.js';
 import { createSidePanelRequestRouter } from './sidepanel-request-router.js';
 import { ACCENT_COLOR_KEY } from '../shared/appearance.js';
+import { installReleaseActionContextMenu } from './action-context-menu.js';
 
 const BROWSER_ID_KEY = 'panerelay.browserId';
 const ALL_TABS_AUTHORIZATION_KEY = 'panerelay.authorization.allTabs';
@@ -220,6 +221,11 @@ function handleDetachedNativeTaskError(
   error: unknown,
 ): void {
   if (!expectedPort || nativePort !== expectedPort) return;
+  lastError = error instanceof Error ? error.message : String(error);
+  void broadcastStatus().catch(() => undefined);
+}
+
+function reportActionContextMenuError(error: unknown): void {
   lastError = error instanceof Error ? error.message : String(error);
   void broadcastStatus().catch(() => undefined);
 }
@@ -1272,6 +1278,22 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === 'local' && ACCENT_COLOR_KEY in changes) {
     void updateActionBadge().catch(() => undefined);
   }
+});
+
+installReleaseActionContextMenu({
+  createMenu: (properties, callback) => {
+    chrome.contextMenus.create(properties, callback);
+  },
+  getLastErrorMessage: () => chrome.runtime.lastError?.message,
+  onClicked: listener => {
+    chrome.contextMenus.onClicked.addListener(info => listener(info.menuItemId));
+  },
+  onInstalled: listener => {
+    chrome.runtime.onInstalled.addListener(listener);
+  },
+  releaseControl: releaseBrowserControl,
+  reportError: reportActionContextMenuError,
+  title: chrome.i18n.getMessage('releaseAllControl'),
 });
 
 void updateActionBadge();

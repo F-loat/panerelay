@@ -102,7 +102,7 @@ Panerelay SHALL require a newly allocated participant ID and credential after th
 
 ### Requirement: Authorization scope selection and lease release are independent
 
-Panerelay SHALL present the current-tab and all-tabs authorization scopes as explicit toggle selections. Activating or clearing a scope SHALL revoke any current control lease, while the separate release action SHALL revoke the complete control lease without changing the selected authorization scope or Chrome site permission.
+Panerelay SHALL present the current-tab and all-tabs authorization scopes as explicit toggle selections. Activating or clearing a scope SHALL revoke any current control lease, while the separate release action SHALL revoke the complete control lease without changing the selected authorization scope or Chrome site permission. The Extension SHALL expose that same whole-lease release action in browser access settings and in the Extension action icon's context menu.
 
 #### Scenario: User activates an unselected scope
 
@@ -127,6 +127,12 @@ Panerelay SHALL present the current-tab and all-tabs authorization scopes as exp
 - **GIVEN** current-tab or all-tabs authorization remains selected
 - **WHEN** the user activates the release action
 - **THEN** Panerelay revokes the complete control lease and detaches every observed or controlled target while preserving the selected scope and Chrome site permission
+
+#### Scenario: User releases browser control from the action icon
+
+- **GIVEN** the Extension is installed and current-tab or all-tabs authorization remains selected
+- **WHEN** the user activates the localized whole-lease release item from the Extension action icon's context menu
+- **THEN** Panerelay performs the same complete lease release as the browser access settings action and preserves the selected scope and Chrome site permission
 
 #### Scenario: Release is used without an active lease
 
