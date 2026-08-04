@@ -1,0 +1,426 @@
+.browser-scope {
+  margin-top: 2px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 7px 8px;
+}
+
+.settings-popover .scope-controls {
+  align-items: stretch;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-popover .scope-switch {
+  width: 100%;
+}
+
+.settings-popover .scope-help {
+  white-space: normal;
+}
+
+.scope-summary {
+  min-width: 0;
+  gap: 7px;
+}
+
+.scope-icon {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+}
+
+.scope-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.scope-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.scope-label,
+.scope-target {
+  display: block;
+}
+
+.scope-label {
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.scope-target {
+  overflow: hidden;
+  margin-top: 1px;
+  color: var(--text-tertiary);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.text-button {
+  flex: none;
+  padding: 3px 0;
+}
+
+.text-button.danger:hover {
+  color: var(--danger);
+}
+
+.scope-controls {
+  min-width: 0;
+  gap: 8px;
+  margin-top: 7px;
+}
+
+.scope-switch {
+  display: grid;
+  width: 158px;
+  flex: none;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  padding: 2px;
+}
+
+.scope-switch button {
+  min-height: 24px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 9px;
+}
+
+.scope-switch button:hover {
+  color: var(--text);
+}
+
+.scope-switch button[data-active='true'] {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 600;
+}
+
+.scope-switch button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.scope-help {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  margin: 0;
+  color: var(--text-tertiary);
+  font-size: 8px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+}
+
+.composer {
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--bg);
+  padding: 8px 9px 7px;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.composer:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 52%, var(--border-strong));
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.composer textarea {
+  display: block;
+  width: 100%;
+  max-height: 130px;
+  resize: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
+.composer textarea::placeholder {
+  color: var(--text-tertiary);
+}
+
+.composer textarea:disabled {
+  cursor: not-allowed;
+}
+
+.pending-page-comments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.pending-page-comment {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-radius: 999px;
+  background: transparent;
+  color: var(--accent);
+}
+
+.pending-page-comment button {
+  display: flex;
+  height: 24px;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.pending-page-comment button:hover {
+  background: var(--accent-soft);
+}
+
+.pending-page-comment button svg {
+  width: 11px;
+  height: 11px;
+  flex: none;
+}
+
+.page-comment-pill-main {
+  min-width: 0;
+  padding: 0 5px 0 7px;
+  font-size: 8px;
+}
+
+.page-comment-pill-main span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pending-page-comment .page-comment-pill-remove {
+  width: 20px;
+  justify-content: center;
+  border-left: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
+  padding: 0;
+}
+
+.pasted-image-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 7px;
+}
+
+.pasted-image-preview {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  overflow: visible;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.pasted-image-preview img {
+  width: 100%;
+  height: 100%;
+  border-radius: 7px;
+  object-fit: cover;
+}
+
+.pasted-image-preview button {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  display: grid;
+  width: 17px;
+  height: 17px;
+  place-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text-secondary);
+  opacity: 0;
+  padding: 0;
+  transition: opacity 100ms ease;
+}
+
+.pasted-image-preview:hover button,
+.pasted-image-preview button:focus-visible {
+  opacity: 1;
+}
+
+.pasted-image-preview button svg {
+  width: 10px;
+  height: 10px;
+}
+
+.composer-image-error {
+  max-width: 140px;
+  overflow: hidden;
+  color: var(--danger);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-footer {
+  min-height: 27px;
+  justify-content: flex-end;
+  gap: 7px;
+  margin-top: 3px;
+}
+
+.composer-tools,
+.project-control {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.composer-tools {
+  gap: 4px;
+}
+
+.project-control {
+  max-width: 148px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-soft);
+}
+
+.composer-tool {
+  display: flex;
+  height: 23px;
+  min-width: 0;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  background: transparent;
+  padding: 0 6px;
+  color: var(--text-secondary);
+  font-size: 8px;
+}
+
+.composer-tool:hover:not(:disabled) {
+  background: var(--surface-raised);
+  color: var(--text);
+}
+
+.composer-tool:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.composer-tool svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+
+.composer-action {
+  position: relative;
+  flex: none;
+  width: 25px;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-soft);
+  padding: 0;
+}
+
+.composer-action[data-active='true'] {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.composer-tool-count {
+  position: absolute;
+  top: -5px;
+  right: -4px;
+  display: grid;
+  min-width: 12px;
+  height: 12px;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--accent);
+  padding-inline: 2px;
+  color: white;
+  font-size: 7px;
+}
+
+.project-button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-clear {
+  flex: none;
+  border-left: 1px solid var(--border);
+  padding-inline: 5px;
+}
+
+.composer-hint {
+  overflow: hidden;
+  margin-right: auto;
+  color: var(--text-tertiary);
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.send-button {
+  display: grid;
+  width: 27px;
+  height: 27px;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: var(--text);
+  color: var(--bg);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.send-button:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.send-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.28;
+}
+
+.stop-button {
+  height: 27px;
+  border: 1px solid color-mix(in srgb, var(--danger) 28%, var(--border));
+  border-radius: 6px;
+  background: var(--danger-soft);
+  padding: 0 9px;
+  color: var(--danger);
+  font-size: 9px;
+}
+
+[hidden] {
+  display: none !important;
+}

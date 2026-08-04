@@ -1,0 +1,69 @@
+@media (max-width: 360px) {
+  .app-header {
+    padding-inline: 8px;
+  }
+
+  .header-actions {
+    gap: 1px;
+  }
+
+  .provider-trigger {
+    gap: 6px;
+    padding-right: 4px;
+  }
+
+  .provider-name {
+    max-width: 78px;
+  }
+
+  .timeline {
+    padding-inline: 9px;
+  }
+
+  .scope-controls {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .scope-switch {
+    width: 100%;
+  }
+
+  .scope-help {
+    white-space: normal;
+  }
+}
+
+@media (max-width: 325px) {
+  .provider-trigger {
+    height: 34px;
+  }
+
+  .provider-icon {
+    width: 28px;
+    height: 28px;
+  }
+
+  .connection-status {
+    display: none;
+  }
+
+  .provider-name {
+    max-width: 66px;
+  }
+
+  .composer-hint {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

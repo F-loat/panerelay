@@ -1,0 +1,226 @@
+.activity-stack,
+.timeline-error-stack {
+  display: grid;
+  gap: 6px;
+}
+
+.activity-stack > .setup-guidance,
+.timeline-error-stack > .setup-guidance {
+  width: auto;
+  margin: 0 8px;
+}
+
+.authorization-request {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 8px 0;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--accent-soft) 52%, var(--surface));
+  padding: 7px 8px;
+}
+
+.authorization-request > svg {
+  width: 17px;
+  height: 17px;
+  color: var(--accent);
+  stroke-width: 1.7;
+}
+
+.authorization-request > span {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.authorization-request strong {
+  font-size: 10px;
+}
+
+.authorization-request small {
+  color: var(--text-secondary);
+  font-size: 8px;
+  line-height: 1.4;
+}
+
+.authorization-request button {
+  min-height: 26px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: var(--accent-contrast);
+  padding: 5px 7px;
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.authorization-request button:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.welcome-authorization {
+  display: grid;
+  min-height: 52px;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+  padding: 8px 9px;
+  text-align: left;
+}
+
+.welcome-authorization-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 7px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.welcome-authorization-icon svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.7;
+}
+
+.welcome-authorization-copy {
+  min-width: 0;
+}
+
+.welcome-authorization .scope-target {
+  display: block;
+  overflow: hidden;
+  margin-top: 0;
+  font-size: 9px;
+  line-height: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.welcome-authorization-select {
+  min-width: 0;
+}
+
+.authorization-trigger {
+  display: flex;
+  max-width: 104px;
+  min-height: 26px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--text-secondary);
+  padding: 0 6px 0 8px;
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+.authorization-trigger:hover,
+.authorization-trigger[aria-expanded='true'] {
+  border-color: color-mix(in srgb, var(--accent) 34%, var(--border));
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.authorization-trigger[data-authorized='true'] {
+  border-color: color-mix(in srgb, var(--accent) 30%, var(--border));
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.authorization-trigger span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.authorization-trigger svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  stroke-width: 1.8;
+}
+
+.suggestions {
+  display: grid;
+  width: min(330px, 100%);
+  gap: 6px;
+}
+
+.suggestions > button {
+  display: grid;
+  min-height: 52px;
+  grid-template-columns: 30px minmax(0, 1fr) 14px;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--surface) 86%, transparent);
+  color: var(--text);
+  padding: 8px 9px;
+  text-align: left;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease;
+}
+
+.suggestions > button:hover {
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+  background: var(--accent-soft);
+}
+
+.suggestion-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  padding: 7px;
+  stroke-width: 1.7;
+}
+
+.suggestions > button > span:nth-child(2) {
+  min-width: 0;
+}
+
+.suggestions strong,
+.suggestions small {
+  display: block;
+}
+
+.suggestions strong {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 15px;
+}
+
+.suggestions small {
+  overflow: hidden;
+  margin-top: 2px;
+  color: var(--text-tertiary);
+  font-size: 9px;
+  line-height: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.suggestion-arrow {
+  width: 14px;
+  height: 14px;
+  color: var(--text-tertiary);
+  stroke-width: 1.7;
+  transition: transform 120ms ease;
+}
+
+.suggestions > button:hover .suggestion-arrow {
+  color: var(--accent);
+  transform: translateX(2px);
+}

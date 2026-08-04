@@ -1,0 +1,279 @@
+.message {
+  display: flex;
+  min-width: 0;
+  gap: 7px;
+  font-size: 12px;
+  line-height: 1.58;
+}
+
+.message.user {
+  align-items: flex-end;
+  justify-content: flex-end;
+}
+
+.message.assistant {
+  align-items: flex-start;
+}
+
+.message-shell {
+  min-width: 0;
+  max-width: 88%;
+}
+
+.message.assistant .message-shell {
+  flex: 1;
+}
+
+.message-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 1px 4px;
+  color: var(--text-secondary);
+  font-size: 9px;
+}
+
+.message-time {
+  margin-left: auto;
+  color: var(--text-tertiary);
+  font-size: 8px;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.message:hover .message-time {
+  opacity: 1;
+}
+
+.message-avatar {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  border-radius: 7px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  padding: 5px;
+  stroke-width: 1.7;
+}
+
+.turn-feedback {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.turn-feedback-shell {
+  min-width: 0;
+  max-width: 88%;
+  flex: 1;
+}
+
+.turn-feedback-bubble {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border));
+  border-radius: 4px 14px 14px;
+  background: color-mix(in srgb, var(--accent-soft) 40%, var(--surface));
+  padding: 8px 10px;
+}
+
+.turn-feedback-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.turn-feedback-copy strong,
+.turn-feedback-copy small {
+  display: block;
+}
+
+.turn-feedback-copy strong {
+  color: var(--text);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.turn-feedback-copy small {
+  margin-top: 2px;
+  color: var(--text-secondary);
+  font-size: 9px;
+  line-height: 1.35;
+}
+
+.turn-feedback-dots {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 3px;
+  padding: 0 2px;
+}
+
+.turn-feedback-dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: turn-feedback-pulse 1.2s ease-in-out infinite;
+}
+
+.turn-feedback-dots i:nth-child(2) {
+  animation-delay: 160ms;
+}
+
+.turn-feedback-dots i:nth-child(3) {
+  animation-delay: 320ms;
+}
+
+@keyframes turn-feedback-pulse {
+  0%,
+  60%,
+  100% {
+    opacity: 0.28;
+    transform: translateY(0);
+  }
+
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+.message-bubble {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.message.user .message-bubble {
+  border-radius: 14px 14px 4px 14px;
+  background: var(--text);
+  color: var(--bg);
+  padding: 8px 11px;
+}
+
+.message.user .message-time {
+  align-self: flex-end;
+  margin: 0 0 3px;
+}
+
+.message.assistant .message-bubble {
+  border: 1px solid var(--border);
+  border-radius: 4px 14px 14px;
+  background: var(--surface);
+  padding: 8px 10px;
+}
+
+.message.assistant[data-streaming='true'] .message-bubble {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border));
+}
+
+.message.assistant[data-streaming='true'] .message-bubble::after {
+  display: inline-block;
+  width: 5px;
+  height: 11px;
+  margin-left: 3px;
+  background: var(--accent);
+  content: '';
+  vertical-align: -1px;
+  animation: blink 1s steps(1) infinite;
+}
+
+@keyframes blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+.rich-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.rich-text > :first-child {
+  margin-top: 0;
+}
+
+.rich-text > :last-child {
+  margin-bottom: 0;
+}
+
+.rich-text p,
+.rich-text ul,
+.rich-text ol,
+.rich-text blockquote,
+.rich-text pre {
+  margin: 7px 0;
+}
+
+.rich-text h1,
+.rich-text h2,
+.rich-text h3 {
+  margin: 12px 0 5px;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.rich-text ul,
+.rich-text ol {
+  padding-left: 18px;
+}
+
+.rich-text li + li {
+  margin-top: 2px;
+}
+
+.rich-text blockquote {
+  border-left: 2px solid var(--border-strong);
+  color: var(--text-secondary);
+  padding-left: 8px;
+}
+
+.rich-text code {
+  border-radius: 4px;
+  background: var(--surface-raised);
+  padding: 1px 4px;
+  color: inherit;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 0.9em;
+}
+
+.message.user .rich-text code {
+  background: color-mix(in srgb, var(--bg) 14%, transparent);
+}
+
+.rich-text pre {
+  max-width: 100%;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  padding: 8px 9px;
+}
+
+.rich-text pre code {
+  display: block;
+  min-width: max-content;
+  background: transparent;
+  padding: 0;
+  font-size: 9px;
+  line-height: 1.55;
+  white-space: pre;
+}
+
+.rich-text a {
+  color: var(--accent);
+  text-decoration-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  text-underline-offset: 2px;
+}
+
+.message.user .rich-text a {
+  color: inherit;
+  text-decoration-color: color-mix(in srgb, currentColor 55%, transparent);
+}
+
+.rich-text hr {
+  border: 0;
+  border-top: 1px solid var(--border);
+  margin: 10px 0;
+}

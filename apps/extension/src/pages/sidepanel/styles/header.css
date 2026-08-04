@@ -1,0 +1,375 @@
+.provider-trigger,
+.connection-status,
+.settings-heading {
+  display: flex;
+  align-items: center;
+}
+
+.empty-mark {
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+}
+
+.connection-status {
+  min-width: 0;
+  gap: 5px;
+  color: var(--text-secondary);
+  font-size: 9px;
+  line-height: 12px;
+}
+
+.connection-status > :last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+}
+
+.status-dot[data-state='ready'] {
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.status-dot[data-state='error'] {
+  background: var(--danger);
+  box-shadow: 0 0 0 3px var(--danger-soft);
+}
+
+.provider-control {
+  position: relative;
+  max-width: 160px;
+  min-width: 0;
+}
+
+.provider-trigger {
+  width: 100%;
+  height: 40px;
+  gap: 8px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: inherit;
+  padding: 3px 7px 3px 3px;
+  transition: background 120ms ease;
+}
+
+.provider-trigger:hover {
+  background: var(--surface-hover);
+}
+
+.provider-icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  place-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  background: var(--surface-raised);
+  color: var(--text);
+}
+
+.provider-glyph {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.7;
+}
+
+.provider-copy {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+.provider-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 3px;
+}
+
+.provider-name {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.provider-chevron {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  color: var(--text-secondary);
+  stroke-width: 1.7;
+}
+
+.icon-button {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-secondary);
+  transition:
+    color 120ms ease,
+    background 120ms ease;
+}
+
+.icon-button:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.35;
+}
+
+.icon-button svg,
+.send-button svg,
+.scope-icon svg,
+.conversation-trigger svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.4;
+}
+
+.icon-button.small {
+  width: 26px;
+  height: 26px;
+}
+
+.conversation-control {
+  position: relative;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  place-items: center;
+  border-radius: 7px;
+  color: var(--text-secondary);
+  transition:
+    color 120ms ease,
+    background 120ms ease;
+}
+
+.conversation-trigger {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: inherit;
+}
+
+.conversation-trigger:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.conversation-trigger:disabled {
+  cursor: wait;
+  opacity: 0.45;
+}
+
+.history-popover {
+  position: absolute;
+  z-index: 24;
+  top: 36px;
+  right: -34px;
+  display: flex;
+  flex-direction: column;
+  width: min(320px, calc(100vw - 16px));
+  max-height: min(440px, calc(100vh - 72px));
+  gap: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border-strong);
+  border-radius: 11px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--text);
+  padding: 10px;
+}
+
+.history-heading,
+.history-search,
+.history-state,
+.history-item {
+  display: flex;
+  align-items: center;
+}
+
+.history-heading {
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.history-search {
+  gap: 7px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  padding: 0 9px;
+}
+
+.history-search svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  color: var(--text-tertiary);
+}
+
+.history-search input {
+  min-width: 0;
+  height: 34px;
+  flex: 1;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 10px;
+}
+
+.history-search input::placeholder {
+  color: var(--text-tertiary);
+}
+
+.history-list {
+  display: grid;
+  min-height: 0;
+  gap: 3px;
+  overflow-y: auto;
+}
+
+.history-item {
+  min-width: 0;
+  justify-content: space-between;
+  gap: 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  padding: 8px;
+  text-align: left;
+}
+
+.history-item:hover,
+.history-item[aria-current='true'] {
+  background: var(--surface-hover);
+}
+
+.history-item > span {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.history-item strong,
+.history-item small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.history-item strong {
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.history-item small,
+.history-item time {
+  color: var(--text-tertiary);
+  font-size: 8px;
+}
+
+.history-item time {
+  flex: none;
+}
+
+.history-state {
+  min-height: 72px;
+  justify-content: center;
+  gap: 7px;
+  color: var(--text-tertiary);
+  font-size: 10px;
+  text-align: center;
+}
+
+.history-error {
+  align-items: stretch;
+  flex-direction: column;
+}
+
+.history-error span {
+  overflow-wrap: anywhere;
+}
+
+.history-error button,
+.provider-preparation-notice button {
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--surface-raised);
+  color: var(--text-secondary);
+  padding: 5px 8px;
+  font-size: 9px;
+}
+
+.access-button {
+  position: relative;
+}
+
+.access-indicator {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: transparent;
+  pointer-events: none;
+}
+
+.access-button[data-authorized='true'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.access-button[data-authorized='true'] .access-indicator {
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.access-button[data-controlled='true'] {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.access-button[data-controlled='true'] .access-indicator {
+  background: var(--surface);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-contrast) 50%, transparent);
+}

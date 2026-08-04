@@ -1,0 +1,104 @@
+@theme inline {
+  --color-panel-bg: var(--bg);
+  --color-panel-surface: var(--surface);
+  --color-panel-raised: var(--surface-raised);
+  --color-panel-hover: var(--surface-hover);
+  --color-panel-border: var(--border);
+  --color-panel-text: var(--text);
+  --color-panel-muted: var(--text-secondary);
+  --color-panel-accent: var(--accent);
+  --color-panel-danger: var(--danger);
+}
+
+:root {
+  color-scheme: dark;
+  --bg: #0b0c0c;
+  --surface: #111313;
+  --surface-raised: #171919;
+  --surface-hover: #1d2020;
+  --surface-soft: #141616;
+  --border: #272a2a;
+  --border-strong: #393d3d;
+  --text: #f3f5f4;
+  --text-secondary: #a2aaa6;
+  --text-tertiary: #7d8681;
+  --accent: #35d07f;
+  --accent-soft: rgb(53 208 127 / 11%);
+  --accent-contrast: #06150d;
+  --danger: #ff7777;
+  --danger-soft: rgb(255 119 119 / 9%);
+  --warning: #f0bd57;
+  --warning-soft: rgb(240 189 87 / 9%);
+  --purple: #ca8bfa;
+  --shadow: rgb(0 0 0 / 45%);
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --bg: #f7f8f7;
+  --surface: #ffffff;
+  --surface-raised: #f1f3f2;
+  --surface-hover: #e9ecea;
+  --surface-soft: #fbfcfb;
+  --border: #dfe3e1;
+  --border-strong: #c7ceca;
+  --text: #171a18;
+  --text-secondary: #5f6863;
+  --text-tertiary: #68716c;
+  --accent: #087f46;
+  --accent-soft: rgb(8 127 70 / 8%);
+  --accent-contrast: #ffffff;
+  --danger: #c94343;
+  --danger-soft: rgb(201 67 67 / 7%);
+  --warning: #966700;
+  --warning-soft: rgb(150 103 0 / 7%);
+  --purple: #8f44b7;
+  --shadow: rgb(22 31 26 / 14%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  min-width: 300px;
+  margin: 0;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+button,
+select,
+textarea {
+  color: inherit;
+  font: inherit;
+}
+
+button,
+select {
+  cursor: pointer;
+}
+
+button:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+a:focus-visible,
+summary:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--accent) 65%, transparent);
+  outline-offset: 2px;
+}

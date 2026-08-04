@@ -3,8 +3,31 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import test from 'node:test';
 
+const sidepanelStyleFiles = [
+  'styles.css',
+  'styles/foundation.css',
+  'styles/header.css',
+  'styles/settings.css',
+  'styles/setup.css',
+  'styles/welcome.css',
+  'styles/messages.css',
+  'styles/activity.css',
+  'styles/composer.css',
+  'styles/responsive.css',
+];
+
+async function readSidepanelStyles(): Promise<string> {
+  return (
+    await Promise.all(
+      sidepanelStyleFiles.map(file =>
+        readFile(join(process.cwd(), 'src/pages/sidepanel', file), 'utf8'),
+      ),
+    )
+  ).join('\n');
+}
+
 test('keeps recent conversations inside their own scroll container', async () => {
-  const styles = await readFile(join(process.cwd(), 'src/pages/sidepanel/styles.css'), 'utf8');
+  const styles = await readSidepanelStyles();
   const popover = styles.match(/\.history-popover\s*\{[^}]*\}/)?.[0] ?? '';
   const list = styles.match(/\.history-list\s*\{[^}]*\}/)?.[0] ?? '';
 
@@ -17,7 +40,7 @@ test('keeps recent conversations inside their own scroll container', async () =>
 });
 
 test('aligns the missing-Host card stack with the connected welcome layout', async () => {
-  const styles = await readFile(join(process.cwd(), 'src/pages/sidepanel/styles.css'), 'utf8');
+  const styles = await readSidepanelStyles();
   const missingHost =
     styles.match(/\.setup-guidance\[data-native-host='true'\]\s*\{[^}]*\}/)?.[0] ?? '';
   const card = styles.match(/\.setup-guide-card\s*\{[^}]*\}/)?.[0] ?? '';
