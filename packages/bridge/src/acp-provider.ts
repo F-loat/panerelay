@@ -16,6 +16,7 @@ import type {
   ConversationSummary,
 } from '@panerelay/protocol';
 import type { AgentProvider } from './agent-provider.js';
+import { normalizeAcpHistoryMessages, wrapAcpConversationContext } from './acp-context.js';
 import {
   createConversationContextInstructions,
   resolveConversationStartOptions,
@@ -86,6 +87,7 @@ interface AcpSession {
 }
 
 interface AcpTurn {
+  activities: Map<string, ConversationActivity>;
   assistantMessageId: string;
   assistantText: string;
   id: string;
@@ -527,7 +529,7 @@ export class AcpProvider implements AgentProvider {
           `${this.profile.name} session load`,
         )) as acp.LoadSessionResponse;
         configOptions = result.configOptions;
-        messages = capture.messages;
+        messages = normalizeAcpHistoryMessages(capture.messages);
       } finally {
         this.historyCaptures.delete(conversationId);
       }
@@ -577,6 +579,7 @@ export class AcpProvider implements AgentProvider {
     }
     const turnId = `${this.profile.id}-turn-${randomUUID()}`;
     const turn: AcpTurn = {
+      activities: new Map(),
       assistantMessageId: `${turnId}-message`,
       assistantText: '',
       id: turnId,
@@ -585,7 +588,7 @@ export class AcpProvider implements AgentProvider {
     session.activeTurn = turn;
     this.emit({ kind: 'turn.started', conversationId, turnId });
     const prompt = session.initialContext
-      ? `${session.initialContext}${trimmed ? `\n\n${trimmed}` : ''}`
+      ? wrapAcpConversationContext(session.initialContext, trimmed)
       : trimmed;
     delete session.initialContext;
     const promptContent: acp.ContentBlock[] = [
@@ -643,14 +646,39 @@ export class AcpProvider implements AgentProvider {
   }
 
   async close(): Promise<void> {
-    this.cancelPermissions();
     this.historyCaptures.clear();
     const runtime = this.runtime;
     const closeSupported = this.initializeResponse?.agentCapabilities?.sessionCapabilities?.close;
+    const sessions = [...this.sessions.entries()];
+    const interruptedTurns: Array<{ conversationId: string; turnId: string }> = [];
+    for (const [conversationId, session] of sessions) {
+      if (!session.activeTurn) continue;
+      interruptedTurns.push({ conversationId, turnId: session.activeTurn.id });
+      delete session.activeTurn;
+    }
+    this.cancelPermissions();
+    if (runtime) {
+      await Promise.allSettled(
+        interruptedTurns.map(({ conversationId }) =>
+          runtime.notify(acp.methods.agent.session.cancel, {
+            sessionId: conversationId,
+          }),
+        ),
+      );
+    }
+    for (const { conversationId, turnId } of interruptedTurns) {
+      this.emit({
+        kind: 'turn.completed',
+        conversationId,
+        turnId,
+        status: 'interrupted',
+      });
+    }
     if (runtime && closeSupported) {
       await Promise.allSettled(
-        [...this.sessions.keys()].map(conversationId =>
-          this.request(
+        sessions.map(([conversationId]) =>
+          this.requestWithRuntime(
+            runtime,
             acp.methods.agent.session.close,
             { sessionId: conversationId },
             `${this.profile.name} session close`,
@@ -724,10 +752,20 @@ export class AcpProvider implements AgentProvider {
   }
 
   private async request(method: string, params: unknown, label: string): Promise<unknown> {
-    if (!this.runtime) throw new Error(`${this.profile.name} ACP is unavailable`);
+    const runtime = this.runtime;
+    if (!runtime) throw new Error(`${this.profile.name} ACP is unavailable`);
+    return this.requestWithRuntime(runtime, method, params, label);
+  }
+
+  private async requestWithRuntime(
+    runtime: AcpRuntime,
+    method: string,
+    params: unknown,
+    label: string,
+  ): Promise<unknown> {
     let timer: NodeJS.Timeout | undefined;
     return Promise.race([
-      this.runtime.request(method, params),
+      runtime.request(method, params),
       new Promise<never>((_, reject) => {
         timer = setTimeout(
           () => reject(new Error(`${label} timed out`)),
@@ -746,16 +784,15 @@ export class AcpProvider implements AgentProvider {
     turn: AcpTurn,
     prompt: acp.ContentBlock[],
   ): Promise<void> {
-    let terminalEvent: ConversationEvent;
+    let terminalEvent: ConversationEvent | undefined;
     try {
-      const result = (await this.request(
-        acp.methods.agent.session.prompt,
-        {
-          sessionId: conversationId,
-          prompt,
-        },
-        `${this.profile.name} prompt`,
-      )) as acp.PromptResponse;
+      const runtime = this.runtime;
+      if (!runtime) throw new Error(`${this.profile.name} ACP is unavailable`);
+      const result = (await runtime.request(acp.methods.agent.session.prompt, {
+        sessionId: conversationId,
+        prompt,
+      })) as acp.PromptResponse;
+      if (session.activeTurn !== turn) return;
       if (turn.assistantText) {
         this.emit({
           kind: 'message.completed',
@@ -787,6 +824,7 @@ export class AcpProvider implements AgentProvider {
         status: result.stopReason === 'cancelled' ? 'interrupted' : 'completed',
       };
     } catch (error) {
+      if (session.activeTurn !== turn) return;
       this.emit({
         kind: 'error',
         conversationId,
@@ -800,10 +838,10 @@ export class AcpProvider implements AgentProvider {
         error: bounded(errorMessage(error), 1_024),
       };
     } finally {
-      this.cancelPermissions(conversationId);
       if (session.activeTurn === turn) {
+        this.cancelPermissions(conversationId);
         delete session.activeTurn;
-        this.emit(terminalEvent!);
+        if (terminalEvent) this.emit(terminalEvent);
       }
     }
   }
@@ -850,17 +888,29 @@ export class AcpProvider implements AgentProvider {
       case 'tool_call':
       case 'tool_call_update': {
         const detail = failedToolDetail(update);
+        const previous = turn.activities.get(update.toolCallId);
+        const defaultTitle = `${this.profile.name} tool`;
+        const incomingTitle = update.title?.trim();
+        const incomingKind = activityKind(update);
+        const activity: ConversationActivity = {
+          id: update.toolCallId,
+          kind:
+            previous && (previous.kind !== 'tool' || !update.kind) ? previous.kind : incomingKind,
+          title: bounded(
+            incomingTitle && incomingTitle !== defaultTitle
+              ? incomingTitle
+              : previous?.title || incomingTitle || defaultTitle,
+            256,
+          ),
+          ...(detail ? { detail } : previous?.detail ? { detail: previous.detail } : {}),
+          status: activityStatus(update.status),
+        };
+        turn.activities.set(update.toolCallId, activity);
         this.emit({
           kind: 'activity.updated',
           conversationId,
           turnId: turn.id,
-          activity: {
-            id: update.toolCallId,
-            kind: activityKind(update),
-            title: bounded(update.title || `${this.profile.name} tool`, 256),
-            ...(detail ? { detail } : {}),
-            status: activityStatus(update.status),
-          },
+          activity,
         });
         return;
       }

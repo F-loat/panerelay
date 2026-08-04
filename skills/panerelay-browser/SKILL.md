@@ -39,6 +39,16 @@ When trusted developer or system instructions contain `Local Panerelay setup reg
 
 Do not use this fast path when the user explicitly asks to install, upgrade, verify, or troubleshoot Panerelay or an engine. A registration does not prove that the executable is still present, the Extension is connected, a tab is authorized, or a control lease exists.
 
+## Use an exact conversation target hint
+
+When Panerelay's injected `<panerelay-context version="1">` contains `Panerelay exact browser target hint`, treat the supplied browser UUID, target UUID, session value, and Playwright URL as staleable locating data. They do not grant authorization or control.
+
+- For agent-browser, use the exact injected `--session ... --provider panerelay` command and keep that session for the task. Its first local tab must be `t1`; inspect it before acting.
+- For Browser Use, keep the existing shared `BU_NAME=panerelay` lane and call the injected `switch_tab("<target-uuid>")` before page helpers. Do not start a per-conversation or fallback daemon.
+- For Playwright CLI, use the injected `-s=...` session and target-scoped `attach --cdp ...` URL, then run `tab-list`, `tab-select 0`, and `tab-list` again before acting.
+
+If exact selection fails, report that target as unavailable and perform only the smallest matching diagnostic. Do not locate by URL or title, widen authorization, switch browser registrations, change engines, or fall back to a broader connection.
+
 ## Readiness workflow
 
 ### 1. Inspect before changing anything
@@ -109,6 +119,8 @@ agent-browser --session panerelay-task --provider panerelay snapshot -i
 agent-browser --session panerelay-task --provider panerelay click @e1
 ```
 
+When an exact conversation target hint is present, replace `panerelay-task` with its injected reserved session value. Do not construct or modify that value manually.
+
 Refresh snapshots after navigation or meaningful page changes because refs become stale. Treat `tab <id>` as Agent-local selection: it does not intentionally focus the user's Chrome or Edge window, and `tab new` opens in the background.
 
 When multiple browsers are ready, inspect them with `npx --yes @panerelay/cli browsers`. Ask which browser to use when intent is ambiguous, then scope the process with `PANERELAY_BROWSER_ID=<registration-id>` or `PANERELAY_BROWSER=<chrome|edge>`. Do not change the saved default unless asked. A running session remains pinned to its original browser.
@@ -143,6 +155,8 @@ When the user explicitly wants MCP, configure the client's stdio command as `bro
 
 Extension mode uses a persistent user-scoped daemon lane. Normal completion does not close the daemon; do not run `browser-use --reload` just for cleanup. Sequential Agents share its selected page, tabs, and event state, while simultaneous runs serialize or fail busy. Do not bypass the lane lock or start a second daemon. Use Direct mode or a separately owned browser when isolation is required.
 
+When an exact conversation target hint is present, set `BU_NAME=panerelay`, call the injected `switch_tab` target before other page helpers, and verify the selected page with `page_info`. A missing target is terminal for that hinted task; do not match URL/title or create another daemon.
+
 Unsupported capabilities include isolated BrowserContexts, whole-profile cookies, browser-wide close, launch/profile/proxy control, and unsupported download behavior. Do not downgrade or retry them in Direct mode without a separate user request.
 
 ## Playwright CLI workflow
@@ -158,6 +172,8 @@ playwright-cli snapshot
 ```
 
 Read the first `tab-list` result and select the ID for the intended authorized tab. After `tab-select`, run `tab-list` again and confirm that the intended tab is selected before taking a snapshot or performing any other action.
+
+When an exact conversation target hint is present, use its injected session and target-scoped CDP URL instead. The intended target is exposed at index `0`; select `0` and verify it. Do not reuse the unscoped URL if the target-scoped attach reports that the target is unavailable.
 
 For an explicitly configured invocation, use `PLAYWRIGHT_MCP_CDP_ENDPOINT=http://127.0.0.1:43827/cdp/playwright` or a user-managed `.playwright/cli.config.json` with `browser.cdpEndpoint`. Do not edit persistent user configuration unless asked.
 
@@ -194,6 +210,7 @@ Diagnose these layers separately and stop after the smallest repair that restore
    - No tabs: ask the user to authorize the intended scope in the side panel.
    - Multiple browsers: ask which registered browser to use; never infer it from focus.
    - Revoked/denied scope: stop until the user explicitly changes authorization.
+   - Exact conversation target unavailable: report the stale target and stop; do not substitute another authorized tab.
 
 6. **Engine connection**
    - agent-browser: keep `--provider panerelay` unless the user intentionally saved the default.

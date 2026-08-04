@@ -156,10 +156,11 @@ export class ConversationWorkspaceService {
   private async initialPage(tabId: number): Promise<ConversationPageContext | undefined> {
     try {
       const context = await this.options.activeTabContext?.(tabId);
-      if (!context?.url && !context?.title) return undefined;
+      if (!context?.url && !context?.title && !context?.target) return undefined;
       return {
         ...(context.url ? { url: context.url } : {}),
         ...(context.title ? { title: context.title } : {}),
+        ...(context.target ? { target: { ...context.target } } : {}),
       };
     } catch {
       return undefined;

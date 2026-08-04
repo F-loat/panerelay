@@ -108,6 +108,10 @@ const conversationWorkspaceService = new ConversationWorkspaceService({
     return {
       ...(tab.url ? { url: tab.url.slice(0, 4_000) } : {}),
       ...(tab.title ? { title: tab.title.slice(0, 500) } : {}),
+      target: {
+        browserId: await browserId(),
+        targetId: targetIdForTabId(tabId),
+      },
     };
   },
   requestAgent,

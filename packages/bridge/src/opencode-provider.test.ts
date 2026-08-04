@@ -3,26 +3,21 @@ import test from 'node:test';
 import * as acp from '@agentclientprotocol/sdk';
 import type { ConversationEvent } from '@panerelay/protocol';
 import {
+  PANERELAY_CONTEXT_END,
+  PANERELAY_CONTEXT_START,
+  wrapAcpConversationContext,
+} from './acp-context.js';
+import {
   OpenCodeProvider,
   type OpenCodeProviderOptions,
   type OpenCodeRuntime,
 } from './opencode-provider.js';
 
-async function waitForEvent(
-  events: ConversationEvent[],
-  predicate: (event: ConversationEvent) => boolean,
-): Promise<boolean> {
-  const deadline = Date.now() + 2_000;
-  while (Date.now() < deadline && !events.some(predicate)) {
-    await new Promise<void>(resolve => setTimeout(resolve, 5));
-  }
-  return events.some(predicate);
-}
-
 class FakeOpenCodeRuntime implements OpenCodeRuntime {
   readonly notifications: Array<{ method: string; params: unknown }> = [];
   readonly requests: Array<{ method: string; params: unknown }> = [];
   closed = false;
+  historyChunks = ['Earlier question'];
   prompt: ((params: unknown) => Promise<acp.PromptResponse>) | undefined;
 
   constructor(
@@ -72,14 +67,16 @@ class FakeOpenCodeRuntime implements OpenCodeRuntime {
       } satisfies acp.NewSessionResponse;
     }
     if (method === acp.methods.agent.session.load) {
-      this.handlers.onUpdate({
-        sessionId: 'opencode-existing',
-        update: {
-          sessionUpdate: 'user_message_chunk',
-          messageId: 'user-1',
-          content: { type: 'text', text: 'Earlier question' },
-        },
-      });
+      for (const text of this.historyChunks) {
+        this.handlers.onUpdate({
+          sessionId: 'opencode-existing',
+          update: {
+            sessionUpdate: 'user_message_chunk',
+            messageId: 'user-1',
+            content: { type: 'text', text },
+          },
+        });
+      }
       this.handlers.onUpdate({
         sessionId: 'opencode-existing',
         update: {
@@ -260,6 +257,11 @@ test('lists, starts, and loads OpenCode sessions without injecting browser MCP d
   const newParams = newRequest?.params as acp.NewSessionRequest;
   assert.deepEqual(newParams.mcpServers, []);
 
+  const persistedPrompt = wrapAcpConversationContext(
+    'private Panerelay context',
+    'Earlier question',
+  );
+  runtimes[0]!.historyChunks = [persistedPrompt.slice(0, 19), persistedPrompt.slice(19)];
   const resumed = await provider.resumeConversation('opencode-existing');
   assert.equal(resumed.conversation.model, 'OpenCode Model Existing');
   assert.deepEqual(
@@ -288,6 +290,10 @@ test('uses a validated project and prepends bounded page context only to the fir
     initialPage: {
       url: 'https://example.com/app?token=secret',
       title: 'Example app',
+      target: {
+        browserId: '11111111-1111-4111-8111-111111111111',
+        targetId: '22222222-2222-4222-8222-222222222222',
+      },
     },
   });
   await provider.sendMessage('opencode-new', 'Inspect this page');
@@ -302,13 +308,17 @@ test('uses a validated project and prepends bounded page context only to the fir
   )?.params as acp.PromptRequest;
   const firstText = firstPrompt.prompt[0];
   assert.equal(firstText?.type, 'text');
-  assert.match(firstText?.type === 'text' ? firstText.text : '', /Example app/);
-  assert.match(firstText?.type === 'text' ? firstText.text : '', /Inspect this page/);
-  assert.doesNotMatch(firstText?.type === 'text' ? firstText.text : '', /secret/);
-  assert.doesNotMatch(
-    firstText?.type === 'text' ? firstText.text : '',
-    /"tabId"|panerelay_browser|browser tool|projectDirectory/i,
-  );
+  const firstPromptText = firstText?.type === 'text' ? firstText.text : '';
+  assert.ok(firstPromptText.startsWith(`${PANERELAY_CONTEXT_START}\n`));
+  assert.ok(firstPromptText.includes(`${PANERELAY_CONTEXT_END}\n\nInspect this page`));
+  assert.equal(firstPromptText.split(PANERELAY_CONTEXT_START).length - 1, 1);
+  assert.equal(firstPromptText.split(PANERELAY_CONTEXT_END).length - 1, 1);
+  assert.match(firstPromptText, /Example app/);
+  assert.match(firstPromptText, /panerelay-tab-v1-/);
+  assert.match(firstPromptText, /switch_tab/);
+  assert.match(firstPromptText, /tab-select 0/);
+  assert.doesNotMatch(firstPromptText, /secret/);
+  assert.doesNotMatch(firstPromptText, /"tabId"|panerelay_browser|browser tool|projectDirectory/i);
 
   await provider.sendMessage('opencode-new', 'Continue');
   await flush();
@@ -327,6 +337,28 @@ test('uses a validated project and prepends bounded page context only to the fir
       ?.params as acp.PromptRequest
   ).prompt;
   assert.deepEqual(imagePrompt, [{ type: 'image', data: 'AQID', mimeType: 'image/png' }]);
+});
+
+test('keeps context before an image-only first prompt', async () => {
+  const { provider, runtimes } = harness();
+  await provider.startConversation();
+  await provider.sendMessage('opencode-new', '', [
+    { data: 'AQID', mimeType: 'image/png', name: 'screenshot.png' },
+  ]);
+  await flush();
+
+  const request = runtimes[0]?.requests.find(
+    item => item.method === acp.methods.agent.session.prompt,
+  );
+  const prompt = (request?.params as acp.PromptRequest).prompt;
+  assert.equal(prompt[0]?.type, 'text');
+  assert.ok(
+    prompt[0]?.type === 'text' &&
+      prompt[0].text.startsWith(`${PANERELAY_CONTEXT_START}\n`) &&
+      prompt[0].text.endsWith(`\n${PANERELAY_CONTEXT_END}`),
+  );
+  assert.deepEqual(prompt[1], { type: 'image', data: 'AQID', mimeType: 'image/png' });
+  await provider.close();
 });
 
 test('normalizes streaming, reasoning, plan, tools, usage, completion, and unknown updates', async () => {
@@ -499,7 +531,7 @@ test('keeps ACP option IDs private and cancels pending permission on interruptio
     });
   };
 
-  const { turnId } = await provider.sendMessage('opencode-new', 'Use a tool');
+  await provider.sendMessage('opencode-new', 'Use a tool');
   await flush();
   const requested = events.find(event => event.kind === 'approval.requested');
   assert.ok(requested && requested.kind === 'approval.requested');
@@ -513,6 +545,7 @@ test('keeps ACP option IDs private and cancels pending permission on interruptio
   completePrompt({ stopReason: 'end_turn' });
   await flush();
 
+  let cancelPrompt!: (value: acp.PromptResponse) => void;
   runtimes[0]!.prompt = async () => {
     const permission = runtimes[0]!.handlers.onPermission(72, {
       sessionId: 'opencode-new',
@@ -527,14 +560,26 @@ test('keeps ACP option IDs private and cancels pending permission on interruptio
     permission.then(value => {
       permissionResult = value;
     });
-    return new Promise(() => {});
+    return new Promise(resolve => {
+      cancelPrompt = resolve;
+    });
   };
-  await provider.sendMessage('opencode-new', 'Interrupt this');
+  const interrupted = await provider.sendMessage('opencode-new', 'Interrupt this');
   await flush();
-  await provider.interrupt('opencode-new', turnId);
+  await provider.interrupt('opencode-new', interrupted.turnId);
+  cancelPrompt({ stopReason: 'cancelled' });
   await flush();
   assert.deepEqual(permissionResult, { outcome: { outcome: 'cancelled' } });
   assert.equal(runtimes[0]?.notifications[0]?.method, acp.methods.agent.session.cancel);
+  assert.equal(
+    events.filter(
+      event =>
+        event.kind === 'turn.completed' &&
+        event.turnId === interrupted.turnId &&
+        event.status === 'interrupted',
+    ).length,
+    1,
+  );
   await provider.close();
 });
 
@@ -551,11 +596,25 @@ test('fails unsupported capabilities and reports an ACP process exit', async () 
   );
 
   await provider.startConversation();
-  runtimes[0]!.prompt = async () => new Promise(() => {});
-  await provider.sendMessage('opencode-new', 'Keep running');
+  let completeLatePrompt!: (value: acp.PromptResponse) => void;
+  runtimes[0]!.prompt = async () =>
+    new Promise(resolve => {
+      completeLatePrompt = resolve;
+    });
+  const { turnId } = await provider.sendMessage('opencode-new', 'Keep running');
   runtimes[0]!.handlers.onExit('OpenCode ACP exited (code=1, signal=null)');
+  completeLatePrompt({ stopReason: 'end_turn' });
   await flush();
-  assert.ok(events.some(event => event.kind === 'turn.completed' && event.status === 'failed'));
+  assert.equal(
+    events.filter(event => event.kind === 'turn.completed' && event.turnId === turnId).length,
+    1,
+  );
+  assert.ok(
+    events.some(
+      event =>
+        event.kind === 'turn.completed' && event.turnId === turnId && event.status === 'failed',
+    ),
+  );
   const descriptor = await provider.getDescriptor();
   assert.equal(descriptor.status, 'ready');
   assert.equal(runtimes.length, 1);
@@ -565,24 +624,76 @@ test('fails unsupported capabilities and reports an ACP process exit', async () 
   assert.equal(runtimes[1]?.closed, true);
 });
 
-test('bounds prompt timeouts and leaves the provider reusable', async () => {
+test('allows prompts to outlive control timeouts and leaves the provider reusable', async () => {
   const { events, provider, runtimes } = harness(undefined, { requestTimeoutMs: 5 });
   await provider.startConversation();
-  runtimes[0]!.prompt = async () => new Promise(() => {});
-  await provider.sendMessage('opencode-new', 'Timeout safely');
+  let completePrompt!: (value: acp.PromptResponse) => void;
+  runtimes[0]!.prompt = async () =>
+    new Promise(resolve => {
+      completePrompt = resolve;
+    });
+  const { turnId } = await provider.sendMessage('opencode-new', 'Keep working');
+  await new Promise<void>(resolve => setTimeout(resolve, 15));
   assert.equal(
-    await waitForEvent(
-      events,
+    events.some(event => event.kind === 'turn.completed' && event.turnId === turnId),
+    false,
+  );
+  await assert.rejects(
+    provider.sendMessage('opencode-new', 'Do not overlap'),
+    /current OpenCode turn has not finished/,
+  );
+  runtimes[0]!.handlers.onUpdate({
+    sessionId: 'opencode-new',
+    update: {
+      sessionUpdate: 'agent_message_chunk',
+      messageId: 'late-message',
+      content: { type: 'text', text: 'Finished after the control timeout' },
+    },
+  });
+  completePrompt({ stopReason: 'end_turn' });
+  await flush();
+  assert.ok(
+    events.some(
       event =>
-        event.kind === 'turn.completed' &&
-        event.status === 'failed' &&
-        event.error?.includes('timed out') === true,
+        event.kind === 'turn.completed' && event.turnId === turnId && event.status === 'completed',
     ),
-    true,
   );
   runtimes[0]!.prompt = undefined;
   await provider.sendMessage('opencode-new', 'Try again');
   await flush();
   assert.ok(events.some(event => event.kind === 'turn.completed' && event.status === 'completed'));
   await provider.close();
+});
+
+test('cancels an active prompt on shutdown and ignores late settlement', async () => {
+  const { events, provider, runtimes } = harness();
+  await provider.startConversation();
+  let completePrompt!: (value: acp.PromptResponse) => void;
+  runtimes[0]!.prompt = async () =>
+    new Promise(resolve => {
+      completePrompt = resolve;
+    });
+  const { turnId } = await provider.sendMessage('opencode-new', 'Keep working');
+  await flush();
+  await provider.close();
+  completePrompt({ stopReason: 'end_turn' });
+  await flush();
+
+  assert.ok(
+    runtimes[0]?.notifications.some(
+      notification => notification.method === acp.methods.agent.session.cancel,
+    ),
+  );
+  assert.equal(runtimes[0]?.closed, true);
+  assert.deepEqual(
+    events.filter(event => event.kind === 'turn.completed' && event.turnId === turnId),
+    [
+      {
+        kind: 'turn.completed',
+        conversationId: 'opencode-new',
+        turnId,
+        status: 'interrupted',
+      },
+    ],
+  );
 });

@@ -5,6 +5,8 @@ import {
 } from '@panerelay/browser-registry';
 import {
   PANERELAY_PROTOCOL_VERSION,
+  PANERELAY_CONVERSATION_TARGET_SESSION_PREFIX,
+  parseConversationTargetSessionName,
   type BridgeState,
   type RelaySessionCreated,
   type RelaySessionError,
@@ -57,6 +59,7 @@ function sessionLabel(request: unknown): string | undefined {
 async function createRelaySession(
   state: BridgeState,
   request: unknown,
+  initialTargetId?: string,
 ): Promise<RelaySessionCreated> {
   if (state.capabilities?.cdpRelay === false) {
     throw new Error(
@@ -77,6 +80,7 @@ async function createRelaySession(
         name: 'agent-browser',
         ...(label ? { sessionLabel: label } : {}),
       },
+      ...(initialTargetId ? { initialTargetId } : {}),
     }),
     signal: AbortSignal.timeout(5_000),
   });
@@ -160,9 +164,17 @@ export async function handlePluginRequest(input: PluginRequest): Promise<PluginR
   }
 
   try {
-    const selection = await selectBrowserRegistration();
-    const state = selection.state;
-    const session = await createRelaySession(state, input.request);
+    const label = sessionLabel(input.request);
+    const target = label ? parseConversationTargetSessionName(label) : undefined;
+    if (label?.startsWith(PANERELAY_CONVERSATION_TARGET_SESSION_PREFIX) && !target) {
+      throw new Error('The Panerelay conversation target session is malformed or unsupported');
+    }
+    const selection = target ? undefined : await selectBrowserRegistration();
+    const state = target ? await readLiveBrowserRegistration(target.browserId) : selection!.state;
+    if (!state) {
+      throw new Error('The Panerelay conversation browser is no longer available');
+    }
+    const session = await createRelaySession(state, input.request, target?.targetId);
     return success({
       browser: {
         cdpUrl: session.cdpUrl,
@@ -177,7 +189,7 @@ export async function handlePluginRequest(input: PluginRequest): Promise<PluginR
         cleanup: {
           bridgePid: state.pid,
           browserId: state.browserId,
-          ...(selection.source === 'legacy' ? { legacy: true } : {}),
+          ...(selection?.source === 'legacy' ? { legacy: true } : {}),
           sessionId: session.sessionId,
         },
       },

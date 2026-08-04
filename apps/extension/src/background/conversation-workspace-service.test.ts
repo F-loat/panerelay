@@ -43,6 +43,10 @@ function harness() {
     activeTabContext: async tabId => ({
       url: `https://example.com/tab-${tabId}?token=secret`,
       title: `Tab ${tabId}`,
+      target: {
+        browserId: '11111111-1111-4111-8111-111111111111',
+        targetId: '22222222-2222-4222-8222-222222222222',
+      },
     }),
     onChanged(tabId, workspace) {
       changes.push({ tabId, revision: workspace.revision });
@@ -85,10 +89,51 @@ test('creates, binds, and sends exactly once for a draft first message', async (
       initialPage: {
         url: 'https://example.com/tab-11?token=secret',
         title: 'Tab 11',
+        target: {
+          browserId: '11111111-1111-4111-8111-111111111111',
+          targetId: '22222222-2222-4222-8222-222222222222',
+        },
       },
     },
   });
   assert.equal(result.workspace.cwd, '/workspace/project');
+});
+
+test('preserves a target-only active page context on first send', async () => {
+  const calls: AgentRequest[] = [];
+  const store = new ConversationWorkspaceStore({ createId: () => crypto.randomUUID() });
+  const service = new ConversationWorkspaceService({
+    activeTabId: async () => 11,
+    activeTabContext: async () => ({
+      target: {
+        browserId: '11111111-1111-4111-8111-111111111111',
+        targetId: '22222222-2222-4222-8222-222222222222',
+      },
+    }),
+    requestAgent: async request => {
+      calls.push(request);
+      return request.method === 'conversation.start'
+        ? detail('thread-target')
+        : { turnId: 'turn-1' };
+    },
+    store,
+  });
+  const draft = await service.get('codex');
+
+  await service.send('codex', draft.revision, 'Inspect');
+
+  assert.deepEqual(calls[0], {
+    method: 'conversation.start',
+    providerId: 'codex',
+    options: {
+      initialPage: {
+        target: {
+          browserId: '11111111-1111-4111-8111-111111111111',
+          targetId: '22222222-2222-4222-8222-222222222222',
+        },
+      },
+    },
+  });
 });
 
 test('clears a draft project without creating a conversation', async () => {

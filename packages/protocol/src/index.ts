@@ -9,6 +9,7 @@ import {
 export * from './constants.js';
 export * from './cli-adapter.js';
 export * from './cdp-bootstrap.js';
+export * from './conversation-target.js';
 export * from './control-activity.js';
 export * from './native-transfer.js';
 
@@ -209,6 +210,7 @@ export interface ConversationDetail {
 }
 
 export interface ConversationPageContext {
+  target?: import('./conversation-target.js').ConversationTargetHint;
   title?: string;
   url?: string;
 }
@@ -499,6 +501,7 @@ export interface RelaySessionActor {
 export interface RelaySessionCreateRequest {
   protocol: typeof PANERELAY_PROTOCOL_VERSION;
   actor: RelaySessionActor;
+  initialTargetId?: string;
 }
 
 export interface RelaySessionCreated {

@@ -34,6 +34,7 @@ export interface CdpBootstrapTicketContext {
   laneKey: string;
   connectionPolicy: CdpBootstrapConnectionPolicy;
   connectExpiresAt: number;
+  initialTargetId?: string;
 }
 
 export interface CdpBootstrapActivation<TParticipant> {
@@ -49,6 +50,7 @@ interface Ticket<TParticipant> {
   browser: CdpBootstrapBrowserBinding;
   laneKey: string;
   connectionPolicy: CdpBootstrapConnectionPolicy;
+  initialTargetId?: string;
   expiresAt: number;
   timer: NodeJS.Timeout;
   activation?: CdpBootstrapActivation<TParticipant>;
@@ -95,6 +97,7 @@ export class CdpBootstrapTicketStore<TParticipant extends object> {
       browser: { ...request.browser },
       laneKey: request.laneKey,
       connectionPolicy: request.connectionPolicy,
+      ...(request.initialTargetId ? { initialTargetId: request.initialTargetId } : {}),
       expiresAt,
       timer: setTimeout(() => this.expireTicket(id), Math.max(0, expiresAt - this.now())),
     };
@@ -127,6 +130,7 @@ export class CdpBootstrapTicketStore<TParticipant extends object> {
       laneKey: ticket.laneKey,
       connectionPolicy: ticket.connectionPolicy,
       connectExpiresAt,
+      ...(ticket.initialTargetId ? { initialTargetId: ticket.initialTargetId } : {}),
     });
     const activation = { ...created, connectExpiresAt };
     ticket.activation = activation;
@@ -143,6 +147,10 @@ export class CdpBootstrapTicketStore<TParticipant extends object> {
       participant: activation.participant,
     });
     return activation;
+  }
+
+  initialTargetId(ticketId: string, browser: CdpBootstrapBrowserBinding): string | undefined {
+    return this.ticket(ticketId, browser).initialTargetId;
   }
 
   consume(

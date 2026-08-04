@@ -46,3 +46,11 @@ The turn emitted bounded agent-message and thought chunks plus an `available_com
 ## Decision
 
 Use Qoder CLI 1.1.2 as the initial verified ACP evidence version. The production adapter will probe the executable and initialize lazily, branch on advertised capabilities, keep permission option IDs inside the Bridge, ignore unsupported update payloads, and make Qoder optional so failure cannot block Codex.
+
+## Adapter hardening
+
+The shared ACP adapter now treats `session/prompt` as a turn-lifetime request instead of applying the 30-second control-request timeout. Initialization and short session operations remain bounded. Deterministic Qoder tests cover a prompt completing after the configured control timeout, explicit cancellation, process exit, provider shutdown, provider reuse, and late prompt settlement with exactly one terminal event. This lifecycle behavior is `Forwarded` for Qoder 1.1.2 because the retained real-runtime probe was not rerun for this change.
+
+Panerelay wraps its first-turn context in the exact literal envelope `<panerelay-context version="1">` / `</panerelay-context>`. On ACP session load, the Bridge assembles message chunks first, then removes only a complete v1 envelope or an exact recognized legacy Panerelay prefix from the first user message before returning Side Panel history. Similar or partial user-authored text is preserved. This prevents the injected prefix from appearing in Panerelay's Side Panel history; it does not remove data from Qoder's provider-native transcript store.
+
+ACP tool-call notifications are incremental. A Qoder completion update may omit the original command title and kind or repeat the generic `Qoder tool` label. Panerelay coalesces updates by `toolCallId`, upgrades generic metadata when a specific value arrives, and preserves an earlier specific command title and kind through completion. Deterministic coverage verifies that `git status --short` remains visible after a generic completion update.

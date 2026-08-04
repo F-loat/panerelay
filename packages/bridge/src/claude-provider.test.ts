@@ -283,7 +283,14 @@ test('streams text, reasoning, tool activity, images, usage, and terminal events
   const cwd = process.cwd();
   const detail = await provider.startConversation({
     cwd,
-    initialPage: { title: 'App', url: 'https://example.com/?token=secret' },
+    initialPage: {
+      title: 'App',
+      url: 'https://example.com/?token=secret',
+      target: {
+        browserId: '11111111-1111-4111-8111-111111111111',
+        targetId: '22222222-2222-4222-8222-222222222222',
+      },
+    },
   });
   const conversationId = detail.conversation.id;
   const { turnId } = await provider.sendMessage(conversationId, '', [
@@ -297,6 +304,9 @@ test('streams text, reasoning, tool activity, images, usage, and terminal events
   assert.equal(cli.queryParameters?.resume, undefined);
   assert.match(cli.queryParameters?.systemPrompt ?? '', /App/);
   assert.doesNotMatch(cli.queryParameters?.systemPrompt ?? '', /secret/);
+  assert.match(cli.queryParameters?.systemPrompt ?? '', /panerelay-tab-v1-/);
+  assert.match(cli.queryParameters?.systemPrompt ?? '', /switch_tab/);
+  assert.match(cli.queryParameters?.systemPrompt ?? '', /tab-select 0/);
   assert.equal(cli.queryParameters?.mcpServers?.panerelay_browser, undefined);
   assert.equal(cli.queryParameters?.permissionPromptTool, 'mcp__panerelay_permission__approve');
   assert.equal(cli.queryParameters?.mcpServers?.panerelay_permission?.type, 'http');

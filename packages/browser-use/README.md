@@ -105,6 +105,8 @@ Extension mode exposes the scope selected in Panerelay: the current tab or all s
 
 A private browser-use daemon persists across sequential commands and shares its current-page state; it is not per-Agent task isolation. Simultaneous canonical runs are serialized or fail busy. User release, authorization loss, Extension or Native Host disconnection, and WebSocket loss remove browser authority even if the detached upstream process remains alive.
 
+New Side Panel conversations may inject the originating opaque target UUID. Keep the existing `BU_NAME=panerelay` lane, call the supplied `switch_tab(targetId)`, and verify with `page_info()` before acting. This uses Browser Harness's existing exact target selector; Panerelay does not start a per-conversation daemon or fall back to Direct mode, another browser, or URL/title matching when the target is unavailable.
+
 ## Compatibility
 
 browser-use 0.13.7 is the supported minimum. The exact verified baseline is browser-use 0.13.7 with Browser Harness 0.1.8. Newer supported versions meet the version floor but do not automatically inherit `Verified` status.

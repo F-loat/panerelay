@@ -240,6 +240,7 @@ export {
   PANERELAY_PLAYWRIGHT_GATEWAY_PATH,
   PANERELAY_PLAYWRIGHT_GATEWAY_URL,
   playwrightGatewayUrl,
+  playwrightTargetGatewayUrl,
 } from './environment.js';
 function isMainModule(): boolean {
   if (!process.argv[1]) return false;

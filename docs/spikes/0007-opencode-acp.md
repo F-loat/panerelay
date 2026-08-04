@@ -42,3 +42,9 @@ The probe creates and removes separate XDG state and workspace directories. It r
 Use the existing ACP v1 package dependency through a profile-driven internal provider core. Keep `opencode acp` fixed, retain OpenCode's own configuration and authentication, preserve listed session directories, and expose only provider-neutral conversation events.
 
 Do not claim that every OpenCode action creates a Side Panel approval: OpenCode's default build-agent policy allows most actions. Panerelay forwards permission requests when OpenCode emits them and leaves stricter `ask` policy configuration to the user. Browser-tool compatibility remains Forwarded until a dedicated shared-Chrome run is retained.
+
+## Adapter hardening
+
+The shared ACP adapter now treats `session/prompt` as a turn-lifetime request instead of applying the 30-second control-request timeout. Initialization and short session operations remain bounded. Deterministic OpenCode tests cover a prompt completing after the configured control timeout, explicit cancellation, process exit, provider shutdown, provider reuse, and late prompt settlement with exactly one terminal event. This lifecycle behavior is `Forwarded` for OpenCode 1.18.12 because the retained real-runtime probe was not rerun for this change.
+
+Panerelay wraps its first-turn context in the exact literal envelope `<panerelay-context version="1">` / `</panerelay-context>`. On ACP session load, the Bridge assembles message chunks first, then removes only a complete v1 envelope or an exact recognized legacy Panerelay prefix from the first user message before returning Side Panel history. Similar or partial user-authored text is preserved. This prevents the injected prefix from appearing in Panerelay's Side Panel history; it does not remove data from OpenCode's provider-native transcript store.

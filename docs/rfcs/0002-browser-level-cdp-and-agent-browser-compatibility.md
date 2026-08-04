@@ -5,7 +5,8 @@
 - Status: Accepted
 - Authors: F-loat
 - Created: 2026-07-29
-- Updated: 2026-07-31
+- Updated: 2026-08-04
+- Amendments: `openspec/changes/add-conversation-target-hints`
 
 RFC-0004 supersedes this RFC's attachment-as-control and control-visibility semantics. Target discovery and flattened sessions remain virtual, while passive observation may now attach without entering the controlled count or changing the favicon.
 
@@ -52,7 +53,15 @@ The Extension owns a session-local map between Chrome tab IDs and random opaque 
 - A single-tab session cannot create additional tabs.
 - Agent-created tabs open with `active: false`. Agent target selection is participant-local and does not change Chrome's user-visible active tab or focused window.
 
-The active eligible tab is returned first. agent-browser attaches a flattened CDP session to every reported page during initialization, but Panerelay treats those as virtual Bridge sessions. Page-scoped `Target.setAutoAttach` is also virtual bootstrap. RFC-0004 governs later debugger attachment and the observation/control distinction.
+The active eligible tab is returned first for an ordinary participant. A conversation-targeted participant returns its exact hinted authorized target first instead. agent-browser attaches a flattened CDP session to every reported page during initialization, but Panerelay treats those as virtual Bridge sessions. Page-scoped `Target.setAutoAttach` is also virtual bootstrap. RFC-0004 governs later debugger attachment and the observation/control distinction.
+
+## Conversation target orientation
+
+The Extension may include the current browser's opaque registration UUID and the existing opaque Panerelay target UUID in a new Side Panel conversation. These values are locating data only: they do not encode a Chrome tab ID, grant site permission or tab authorization, acquire control, attach the debugger, or expand a participant's exposed inventory.
+
+For agent-browser, Panerelay derives the reserved bounded session value `panerelay-tab-v1-<browser-uuid>-<target-uuid>`. The Provider plugin recognizes only this exact versioned form, selects the named live browser registration instead of the saved default, and forwards the target UUID as the participant's optional initial target. Every unrelated session name retains the ordinary Provider path.
+
+Before allocating a targeted participant and again before initial discovery, the Bridge refreshes the selected browser's authorized inventory. It orders the exact target first in both `Target.getTargets` and initial `Target.targetCreated` publication, which makes it agent-browser's session-local `t1`. If the target is missing, stale, revoked, from another browser, or disappears during allocation, the Bridge returns one bounded target-unavailable failure and invalidates the participant rather than assigning `t1` to another page. Later tab creation, logical selection, close, controlled-lineage discovery, and participant cleanup keep their existing semantics.
 
 ## Browser-level CDP surface
 

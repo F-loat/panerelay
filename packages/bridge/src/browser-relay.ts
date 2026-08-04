@@ -3,6 +3,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import {
   PANERELAY_PROTOCOL_VERSION,
   isCdpBootstrapRequest,
+  isCanonicalUuid,
   classifyCdpTargetAccess,
   type AutomationActivityFailure,
   type AutomationEngineId,
@@ -64,6 +65,7 @@ interface RelayParticipant {
   connectionPolicy: 'multiple' | 'single';
   bootstrapTicketId?: string;
   credentialConsumed?: boolean;
+  initialTargetId?: string;
 }
 
 interface ActiveControlLease {
@@ -139,6 +141,13 @@ class RelayHttpError extends Error {
     readonly bootstrapCode?: CdpBootstrapError['error']['code'],
   ) {
     super(message);
+  }
+}
+
+class TargetHintUnavailableError extends Error {
+  constructor() {
+    super('The Panerelay conversation target is no longer available');
+    this.name = 'TargetHintUnavailableError';
   }
 }
 
@@ -425,7 +434,7 @@ export class BrowserRelay {
       url.pathname,
     );
     if (request.method === 'GET' && versionMatch?.[1] && url.search === '') {
-      this.handleBootstrapVersion(versionMatch[1], response);
+      await this.handleBootstrapVersion(versionMatch[1], response);
       return;
     }
     if (!this.isAuthorizedBootstrapRequest(request)) {
@@ -468,7 +477,7 @@ export class BrowserRelay {
     });
   }
 
-  private handleBootstrapVersion(ticketId: string, response: ServerResponse): void {
+  private async handleBootstrapVersion(ticketId: string, response: ServerResponse): Promise<void> {
     if (!this.browser) {
       this.sendBootstrapError(
         response,
@@ -489,12 +498,15 @@ export class BrowserRelay {
     }
     const browser = { browserId: this.browser.browserId, generation: this.generation };
     try {
+      const initialTargetId = this.bootstrapTickets.initialTargetId(ticketId, browser);
+      if (initialTargetId) await this.requireAvailableInitialTarget(initialTargetId);
       const activation = this.bootstrapTickets.activate(ticketId, browser, context => {
         const participant = this.allocateParticipant(
           context.actor,
           context.engine,
           context.connectExpiresAt,
           'single',
+          context.initialTargetId,
         );
         participant.bootstrapTicketId = context.ticketId;
         return {
@@ -512,6 +524,10 @@ export class BrowserRelay {
       };
       this.sendJson(response, 200, result);
     } catch (error) {
+      if (error instanceof TargetHintUnavailableError) {
+        this.sendBootstrapError(response, 409, 'target-unavailable', error.message);
+        return;
+      }
       if (error instanceof RelayHttpError && error.status === 429) {
         this.sendBootstrapError(
           response,
@@ -651,6 +667,21 @@ export class BrowserRelay {
       return;
     }
 
+    if (payload.initialTargetId) {
+      try {
+        await this.requireAvailableInitialTarget(payload.initialTargetId);
+      } catch (error) {
+        this.sendJson(response, 409, {
+          protocol: PANERELAY_PROTOCOL_VERSION,
+          error:
+            error instanceof TargetHintUnavailableError
+              ? error.message
+              : 'The Panerelay conversation target is unavailable',
+        });
+        return;
+      }
+    }
+
     const connectExpiresAt =
       Date.now() + (this.options.sessionConnectTimeoutMs ?? DEFAULT_SESSION_CONNECT_TIMEOUT_MS);
     const participant = this.allocateParticipant(
@@ -658,6 +689,7 @@ export class BrowserRelay {
       'agent-browser',
       connectExpiresAt,
       'multiple',
+      payload.initialTargetId,
     );
 
     const result: RelaySessionCreated = {
@@ -674,6 +706,7 @@ export class BrowserRelay {
     engine: AutomationEngineId,
     connectExpiresAt: number,
     connectionPolicy: RelayParticipant['connectionPolicy'],
+    initialTargetId?: string,
   ): RelayParticipant {
     if ((this.activeLease?.participants.size ?? 0) >= MAX_LEASE_PARTICIPANTS) {
       throw new RelayHttpError(
@@ -691,6 +724,7 @@ export class BrowserRelay {
       clients: new Set(),
       childTargetIds: new Map(),
       connectionPolicy,
+      ...(initialTargetId ? { initialTargetId } : {}),
     };
     if (!this.activeLease) {
       this.activeLease = {
@@ -754,17 +788,39 @@ export class BrowserRelay {
   }
 
   private isSessionCreateRequest(value: unknown): value is RelaySessionCreateRequest {
-    if (!value || typeof value !== 'object') return false;
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
     const candidate = value as Partial<RelaySessionCreateRequest>;
     const actor = candidate.actor;
+    const keys = Object.keys(value).sort();
+    const expectedKeys = (
+      candidate.initialTargetId === undefined
+        ? ['actor', 'protocol']
+        : ['actor', 'initialTargetId', 'protocol']
+    ).sort();
+    if (
+      keys.length !== expectedKeys.length ||
+      !keys.every((key, index) => key === expectedKeys[index]) ||
+      !actor ||
+      typeof actor !== 'object' ||
+      Array.isArray(actor)
+    ) {
+      return false;
+    }
+    const actorKeys = Object.keys(actor).sort();
+    const expectedActorKeys = (
+      actor.sessionLabel === undefined ? ['kind', 'name'] : ['kind', 'name', 'sessionLabel']
+    ).sort();
     return (
+      actorKeys.length === expectedActorKeys.length &&
+      actorKeys.every((key, index) => key === expectedActorKeys[index]) &&
       candidate.protocol === PANERELAY_PROTOCOL_VERSION &&
       actor?.kind === 'automation' &&
       typeof actor.name === 'string' &&
       actor.name.length > 0 &&
       actor.name.length <= 64 &&
       (actor.sessionLabel === undefined ||
-        (typeof actor.sessionLabel === 'string' && actor.sessionLabel.length <= 128))
+        (typeof actor.sessionLabel === 'string' && actor.sessionLabel.length <= 128)) &&
+      (candidate.initialTargetId === undefined || isCanonicalUuid(candidate.initialTargetId))
     );
   }
 
@@ -962,6 +1018,14 @@ export class BrowserRelay {
           undefined,
           'browser-error',
         );
+        if (error instanceof TargetHintUnavailableError) {
+          const participantId = this.clients.get(client)?.participantId;
+          if (participantId) {
+            queueMicrotask(() =>
+              this.releaseParticipant(participantId, error.message, 1008, 'failed'),
+            );
+          }
+        }
       }
       return;
     }
@@ -986,11 +1050,18 @@ export class BrowserRelay {
     if (!state) return;
 
     switch (method) {
-      case 'Target.setDiscoverTargets':
+      case 'Target.setDiscoverTargets': {
         state.discoverTargets = params.discover === true;
+        const publishInitialTargets =
+          state.discoverTargets &&
+          (this.participantForClient(client)?.engine === 'playwright' ||
+            this.participantForClient(client)?.initialTargetId);
+        const targets = publishInitialTargets
+          ? this.orderedTargetsForClient(client, await this.refreshTargets())
+          : [];
         this.sendResult(client, id, {});
-        if (state.discoverTargets && this.participantForClient(client)?.engine === 'playwright') {
-          for (const target of this.targets.values()) {
+        if (publishInitialTargets) {
+          for (const target of targets) {
             if (client.readyState !== WebSocket.OPEN) break;
             client.send(
               JSON.stringify({
@@ -1001,11 +1072,14 @@ export class BrowserRelay {
           }
         }
         return;
+      }
       case 'Target.getTargets': {
         const targets = await this.refreshTargets();
         this.sendResult(client, id, {
           targetInfos: [
-            ...targets.map(target => this.toCdpTargetInfo(target, client)),
+            ...this.orderedTargetsForClient(client, targets).map(target =>
+              this.toCdpTargetInfo(target, client),
+            ),
             ...this.virtualChildTargetInfos(client),
           ],
         });
@@ -1086,7 +1160,7 @@ export class BrowserRelay {
           typeof params.targetId === 'string'
             ? params.targetId
             : this.participantForClient(client)?.engine === 'playwright'
-              ? [...this.targets.keys()][0]
+              ? this.orderedTargetsForClient(client, [...this.targets.values()])[0]?.targetId
               : this.requiredTargetId(params);
         if (typeof targetId !== 'string') {
           this.sendResult(client, id, {
@@ -1140,15 +1214,32 @@ export class BrowserRelay {
           };
         }
         if (isPlaywrightAutoAttach) {
-          await Promise.all(
-            [...this.targets.values()].map(async target => {
+          const participant = this.participantForClient(client);
+          const targets = this.orderedTargetsForClient(
+            client,
+            participant?.initialTargetId ? await this.refreshTargets() : [...this.targets.values()],
+          );
+          if (participant?.initialTargetId) {
+            const [initialTarget, ...remainingTargets] = targets;
+            if (initialTarget) await this.emitPlaywrightPageAttachment(client, initialTarget);
+            for (const target of remainingTargets) {
               try {
                 await this.emitPlaywrightPageAttachment(client, target);
               } catch {
                 // A target that cannot be attached remains absent from Playwright's page list.
               }
-            }),
-          );
+            }
+          } else {
+            await Promise.all(
+              targets.map(async target => {
+                try {
+                  await this.emitPlaywrightPageAttachment(client, target);
+                } catch {
+                  // A target that cannot be attached remains absent from Playwright's page list.
+                }
+              }),
+            );
+          }
         }
         this.sendResult(client, id, {});
         return;
@@ -1185,6 +1276,24 @@ export class BrowserRelay {
     }
     for (const target of result.targets) this.targets.set(target.targetId, target);
     return result.targets;
+  }
+
+  private async requireAvailableInitialTarget(targetId: string): Promise<void> {
+    const targets = await this.refreshTargets();
+    if (!targets.some(target => target.targetId === targetId)) {
+      throw new TargetHintUnavailableError();
+    }
+  }
+
+  private orderedTargetsForClient(
+    client: WebSocket,
+    targets: readonly CdpTargetInfo[],
+  ): CdpTargetInfo[] {
+    const initialTargetId = this.participantForClient(client)?.initialTargetId;
+    if (!initialTargetId) return [...targets];
+    const target = targets.find(item => item.targetId === initialTargetId);
+    if (!target) throw new TargetHintUnavailableError();
+    return [target, ...targets.filter(item => item !== target)];
   }
 
   private requestTarget(operation: CdpTargetOperation): Promise<CdpTargetResultMessage> {
@@ -2244,6 +2353,19 @@ export class BrowserRelay {
     if (message.event === 'destroyed') {
       this.removeTarget(message.targetId);
       this.broadcastTargetEvent('Target.targetDestroyed', { targetId: message.targetId });
+      const participantIds = [...(this.activeLease?.participants.values() ?? [])]
+        .filter(participant => participant.initialTargetId === message.targetId)
+        .map(participant => participant.id);
+      for (const participantId of participantIds) {
+        queueMicrotask(() =>
+          this.releaseParticipant(
+            participantId,
+            'The Panerelay conversation target is no longer available',
+            1008,
+            'failed',
+          ),
+        );
+      }
       return;
     }
 

@@ -5,9 +5,9 @@
 - Status: Accepted
 - Authors: F-loat
 - Created: 2026-07-31
-- Updated: 2026-08-03
+- Updated: 2026-08-04
 - OpenSpec: `openspec/changes/archive/2026-08-01-add-browser-use-connection-adapter`
-- Amendments: `openspec/changes/archive/2026-08-01-relax-browser-use-version-gate`, `openspec/changes/archive/2026-08-01-add-browser-use-default-setting`, `openspec/changes/show-control-engine-favicon`, `openspec/changes/archive/2026-08-02-make-adapter-installation-explicit`, `openspec/changes/archive/2026-08-03-add-playwright-cdp-integration`, `openspec/changes/archive/2026-08-03-simplify-setup-skill-installation`
+- Amendments: `openspec/changes/archive/2026-08-01-relax-browser-use-version-gate`, `openspec/changes/archive/2026-08-01-add-browser-use-default-setting`, `openspec/changes/show-control-engine-favicon`, `openspec/changes/archive/2026-08-02-make-adapter-installation-explicit`, `openspec/changes/archive/2026-08-03-add-playwright-cdp-integration`, `openspec/changes/archive/2026-08-03-simplify-setup-skill-installation`, `openspec/changes/add-conversation-target-hints`
 
 ## Summary
 
@@ -93,7 +93,7 @@ GET  /cdp/bootstrap/<ticket>/json/version
 WS   /cdp?session=<participant>&token=<connection capability>
 ```
 
-The POST requires the current Bridge bearer and validates a bounded automation actor, a closed automation-engine identifier, lane key, and connection policy. The registered Browser Use adapter always supplies `browser-use` independently from the caller-customizable actor name and session label. It creates a random, memory-only, short-lived ticket but no participant, lease, target, or WebSocket.
+The POST requires the current Bridge bearer and validates a bounded automation actor, a closed automation-engine identifier, lane key, connection policy, and optional canonical opaque initial target UUID. The registered Browser Use adapter always supplies `browser-use` independently from the caller-customizable actor name and session label. It creates a random, memory-only, short-lived ticket but no participant, lease, target, or WebSocket. An initial target is resolved only against the already selected browser's current authorized inventory and never expands that inventory.
 
 The first valid ticket-specific `/json/version` request creates at most one participant and returns its virtual WebSocket URL. Repeated version requests are idempotent before connection. An invalid, expired, consumed, wrong-generation, or occupied-lane ticket fails closed without disclosing live state.
 
@@ -106,6 +106,14 @@ Bootstrap is loopback-only, no-store, has no permissive CORS, bounds methods, pa
 The integration writes a fixed user-scoped URL such as `http://127.0.0.1:43827/cdp/browser-use` to Browser Harness's managed workspace `.env`, together with a stable Panerelay daemon name and telemetry/recording safeguards. It intentionally leaves Browser Harness's runtime and temporary-directory defaults unchanged: Browser Harness 0.1.8 initializes client IPC paths before loading the workspace `.env`, so overriding those paths from `.env` can make the client and daemon resolve different sockets. `GET /cdp/browser-use/json/version` selects the current saved browser, while the scoped `GET /cdp/browser-use/browser/<opaque-selection>/json/version` route binds one-run adapter resolution to the selected browser ID and generation. Both routes perform the authenticated bootstrap and forward only bounded, controlled version metadata. The returned WebSocket URL remains dynamic and short-lived. The first Browser Use invocation starts the daemon and consumes that URL; later sequential invocations reuse the healthy daemon and WebSocket.
 
 Normal task completion does not close the lane because Browser Harness is intentionally daemonized and the Skill lacks a reliable cross-Agent task boundary. The side panel therefore presents a persistent Browser Use actor and retains immediate release. When that participant issues a control-class command, the routed command carries `browser-use` so the Extension can mark the controlled document with the Browser Use icon and shared green control dot. Actor text, focus, and saved connection preference are not used to infer the icon. RFC-0004 continues to distinguish observed and controlled targets.
+
+## Conversation target orientation
+
+A new Side Panel conversation may carry the originating browser UUID and Extension-generated opaque target UUID as staleable locating data. The hint is not a credential, authorization decision, attachment request, or control lease. It never contains the raw Chrome tab ID.
+
+Browser Use consumes the target UUID through Browser Harness 0.1.8's existing `switch_tab(targetId)` helper on the unchanged shared `BU_NAME=panerelay` daemon lane. The Skill selects that exact target before page helpers and verifies it with `page_info()`. Panerelay does not mint a per-conversation Browser Use lane, infer a target from URL or title, restart the daemon, or fall back to Direct mode when the target is absent. Existing busy and shared-current-page behavior remains authoritative.
+
+Playwright uses a target-scoped discovery route, `/cdp/playwright/target/<opaque-selection>`, whose bounded base64url payload contains only the browser and target UUIDs. The gateway selects that live browser registration, derives the same `panerelay-tab-v1-...` Playwright CLI session label, and requests an authenticated bootstrap participant with the target UUID as its initial target. The Bridge revalidates the target before participant allocation and initial discovery, publishes it first, and initializes its Playwright page session before other pages so `tab-list` exposes it at index `0`. A stale, wrong-browser, revoked, or unauthorized hint returns a bounded unavailable failure; it never makes another page index `0` on behalf of the hint. Unscoped Browser Use and Playwright routes and lanes are unchanged.
 
 Browser Harness is not a child of the Native Host. Native Host shutdown closes its relay and participant but may leave a stale detached Browser Harness daemon process. Uninstall first stops the Panerelay gateway when its protected state and loopback health PID agree; it reports a gateway that cannot be verified or stopped and does not kill broad process patterns. Removing installed files still does not prove that an already running Browser Harness daemon disconnected, so the next invocation must recover through verified Browser Harness public health/restart behavior or fail explicitly. Panerelay will not inspect undocumented daemon internals, kill broad process patterns, or silently fall back to Direct Chrome.
 
@@ -131,6 +139,7 @@ The Extension settings surface may change the saved Browser Use preference throu
 8. Local services remain loopback-only and omit permissive CORS.
 9. Panerelay-owned components do not log credentials, page content, cookies, screenshots, prompts, request bodies, or raw CDP bodies by default. Browser Harness 0.1.8's unavoidable daemon log remains in its protected user-scoped storage; its one-time WebSocket credential is consumed at handshake. Panerelay does not claim ownership of Browser Harness's default runtime or log directories.
 10. The gateway binds to loopback only, returns no Bridge bearer, and retains the dynamic WebSocket credential boundary. Same-user local processes are within the gateway's trust boundary; cross-user access is not claimed.
+11. Conversation target hints locate only an already exposed target in one selected browser. They never grant authorization or control, and failure never falls back to another target, browser, engine, or Browser Use daemon.
 
 ## Compatibility
 

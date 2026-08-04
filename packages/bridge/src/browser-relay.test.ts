@@ -89,6 +89,7 @@ async function waitForCondition(predicate: () => boolean, timeoutMs = 2_000): Pr
 async function createRelaySession(
   relay: BrowserRelay,
   sessionLabel = 'test-session',
+  initialTargetId?: string,
 ): Promise<RelaySessionCreated> {
   const response = await fetch(`http://127.0.0.1:${relay.port}/sessions`, {
     method: 'POST',
@@ -103,6 +104,7 @@ async function createRelaySession(
         name: 'agent-browser',
         sessionLabel,
       },
+      ...(initialTargetId ? { initialTargetId } : {}),
     }),
   });
   assert.equal(response.status, 201);
@@ -138,7 +140,10 @@ async function createBrowserUseClient(
   return client;
 }
 
-async function createPlaywrightClient(relay: BrowserRelay): Promise<WebSocket> {
+async function createPlaywrightClient(
+  relay: BrowserRelay,
+  initialTargetId?: string,
+): Promise<WebSocket> {
   const response = await fetch(`http://127.0.0.1:${relay.port}/cdp/bootstrap`, {
     method: 'POST',
     headers: {
@@ -152,6 +157,7 @@ async function createPlaywrightClient(relay: BrowserRelay): Promise<WebSocket> {
       engine: 'playwright',
       laneKey: 'playwright:test',
       connectionPolicy: 'single',
+      ...(initialTargetId ? { initialTargetId } : {}),
     }),
   });
   assert.equal(response.status, 201);
@@ -966,9 +972,179 @@ test('implements the browser-level target handshake with lazy debugger attachmen
   }
 });
 
+test('orders an exact conversation target first and fails closed when it disappears', async () => {
+  const hintedTargetId = '22222222-2222-4222-8222-222222222222';
+  const otherTargetId = '33333333-3333-4333-8333-333333333333';
+  let listedTargets = [target(otherTargetId), target(hintedTargetId)];
+  const relay = await BrowserRelay.listen({
+    sendToExtension: message => {
+      if (message.type === 'cdp.target.request' && message.operation.kind === 'list') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.target.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            targets: listedTargets,
+          });
+        });
+      }
+    },
+    onBrowserRegistered: () => undefined,
+    onBrowserDisconnected: () => undefined,
+  });
+  await register(relay);
+
+  const session = await createRelaySession(relay, 'target-session', hintedTargetId);
+  const client = new WebSocket(session.cdpUrl);
+  const received: Record<string, unknown>[] = [];
+  client.on('message', data =>
+    received.push(JSON.parse(data.toString()) as Record<string, unknown>),
+  );
+  try {
+    await waitForOpen(client);
+    client.send(
+      JSON.stringify({
+        id: 1,
+        method: 'Target.setDiscoverTargets',
+        params: { discover: true },
+      }),
+    );
+    await waitForCondition(() => received.length >= 3);
+    assert.deepEqual(received[0], { id: 1, result: {} });
+    assert.deepEqual(
+      received
+        .slice(1, 3)
+        .map(message => (message.params as { targetInfo: CdpTargetInfo }).targetInfo.targetId),
+      [hintedTargetId, otherTargetId],
+    );
+
+    const listed = await command(client, { id: 2, method: 'Target.getTargets' });
+    assert.deepEqual(
+      (listed.result as { targetInfos: CdpTargetInfo[] }).targetInfos.map(item => item.targetId),
+      [hintedTargetId, otherTargetId],
+    );
+
+    listedTargets = [target(otherTargetId)];
+    const closed = waitForClose(client);
+    const unavailable = await command(client, { id: 3, method: 'Target.getTargets' });
+    assert.match(
+      String((unavailable.error as { message?: string }).message),
+      /conversation target is no longer available/,
+    );
+    assert.equal((await closed).code, 1008);
+  } finally {
+    await closeClient(client);
+    await relay.close();
+  }
+});
+
+test('rejects an unavailable initial conversation target before allocating a relay session', async () => {
+  const relay = await BrowserRelay.listen({
+    sendToExtension: message => {
+      if (message.type === 'cdp.target.request' && message.operation.kind === 'list') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.target.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            targets: [target('33333333-3333-4333-8333-333333333333')],
+          });
+        });
+      }
+    },
+    onBrowserRegistered: () => undefined,
+    onBrowserDisconnected: () => undefined,
+  });
+  await register(relay);
+  try {
+    const response = await fetch(`http://127.0.0.1:${relay.port}/sessions`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${relay.token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        protocol: PANERELAY_PROTOCOL_VERSION,
+        actor: { kind: 'automation', name: 'agent-browser', sessionLabel: 'target-session' },
+        initialTargetId: '22222222-2222-4222-8222-222222222222',
+      }),
+    });
+    assert.equal(response.status, 409);
+    assert.match(
+      JSON.stringify(await response.json()),
+      /conversation target is no longer available/,
+    );
+  } finally {
+    await relay.close();
+  }
+});
+
+test('invalidates a target-scoped bootstrap before participant allocation when the hint is stale', async () => {
+  const hintedTargetId = '22222222-2222-4222-8222-222222222222';
+  let listedTargets = [target(hintedTargetId)];
+  const relay = await BrowserRelay.listen({
+    sendToExtension: message => {
+      if (message.type === 'cdp.target.request' && message.operation.kind === 'list') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.target.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            targets: listedTargets,
+          });
+        });
+      }
+    },
+    onBrowserRegistered: () => undefined,
+    onBrowserDisconnected: () => undefined,
+  });
+  await register(relay);
+  try {
+    const created = await fetch(`http://127.0.0.1:${relay.port}/cdp/bootstrap`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${relay.token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        protocol: PANERELAY_PROTOCOL_VERSION,
+        browser: { browserId: 'browser-1', generation: relay.generation },
+        actor: { kind: 'automation', name: 'Playwright CLI', sessionLabel: 'target-session' },
+        engine: 'playwright',
+        laneKey: 'playwright:target-session',
+        connectionPolicy: 'single',
+        initialTargetId: hintedTargetId,
+      }),
+    });
+    assert.equal(created.status, 201);
+    const ticket = (await created.json()) as CdpBootstrapCreated;
+
+    listedTargets = [target('33333333-3333-4333-8333-333333333333')];
+    const version = await fetch(`${ticket.cdpUrl}/json/version`);
+    assert.equal(version.status, 409);
+    assert.deepEqual(await version.json(), {
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      error: {
+        code: 'target-unavailable',
+        message: 'The Panerelay conversation target is no longer available',
+      },
+    });
+  } finally {
+    await relay.close();
+  }
+});
+
 test('physically attaches Playwright targets before publishing top-level sessions', async () => {
   const extensionMessages: HostToExtensionMessage[] = [];
-  const fixtureTarget = target('playwright-target', 'https://playwright.test/', true);
+  const fixtureTarget = target(
+    '22222222-2222-4222-8222-222222222222',
+    'https://playwright.test/',
+    true,
+  );
+  const otherTarget = target('33333333-3333-4333-8333-333333333333', 'https://other.test/');
   const relay = await BrowserRelay.listen({
     sendToExtension: message => {
       extensionMessages.push(message);
@@ -979,7 +1155,7 @@ test('physically attaches Playwright targets before publishing top-level session
             protocol: PANERELAY_PROTOCOL_VERSION,
             requestId: message.requestId,
             success: true,
-            targets: [fixtureTarget],
+            targets: [otherTarget, fixtureTarget],
           });
         });
       } else if (message.type === 'cdp.attach') {
@@ -989,7 +1165,10 @@ test('physically attaches Playwright targets before publishing top-level session
             protocol: PANERELAY_PROTOCOL_VERSION,
             requestId: message.requestId,
             success: true,
-            target: { ...fixtureTarget, attached: true },
+            target: {
+              ...(message.targetId === fixtureTarget.targetId ? fixtureTarget : otherTarget),
+              attached: true,
+            },
           });
         });
       } else if (message.type === 'cdp.command') {
@@ -1003,7 +1182,7 @@ test('physically attaches Playwright targets before publishing top-level session
                 ? {
                     frameTree: {
                       frame: {
-                        id: 'chrome-main-frame',
+                        id: `chrome-main-frame-${message.targetId}`,
                         loaderId: 'loader-1',
                         url: fixtureTarget.url,
                         securityOrigin: 'https://playwright.test',
@@ -1031,7 +1210,7 @@ test('physically attaches Playwright targets before publishing top-level session
         origin: 'https://playwright.test',
         name: '',
         auxData: {
-          frameId: 'chrome-main-frame',
+          frameId: `chrome-main-frame-${fixtureTarget.targetId}`,
           isDefault: true,
           type: 'default',
         },
@@ -1039,7 +1218,7 @@ test('physically attaches Playwright targets before publishing top-level session
     },
   });
 
-  const client = await createPlaywrightClient(relay);
+  const client = await createPlaywrightClient(relay, fixtureTarget.targetId);
   const messages: Record<string, unknown>[] = [];
   client.on('message', data => {
     messages.push(JSON.parse(data.toString()) as Record<string, unknown>);
@@ -1052,17 +1231,22 @@ test('physically attaches Playwright targets before publishing top-level session
         params: { autoAttach: true, waitForDebuggerOnStart: true, flatten: true },
       }),
     );
-    await waitForCondition(() => messages.length >= 2);
+    await waitForCondition(() => messages.length >= 3);
 
     assert.equal(
       extensionMessages.some(message => message.type === 'cdp.attach'),
       true,
     );
     assert.equal(messages[0]?.method, 'Target.attachedToTarget');
-    assert.deepEqual(messages[1], { id: 1, result: {} });
+    assert.equal(messages[1]?.method, 'Target.attachedToTarget');
+    assert.deepEqual(messages[2], { id: 1, result: {} });
     assert.equal(
       (messages[0]?.params as { targetInfo?: { targetId?: string } }).targetInfo?.targetId,
       fixtureTarget.targetId,
+    );
+    assert.equal(
+      (messages[1]?.params as { targetInfo?: { targetId?: string } }).targetInfo?.targetId,
+      otherTarget.targetId,
     );
 
     const attachedParams = messages[0]?.params as { sessionId?: string };
@@ -1094,7 +1278,11 @@ test('physically attaches Playwright targets before publishing top-level session
       protocol: PANERELAY_PROTOCOL_VERSION,
       targetId: fixtureTarget.targetId,
       method: 'Page.lifecycleEvent',
-      params: { frameId: 'chrome-main-frame', name: 'chrome-main-frame', timestamp: 1 },
+      params: {
+        frameId: `chrome-main-frame-${fixtureTarget.targetId}`,
+        name: 'chrome-main-frame',
+        timestamp: 1,
+      },
     });
     const lifecycleParams = (await lifecycleEvent).params as {
       frameId?: string;
@@ -1113,7 +1301,10 @@ test('physically attaches Playwright targets before publishing top-level session
       (message): message is CdpCommandMessage =>
         message.type === 'cdp.command' && message.method === 'Page.createIsolatedWorld',
     );
-    assert.equal(isolatedWorldCommand?.params?.frameId, 'chrome-main-frame');
+    assert.equal(
+      isolatedWorldCommand?.params?.frameId,
+      `chrome-main-frame-${fixtureTarget.targetId}`,
+    );
     assert.equal(isolatedWorldCommand?.params?.worldName, fixtureTarget.targetId);
 
     const runtimeMessageIndex = messages.length;

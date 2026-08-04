@@ -16,6 +16,13 @@ test('publishes one unified repository Skill for all supported engines', async (
   assert.match(skill, /## agent-browser workflow/);
   assert.match(skill, /## Browser Use workflow/);
   assert.match(skill, /## Playwright CLI workflow/);
+  assert.match(skill, /<panerelay-context version="1">/);
+  assert.match(skill, /first local tab must be `t1`/);
+  assert.match(skill, /BU_NAME=panerelay/);
+  assert.match(skill, /switch_tab\("<target-uuid>"\)/);
+  assert.match(skill, /tab-select 0/);
+  assert.match(skill, /Do not locate by URL or title/);
+  assert.match(skill, /Do not start a per-conversation or fallback daemon/);
   assert.match(skill, /npx skills add F-loat\/panerelay --skill panerelay-browser/);
   assert.match(skill, /npx skills update panerelay-browser/);
   assert.match(skill, /npx skills remove panerelay-browser/);

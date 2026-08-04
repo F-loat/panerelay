@@ -149,7 +149,7 @@ test('accepts project-scoped conversation history requests', () => {
   assert.equal(isExtensionToHostMessage(request), true);
 });
 
-test('accepts conversation start context without a raw tab identifier', () => {
+test('accepts conversation start context with opaque target identity and no raw tab identifier', () => {
   const request = {
     type: 'agent.request',
     protocol: PANERELAY_PROTOCOL_VERSION,
@@ -159,7 +159,14 @@ test('accepts conversation start context without a raw tab identifier', () => {
       providerId: 'codex',
       options: {
         cwd: '/workspace/project',
-        initialPage: { url: 'https://example.com/app', title: 'Example app' },
+        initialPage: {
+          url: 'https://example.com/app',
+          title: 'Example app',
+          target: {
+            browserId: '11111111-1111-4111-8111-111111111111',
+            targetId: '22222222-2222-4222-8222-222222222222',
+          },
+        },
       },
     },
   };

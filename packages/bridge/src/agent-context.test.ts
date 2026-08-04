@@ -9,6 +9,11 @@ import {
   sanitizeConversationPageUrl,
 } from './agent-context.js';
 
+const target = {
+  browserId: '11111111-1111-4111-8111-111111111111',
+  targetId: '22222222-2222-4222-8222-222222222222',
+};
+
 test('redacts sensitive URL metadata and bounds the page title', () => {
   const url = sanitizeConversationPageUrl(
     'https://user:pass@example.com/page?token=abc&view=full#session=secret',
@@ -43,6 +48,35 @@ test('validates the workspace and creates only untrusted tab context', async () 
   assert.match(instructions, /https:\/\/example\.com\/app/);
   assert.match(instructions, /No raw browser tab ID/);
   assert.doesNotMatch(instructions, /"tabId"|"authorization"|"control"/);
+});
+
+test('renders exact non-authorizing engine target guidance and rejects malformed hints', () => {
+  const resolved = resolveConversationStartOptions({ initialPage: { target } });
+  const instructions = createConversationContextInstructions(resolved);
+
+  assert.deepEqual(resolved.initialPage, { target });
+  assert.match(
+    instructions,
+    /--session panerelay-tab-v1-11111111-1111-4111-8111-111111111111-22222222-2222-4222-8222-222222222222 --provider panerelay/,
+  );
+  assert.match(instructions, /BU_NAME=panerelay/);
+  assert.match(instructions, /switch_tab\("22222222-2222-4222-8222-222222222222"\)/);
+  assert.match(instructions, /\/cdp\/playwright\/target\/[A-Za-z0-9_-]+/);
+  assert.match(instructions, /tab-select 0/);
+  assert.match(instructions, /not authorization or control/);
+  assert.match(instructions, /Do not match URL\/title/);
+  assert.match(instructions, /start another Browser Use daemon/);
+  assert.doesNotMatch(instructions, /browser tab context/);
+
+  assert.throws(
+    () =>
+      resolveConversationStartOptions({
+        initialPage: {
+          target: { browserId: target.browserId, targetId: 'not-a-uuid' },
+        },
+      }),
+    /Invalid Panerelay conversation target hint/,
+  );
 });
 
 test('keeps project selection as cwd while retaining provider-neutral Skill guidance', async () => {

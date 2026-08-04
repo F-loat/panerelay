@@ -5,6 +5,7 @@
 - Chrome status: Verified for the core existing-tab path described below
 - Microsoft Edge status: Forwarded
 - Last verified: 2026-08-03
+- Last updated: 2026-08-04
 
 This record applies to the upstream `playwright-cli` command attached explicitly to Panerelay's loopback CDP endpoint. It does not describe Playwright Test, Playwright's own Extension transport, or every later CLI release.
 
@@ -13,6 +14,7 @@ A dedicated macOS Edge 151 probe passed browser-specific routing, attach, author
 ## Status meanings
 
 - **Verified**: deterministic contract tests pass and the command group has representative existing-Chrome evidence.
+- **Automated**: deterministic contract tests pass, but this exact path has not completed a dedicated existing-Chrome run.
 - **Partial**: the relay path is implemented, but the complete command group has not passed the pinned real-browser matrix yet.
 - **Forwarded**: the browser shares the Chromium implementation, but dedicated representative runtime evidence is pending.
 - **Unsupported**: the operation requires browser-process ownership or another guarantee Panerelay cannot provide and fails explicitly.
@@ -22,6 +24,7 @@ A dedicated macOS Edge 151 probe passed browser-specific routing, attach, author
 | Command group | Chrome | Microsoft Edge | Evidence and boundary |
 | --- | --- | --- | --- |
 | `attach --cdp` and standard `/json/version[/]` discovery | Verified | Forwarded | Real CLI attach passed; contract tests cover bounded metadata, repeated discovery, one-shot WebSocket credentials, stale generations, and lane isolation. |
+| Side Panel target-scoped attach and index `0` orientation | Automated | Forwarded | Environment, gateway, bootstrap, and relay tests bind canonical opaque browser/target UUIDs to the derived `-s=panerelay-tab-v1-...` session, initialize the exact authorized target first, preserve ordinary lanes, and return bounded target-unavailable failures without fallback. A dedicated injected-context Chrome/Edge run is pending. |
 | `tab-list` | Verified | Forwarded | Real CLI and relay tests expose only authorized opaque targets. |
 | `tab-select` | Verified | Forwarded | Logical selection works without granting authorization or intentionally changing the foreground tab. |
 | `snapshot` and page evaluation | Verified | Forwarded | Real CLI snapshot/evaluation and shared-participant evaluation passed. |
@@ -46,3 +49,5 @@ A dedicated macOS Edge 151 probe passed browser-specific routing, attach, author
 Setup verifies Playwright CLI 0.1.17 or newer and installs only Panerelay-owned adapter files. It does not install or replace `playwright-cli`, edit `PATH` or shell startup files, create user-owned `.playwright/cli.config.json`, set a Playwright default, or manage an Agent Skill. The independently installed unified `panerelay-browser` Skill documents the explicit attach command and user-managed `PLAYWRIGHT_MCP_CDP_ENDPOINT`/`browser.cdpEndpoint` options.
 
 The stable endpoint `http://127.0.0.1:43827/cdp/playwright` is loopback discovery, not a persistent credential. Dynamic ticket and WebSocket credentials remain short-lived, participant-scoped, generation-bound, and invalid after use or revocation.
+
+New Side Panel conversations may instead inject a target-scoped endpoint under `/cdp/playwright/target/<opaque-selection>` plus a derived CLI session. The selection token contains only canonical opaque browser and target UUIDs; the gateway still mints the authenticated short-lived bootstrap and WebSocket credentials. The target hint is locating data only and creates no permission, authorization, attachment, or control state by itself.

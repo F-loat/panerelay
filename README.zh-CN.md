@@ -38,7 +38,9 @@ Panerelay 提供两种接入方式：
 npx skills add F-loat/panerelay --skill panerelay-browser
 ```
 
-然后让 Agent 使用 `$panerelay-browser` 接入 agent-browser、Browser Use 或 Playwright CLI。Skill 会检查环境，只在需要时安装或修复所选上游工具，通过 setup 管理对应的 Panerelay 集成，运行 doctor，并在需要你通过扩展授权标签页时暂停。
+然后让 Agent 使用 `$panerelay-browser` 接入 agent-browser、Browser Use 或 Playwright CLI。普通浏览器任务的新侧边栏会话会提供已登记的集成信息，让 Skill 直接尝试所选工具；只有首次调用失败，或你明确要求安装、验证和排查时，才进入对应的环境检查、setup 和 doctor 流程。
+
+新侧边栏会话还会提供当前标签页的不透明、可失效目标提示：agent-browser 会把它映射为本地 `t1`，Browser Use 使用精确 `switch_tab`，Playwright 使用目标化连接并选择索引 `0`。提示中没有 Chrome 原始 tab ID，也不会授予权限或控制；标签页关闭或未授权时会直接失败，不会按 URL 猜测或换到其他标签页。
 
 之后只要告诉 Agent 要完成的浏览器任务和希望使用的工具；它会调用 `$panerelay-browser`，并在需要你通过扩展授权时暂停。
 

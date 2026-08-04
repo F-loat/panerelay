@@ -17,9 +17,14 @@ import {
 } from '@panerelay/browser-use/environment';
 import {
   parsePlaywrightGatewaySelection,
-  type PlaywrightGatewaySelection,
+  type PlaywrightGatewayRouteSelection,
 } from '@panerelay/playwright/environment';
-import { PANERELAY_PROTOCOL_VERSION, type CdpBootstrapVersionMetadata } from '@panerelay/protocol';
+import {
+  conversationTargetSessionName,
+  PANERELAY_PROTOCOL_VERSION,
+  type CdpBootstrapRequest,
+  type CdpBootstrapVersionMetadata,
+} from '@panerelay/protocol';
 
 export const PANERELAY_BROWSER_USE_GATEWAY_PROTOCOL = 'panerelay.browser-use-gateway.v1' as const;
 export const PANERELAY_BROWSER_USE_GATEWAY_PORT = 43827;
@@ -62,7 +67,39 @@ function gatewayRegistryOptions(homeDirectory: string): BrowserRegistryOptions {
   };
 }
 
-function gatewaySelectionEnvironment(selection?: BrowserUseGatewaySelection): NodeJS.ProcessEnv {
+type GatewaySelection = BrowserUseGatewaySelection | PlaywrightGatewayRouteSelection;
+
+export function automationGatewayBootstrapRequest(
+  browser: { browserId: string; generation: string },
+  selection: GatewaySelection | undefined,
+  engine: 'browser-use' | 'playwright',
+): CdpBootstrapRequest {
+  const targetSelection = selection && 'targetId' in selection ? selection : undefined;
+  const targetSession = targetSelection
+    ? conversationTargetSessionName(targetSelection)
+    : undefined;
+  return {
+    protocol: PANERELAY_PROTOCOL_VERSION,
+    browser: { ...browser },
+    actor: {
+      kind: 'automation',
+      name: engine === 'browser-use' ? 'Browser Use' : 'Playwright',
+      sessionLabel: targetSession ?? 'panerelay',
+    },
+    engine,
+    laneKey: targetSession ? `${engine}:${targetSession}` : `${engine}:panerelay`,
+    connectionPolicy: 'single',
+    ...(targetSelection ? { initialTargetId: targetSelection.targetId } : {}),
+  };
+}
+
+export function automationGatewayFailureStatus(status: number): 409 | 429 | 503 {
+  if (status === 409) return 409;
+  if (status === 429) return 429;
+  return 503;
+}
+
+function gatewaySelectionEnvironment(selection?: GatewaySelection): NodeJS.ProcessEnv {
   const environment = { ...process.env };
   delete environment[PANERELAY_BROWSER_ID_ENV];
   delete environment[PANERELAY_BROWSER_ENV];
@@ -187,7 +224,7 @@ function controlledBootstrapUrl(value: unknown): value is string {
 async function proxyVersion(
   response: ServerResponse,
   homeDirectory: string,
-  selection: BrowserUseGatewaySelection | PlaywrightGatewaySelection | undefined,
+  selection: GatewaySelection | undefined,
   engine: 'browser-use' | 'playwright',
 ): Promise<void> {
   const engineName = engine === 'browser-use' ? 'Browser Use' : 'Playwright';
@@ -196,7 +233,11 @@ async function proxyVersion(
       ...gatewayRegistryOptions(homeDirectory),
       environment: gatewaySelectionEnvironment(selection),
     });
-    if (selection && selected.state.generation !== selection.generation) {
+    if (
+      selection &&
+      'generation' in selection &&
+      selected.state.generation !== selection.generation
+    ) {
       throw new Error('The selected browser connection changed; resolve it again');
     }
     const bootstrap = await fetch(`http://127.0.0.1:${selected.state.port}/cdp/bootstrap`, {
@@ -205,25 +246,20 @@ async function proxyVersion(
         authorization: `Bearer ${selected.state.token}`,
         'content-type': 'application/json',
       },
-      body: JSON.stringify({
-        protocol: PANERELAY_PROTOCOL_VERSION,
-        browser: {
-          browserId: selected.state.browserId,
-          generation: selected.state.generation,
-        },
-        actor: {
-          kind: 'automation',
-          name: engineName,
-          sessionLabel: 'panerelay',
-        },
-        engine,
-        laneKey: `${engine}:panerelay`,
-        connectionPolicy: 'single',
-      }),
+      body: JSON.stringify(
+        automationGatewayBootstrapRequest(
+          {
+            browserId: selected.state.browserId,
+            generation: selected.state.generation,
+          },
+          selection,
+          engine,
+        ),
+      ),
       signal: AbortSignal.timeout(5_000),
     });
     if (bootstrap.status !== 201) {
-      await json(response, bootstrap.status === 429 ? 429 : 503, {
+      await json(response, automationGatewayFailureStatus(bootstrap.status), {
         protocol: PANERELAY_BROWSER_USE_GATEWAY_PROTOCOL,
         error: `Panerelay ${engineName} connection is unavailable`,
       });
@@ -235,7 +271,13 @@ async function proxyVersion(
     const version = await fetch(`${created.cdpUrl}/json/version`, {
       signal: AbortSignal.timeout(5_000),
     });
-    if (version.status !== 200) throw new Error(`invalid ${engineName} version response`);
+    if (version.status !== 200) {
+      await json(response, automationGatewayFailureStatus(version.status), {
+        protocol: PANERELAY_BROWSER_USE_GATEWAY_PROTOCOL,
+        error: `Panerelay ${engineName} connection is unavailable`,
+      });
+      return;
+    }
     const metadata = JSON.parse(await boundedText(version)) as unknown;
     if (!controlledVersionMetadata(metadata))
       throw new Error(`invalid ${engineName} version response`);

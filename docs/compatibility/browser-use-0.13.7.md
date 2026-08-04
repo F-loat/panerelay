@@ -6,6 +6,7 @@
 - Chrome: 151.0.7922.72, existing daily profile
 - agent-browser regression baseline: 0.33.0
 - Last verified: 2026-08-01
+- Last updated: 2026-08-04
 
 This record covers the setup-managed Panerelay connection adapter, the fixed Browser Harness environment default consumed by the official Browser Use CLI and CLI MCP, and the Browser Use workflow in the independently installed unified `panerelay-browser` Skill. It does not claim transparent interception of arbitrary Browser Use Python SDK construction or the official Browser Use Skill.
 
@@ -36,6 +37,7 @@ This is exact evidence for Browser Use 0.13.7 and its Browser Harness 0.1.8 runt
 | --- | --- | --- |
 | Authenticated HTTP bootstrap | Verified | Ticket allocation creates no participant; `/json/version` lazily creates one; the first WebSocket consumes its credential; later healthy-daemon resolves leave only expiring unused tickets. |
 | Browser Harness initialization | Verified | Target discovery, flattened attach, page-domain enablement, routed events, `list_tabs()`, `switch_tab()`, and `page_info()` passed through the product endpoint. |
+| Side Panel conversation target selection | Automated | Context and Skill tests inject the Extension-generated opaque target UUID into the unchanged `switch_tab(targetId)` helper on the existing `BU_NAME=panerelay` lane, require `page_info()` verification, and prohibit URL/title matching, a second daemon, engine switching, or Direct fallback. A dedicated injected-context daily-Chrome run is still pending. |
 | Reads and JavaScript | Verified | Fixture title, URL, DOM state, and JavaScript evaluation passed. |
 | Keyboard and coordinate mouse | Verified | Unchanged `fill_input()` and `click_at_xy()` produced the expected fixture value and submit state. The generic relay enables target-scoped focus emulation before the first `Input.*` command without foregrounding Chrome. |
 | Navigation, waits, and screenshot | Verified | Same-origin navigation/load and a non-empty screenshot artifact passed; the temporary artifact is removed after acceptance. |

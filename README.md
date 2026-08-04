@@ -40,6 +40,8 @@ npx skills add F-loat/panerelay --skill panerelay-browser
 
 Then ask the Agent to use `$panerelay-browser` with agent-browser, Browser Use, or Playwright CLI. For an ordinary browser task, a new side-panel conversation supplies cached Panerelay integration registrations so the Skill can try the selected engine directly and pause when you need to authorize a tab. If that fast-path attempt fails, or when you explicitly ask for setup or verification, the Skill inspects the environment, installs or repairs only the selected upstream tool when needed, manages the matching Panerelay integration through setup, and runs targeted doctor checks.
 
+A new side-panel conversation also supplies an opaque, staleable target hint for the originating tab. The Skill maps it to agent-browser's first local tab, Browser Use's exact `switch_tab` target, or Playwright's target-scoped attach and index `0`. The hint never contains Chrome's raw tab ID and never grants authorization or control; if the target is closed or unauthorized, selection fails instead of falling back to a similar URL or another tab.
+
 From then on, tell the Agent what browser task to do and which engine to use; it will invoke `$panerelay-browser` and pause when the Extension needs your authorization.
 
 ## How it works

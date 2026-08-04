@@ -146,6 +146,10 @@ test('exposes Codex through provider-neutral conversation results', async () => 
       initialPage: {
         url: 'https://example.com/app?token=secret',
         title: 'Example app',
+        target: {
+          browserId: '11111111-1111-4111-8111-111111111111',
+          targetId: '22222222-2222-4222-8222-222222222222',
+        },
       },
     },
   });
@@ -164,6 +168,9 @@ test('exposes Codex through provider-neutral conversation results', async () => 
   assert.match(String(params.developerInstructions), /Example app/);
   assert.match(String(params.developerInstructions), /%5BREDACTED%5D/);
   assert.doesNotMatch(String(params.developerInstructions), /secret/);
+  assert.match(String(params.developerInstructions), /panerelay-tab-v1-/);
+  assert.match(String(params.developerInstructions), /switch_tab/);
+  assert.match(String(params.developerInstructions), /tab-select 0/);
   assert.doesNotMatch(
     String(params.developerInstructions),
     /"tabId"|panerelay_browser|browser tool|projectDirectory/i,

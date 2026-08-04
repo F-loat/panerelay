@@ -49,6 +49,14 @@ test('validates bounded single-connection CDP bootstrap requests', () => {
     }),
     false,
   );
+  assert.equal(
+    isCdpBootstrapRequest({
+      ...request,
+      initialTargetId: '22222222-2222-4222-8222-222222222222',
+    }),
+    true,
+  );
+  assert.equal(isCdpBootstrapRequest({ ...request, initialTargetId: 'target-1' }), false);
 });
 
 test('validates opaque lane and generation identifiers', () => {

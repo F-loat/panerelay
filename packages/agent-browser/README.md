@@ -53,6 +53,8 @@ npx --yes @panerelay/setup --agent-browser --global-default
 
 Provider defaults change routing only. They do not grant browser permission, authorize a tab, or acquire the active control lease.
 
+New Side Panel conversations may inject a reserved `panerelay-tab-v1-...` session value for the originating tab. Use that exact value with `--session` and `--provider panerelay`; the Provider selects the named live browser and orders the already-authorized target as agent-browser's local `t1`. Do not construct the value manually or substitute a similar URL/title when it is unavailable. Ordinary session names keep the existing default-browser and tab-order behavior.
+
 When more than one Panerelay browser is connected, choose one in Extension settings or with the optional administration CLI:
 
 ```bash

@@ -1,4 +1,5 @@
 import { PANERELAY_PROTOCOL_VERSION } from './constants.js';
+import { isCanonicalUuid } from './conversation-target.js';
 import { isAutomationEngineId, type AutomationEngineId, type RelaySessionActor } from './index.js';
 
 export const CDP_BOOTSTRAP_MAX_REQUEST_BYTES = 16 * 1024;
@@ -18,7 +19,8 @@ export type CdpBootstrapErrorCode =
   | 'ticket-invalid'
   | 'ticket-expired'
   | 'ticket-consumed'
-  | 'lane-busy';
+  | 'lane-busy'
+  | 'target-unavailable';
 
 export interface CdpBootstrapBrowserBinding {
   browserId: string;
@@ -32,6 +34,7 @@ export interface CdpBootstrapRequest {
   engine: AutomationEngineId;
   laneKey: string;
   connectionPolicy: CdpBootstrapConnectionPolicy;
+  initialTargetId?: string;
 }
 
 export interface CdpBootstrapCreated {
@@ -99,14 +102,20 @@ function isAutomationActor(value: unknown): value is RelaySessionActor {
 export function isCdpBootstrapRequest(value: unknown): value is CdpBootstrapRequest {
   if (
     !isRecord(value) ||
-    !hasExactKeys(value, [
-      'protocol',
-      'browser',
-      'actor',
-      'engine',
-      'laneKey',
-      'connectionPolicy',
-    ]) ||
+    !hasExactKeys(
+      value,
+      value.initialTargetId === undefined
+        ? ['protocol', 'browser', 'actor', 'engine', 'laneKey', 'connectionPolicy']
+        : [
+            'protocol',
+            'browser',
+            'actor',
+            'engine',
+            'laneKey',
+            'connectionPolicy',
+            'initialTargetId',
+          ],
+    ) ||
     value.protocol !== PANERELAY_PROTOCOL_VERSION ||
     !isRecord(value.browser) ||
     !hasExactKeys(value.browser, ['browserId', 'generation'])
@@ -119,7 +128,8 @@ export function isCdpBootstrapRequest(value: unknown): value is CdpBootstrapRequ
     isAutomationActor(value.actor) &&
     isAutomationEngineId(value.engine) &&
     isCdpBootstrapLaneKey(value.laneKey) &&
-    value.connectionPolicy === 'single'
+    value.connectionPolicy === 'single' &&
+    (value.initialTargetId === undefined || isCanonicalUuid(value.initialTargetId))
   );
 }
 

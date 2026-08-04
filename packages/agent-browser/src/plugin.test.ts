@@ -4,7 +4,11 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { PANERELAY_PROTOCOL_VERSION, type BridgeState } from '@panerelay/protocol';
+import {
+  conversationTargetSessionName,
+  PANERELAY_PROTOCOL_VERSION,
+  type BridgeState,
+} from '@panerelay/protocol';
 import {
   PANERELAY_BROWSER_DEFAULT_PATH_ENV,
   PANERELAY_BROWSER_REGISTRY_PATH_ENV,
@@ -175,6 +179,118 @@ test('creates and releases a browser-level relay session through live Bridge sta
     await rm(directory, { recursive: true, force: true });
     await new Promise<void>(resolve => server.close(() => resolve()));
   }
+});
+
+test('binds a reserved conversation session to its exact browser and target hint', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'panerelay-provider-target-'));
+  const previousRegistryPath = process.env[PANERELAY_BROWSER_REGISTRY_PATH_ENV];
+  const previousDefaultPath = process.env[PANERELAY_BROWSER_DEFAULT_PATH_ENV];
+  process.env[PANERELAY_BROWSER_REGISTRY_PATH_ENV] = join(directory, 'browsers');
+  process.env[PANERELAY_BROWSER_DEFAULT_PATH_ENV] = join(directory, 'browser-default.json');
+  const target = {
+    browserId: '11111111-1111-4111-8111-111111111111',
+    targetId: '22222222-2222-4222-8222-222222222222',
+  };
+  let body: unknown;
+  const server = createServer((request, response) => {
+    if (request.method !== 'POST' || request.url !== '/sessions') {
+      response.writeHead(404).end();
+      return;
+    }
+    const chunks: Buffer[] = [];
+    request.on('data', (chunk: Buffer) => chunks.push(chunk));
+    request.on('end', () => {
+      body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+      response.writeHead(201, { 'content-type': 'application/json' });
+      response.end(
+        JSON.stringify({
+          protocol: PANERELAY_PROTOCOL_VERSION,
+          sessionId: 'targeted-session',
+          cdpUrl: 'ws://127.0.0.1:43123/cdp?session=targeted-session&token=token',
+          connectExpiresAt: '2026-07-29T08:00:00.000Z',
+        }),
+      );
+    });
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once('listening', resolve);
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1');
+  });
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  const baseState: BridgeState = {
+    protocol: PANERELAY_PROTOCOL_VERSION,
+    pid: process.pid,
+    port: address.port,
+    token: 'target token',
+    generation: 'generation-target',
+    browserId: target.browserId,
+    browserName: 'Target Chrome',
+    extensionVersion: '0.0.1',
+    extensionId: 'extension-1',
+    updatedAt: new Date().toISOString(),
+  };
+
+  try {
+    await writeBrowserRegistration(baseState);
+    await writeBrowserRegistration({
+      ...baseState,
+      port: 9,
+      token: 'wrong token',
+      generation: 'generation-wrong',
+      browserId: '33333333-3333-4333-8333-333333333333',
+      browserName: 'Default Edge',
+    });
+    await setBrowserDefault('33333333-3333-4333-8333-333333333333');
+
+    const response = await handlePluginRequest({
+      protocol: AGENT_BROWSER_PLUGIN_PROTOCOL,
+      type: 'browser.launch',
+      capability: 'browser.provider',
+      request: { session: conversationTargetSessionName(target) },
+    });
+
+    assert.equal(response.success, true);
+    assert.deepEqual(body, {
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      actor: {
+        kind: 'automation',
+        name: 'agent-browser',
+        sessionLabel: conversationTargetSessionName(target),
+      },
+      initialTargetId: target.targetId,
+    });
+    assert.equal(
+      (response.browser as { metadata?: { browserId?: string } }).metadata?.browserId,
+      target.browserId,
+    );
+  } finally {
+    if (previousRegistryPath === undefined) {
+      delete process.env[PANERELAY_BROWSER_REGISTRY_PATH_ENV];
+    } else {
+      process.env[PANERELAY_BROWSER_REGISTRY_PATH_ENV] = previousRegistryPath;
+    }
+    if (previousDefaultPath === undefined) {
+      delete process.env[PANERELAY_BROWSER_DEFAULT_PATH_ENV];
+    } else {
+      process.env[PANERELAY_BROWSER_DEFAULT_PATH_ENV] = previousDefaultPath;
+    }
+    await rm(directory, { recursive: true, force: true });
+    await new Promise<void>(resolve => server.close(() => resolve()));
+  }
+});
+
+test('rejects malformed reserved conversation sessions before browser selection', async () => {
+  const response = await handlePluginRequest({
+    protocol: AGENT_BROWSER_PLUGIN_PROTOCOL,
+    type: 'browser.launch',
+    capability: 'browser.provider',
+    request: { session: 'panerelay-tab-v1-not-a-valid-target' },
+  });
+
+  assert.equal(response.success, false);
+  assert.match(String(response.error), /malformed or unsupported/);
 });
 
 test('fails before contacting the Bridge when the browser explicitly lacks CDP support', async () => {

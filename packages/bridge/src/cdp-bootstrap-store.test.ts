@@ -61,6 +61,21 @@ test('activates idempotently, occupies one lane, and consumes once', () => {
   store.clear();
 });
 
+test('binds an initial target hint to one ticket and its activation context', () => {
+  const initialTargetId = '22222222-2222-4222-8222-222222222222';
+  const store = new CdpBootstrapTicketStore<{ id: string }>();
+  const issued = store.issue({ ...request, initialTargetId });
+  assert.equal(store.initialTargetId(issued.ticketId, request.browser), initialTargetId);
+
+  let activationTargetId: string | undefined;
+  store.activate(issued.ticketId, request.browser, context => {
+    activationTargetId = context.initialTargetId;
+    return { participant: { id: 'targeted' }, cdpUrl: 'ws://127.0.0.1/cdp' };
+  });
+  assert.equal(activationTargetId, initialTargetId);
+  store.clear();
+});
+
 test('enforces generation binding, expiry, and deterministic shutdown cleanup', async () => {
   const invalidated: string[] = [];
   const store = new CdpBootstrapTicketStore<{ id: string }>({
