@@ -562,6 +562,7 @@ test('prints detected optional provider paths and the OpenCode version', async (
     assert.equal(
       await main(['--lang', 'en'], {
         environment: {},
+        interactive: () => false,
         setup: async () => ({
           globalDefault: false,
           host: {
