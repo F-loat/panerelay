@@ -210,6 +210,17 @@ function activityIcon(activity: ConversationActivity): LucideIcon {
   }
 }
 
+function errorPresentation(message: string): { advice: CopyKey; type: CopyKey } {
+  const normalized = message.toLocaleLowerCase();
+  if (/timed out|timeout/.test(normalized)) {
+    return { advice: 'errorAdviceTimeout', type: 'errorTypeTimeout' };
+  }
+  if (/disconnect|connection|closed|exited|ended|unavailable/.test(normalized)) {
+    return { advice: 'errorAdviceConnection', type: 'errorTypeConnection' };
+  }
+  return { advice: 'errorAdviceGeneral', type: 'errorTypeGeneral' };
+}
+
 function reasoningStatusText(value: string): string {
   const normalized = value.replace(/\s+/g, ' ').trim();
   const maximum = 240;
@@ -374,11 +385,8 @@ export function Timeline({
                         <div className="activity-detail">{item.activity.detail}</div>
                       )}
                     </div>
-                    <span className="activity-card-end">
-                      <span className="activity-status">
-                        {activityStatus(state.locale, item.activity)}
-                      </span>
-                      <ChevronRight aria-hidden="true" className="activity-chevron" />
+                    <span className="activity-status">
+                      {activityStatus(state.locale, item.activity)}
                     </span>
                   </summary>
                   <div className="activity-detail-expanded">
@@ -415,18 +423,31 @@ export function Timeline({
             />
           );
         }
+        const error = errorPresentation(item.message);
         return (
           <div className="timeline-error-stack" key={`error-${item.id}`}>
-            <details className="timeline-error mx-2">
-              <summary aria-label={t('errorDetails')}>
-                <ChevronRight aria-hidden="true" className="timeline-error-chevron" />
-                <CircleAlert aria-hidden="true" className="timeline-error-icon" />
-                <div className="timeline-error-copy">
-                  <strong>{t('errorTitle')}</strong>
-                  <span>{item.message}</span>
+            <details
+              className="activity-card activity-card-expandable timeline-error mx-2"
+              data-status="failed"
+            >
+              <summary aria-label={t('errorDetails')} className="activity-card-summary">
+                <CircleAlert aria-hidden="true" className="activity-icon" />
+                <div className="activity-copy">
+                  <div className="activity-title">{t('errorTitle')}</div>
+                  <div className="activity-detail">{item.message}</div>
                 </div>
+                <span className="activity-status">{t('activityFailed')}</span>
               </summary>
-              <div className="timeline-error-detail">{item.message}</div>
+              <dl className="timeline-error-detail">
+                <div>
+                  <dt>{t('errorType')}</dt>
+                  <dd>{t(error.type)}</dd>
+                </div>
+                <div>
+                  <dt>{t('errorSuggestedAction')}</dt>
+                  <dd>{t(error.advice)}</dd>
+                </div>
+              </dl>
             </details>
             {isPanerelaySetupFailure(item.message) && (
               <PanerelaySetupGuide controller={controller} />

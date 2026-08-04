@@ -10,6 +10,10 @@ describe('React Side Panel browser access and settings', () => {
 
     await user.click(screen.getByRole('button', { name: /Browser access:/ }));
     expect(screen.getByText('Settings')).toBeVisible();
+    expect(screen.getByRole('link', { name: 'GitHub' })).toHaveAttribute(
+      'href',
+      'https://github.com/F-loat/panerelay',
+    );
     await user.click(screen.getByRole('button', { name: 'All tabs' }));
     await waitFor(() => expect(client.status.authorizationMode).toBe('all-tabs'));
     expect(screen.getAllByText('All web tabs authorized').length).toBeGreaterThan(0);

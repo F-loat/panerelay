@@ -36,6 +36,7 @@ describe('React Side Panel conversation presentation', () => {
     });
     const completedActivity = screen.getByText('panerelay · agent_browser_read').closest('details');
     expect(completedActivity).not.toHaveAttribute('open');
+    expect(completedActivity?.querySelector('.activity-chevron')).toBeNull();
     expect(
       within(completedActivity as HTMLElement).getByText('panerelay_browser · agent_browser_read'),
     ).not.toBeVisible();
@@ -73,7 +74,7 @@ describe('React Side Panel conversation presentation', () => {
     expect(screen.getByText('npx --yes @panerelay/setup')).toBeVisible();
     const activityDetails = screen.getAllByText('agent-browser')[0]?.closest('details');
     expect(activityDetails).not.toHaveAttribute('open');
-    expect(activityDetails?.querySelector('.activity-chevron')).toBeVisible();
+    expect(activityDetails?.querySelector('.activity-chevron')).toBeNull();
     await user.click(
       within(activityDetails as HTMLElement).getByLabelText(/Show or hide activity details/),
     );
@@ -133,20 +134,47 @@ describe('React Side Panel conversation presentation', () => {
       client.emit({
         type: 'panerelay.conversation.event',
         event: {
+          kind: 'turn.started',
+          conversationId: 'conversation-1',
+          turnId: 'turn-timeout',
+        },
+      });
+      client.emit({
+        type: 'panerelay.conversation.event',
+        event: {
           kind: 'error',
           conversationId: 'conversation-1',
           message: 'Qoder prompt timed out',
         },
       });
+      client.emit({
+        type: 'panerelay.conversation.event',
+        event: {
+          kind: 'turn.completed',
+          conversationId: 'conversation-1',
+          turnId: 'turn-timeout',
+          status: 'failed',
+          error: 'Qoder prompt timed out',
+        },
+      });
     });
-    const timelineError = document.querySelector('.timeline-error');
+    const timelineErrors = document.querySelectorAll('.timeline-error');
+    expect(timelineErrors).toHaveLength(1);
+    const [timelineError] = timelineErrors;
     expect(timelineError).toHaveClass('mx-2');
+    expect(timelineError).toHaveClass('activity-card', 'activity-card-expandable');
     expect(timelineError).not.toHaveAttribute('open');
+    expect(timelineError?.querySelector('.timeline-error-chevron')).toBeNull();
+    expect(within(timelineError as HTMLElement).getByText('failed')).toBeVisible();
     await user.click(within(timelineError as HTMLElement).getByLabelText('Show error details'));
     expect(timelineError).toHaveAttribute('open');
+    expect(within(timelineError as HTMLElement).getByText('Qoder prompt timed out')).toBeVisible();
+    expect(within(timelineError as HTMLElement).getByText('Request timeout')).toBeVisible();
     expect(
-      within(timelineError as HTMLElement).getAllByText('Qoder prompt timed out'),
-    ).toHaveLength(2);
+      within(timelineError as HTMLElement).getByText(
+        'Check that the selected Agent is still running and connected, then try the request again.',
+      ),
+    ).toBeVisible();
 
     const approval: ConversationApproval = {
       id: 'approval-1',

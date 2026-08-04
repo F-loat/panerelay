@@ -4,7 +4,7 @@ import type {
   AutomationActivityStatus,
   ControlSessionState,
 } from '@panerelay/protocol';
-import { Bot, ChevronDown, CircleAlert, PanelTop, X } from 'lucide-react';
+import { Bot, ChevronDown, CircleAlert, Github, PanelTop, X } from 'lucide-react';
 import { type RefObject, useState } from 'react';
 import type { AuthorizationMode } from '../../../shared/messages.js';
 import {
@@ -478,14 +478,25 @@ export function SettingsPopover({
     <aside className="settings-popover" id="settings-popover" ref={popoverRef}>
       <div className="settings-heading">
         <strong>{t('settings')}</strong>
-        <button
-          aria-label={t('close')}
-          className="icon-button small"
-          onClick={() => controller.setSettingsOpen(false)}
-          type="button"
-        >
-          <X aria-hidden="true" />
-        </button>
+        <div className="settings-heading-actions">
+          <a
+            aria-label="GitHub"
+            className="icon-button small"
+            href="https://github.com/F-loat/panerelay"
+            rel="noreferrer"
+            target="_blank"
+          >
+            <Github aria-hidden="true" />
+          </a>
+          <button
+            aria-label={t('close')}
+            className="icon-button small"
+            onClick={() => controller.setSettingsOpen(false)}
+            type="button"
+          >
+            <X aria-hidden="true" />
+          </button>
+        </div>
       </div>
       <div className="settings-field">
         <span>{t('theme')}</span>

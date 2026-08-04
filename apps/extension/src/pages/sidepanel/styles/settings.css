@@ -19,6 +19,12 @@
   font-size: 12px;
 }
 
+.settings-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
 .settings-field {
   display: grid;
   grid-template-columns: 1fr 108px;

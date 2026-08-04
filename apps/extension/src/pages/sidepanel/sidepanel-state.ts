@@ -18,7 +18,7 @@ export type TimelineItem =
   | { type: 'reasoning'; id: string; text: string }
   | { type: 'activity'; activity: import('@panerelay/protocol').ConversationActivity }
   | { type: 'approval'; approval: ConversationApproval }
-  | { type: 'error'; id: string; message: string };
+  | { type: 'error'; id: string; message: string; turnId?: string };
 
 export type TurnFeedbackPhase = 'starting' | 'working';
 
@@ -273,13 +273,23 @@ export function sidepanelReducer(state: SidepanelState, action: SidepanelAction)
           type: 'error',
           id: sidepanelRandomId(),
           message: action.interruptedMessage,
+          turnId: event.turnId,
         });
       } else if (event.status === 'failed') {
-        timeline.push({
-          type: 'error',
-          id: sidepanelRandomId(),
-          message: event.error || action.failedMessage,
-        });
+        const message = event.error || action.failedMessage;
+        const latest = timeline.at(-1);
+        if (!(
+          latest?.type === 'error' &&
+          latest.turnId === event.turnId &&
+          latest.message === message
+        )) {
+          timeline.push({
+            type: 'error',
+            id: sidepanelRandomId(),
+            message,
+            turnId: event.turnId,
+          });
+        }
       }
       return {
         ...state,
@@ -302,7 +312,12 @@ export function sidepanelReducer(state: SidepanelState, action: SidepanelAction)
         ...state,
         timeline: [
           ...state.timeline,
-          { type: 'error', id: sidepanelRandomId(), message: event.message },
+          {
+            type: 'error',
+            id: sidepanelRandomId(),
+            message: event.message,
+            ...(state.runningTurnId ? { turnId: state.runningTurnId } : {}),
+          },
         ],
         turnFeedback: null,
         activeReasoning: null,

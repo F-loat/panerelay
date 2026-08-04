@@ -94,7 +94,6 @@
   display: none;
 }
 
-.timeline-error-chevron,
 .error-chevron {
   width: 12px;
   height: 12px;
@@ -104,7 +103,6 @@
   transition: transform 120ms ease;
 }
 
-.timeline-error[open] .timeline-error-chevron,
 .error-copy[open] .error-chevron {
   transform: rotate(90deg);
 }
@@ -169,25 +167,6 @@
   color: var(--text-tertiary);
   font-family: 'SFMono-Regular', Consolas, monospace;
   font-size: 8px;
-}
-
-.activity-card-end {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.activity-chevron {
-  width: 11px;
-  height: 11px;
-  flex: none;
-  color: var(--text-tertiary);
-  stroke-width: 1.7;
-  transition: transform 120ms ease;
-}
-
-.activity-card-expandable[open] .activity-chevron {
-  transform: rotate(90deg);
 }
 
 .activity-card[data-status='completed'] .activity-status {
@@ -324,65 +303,33 @@
 
 .timeline-error {
   display: block;
-  border-color: color-mix(in srgb, var(--danger) 26%, var(--border));
-  background: var(--danger-soft);
-  color: var(--danger);
-}
-
-.timeline-error summary {
-  display: grid;
-  min-height: 42px;
-  grid-template-columns: 12px 20px minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-  list-style: none;
-  padding: 8px 10px;
-}
-
-.timeline-error-icon {
-  width: 20px;
-  height: 20px;
-  flex: none;
-  border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent);
-  border-radius: 6px;
-  padding: 3px;
-  stroke-width: 1.7;
-}
-
-.timeline-error-copy {
-  min-width: 0;
-}
-
-.timeline-error-copy strong,
-.timeline-error-copy span {
-  display: block;
-}
-
-.timeline-error-copy strong {
-  color: var(--text);
-  font-size: 10px;
-}
-
-.timeline-error-copy span {
-  margin-top: 2px;
-  overflow: hidden;
-  font-family: 'SFMono-Regular', Consolas, monospace;
-  font-size: 9px;
-  line-height: 1.45;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .timeline-error-detail {
+  display: grid;
+  gap: 9px;
+  margin: 0;
   border-top: 1px solid color-mix(in srgb, var(--danger) 20%, var(--border));
-  padding: 8px 10px;
+  padding: 9px 10px 10px;
   overflow-wrap: anywhere;
-  font-family: 'SFMono-Regular', Consolas, monospace;
+  user-select: text;
+}
+
+.timeline-error-detail > div {
+  display: grid;
+  gap: 2px;
+}
+
+.timeline-error-detail dt {
+  color: var(--text-tertiary);
+  font-size: 8px;
+}
+
+.timeline-error-detail dd {
+  margin: 0;
+  color: var(--text-secondary);
   font-size: 9px;
   line-height: 1.5;
-  user-select: text;
-  white-space: pre-wrap;
 }
 
 .error-banner {
