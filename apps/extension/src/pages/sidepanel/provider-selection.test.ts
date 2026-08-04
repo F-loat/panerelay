@@ -31,11 +31,17 @@ test('keeps the supported catalog visible and overlays discovered readiness', ()
       ['codex', 'unavailable'],
       ['claude', 'unavailable'],
       ['qoder', 'unavailable'],
+      ['opencode', 'unavailable'],
     ],
   );
   assert.equal(catalog[0]?.setup?.installCommand, 'npm install -g @openai/codex');
   assert.equal(catalog[1]?.setup?.installCommand, 'npm install -g @anthropic-ai/claude-code');
   assert.equal(catalog[2]?.setupHint, 'Install Qoder');
+  assert.deepEqual(catalog[3]?.setup, {
+    installCommand: 'npm install -g opencode-ai',
+    loginCommand: 'opencode auth login',
+    docsUrl: 'https://opencode.ai/docs/acp/',
+  });
 
   const qoderReady = supportedProviders([
     {
@@ -51,12 +57,40 @@ test('keeps the supported catalog visible and overlays discovered readiness', ()
   assert.deepEqual(
     qoderReady.map(provider => [provider.id, provider.status]),
     [
+      ['qoder', 'ready'],
       ['codex', 'unavailable'],
       ['claude', 'unavailable'],
-      ['qoder', 'ready'],
+      ['opencode', 'unavailable'],
     ],
   );
-  assert.equal(qoderReady[2]?.setup?.installCommand, 'curl -fsSL https://qoder.com/install | bash');
+  assert.equal(qoderReady[0]?.setup?.installCommand, 'curl -fsSL https://qoder.com/install | bash');
+});
+
+test('groups installed providers first and preserves catalog order within each group', () => {
+  const catalog = supportedProviders([
+    {
+      id: 'opencode',
+      name: 'OpenCode',
+      status: 'ready',
+      description: 'OpenCode',
+    },
+    {
+      id: 'codex',
+      name: 'Codex',
+      status: 'ready',
+      description: 'Codex',
+    },
+  ]);
+
+  assert.deepEqual(
+    catalog.map(provider => [provider.id, provider.status]),
+    [
+      ['codex', 'ready'],
+      ['opencode', 'ready'],
+      ['claude', 'unavailable'],
+      ['qoder', 'unavailable'],
+    ],
+  );
 });
 
 test('prefers an installed provider and falls back to Codex when none are installed', () => {

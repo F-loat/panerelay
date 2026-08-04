@@ -99,7 +99,10 @@ export const PACKAGE_DEFINITIONS = [
       'package/dist/claude-cli.js',
       'package/dist/claude-permission-server.js',
       'package/dist/claude-provider.js',
+      'package/dist/acp-provider.js',
       'package/dist/native-host.bundle.cjs',
+      'package/dist/opencode-executable.js',
+      'package/dist/opencode-provider.js',
       'package/dist/platform.js',
       'package/dist/qoder-executable.js',
       'package/dist/qoder-provider.js',
@@ -126,6 +129,7 @@ const OFFICIAL_EXTENSION_ID = 'panplnkjlkoceaonlmpdekjphgmbggmi';
 const AGENT_BROWSER_MINIMUM_VERSION = '0.33.0';
 const PLAYWRIGHT_CLI_MINIMUM_VERSION = '0.1.17';
 const CLAUDE_CODE_MINIMUM_VERSION = '2.1.206';
+const OPENCODE_VERIFIED_VERSION = '1.18.12';
 const ACP_SDK_MINIMUM_VERSION = '1.2.1';
 const CLAUDE_AGENT_SDK_PACKAGE = '@anthropic-ai/claude-agent-sdk';
 const CHROME_EXTENSION_ID_PATTERN = /^[a-p]{32}$/;
@@ -449,6 +453,16 @@ export function validateReleaseMetadata({
     descriptor.claudeCodeMinimumVersion === CLAUDE_CODE_MINIMUM_VERSION,
     `The minimum Claude Code version must be ${CLAUDE_CODE_MINIMUM_VERSION}`,
   );
+  invariant(
+    Array.isArray(descriptor.openCodeVerifiedVersions) &&
+      descriptor.openCodeVerifiedVersions.length === 1 &&
+      descriptor.openCodeVerifiedVersions[0] === OPENCODE_VERIFIED_VERSION,
+    `The verified OpenCode version must be ${OPENCODE_VERIFIED_VERSION}`,
+  );
+  invariant(
+    compatibilityRecords?.includes(`opencode-${OPENCODE_VERIFIED_VERSION}.md`),
+    `Missing compatibility record for OpenCode ${OPENCODE_VERIFIED_VERSION}`,
+  );
 
   const manifests = publicPackageMap(packageManifests);
   invariant(
@@ -526,6 +540,10 @@ export function validateReleaseMetadata({
   invariant(
     implementationSources?.qoderProvider.includes("['--acp']"),
     'Qoder ACP process support is missing from the Bridge',
+  );
+  invariant(
+    implementationSources?.opencodeProvider.includes("launchArgs: ['acp']"),
+    'OpenCode ACP process support is missing from the Bridge',
   );
 }
 
@@ -966,6 +984,10 @@ export async function loadReleaseMetadata(root) {
         'utf8',
       ),
       protocolConstants: await readFile(join(root, 'packages/protocol/src/constants.ts'), 'utf8'),
+      opencodeProvider: await readFile(
+        join(root, 'packages/bridge/src/opencode-provider.ts'),
+        'utf8',
+      ),
       qoderProvider: await readFile(join(root, 'packages/bridge/src/qoder-provider.ts'), 'utf8'),
     },
     packageManifests,
@@ -1009,6 +1031,7 @@ export async function createReleaseCandidate({ outputDirectory, root, sourceDirt
     playwrightCliMinimumVersion: metadata.descriptor.playwrightCliMinimumVersion,
     playwrightCliVerifiedVersions: metadata.descriptor.playwrightCliVerifiedVersions,
     claudeCodeMinimumVersion: metadata.descriptor.claudeCodeMinimumVersion,
+    openCodeVerifiedVersions: metadata.descriptor.openCodeVerifiedVersions,
     source: { commit, dirty },
     artifacts,
   };

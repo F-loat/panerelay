@@ -12,6 +12,7 @@ import type { AgentProvider } from './agent-provider.js';
 import { ClaudeProvider } from './claude-provider.js';
 import { CodexProvider } from './codex-provider.js';
 import { validateConversationImages } from './conversation-images.js';
+import { OpenCodeProvider } from './opencode-provider.js';
 import { QoderProvider } from './qoder-provider.js';
 
 export interface AgentServiceOptions {
@@ -41,6 +42,7 @@ export class AgentService {
       new CodexProvider({}),
       new ClaudeProvider(),
       new QoderProvider(),
+      new OpenCodeProvider(),
     ];
     for (const provider of providers) {
       if (this.providers.has(provider.id)) {

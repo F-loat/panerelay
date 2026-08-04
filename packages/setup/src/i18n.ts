@@ -20,6 +20,8 @@ const englishMessages = {
   playwrightMissing:
     'Warning: Playwright CLI 0.1.17 or newer was not found. Install or upgrade the upstream CLI, then run setup again with --playwright.',
   codexMissing: 'Warning: Codex CLI was not found.',
+  openCodeMissing:
+    'Warning: OpenCode was not found. Install it or set PANERELAY_OPENCODE_PATH, then run setup again.',
   doctorAttention: 'Panerelay needs attention.',
   doctorFailureCount: 'Failed checks: {count}',
   doctorFix: 'Fix',
@@ -59,6 +61,7 @@ const englishMessages = {
   setupPlaywrightConfig: 'Playwright config:',
   setupPlaywrightCommand: 'Playwright command:',
   setupCodex: 'Codex',
+  setupOpenCode: 'OpenCode',
   setupExtensionId: 'Extension ID',
   setupFix: 'Fix',
   setupGroupAutomation: 'Automation integrations',
@@ -131,6 +134,8 @@ const chineseMessages: Record<MessageKey, string> = {
   defaultIntegrationsPrompt:
     '将 Panerelay 设为所选 agent-browser 和 Browser Use 集成的用户级默认吗？',
   codexMissing: '警告：未找到 Codex CLI。',
+  openCodeMissing:
+    '警告：未找到 OpenCode。请安装 OpenCode 或设置 PANERELAY_OPENCODE_PATH，然后重新运行 setup。',
   doctorAttention: 'Panerelay 需要处理以下问题。',
   doctorFailureCount: '失败项：{count}',
   doctorFix: '修复',
@@ -172,6 +177,7 @@ const chineseMessages: Record<MessageKey, string> = {
   setupPlaywrightCommand: 'Playwright 命令：',
   setupPlaywright: 'Playwright CLI',
   setupCodex: 'Codex',
+  setupOpenCode: 'OpenCode',
   setupExtensionId: '扩展 ID',
   setupFix: '处理',
   setupGroupAutomation: '自动化集成',

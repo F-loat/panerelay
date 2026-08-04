@@ -88,6 +88,7 @@ export interface SidepanelController {
   setHistoryOpen(open: boolean): Promise<void>;
   setHistoryQuery(query: string): void;
   refreshHistory(): Promise<void>;
+  retryProviderDiscovery(): Promise<void>;
   retryProviderPreparation(): Promise<void>;
   setAuthorization(mode: AuthorizationMode): Promise<void>;
   releaseControl(): Promise<void>;
@@ -541,6 +542,29 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
     async () => prepareProvider(stateRef.current.currentProviderId, true),
     [prepareProvider],
   );
+
+  const retryProviderDiscovery = useCallback(async () => {
+    if (
+      stateRef.current.providerDiscoveryPending ||
+      !stateRef.current.extensionStatus?.bridgeConnected
+    ) {
+      return;
+    }
+    patch({ providerDiscoveryPending: true });
+    try {
+      const response = await client.request({ type: 'panerelay.agent.providers' });
+      const currentProviderId = stateRef.current.currentProviderId;
+      const providerPreparations = { ...stateRef.current.providerPreparations };
+      delete providerPreparations[currentProviderId];
+      patch({
+        providers: supportedProviders(response.providers ?? stateRef.current.providers),
+        providerDiscoveryPending: false,
+        providerPreparations,
+      });
+    } catch (error) {
+      patch({ providerDiscoveryPending: false, error: errorText(error) });
+    }
+  }, [client, patch]);
 
   const setAuthorization = useCallback(
     async (mode: AuthorizationMode) => {
@@ -1241,6 +1265,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
     setHistoryOpen,
     setHistoryQuery,
     refreshHistory,
+    retryProviderDiscovery,
     retryProviderPreparation,
     setAuthorization,
     releaseControl,

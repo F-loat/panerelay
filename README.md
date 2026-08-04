@@ -17,7 +17,7 @@ Panerelay supports two ways to work:
 
 | Direction | Use it when | Experience |
 | --- | --- | --- |
-| **Agent side panel** | You want a local Agent beside the current page | Open Codex, Claude Code, or Qoder in the side panel for conversations, approvals, activity, and tab-linked workspaces |
+| **Agent side panel** | You want a local Agent beside the current page | Open Codex, Claude Code, Qoder, or OpenCode in the side panel for conversations, approvals, activity, and tab-linked workspaces |
 | **Automation tool integrations** | You want an Agent in another app or terminal to operate the browser | Connect [agent-browser](https://agent-browser.dev/) or [browser-use](https://docs.browser-use.com/open-source/browser-use-cli), or explicitly attach Playwright CLI, to authorized tabs in your existing browser |
 
 ![Panerelay](https://github.com/user-attachments/assets/2eba77ae-5362-4803-9190-cf134dd2b8d7)

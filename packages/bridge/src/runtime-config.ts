@@ -9,6 +9,8 @@ export interface PanerelayRuntimeConfig {
   claudeVersion?: string;
   qoderPath?: string;
   qoderVersion?: string;
+  opencodePath?: string;
+  opencodeVersion?: string;
 }
 
 async function executable(path: string | undefined): Promise<boolean> {
@@ -29,6 +31,7 @@ export async function readRuntimeConfig(): Promise<PanerelayRuntimeConfig> {
   const configuredCodex = process.env.PANERELAY_CODEX_PATH || stored.codexPath;
   const configuredClaude = process.env.PANERELAY_CLAUDE_PATH || stored.claudePath;
   const configuredQoder = process.env.PANERELAY_QODER_PATH || stored.qoderPath;
+  const configuredOpenCode = process.env.PANERELAY_OPENCODE_PATH || stored.opencodePath;
 
   return {
     ...(typeof stored.extensionId === 'string' ? { extensionId: stored.extensionId } : {}),
@@ -37,5 +40,9 @@ export async function readRuntimeConfig(): Promise<PanerelayRuntimeConfig> {
     ...(typeof stored.claudeVersion === 'string' ? { claudeVersion: stored.claudeVersion } : {}),
     ...((await executable(configuredQoder)) ? { qoderPath: configuredQoder } : {}),
     ...(typeof stored.qoderVersion === 'string' ? { qoderVersion: stored.qoderVersion } : {}),
+    ...((await executable(configuredOpenCode)) ? { opencodePath: configuredOpenCode } : {}),
+    ...(typeof stored.opencodeVersion === 'string'
+      ? { opencodeVersion: stored.opencodeVersion }
+      : {}),
   };
 }

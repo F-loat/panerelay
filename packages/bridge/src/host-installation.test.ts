@@ -77,21 +77,32 @@ test('installs and removes an isolated Native Messaging host', async () => {
   const homeDirectory = join(root, 'home');
   const binDirectory = join(root, 'bin');
   const bundledHostPath = join(root, 'native-host.bundle.cjs');
+  const configuredOpenCodePath = join(root, 'configured tools', 'opencode');
   await mkdir(binDirectory, { recursive: true });
+  await mkdir(dirname(configuredOpenCodePath), { recursive: true });
   await writeFile(bundledHostPath, '#!/usr/bin/env node\nprocess.stdout.write("ready");\n');
-  for (const executable of ['claude', 'codex']) {
+  for (const executable of ['claude', 'codex', 'opencode']) {
     const path = join(binDirectory, executable);
     await writeFile(
       path,
-      executable === 'claude' ? '#!/bin/sh\necho "2.1.0 (Claude Code)"\n' : '#!/bin/sh\nexit 0\n',
+      executable === 'claude'
+        ? '#!/bin/sh\necho "2.1.0 (Claude Code)"\n'
+        : executable === 'opencode'
+          ? '#!/bin/sh\necho "1.18.12"\n'
+          : '#!/bin/sh\nexit 0\n',
     );
     await chmod(path, 0o755);
   }
+  await writeFile(configuredOpenCodePath, '#!/bin/sh\necho "1.18.12"\n');
+  await chmod(configuredOpenCodePath, 0o755);
 
   try {
     const result = await installNativeHost({
       bundledHostPath,
-      environment: { PATH: binDirectory },
+      environment: {
+        PANERELAY_OPENCODE_PATH: configuredOpenCodePath,
+        PATH: binDirectory,
+      },
       extensionId: customExtensionId,
       homeDirectory,
       nodePath: '/test/node',
@@ -101,6 +112,8 @@ test('installs and removes an isolated Native Messaging host', async () => {
     assert.equal(result.codexPath, join(binDirectory, 'codex'));
     assert.equal(result.claudePath, join(binDirectory, 'claude'));
     assert.equal(result.claudeVersion, '2.1.0');
+    assert.equal(result.opencodePath, configuredOpenCodePath);
+    assert.equal(result.opencodeVersion, '1.18.12');
     assert.equal(result.launchPath, result.hostPath);
     assert.match(await readFile(result.hostPath, 'utf8'), /^#!\/test\/node\n/);
     assert.equal((await stat(result.hostPath)).mode & 0o777, 0o755);
@@ -110,12 +123,16 @@ test('installs and removes an isolated Native Messaging host', async () => {
       claudePath: string;
       claudeVersion: string;
       extensionId: string;
+      opencodePath: string;
+      opencodeVersion: string;
     };
     assert.deepEqual(runtime, {
       extensionId: customExtensionId,
       codexPath: result.codexPath,
       claudePath: result.claudePath,
       claudeVersion: '2.1.0',
+      opencodePath: result.opencodePath,
+      opencodeVersion: '1.18.12',
     });
     assert.ok(
       result.manifestPaths.some(path =>

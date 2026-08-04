@@ -9,6 +9,7 @@ import {
   runCommand,
   type CommandRunner,
 } from './platform.js';
+import { resolveOpenCodeExecutable } from './opencode-executable.js';
 import { resolveQoderExecutable } from './qoder-executable.js';
 
 export const CHROME_EXTENSION_ID_PATTERN = /^[a-p]{32}$/;
@@ -50,6 +51,8 @@ export interface NativeHostInstallationResult extends NativeHostInstallationPath
   extensionId: string;
   qoderPath?: string;
   qoderVersion?: string;
+  opencodePath?: string;
+  opencodeVersion?: string;
 }
 
 interface StoredRuntimeConfig {
@@ -306,6 +309,14 @@ export async function installNativeHost(
     processExecPath: options.nodePath ?? process.execPath,
     runner: options.probeRunner,
   });
+  const opencode = await resolveOpenCodeExecutable({
+    configuredPath: environment.PANERELAY_OPENCODE_PATH,
+    environment,
+    homeDirectory: options.homeDirectory,
+    platform,
+    processExecPath: options.nodePath ?? process.execPath,
+    runner: options.probeRunner,
+  });
   await writeFile(
     paths.runtimeConfigPath,
     `${JSON.stringify(
@@ -316,6 +327,8 @@ export async function installNativeHost(
         ...(claudeVersion ? { claudeVersion } : {}),
         ...(qoder.executable ? { qoderPath: qoder.executable } : {}),
         ...(qoder.version ? { qoderVersion: qoder.version } : {}),
+        ...(opencode.executable ? { opencodePath: opencode.executable } : {}),
+        ...(opencode.version ? { opencodeVersion: opencode.version } : {}),
       },
       null,
       2,
@@ -358,6 +371,8 @@ export async function installNativeHost(
     ...(claudeVersion ? { claudeVersion } : {}),
     ...(qoder.executable ? { qoderPath: qoder.executable } : {}),
     ...(qoder.version ? { qoderVersion: qoder.version } : {}),
+    ...(opencode.executable ? { opencodePath: opencode.executable } : {}),
+    ...(opencode.version ? { opencodeVersion: opencode.version } : {}),
   };
 }
 

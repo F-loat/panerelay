@@ -40,6 +40,17 @@ const SUPPORTED_PROVIDERS: SupportedProvider[] = [
       docsUrl: 'https://docs.qoder.com/en/cli/quick-start',
     },
   },
+  {
+    id: 'opencode',
+    name: 'OpenCode',
+    status: 'unavailable',
+    description: 'Local OpenCode CLI through capability-negotiated ACP sessions.',
+    setup: {
+      installCommand: 'npm install -g opencode-ai',
+      loginCommand: 'opencode auth login',
+      docsUrl: 'https://opencode.ai/docs/acp/',
+    },
+  },
 ];
 
 export function supportedProviders(
@@ -48,18 +59,26 @@ export function supportedProviders(
   const discoveredById = new Map(
     discoveredProviders.map(provider => [provider.id, provider] as const),
   );
-  return SUPPORTED_PROVIDERS.map(supported => {
+  return SUPPORTED_PROVIDERS.map((supported, catalogIndex) => {
     const discovered = discoveredById.get(supported.id);
-    if (!discovered) return { ...supported, setup: { ...supported.setup } };
-    return {
-      ...supported,
-      ...discovered,
-      setup: {
-        ...supported.setup,
-        ...discovered.setup,
-      },
-    };
-  });
+    const provider = discovered
+      ? {
+          ...supported,
+          ...discovered,
+          setup: {
+            ...supported.setup,
+            ...discovered.setup,
+          },
+        }
+      : { ...supported, setup: { ...supported.setup } };
+    return { catalogIndex, provider };
+  })
+    .sort((left, right) => {
+      const availabilityOrder =
+        Number(right.provider.status === 'ready') - Number(left.provider.status === 'ready');
+      return availabilityOrder || left.catalogIndex - right.catalogIndex;
+    })
+    .map(({ provider }) => provider);
 }
 
 export function selectProviderId(

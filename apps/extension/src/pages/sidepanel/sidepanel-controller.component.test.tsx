@@ -99,6 +99,8 @@ class FakeSidepanelClient implements SidepanelClient {
   projectError = '';
   installError = '';
   installPromise: Promise<void> | null = null;
+  providerDiscoveryPromise: Promise<void> | null = null;
+  providerResponse = providers;
   sendError = '';
   resumeHandler:
     | ((message: Extract<SidePanelRequest, { type: 'panerelay.conversation.resume' }>) => Promise<{
@@ -123,7 +125,8 @@ class FakeSidepanelClient implements SidepanelClient {
       case 'panerelay.status.get':
         return { success: true as const, status: this.status };
       case 'panerelay.agent.providers':
-        return { success: true as const, providers };
+        if (this.providerDiscoveryPromise) await this.providerDiscoveryPromise;
+        return { success: true as const, providers: this.providerResponse };
       case 'panerelay.agent.prepare':
         return { success: true as const };
       case 'panerelay.workspace.get':
@@ -487,6 +490,48 @@ describe('Side Panel controller', () => {
     expect(hook.result.current.state.browserDefaultPending).toBe(false);
     expect(hook.result.current.state.controlledTabPendingId).toBeNull();
     expect(hook.result.current.state.nativeRetryPending).toBe(false);
+  });
+
+  it('deduplicates manual provider rediscovery without touching workspace or authorization', async () => {
+    const { client, hook } = await readyController();
+    let releaseDiscovery: (() => void) | undefined;
+    client.providerDiscoveryPromise = new Promise<void>(resolve => {
+      releaseDiscovery = resolve;
+    });
+    client.providerResponse = [
+      ...providers,
+      {
+        id: 'opencode',
+        name: 'OpenCode',
+        status: 'ready',
+        description: 'OpenCode fixture',
+      },
+    ];
+    client.requests.length = 0;
+
+    let first: Promise<void> | undefined;
+    await act(async () => {
+      first = hook.result.current.retryProviderDiscovery();
+      await Promise.resolve();
+    });
+    await act(() => hook.result.current.retryProviderDiscovery());
+
+    expect(client.requests).toEqual([{ type: 'panerelay.agent.providers' }]);
+    expect(hook.result.current.state.providerDiscoveryPending).toBe(true);
+
+    releaseDiscovery?.();
+    await act(() => first);
+
+    expect(hook.result.current.state.providerDiscoveryPending).toBe(false);
+    expect(
+      hook.result.current.state.providers.find(provider => provider.id === 'opencode')?.status,
+    ).toBe('ready');
+    expect(hook.result.current.state.workspace).toEqual({
+      kind: 'draft',
+      providerId: 'codex',
+      revision: 'workspace-1',
+    });
+    expect(hook.result.current.state.extensionStatus?.authorizationMode).toBe('none');
   });
 
   it('routes fixed integration installs and localizes installation failures', async () => {

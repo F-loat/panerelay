@@ -99,7 +99,7 @@ Panerelay SHALL produce and validate inspectable npm tarballs, an unpacked-Exten
 
 ### Requirement: Stable setup declares and diagnoses supported dependencies
 
-Panerelay SHALL require Node.js 20 or newer for every installation. The default setup and doctor paths SHALL treat agent-browser, Browser Use, and Playwright CLI as optional automation integrations. When explicitly selected, Panerelay SHALL require agent-browser 0.33.0 or newer, Browser Use 0.13.7 or newer, or `@playwright/cli` 0.1.17 or newer, report the selected engine's detected version, and keep each pinned compatibility baseline. Claude Code and Qoder CLI SHALL remain optional Agent providers rather than prerequisites for the Native Host or other integrations.
+Panerelay SHALL require Node.js 20 or newer for every installation. The default setup and doctor paths SHALL treat agent-browser, Browser Use, and Playwright CLI as optional automation integrations. When explicitly selected, Panerelay SHALL require agent-browser 0.33.0 or newer, Browser Use 0.13.7 or newer, or `@playwright/cli` 0.1.17 or newer, report the selected engine's detected version, and keep each pinned compatibility baseline. Claude Code, Qoder CLI, and OpenCode SHALL remain optional Agent providers rather than prerequisites for the Native Host or other integrations. Setup and doctor SHALL report a detected OpenCode version separately from its capability-negotiated runtime readiness.
 
 #### Scenario: Default setup has no automation-engine prerequisite
 
@@ -116,8 +116,15 @@ Panerelay SHALL require Node.js 20 or newer for every installation. The default 
 #### Scenario: Optional agent runtimes are absent
 
 - **GIVEN** Native Messaging and Codex are otherwise ready
-- **WHEN** Claude Code or Qoder CLI is absent or incompatible
-- **THEN** doctor and the side panel report that provider as unavailable without making the Native Host or selected automation integrations unhealthy
+- **WHEN** Claude Code, Qoder CLI, or OpenCode is absent or incompatible
+- **THEN** doctor and the Side Panel report that provider as unavailable without making the Native Host or selected automation integrations unhealthy
+
+#### Scenario: OpenCode version is detected but ACP is incompatible
+
+- **GIVEN** an `opencode` executable reports a version but cannot negotiate the required ACP v1 session behavior
+- **WHEN** setup, doctor, or provider preparation evaluates it
+- **THEN** Panerelay reports the detected executable separately from the incompatible Agent provider state
+- **AND** it does not classify that version as verified
 
 ### Requirement: Official Extension installation is Store-first
 
@@ -241,13 +248,19 @@ Panerelay SHALL describe daily-Chromium browser-process ownership in Chrome and 
 
 ### Requirement: Stable acceptance covers every supported platform and adapter
 
-Panerelay SHALL require automated packed-artifact checks on macOS, Linux, and Windows plus representative real-runtime evidence for Chrome, Edge, agent-browser 0.33.0, Browser Use 0.13.7 with Browser Harness 0.1.8, Playwright CLI 0.1.17, Codex, Qoder ACP, and Windows Native Messaging before the stable candidate is declared releasable. Shared Chromium automation coverage SHALL NOT by itself classify Edge as `Verified`.
+Panerelay SHALL require automated packed-artifact checks on macOS, Linux, and Windows plus representative real-runtime evidence for Chrome, Edge, agent-browser 0.33.0, Browser Use 0.13.7 with Browser Harness 0.1.8, Playwright CLI 0.1.17, Codex, Qoder ACP, OpenCode 1.18.12 ACP, and Windows Native Messaging before the stable candidate is declared releasable. Shared Chromium automation coverage SHALL NOT by itself classify Edge as `Verified`, and static OpenCode source or protocol inspection SHALL NOT by itself classify the runtime as `Verified`.
 
 #### Scenario: A supported platform, browser, or adapter has no passing evidence
 
 - **GIVEN** one supported operating system, browser runtime, or required Agent or automation adapter has not passed its defined acceptance gate
 - **WHEN** maintainers review stable readiness
 - **THEN** the candidate remains not ready and the missing evidence is identified
+
+#### Scenario: OpenCode runtime evidence is missing
+
+- **GIVEN** OpenCode's documented ACP surface and source contract match Panerelay but no real OpenCode 1.18.12 subprocess has passed the recorded acceptance flow
+- **WHEN** maintainers review the compatibility record
+- **THEN** OpenCode remains `Forwarded` or `Partial` rather than `Verified`
 
 #### Scenario: All stable gates pass
 
