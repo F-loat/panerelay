@@ -1,6 +1,6 @@
 {
   "name": "@panerelay/browser-use",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Use browser-use CLI, Skill, and CLI MCP with current-tab or all-supported-tabs authorization through Panerelay.",
   "type": "module",
   "license": "MIT",

@@ -4,8 +4,8 @@
   "default_locale": "en",
   "name": "__MSG_extensionName__",
   "description": "__MSG_extensionDescription__",
-  "version": "0.5.0.0",
-  "version_name": "0.5.0",
+  "version": "0.6.0.0",
+  "version_name": "0.6.0",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA0Ak9MFNl5Olzz+zX3G/sAdaF+rDsGOA2ytCpkWCTnTc8ilPSjg4aILmcwqbi7RA0R3m8md4zpj7Uz24SFUMaNaloVsr6sqeQbAHCO6YpzIe1u3X2bZD3PztSmaKWm7EpEyumBuuzfwamCTLd9AcnbZrSXLmrvI/XWFLVdZojaJV/fqNsjF1SSnuNHs5izCiThw/CHmyBZrEaQRxfN6GQAxO5luuj0akGVsf9Ig5q7bbtvWbT4Ll/CBv56QR1L4iewuy+WpqaI+L5M9tZg9aQt6w6kgzzSvwtXzPyTdd06QLsBDAt3aeAG/i1OFy7G6oNXJJnWDpSjfLIQRFmSJoAWQIDAQAB",
   "action": {
     "default_title": "__MSG_actionTitle__",
