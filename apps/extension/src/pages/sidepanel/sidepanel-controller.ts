@@ -175,7 +175,13 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
   const loadConversation = useCallback(
     (detail: ConversationDetail, workspace?: ConversationWorkspaceSnapshot) => {
       patch({
-        ...(workspace ? { workspace, currentProviderId: workspace.providerId } : {}),
+        ...(workspace
+          ? {
+              workspace,
+              currentProviderId: workspace.providerId,
+              scrollRequest: stateRef.current.scrollRequest + 1,
+            }
+          : {}),
         currentConversation: detail.conversation,
         timeline: detail.messages.map(message => ({ type: 'message', message })),
         runningTurnId:
@@ -239,6 +245,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
           runningTurnId: null,
           turnFeedback: null,
           activeReasoning: null,
+          scrollRequest: stateRef.current.scrollRequest + 1,
           loadingConversation: false,
           submitting: false,
           composerText: draftTextRef.current.get(workspace.revision) ?? '',
@@ -961,6 +968,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
       }
       patch({
         composerText: '',
+        scrollRequest: stateRef.current.scrollRequest + 1,
         timeline: [
           ...stateRef.current.timeline,
           {

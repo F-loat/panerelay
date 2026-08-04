@@ -111,7 +111,7 @@ Forced heartbeat expiry, Bridge-restart gaps, and injected failed or denied CDP 
 
 ## Side-panel provider sessions
 
-Side-panel providers do not create or close agent-browser MCP connections. They keep the selected project as the Agent working directory and pass only bounded, redacted current-tab URL/title context. Any agent-browser MCP or Skill is loaded from the Agent's own configuration and remains subject to normal Panerelay authorization and control leases.
+Side-panel providers do not create or close agent-browser MCP connections. They keep the selected project as the Agent working directory, add canonical `$panerelay-browser` availability guidance, and pass only bounded, redacted current-tab URL/title context plus a staleable registration hint without filesystem paths. Any agent-browser MCP or Skill is loaded from the Agent's own configuration and remains subject to normal Panerelay authorization and control leases.
 
 | capability | Status | Notes |
 | --- | --- | --- |
@@ -119,8 +119,11 @@ Side-panel providers do not create or close agent-browser MCP connections. They 
 | Lazy recent-conversation history | Verified | History loads on explicit open and covers loading, search, empty, error, retry, and resume states. |
 | Draft-first conversation creation | Verified | “New” stays local until the first non-empty message, then starts, binds, and sends exactly once. |
 | Active-tab conversation restoration | Verified | Opaque revisions reject stale async results and restore cached or provider-native conversation state. |
-| Trusted related-tab workspace inheritance | Verified | Only Chrome-reported opener/navigation-target relationships inherit; authorization and leases stay separate. |
+| Page-created related-tab workspace inheritance | Automated | Only `webNavigation.onCreatedNavigationTarget` relationships inherit. Browser-created tabs remain independent even when Chrome exposes opener-like metadata; authorization and leases stay separate. |
+| Per-tab new-conversation detachment | Automated | Starting a new conversation gives only the active tab a new group and draft; sibling tabs keep the prior conversation and later sends cannot replace one another. |
 | Draft project directory | Verified | A native picker returns one canonical directory; the draft inherits it across trusted related tabs, starts the provider in it, and makes it immutable once the conversation is bound. |
+| Current model display | Automated | For an installed provider, the header prefers bounded provider-reported conversation metadata and then a prepared configured or catalog-default model. Unknown and unavailable-provider models are omitted; model selection stays provider-owned. |
+| Panerelay Skill guidance | Automated | New conversations prefer `$panerelay-browser`, tell the Agent to attempt the canonical `npx skills` installation when unavailable, and allow another browser tool only after installation cannot complete and the fallback is disclosed. Existing Provider/adapter registrations supply a cached fast path that skips generic preflight checks before direct invocation; stale hints fall back to targeted diagnostics and never widen browser authorization. |
 | New-session page orientation | Verified | Bounded, redacted URL/title context is passed without raw Chrome tab IDs. Codex uses developer instructions; Qoder prepends it to the first prompt because ACP has no equivalent field. |
 | Page comments, including authorized iframes | Verified | Single-click one-shot and double-click continuous selection coordinate the picker across currently reachable frames and use an anchored compact editor, reversible style previews, pencil markers, and Side Panel annotation pills. Subframe evidence includes bounded frame metadata without a raw Chrome frame ID. Evidence excludes form values, is delimited as untrusted, and clears on send or tab/document/permission lifecycle changes. Frames outside current Chrome host permissions remain untouched. |
 | Clipboard image input | Verified | The two-line composer previews and removes PNG/JPEG/WebP/GIF inputs, supports image-only turns, preserves failed sends, and enforces 4-image/10-MiB-each/20-MiB-total bounds in both Extension and Bridge. Codex uses data URLs; Qoder uses negotiated ACP image blocks. |

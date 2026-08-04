@@ -3,7 +3,7 @@ import test from 'node:test';
 import { installConversationWorkspaceObservers } from './conversation-workspace-observers.js';
 import { ConversationWorkspaceStore } from './conversation-workspaces.js';
 
-test('observes trusted opener and navigation-target relationships without binding unrelated tabs', async () => {
+test('inherits only page-created navigation targets and ignores browser-created opener tabs', async () => {
   let createdTab: ((tab: chrome.tabs.Tab) => void) | undefined;
   let removedTab: ((tabId: number) => void) | undefined;
   let navigationTarget:
@@ -45,6 +45,9 @@ test('observes trusted opener and navigation-target relationships without bindin
   await store.getOrCreate(11, 'codex');
 
   createdTab?.({ id: 22, openerTabId: 11 } as chrome.tabs.Tab);
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(await store.get(22), null);
+
   navigationTarget?.({
     sourceTabId: 11,
     sourceFrameId: 0,
@@ -58,7 +61,7 @@ test('observes trusted opener and navigation-target relationships without bindin
 
   assert.deepEqual(await store.get(22), await store.get(11));
   assert.equal(await store.get(33), null);
-  assert.deepEqual(inherited, [22, 22]);
+  assert.deepEqual(inherited, [22]);
 
   removedTab?.(11);
   await new Promise<void>(resolve => setImmediate(resolve));

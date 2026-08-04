@@ -34,7 +34,7 @@ import {
   X,
   type LucideIcon,
 } from 'lucide-react';
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { AuthorizationMode } from '../../shared/messages.js';
 import {
   formatForState,
@@ -242,6 +242,11 @@ function AppHeader({ controller }: HeaderProps) {
   const { t } = useCopy(state);
   const provider = state.providers.find(item => item.id === state.currentProviderId);
   const connection = connectionDetails(state);
+  const model =
+    provider?.status === 'ready'
+      ? state.currentConversation?.model || provider.model || undefined
+      : undefined;
+  const modelTitle = model ? `${t('currentModel')}: ${model}` : undefined;
   const authorization = authorizationDetails(state);
   const providerOptions: SelectMenuOption[] = state.providers.map(item => ({
     value: item.id,
@@ -284,9 +289,13 @@ function AppHeader({ controller }: HeaderProps) {
           renderTrigger={props => (
             <button
               {...props}
-              aria-label={`${t('agentProvider')}: ${provider?.name || t('assistant')}, ${
-                connection.label
-              }`}
+              aria-label={[
+                `${t('agentProvider')}: ${provider?.name || t('assistant')}`,
+                connection.label,
+                modelTitle,
+              ]
+                .filter(Boolean)
+                .join(', ')}
               className="provider-trigger"
               type="button"
             >
@@ -298,9 +307,9 @@ function AppHeader({ controller }: HeaderProps) {
                   <span className="provider-name">{provider?.name || t('assistant')}</span>
                   <ChevronDown aria-hidden="true" className="provider-chevron" />
                 </span>
-                <span className="connection-status">
+                <span className="connection-status" title={modelTitle}>
                   <span className="status-dot" data-state={connection.status} />
-                  <span>{connection.label}</span>
+                  <span>{model ? `${model} · ${connection.label}` : connection.label}</span>
                 </span>
               </span>
             </button>
@@ -1222,13 +1231,41 @@ function Timeline({
   const { state } = controller;
   const { t } = useCopy(state);
   const providerName = selectedAgentName(state);
+  const followingBottomRef = useRef(true);
+  const lastScrollRequestRef = useRef(-1);
+  const lastWorkspaceRevisionRef = useRef<string | null>(null);
 
   useEffect(() => {
     const scroll = scrollRef.current;
     if (!scroll) return;
-    const distance = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight;
-    if (distance < 120) scroll.scrollTop = scroll.scrollHeight;
-  }, [scrollRef, state.timeline, state.turnFeedback]);
+    const updateFollowingBottom = () => {
+      const distance = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight;
+      followingBottomRef.current = distance <= 96;
+    };
+    updateFollowingBottom();
+    scroll.addEventListener('scroll', updateFollowingBottom, { passive: true });
+    return () => scroll.removeEventListener('scroll', updateFollowingBottom);
+  }, [scrollRef]);
+
+  useLayoutEffect(() => {
+    const scroll = scrollRef.current;
+    if (!scroll) return;
+    const workspaceRevision = state.workspace?.revision ?? null;
+    const forceFollow =
+      lastScrollRequestRef.current !== state.scrollRequest ||
+      lastWorkspaceRevisionRef.current !== workspaceRevision;
+    lastScrollRequestRef.current = state.scrollRequest;
+    lastWorkspaceRevisionRef.current = workspaceRevision;
+    if (forceFollow) followingBottomRef.current = true;
+    if (!followingBottomRef.current) return;
+    scroll.scrollTop = scroll.scrollHeight;
+  }, [
+    scrollRef,
+    state.scrollRequest,
+    state.timeline,
+    state.turnFeedback,
+    state.workspace?.revision,
+  ]);
 
   return (
     <div className="timeline flex flex-col gap-3 px-3 pt-[15px] pb-5">
@@ -1283,9 +1320,7 @@ function Timeline({
         }
         if (item.type === 'activity') {
           const Icon = activityIcon(item.activity);
-          const expandable =
-            (item.activity.status === 'failed' || item.activity.status === 'declined') &&
-            Boolean(item.activity.detail);
+          const expandable = item.activity.status !== 'running';
           const setupFailure =
             item.activity.status === 'failed' &&
             isPanerelaySetupFailure(
@@ -1298,17 +1333,30 @@ function Timeline({
                   className="activity-card activity-card-expandable"
                   data-status={item.activity.status}
                 >
-                  <summary aria-label={t('errorDetails')} className="activity-card-summary">
+                  <summary
+                    aria-label={`${t('activityDetails')}: ${activityTitle(item.activity.title)}`}
+                    className="activity-card-summary"
+                  >
                     <Icon aria-hidden="true" className="activity-icon" />
                     <div className="activity-copy">
                       <div className="activity-title">{activityTitle(item.activity.title)}</div>
-                      <div className="activity-detail">{item.activity.detail}</div>
+                      {item.activity.detail && (
+                        <div className="activity-detail">{item.activity.detail}</div>
+                      )}
                     </div>
-                    <span className="activity-status">
-                      {activityStatus(state.locale, item.activity)}
+                    <span className="activity-card-end">
+                      <span className="activity-status">
+                        {activityStatus(state.locale, item.activity)}
+                      </span>
+                      <ChevronRight aria-hidden="true" className="activity-chevron" />
                     </span>
                   </summary>
-                  <div className="activity-detail-expanded">{item.activity.detail}</div>
+                  <div className="activity-detail-expanded">
+                    <div className="activity-command-expanded">{item.activity.title}</div>
+                    {item.activity.detail && (
+                      <div className="activity-extra-expanded">{item.activity.detail}</div>
+                    )}
+                  </div>
                 </details>
               ) : (
                 <article className="activity-card" data-status={item.activity.status}>

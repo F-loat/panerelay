@@ -168,6 +168,7 @@ export interface AgentProviderSummary {
   name: string;
   status: AgentProviderStatus;
   description: string;
+  model?: string;
   setup?: AgentProviderSetupGuide;
   setupHint?: string;
   version?: string;
@@ -186,6 +187,7 @@ export type ConversationStatus = 'idle' | 'running' | 'waiting' | 'error';
 export interface ConversationSummary {
   id: string;
   providerId: string;
+  model?: string;
   title: string;
   preview: string;
   status: ConversationStatus;

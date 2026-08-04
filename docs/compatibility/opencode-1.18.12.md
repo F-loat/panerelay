@@ -42,7 +42,8 @@ The real-runtime probe installed `opencode-ai@1.18.12` in a temporary directory,
 | OpenCode-owned MCP, plugins, skills, and tools | Forwarded | Panerelay neither injects nor removes these definitions. OpenCode loads its isolated or user-owned configuration normally, and Panerelay cannot claim compatibility for arbitrary third-party integrations. |
 | Panerelay browser-tool injection | Verified | New/load requests contain `mcpServers: []`; the isolated real probe observed no Panerelay, agent-browser, or Browser Use tool update. |
 | User-configured browser tools | Forwarded | A browser tool configured in OpenCode may connect through Panerelay independently, but still requires explicit Chrome authorization and a current control lease. No OpenCode 1.18.12 shared-browser acceptance run is recorded. |
-| Side Panel model/mode controls | Unsupported | OpenCode exposes model and mode configuration through ACP, but this release intentionally leaves selection to OpenCode configuration and does not add provider-specific controls to the shared Side Panel. |
+| Side Panel current-model display | Verified | Panerelay reads the bounded selected name from OpenCode's standard ACP `model` session option after new/load and displays it without exposing the remaining native option payload. |
+| Side Panel model/mode selection controls | Unsupported | OpenCode exposes model and mode configuration through ACP, but this release intentionally leaves selection to OpenCode configuration and does not add provider-specific controls to the shared Side Panel. |
 | Side Panel authentication flow | Unsupported | Panerelay shows the `opencode auth login` command and documentation but does not proxy credentials or implement ACP authentication UI. |
 
 Provider-native prompts, output, tool arguments, and permission metadata are not logged by default. The Extension receives only bounded provider-neutral events.

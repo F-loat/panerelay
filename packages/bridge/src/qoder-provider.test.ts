@@ -42,7 +42,19 @@ class FakeQoderRuntime implements QoderRuntime {
       } satisfies acp.ListSessionsResponse;
     }
     if (method === acp.methods.agent.session.new) {
-      return { sessionId: 'qoder-new', configOptions: [] } satisfies acp.NewSessionResponse;
+      return {
+        sessionId: 'qoder-new',
+        configOptions: [
+          {
+            id: 'model',
+            name: 'Model',
+            category: 'model',
+            type: 'select',
+            currentValue: 'qoder/model-new',
+            options: [{ value: 'qoder/model-new', name: 'Qoder Model New' }],
+          },
+        ],
+      } satisfies acp.NewSessionResponse;
     }
     if (method === acp.methods.agent.session.load) {
       this.handlers.onUpdate({
@@ -61,7 +73,18 @@ class FakeQoderRuntime implements QoderRuntime {
           content: { type: 'text', text: 'Earlier answer' },
         },
       });
-      return { configOptions: [] } satisfies acp.LoadSessionResponse;
+      return {
+        configOptions: [
+          {
+            id: 'model',
+            name: 'Model',
+            category: 'model',
+            type: 'select',
+            currentValue: 'qoder/model-existing',
+            options: [{ value: 'qoder/model-existing', name: 'Qoder Model Existing' }],
+          },
+        ],
+      } satisfies acp.LoadSessionResponse;
     }
     if (method === acp.methods.agent.session.prompt && this.prompt) {
       return this.prompt(params);
@@ -215,6 +238,7 @@ test('lists, starts, and loads Qoder sessions without injecting browser MCP defi
 
   const started = await provider.startConversation();
   assert.equal(started.conversation.id, 'qoder-new');
+  assert.equal(started.conversation.model, 'Qoder Model New');
   const newRequest = runtimes[0]?.requests.find(
     request => request.method === acp.methods.agent.session.new,
   );
@@ -222,6 +246,7 @@ test('lists, starts, and loads Qoder sessions without injecting browser MCP defi
   assert.deepEqual(newParams.mcpServers, []);
 
   const resumed = await provider.resumeConversation('qoder-existing');
+  assert.equal(resumed.conversation.model, 'Qoder Model Existing');
   assert.deepEqual(
     resumed.messages.map(message => [message.role, message.text]),
     [

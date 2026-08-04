@@ -18,6 +18,7 @@ import {
   createConversationContextInstructions,
   resolveConversationStartOptions,
 } from './agent-context.js';
+import { readBrowserAutomationSetupHint } from './browser-automation-hints.js';
 import { CodexAppServer, type CodexRpcMessage } from './codex-app-server.js';
 import { readRuntimeConfig, type PanerelayRuntimeConfig } from './runtime-config.js';
 
@@ -89,6 +90,7 @@ export interface CodexProviderOptions {
 
 const CODEX_PROVIDER_ID = 'codex';
 const MAX_ACTIVITY_DETAIL_CHARS = 8 * 1024;
+const MAX_MODEL_CHARS = 256;
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : {};
@@ -112,11 +114,25 @@ function threadStatus(thread: CodexThread): ConversationStatus {
   return 'idle';
 }
 
-function threadSummary(thread: CodexThread): ConversationSummary {
+function modelName(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const model = value.trim();
+  return model ? model.slice(0, MAX_MODEL_CHARS) : undefined;
+}
+
+function defaultModelName(value: unknown): string | undefined {
+  const data = asRecord(value).data;
+  if (!Array.isArray(data)) return undefined;
+  const defaultModel = data.map(asRecord).find(model => model.isDefault === true);
+  return defaultModel ? (modelName(defaultModel.model) ?? modelName(defaultModel.id)) : undefined;
+}
+
+function threadSummary(thread: CodexThread, model?: string): ConversationSummary {
   const preview = thread.preview?.trim() || '';
   return {
     id: thread.id,
     providerId: CODEX_PROVIDER_ID,
+    ...(model ? { model } : {}),
     title: thread.name?.trim() || preview.slice(0, 48) || 'New Codex conversation',
     preview,
     status: threadStatus(thread),
@@ -219,6 +235,10 @@ export class CodexProvider implements AgentProvider {
   private readonly pendingApprovals = new Map<string, PendingApproval>();
   private readonly activeTurns = new Map<string, string>();
   private readonly listeners = new Set<(event: ConversationEvent) => void>();
+  private defaultModel: string | undefined;
+  private modelMetadataPrepared = false;
+  private modelMetadataPreparation: Promise<void> | null = null;
+  private modelMetadataGeneration = 0;
 
   constructor(private readonly options: CodexProviderOptions) {}
 
@@ -254,11 +274,19 @@ export class CodexProvider implements AgentProvider {
 
   async close(): Promise<void> {
     const client = this.client ?? (await this.clientStart?.catch(() => null));
-    await client?.close();
     this.client = null;
     this.clientStart = null;
     this.pendingApprovals.clear();
     this.activeTurns.clear();
+    this.resetModelMetadata();
+    await client?.close();
+  }
+
+  private resetModelMetadata(): void {
+    this.modelMetadataGeneration += 1;
+    this.defaultModel = undefined;
+    this.modelMetadataPrepared = false;
+    this.modelMetadataPreparation = null;
   }
 
   async getDescriptor(): Promise<AgentProviderSummary> {
@@ -268,6 +296,7 @@ export class CodexProvider implements AgentProvider {
       name: 'Codex',
       status: config.codexPath ? 'ready' : 'unavailable',
       description: 'Local Codex app-server with streamed turns, tools, and approvals.',
+      ...(this.defaultModel ? { model: this.defaultModel } : {}),
       capabilities: {
         approvals: true,
         imageInput: true,
@@ -288,7 +317,42 @@ export class CodexProvider implements AgentProvider {
   }
 
   async prepare(): Promise<void> {
-    await this.ensureClient();
+    const client = await this.ensureClient();
+    if (this.modelMetadataPrepared) return;
+    if (!this.modelMetadataPreparation) {
+      const generation = this.modelMetadataGeneration;
+      this.modelMetadataPreparation = (async () => {
+        let model: string | undefined;
+        try {
+          try {
+            const result = asRecord(await client.request('config/read', { includeLayers: false }));
+            model = modelName(asRecord(result.config).model);
+          } catch {
+            // Continue with the resolved catalog default when configuration cannot be read.
+          }
+          if (!model) {
+            try {
+              model = defaultModelName(
+                await client.request('model/list', {
+                  cursor: null,
+                  limit: 100,
+                  includeHidden: false,
+                }),
+              );
+            } catch {
+              // Model metadata is optional and must not make an otherwise ready provider unavailable.
+            }
+          }
+        } finally {
+          if (generation === this.modelMetadataGeneration && this.client === client) {
+            this.defaultModel = model ?? this.defaultModel;
+            this.modelMetadataPrepared = true;
+            this.modelMetadataPreparation = null;
+          }
+        }
+      })();
+    }
+    await this.modelMetadataPreparation;
   }
 
   private async ensureClient(): Promise<CodexClient> {
@@ -307,16 +371,19 @@ export class CodexProvider implements AgentProvider {
     if (!config.codexPath) {
       throw new Error('Codex CLI is unavailable. Install it and reinstall the Panerelay host.');
     }
+    let client: CodexClient | null = null;
     const handlers = {
       onNotification: (message: CodexRpcMessage) => this.handleNotification(message),
       onServerRequest: (message: CodexRpcMessage & { id: number | string; method: string }) =>
         this.handleServerRequest(message),
       onUnavailable: (message: string) => {
+        if (!client || this.client !== client) return;
         this.client = null;
+        this.resetModelMetadata();
         this.emit({ kind: 'error', message });
       },
     };
-    const client = this.options.createClient
+    client = this.options.createClient
       ? this.options.createClient(config, handlers)
       : new CodexAppServer({
           codexPath: config.codexPath,
@@ -349,13 +416,16 @@ export class CodexProvider implements AgentProvider {
     return data
       .map(thread => asRecord(thread) as unknown as CodexThread)
       .filter(thread => typeof thread.id === 'string')
-      .map(threadSummary);
+      .map(thread => threadSummary(thread));
   }
 
   async startConversation(options: ConversationStartOptions = {}): Promise<ConversationDetail> {
     const client = await this.ensureClient();
     const resolvedOptions = resolveConversationStartOptions(options);
-    const contextInstructions = createConversationContextInstructions(resolvedOptions);
+    const contextInstructions = createConversationContextInstructions(
+      resolvedOptions,
+      await readBrowserAutomationSetupHint(),
+    );
     const result = asRecord(
       await client.request('thread/start', {
         cwd: resolvedOptions.cwd ?? homedir(),
@@ -367,12 +437,16 @@ export class CodexProvider implements AgentProvider {
     );
     const thread = asRecord(result.thread) as unknown as CodexThread;
     if (typeof thread.id !== 'string') throw new Error('Codex did not return a conversation');
-    return { conversation: threadSummary(thread), messages: [] };
+    const model = modelName(result.model);
+    if (model) this.defaultModel = model;
+    return { conversation: threadSummary(thread, model), messages: [] };
   }
 
   async resumeConversation(conversationId: string): Promise<ConversationDetail> {
     const client = await this.ensureClient();
-    await client.request('thread/resume', { threadId: conversationId });
+    const resumed = asRecord(await client.request('thread/resume', { threadId: conversationId }));
+    const model = modelName(resumed.model);
+    if (model) this.defaultModel = model;
     const result = asRecord(
       await client.request('thread/read', { threadId: conversationId, includeTurns: true }),
     );
@@ -381,7 +455,7 @@ export class CodexProvider implements AgentProvider {
     const activeTurn = (thread.turns ?? []).find(turn => turn.status === 'inProgress');
     if (activeTurn) this.activeTurns.set(conversationId, activeTurn.id);
     return {
-      conversation: threadSummary(thread),
+      conversation: threadSummary(thread, model),
       messages: historyMessages(thread),
     };
   }

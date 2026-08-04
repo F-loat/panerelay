@@ -17,6 +17,7 @@ import {
   createConversationContextInstructions,
   resolveConversationStartOptions,
 } from './agent-context.js';
+import { readBrowserAutomationSetupHint } from './browser-automation-hints.js';
 import {
   createClaudeCli,
   type ClaudeCli,
@@ -326,7 +327,10 @@ export class ClaudeProvider implements AgentProvider {
     const session: ClaudeSession = {
       id: randomUUID(),
       cwd: resolved.cwd ?? homedir(),
-      initialContext: createConversationContextInstructions(resolved),
+      initialContext: createConversationContextInstructions(
+        resolved,
+        await readBrowserAutomationSetupHint(),
+      ),
       persisted: false,
     };
     this.sessions.set(session.id, session);

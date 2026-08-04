@@ -166,7 +166,20 @@ export class ConversationWorkspaceStore {
     expectedRevision: string,
     providerId: string,
   ): Promise<ConversationWorkspaceSnapshot> {
-    return this.replace(tabId, expectedRevision, { kind: 'draft', providerId }, true);
+    this.assertTabId(tabId);
+    if (!providerId) throw new Error('providerId is required');
+    return this.transact(async records => {
+      const existing = this.assertRevision(records, tabId, expectedRevision);
+      const record: ConversationWorkspaceRecord = {
+        ...(existing.cwd ? { cwd: existing.cwd } : {}),
+        groupId: this.createId(),
+        kind: 'draft',
+        providerId,
+        revision: this.createId(),
+      };
+      records[String(tabId)] = record;
+      return { result: snapshot(record), changed: true };
+    });
   }
 
   async setDirectory(

@@ -9,10 +9,6 @@ export interface ConversationWorkspaceObserverCallbacks {
   onRemoved?: (tabId: number, removed: RemovedConversationWorkspace) => void | Promise<void>;
 }
 
-function validTabId(value: unknown): value is number {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 0;
-}
-
 export function installConversationWorkspaceObservers(
   store: ConversationWorkspaceStore,
   callbacks: ConversationWorkspaceObserverCallbacks = {},
@@ -27,12 +23,6 @@ export function installConversationWorkspaceObservers(
         console.warn('[Panerelay] Failed to inherit a related tab workspace:', error);
       });
   };
-
-  chrome.tabs.onCreated.addListener(tab => {
-    if (validTabId(tab.openerTabId) && validTabId(tab.id)) {
-      inherit(tab.openerTabId, tab.id);
-    }
-  });
 
   chrome.tabs.onRemoved.addListener(tabId => {
     void store

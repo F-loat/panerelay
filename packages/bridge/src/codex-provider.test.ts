@@ -9,6 +9,8 @@ class FakeCodexClient implements CodexClient {
   readonly responses: Array<{ id: number | string; result: unknown }> = [];
   startCalls = 0;
   startBarrier: Promise<void> | undefined;
+  configReadBarrier: Promise<void> | undefined;
+  configuredModel: string | null = 'gpt-5.4-codex';
 
   async start(): Promise<void> {
     this.startCalls += 1;
@@ -31,8 +33,22 @@ class FakeCodexClient implements CodexClient {
         ],
       };
     }
+    if (method === 'config/read') {
+      await this.configReadBarrier;
+      return { config: { model: this.configuredModel } };
+    }
+    if (method === 'model/list') {
+      return {
+        data: [
+          { id: 'gpt-5.3-codex', model: 'gpt-5.3-codex', isDefault: false },
+          { id: 'gpt-5.4-codex', model: 'gpt-5.4-codex', isDefault: true },
+        ],
+        nextCursor: null,
+      };
+    }
     if (method === 'thread/start') {
       return {
+        model: 'gpt-5.4-codex',
         thread: {
           id: 'thread-new',
           preview: '',
@@ -134,6 +150,10 @@ test('exposes Codex through provider-neutral conversation results', async () => 
     },
   });
   assert.equal((detail as { conversation: { id: string } }).conversation.id, 'thread-new');
+  assert.equal(
+    (detail as { conversation: { model?: string } }).conversation.model,
+    'gpt-5.4-codex',
+  );
   const startRequest = client.requests.find(request => request.method === 'thread/start');
   assert.ok(startRequest);
   const params = startRequest.params as Record<string, unknown>;
@@ -170,14 +190,62 @@ test('prepares Codex once for concurrent warmups without creating a conversation
   const second = provider.prepare();
   await new Promise<void>(resolve => setImmediate(resolve));
   assert.equal(client.startCalls, 1);
-  assert.deepEqual(client.requests, []);
+  assert.equal(client.requests.length, 0);
 
   releaseStart();
   await Promise.all([first, second]);
   await provider.prepare();
 
   assert.equal(client.startCalls, 1);
-  assert.deepEqual(client.requests, []);
+  assert.deepEqual(
+    client.requests.map(request => request.method),
+    ['config/read'],
+  );
+  assert.equal((await provider.getDescriptor()).model, 'gpt-5.4-codex');
+});
+
+test('uses the resolved Codex catalog default when no model is explicitly configured', async () => {
+  const { provider, client } = createProvider();
+  client.configuredModel = null;
+
+  await provider.prepare();
+
+  assert.deepEqual(
+    client.requests.map(request => request.method),
+    ['config/read', 'model/list'],
+  );
+  assert.equal((await provider.getDescriptor()).model, 'gpt-5.4-codex');
+});
+
+test('clears model metadata when Codex becomes unavailable and rediscovers it', async () => {
+  const { provider, client, handlers } = createProvider();
+
+  await provider.prepare();
+  assert.equal((await provider.getDescriptor()).model, 'gpt-5.4-codex');
+
+  handlers().onUnavailable('Codex stopped');
+  assert.equal((await provider.getDescriptor()).model, undefined);
+
+  client.configuredModel = 'gpt-5.5-codex';
+  await provider.prepare();
+  assert.equal((await provider.getDescriptor()).model, 'gpt-5.5-codex');
+});
+
+test('does not restore stale model metadata after closing during preparation', async () => {
+  const { provider, client } = createProvider();
+  let releaseConfigRead!: () => void;
+  client.configReadBarrier = new Promise<void>(resolve => {
+    releaseConfigRead = resolve;
+  });
+
+  const preparation = provider.prepare();
+  await new Promise<void>(resolve => setImmediate(resolve));
+  await provider.close();
+  assert.equal((await provider.getDescriptor()).model, undefined);
+
+  releaseConfigRead();
+  await preparation;
+  assert.equal((await provider.getDescriptor()).model, undefined);
 });
 
 test('lists recent Codex history across sources and working directories', async () => {

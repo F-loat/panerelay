@@ -39,7 +39,7 @@ test('creates a draft and replaces every related tab with one conversation', asy
   assert.deepEqual(await store.get(22), conversation);
 });
 
-test('updates, inherits, preserves, and clears draft project directories by revision', async () => {
+test('updates, inherits, detaches, and clears draft project directories by revision', async () => {
   const { store } = harness();
   const draft = await store.getOrCreate(11, 'codex');
   const selected = await store.setDirectory(11, draft.revision, '/workspace/project');
@@ -55,9 +55,27 @@ test('updates, inherits, preserves, and clears draft project directories by revi
 
   const reset = await store.reset(11, bound.revision, 'qoder');
   assert.equal(reset.cwd, '/workspace/project');
-  const cleared = await store.setDirectory(22, reset.revision);
+  assert.equal(reset.kind, 'draft');
+  assert.equal(reset.providerId, 'qoder');
+  const sibling = await store.get(22);
+  assert.deepEqual(sibling, bound);
+
+  const cleared = await store.setDirectory(11, reset.revision);
   assert.equal(cleared.cwd, undefined);
   assert.equal((await store.get(11))?.cwd, undefined);
+  assert.equal((await store.get(22))?.cwd, '/workspace/project');
+
+  const detachedConversation = await store.bindConversation(
+    11,
+    cleared.revision,
+    'qoder',
+    'thread-2',
+  );
+  assert.equal(
+    detachedConversation.kind === 'conversation' ? detachedConversation.conversationId : '',
+    'thread-2',
+  );
+  assert.deepEqual(await store.get(22), bound);
 });
 
 test('leaves unrelated and conflicting target tabs isolated', async () => {

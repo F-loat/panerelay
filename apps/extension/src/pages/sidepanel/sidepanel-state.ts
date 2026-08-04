@@ -68,6 +68,7 @@ export interface SidepanelState {
   controlledTabPendingId: number | null;
   settingsOpen: boolean;
   composerText: string;
+  scrollRequest: number;
   error: string;
 }
 
@@ -129,6 +130,7 @@ export function createInitialSidepanelState(language?: string): SidepanelState {
     controlledTabPendingId: null,
     settingsOpen: false,
     composerText: '',
+    scrollRequest: 0,
     error: '',
   };
 }
