@@ -1942,8 +1942,8 @@ summary:focus-visible {
 }
 
 .activity-detail-expanded {
-  border-top: 1px solid color-mix(in srgb, var(--danger) 22%, var(--border));
-  color: var(--danger);
+  border-top: 1px solid var(--border);
+  color: var(--text-secondary);
   padding: 8px 9px;
   font-family: 'SFMono-Regular', Consolas, monospace;
   font-size: 8px;
@@ -1951,6 +1951,18 @@ summary:focus-visible {
   overflow-wrap: anywhere;
   user-select: text;
   white-space: pre-wrap;
+}
+
+.activity-card[data-status='failed'] .activity-detail-expanded,
+.activity-card[data-status='declined'] .activity-detail-expanded {
+  border-top-color: color-mix(in srgb, var(--danger) 22%, var(--border));
+  color: var(--danger);
+}
+
+.activity-extra-expanded {
+  margin-top: 7px;
+  border-top: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  padding-top: 7px;
 }
 
 .activity-icon {
@@ -1989,6 +2001,25 @@ summary:focus-visible {
   color: var(--text-tertiary);
   font-family: 'SFMono-Regular', Consolas, monospace;
   font-size: 8px;
+}
+
+.activity-card-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.activity-chevron {
+  width: 11px;
+  height: 11px;
+  flex: none;
+  color: var(--text-tertiary);
+  stroke-width: 1.7;
+  transition: transform 120ms ease;
+}
+
+.activity-card-expandable[open] .activity-chevron {
+  transform: rotate(90deg);
 }
 
 .activity-card[data-status='completed'] .activity-status {

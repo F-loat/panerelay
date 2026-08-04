@@ -16,6 +16,11 @@ export interface UserDefaultProviderState {
   isPanerelay: boolean;
 }
 
+export interface UserAgentBrowserIntegrationState {
+  providerAvailable: boolean;
+  isPanerelayDefault: boolean;
+}
+
 function asObject(value: unknown, path: string): JsonObject {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error(`Expected a JSON object in ${path}`);
@@ -64,6 +69,10 @@ export async function readPanerelayProviderAvailable(
 ): Promise<boolean> {
   const path = userAgentBrowserConfigPath(options.homeDirectory);
   const config = await readJsonObject(path);
+  return panerelayProviderAvailable(config);
+}
+
+function panerelayProviderAvailable(config: JsonObject): boolean {
   if (!Array.isArray(config.plugins)) return false;
   return config.plugins.some(plugin => {
     if (!plugin || typeof plugin !== 'object' || Array.isArray(plugin)) return false;
@@ -78,6 +87,17 @@ export async function readPanerelayProviderAvailable(
       value.capabilities.includes('browser.provider')
     );
   });
+}
+
+export async function readAgentBrowserIntegrationState(
+  options: UserAgentBrowserConfigOptions = {},
+): Promise<UserAgentBrowserIntegrationState> {
+  const path = userAgentBrowserConfigPath(options.homeDirectory);
+  const config = await readJsonObject(path);
+  return {
+    providerAvailable: panerelayProviderAvailable(config),
+    isPanerelayDefault: config.provider === 'panerelay',
+  };
 }
 
 export async function setPanerelayUserDefaultProvider(

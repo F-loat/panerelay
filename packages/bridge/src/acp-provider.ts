@@ -20,12 +20,14 @@ import {
   createConversationContextInstructions,
   resolveConversationStartOptions,
 } from './agent-context.js';
+import { readBrowserAutomationSetupHint } from './browser-automation-hints.js';
 import { resolveSpawnCommand } from './platform.js';
 import { readRuntimeConfig, type PanerelayRuntimeConfig } from './runtime-config.js';
 
 const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_TEXT_CHARS = 64 * 1024;
 const MAX_DELTA_CHARS = 8 * 1024;
+const MAX_MODEL_CHARS = 256;
 
 export interface AcpExecutableResolution {
   error?: string;
@@ -109,6 +111,18 @@ function errorMessage(error: unknown): string {
 
 function bounded(value: string, maximum = MAX_TEXT_CHARS): string {
   return value.slice(0, maximum);
+}
+
+function modelFromConfigOptions(
+  configOptions: acp.SessionConfigOption[] | null | undefined,
+): string | undefined {
+  const option = configOptions?.find(item => item.category === 'model' || item.id === 'model');
+  if (!option || option.type !== 'select') return undefined;
+  const currentValue = option.currentValue.trim();
+  if (!currentValue) return undefined;
+  const values = option.options.flatMap(item => ('options' in item ? item.options : [item]));
+  const selected = values.find(item => item.value === currentValue);
+  return bounded(selected?.name.trim() || currentValue, MAX_MODEL_CHARS);
 }
 
 function timestamp(value?: string | null): string {
@@ -456,16 +470,21 @@ export class AcpProvider implements AgentProvider {
       throw new Error(`${this.profile.name} did not return a conversation ID`);
     }
     const now = new Date().toISOString();
+    const model = modelFromConfigOptions(result.configOptions);
     const summary: ConversationSummary = {
       id: result.sessionId,
       providerId: this.id,
+      ...(model ? { model } : {}),
       title: `New ${this.profile.name} conversation`,
       preview: '',
       status: 'idle',
       createdAt: now,
       updatedAt: now,
     };
-    const initialContext = createConversationContextInstructions(resolvedOptions);
+    const initialContext = createConversationContextInstructions(
+      resolvedOptions,
+      await readBrowserAutomationSetupHint(),
+    );
     this.sessions.set(result.sessionId, {
       cwd,
       ...(initialContext ? { initialContext } : {}),
@@ -493,6 +512,7 @@ export class AcpProvider implements AgentProvider {
       mcpServers: [],
     };
     let messages: ConversationMessage[] = [];
+    let configOptions: acp.SessionConfigOption[] | null | undefined;
     if (capabilities?.loadSession) {
       const capture: HistoryCapture = {
         messages: [],
@@ -501,26 +521,30 @@ export class AcpProvider implements AgentProvider {
       };
       this.historyCaptures.set(conversationId, capture);
       try {
-        await this.request(
+        const result = (await this.request(
           acp.methods.agent.session.load,
           request,
           `${this.profile.name} session load`,
-        );
+        )) as acp.LoadSessionResponse;
+        configOptions = result.configOptions;
         messages = capture.messages;
       } finally {
         this.historyCaptures.delete(conversationId);
       }
     } else if (capabilities?.sessionCapabilities?.resume) {
-      await this.request(
+      const result = (await this.request(
         acp.methods.agent.session.resume,
         request,
         `${this.profile.name} session resume`,
-      );
+      )) as acp.ResumeSessionResponse;
+      configOptions = result.configOptions;
     }
     const now = new Date().toISOString();
+    const model = modelFromConfigOptions(configOptions);
     const summary: ConversationSummary = {
       id: conversationId,
       providerId: this.id,
+      ...(model ? { model } : {}),
       title: `${this.profile.name} conversation`,
       preview: messages.at(-1)?.text.slice(0, 128) || '',
       status: 'idle',

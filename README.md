@@ -38,7 +38,7 @@ Install the unified Skill into the Agent you use:
 npx skills add F-loat/panerelay --skill panerelay-browser
 ```
 
-Then ask the Agent to use `$panerelay-browser` with agent-browser, Browser Use, or Playwright CLI. The Skill inspects the environment, installs or repairs only the selected upstream tool when needed, manages the matching Panerelay integration through setup, runs doctor, and pauses when you need to authorize a tab in the Extension.
+Then ask the Agent to use `$panerelay-browser` with agent-browser, Browser Use, or Playwright CLI. For an ordinary browser task, a new side-panel conversation supplies cached Panerelay integration registrations so the Skill can try the selected engine directly and pause when you need to authorize a tab. If that fast-path attempt fails, or when you explicitly ask for setup or verification, the Skill inspects the environment, installs or repairs only the selected upstream tool when needed, manages the matching Panerelay integration through setup, and runs targeted doctor checks.
 
 From then on, tell the Agent what browser task to do and which engine to use; it will invoke `$panerelay-browser` and pause when the Extension needs your authorization.
 
@@ -187,7 +187,7 @@ An unavailable saved browser or an ambiguous choice fails closed instead of foll
 - Reusing login state means operating inside an authorized existing tab. Panerelay does not export or log cookies, credentials, prompts, screenshots, page content, or request bodies by default.
 - Mutating actions require the current exclusive control lease. Releasing control does not silently widen or remove the selected authorization scope.
 - Panerelay does not own browser-process features such as isolated profiles, launch-time proxy changes, or closing the user's browser process.
-- `webNavigation` is used only to recognize browser-reported related tabs for conversation context. It does not read browsing history or grant site access.
+- `webNavigation` is used only to recognize tabs that a bound page creates as navigation targets for conversation context. Tabs created through browser chrome remain independent; the permission does not read browsing history or grant site access.
 - The Extension, protocol, Bridge, Providers and adapters, setup package, browser registry, and optional administration CLI are released as one lockstep compatibility unit.
 
 ## Development and release checks

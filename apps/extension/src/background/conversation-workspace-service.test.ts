@@ -101,6 +101,29 @@ test('clears a draft project without creating a conversation', async () => {
   assert.deepEqual(calls, []);
 });
 
+test('starts fresh only in the active related tab and preserves the sibling conversation', async () => {
+  const { service, store } = harness();
+  const draft = await service.get('codex');
+  await store.inherit(11, 22);
+  const bound = await store.bindConversation(11, draft.revision, 'codex', 'thread-shared');
+
+  const detached = await service.reset('qoder', bound.revision);
+  assert.deepEqual(detached, {
+    kind: 'draft',
+    providerId: 'qoder',
+    revision: 'id-5',
+  });
+  assert.deepEqual(await store.get(22), bound);
+
+  const sent = await service.send('qoder', detached.revision, 'Start separately');
+  assert.equal(sent.workspace.kind, 'conversation');
+  assert.equal(
+    sent.workspace.kind === 'conversation' ? sent.workspace.conversationId : '',
+    'thread-new',
+  );
+  assert.deepEqual(await store.get(22), bound);
+});
+
 test('sends an existing conversation only when the rendered revision still owns the tab', async () => {
   const { calls, service, store } = harness();
   const draft = await service.get('codex');

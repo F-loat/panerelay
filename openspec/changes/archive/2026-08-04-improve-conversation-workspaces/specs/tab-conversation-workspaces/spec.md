@@ -23,24 +23,43 @@ PaneRelay SHALL associate an eligible Chrome tab with at most one current provid
 - **WHEN** the Chrome session ends and later restarts
 - **THEN** tab workspace bindings from the previous session are not restored
 
-### Requirement: Trusted related tabs inherit the source workspace
+### Requirement: Page-created related tabs inherit the source workspace
 
-PaneRelay SHALL copy a workspace binding to a newly created eligible tab only when Chrome reports a trusted opener or navigation-target relationship to a bound source tab.
+PaneRelay SHALL copy a workspace binding to a newly created eligible tab only when Chrome reports that the bound source page created the tab as a navigation target. A tab created through browser chrome, keyboard shortcuts, tab-strip controls, or another creation path without that page-navigation signal SHALL remain unbound even if Chrome exposes an opener identifier.
 
 #### Scenario: Bound tab opens a related tab
 
-- **WHEN** a bound tab opens a new eligible tab and Chrome reports the source relationship
+- **WHEN** a bound page opens a new eligible navigation target and Chrome reports the source relationship
 - **THEN** the new tab inherits the same provider conversation workspace
 
-#### Scenario: Unrelated tab is created
+#### Scenario: Browser creates a new tab
 
-- **WHEN** a new tab has no trusted relationship to a bound source tab
+- **WHEN** the user creates a tab through the browser UI or a keyboard command without a page-created navigation-target event
 - **THEN** PaneRelay leaves the new tab unbound
 
 #### Scenario: Related tab outlives its source
 
 - **WHEN** the original tab closes while another related tab remains open
 - **THEN** the remaining related tab keeps the conversation workspace until the last related tab closes or the user starts a different workspace
+
+### Requirement: Starting fresh detaches only the active tab
+
+PaneRelay SHALL detach the active tab into a new draft workspace when the user starts a new conversation from a group of related tabs. The prior conversation binding SHALL remain unchanged for every sibling tab, and later updates to either workspace SHALL not replace the other.
+
+#### Scenario: Starting fresh from one related tab
+
+- **WHEN** two or more related tabs share a conversation and the user starts a new conversation from one active tab
+- **THEN** only that tab receives a new draft while every sibling tab keeps the shared conversation
+
+#### Scenario: First send after detaching
+
+- **WHEN** the user sends the first message from the detached draft
+- **THEN** PaneRelay binds the new provider conversation only to the detached tab and leaves the sibling conversation unchanged
+
+#### Scenario: Sibling conversation continues
+
+- **WHEN** the prior conversation emits output after another tab detached into a new draft or conversation
+- **THEN** PaneRelay retains that output with the sibling workspace and does not render it in the detached tab
 
 ### Requirement: Workspace updates fail closed
 

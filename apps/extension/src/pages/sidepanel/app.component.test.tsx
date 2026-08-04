@@ -44,6 +44,7 @@ const readyProviders: AgentProviderSummary[] = [
     name: 'Codex',
     status: 'ready',
     description: 'Codex fixture',
+    model: 'gpt-5.3-codex',
     capabilities: { imageInput: true },
   },
   {
@@ -59,6 +60,7 @@ function detail(): ConversationDetail {
     conversation: {
       id: 'conversation-1',
       providerId: 'codex',
+      model: 'gpt-5.4-codex',
       title: 'Existing conversation',
       preview: 'Existing answer',
       status: 'idle',
@@ -313,11 +315,92 @@ describe('React Side Panel', () => {
     ).toBeVisible();
     expect(screen.getByRole('button', { name: 'Summarize this page' })).toBeVisible();
     expect(screen.getByText('No tab authorized')).toBeVisible();
+    expect(screen.getByText('gpt-5.3-codex · Connected')).toBeVisible();
 
     await user.click(screen.getByRole('button', { name: 'Summarize this page' }));
     expect(screen.getByRole('textbox')).toHaveValue(
       'Summarize the current page and highlight the most useful details.',
     );
+  });
+
+  it('shows the active conversation model instead of the provider default', async () => {
+    const client = new AppClient();
+    client.history = [detail()];
+    const { user } = await renderReady(client);
+
+    await user.click(screen.getByRole('button', { name: 'Conversation history' }));
+    await user.click(await screen.findByRole('button', { name: /Existing conversation/ }));
+
+    expect(await screen.findByText('gpt-5.4-codex · Connected')).toBeVisible();
+    expect(screen.getByTitle('Current model: gpt-5.4-codex')).toBeVisible();
+  });
+
+  it('omits model copy when a ready provider has not reported one', async () => {
+    const client = new AppClient();
+    client.providers = readyProviders.map(provider => {
+      if (provider.id !== 'codex') return provider;
+      const { model: _model, ...withoutModel } = provider;
+      return withoutModel;
+    });
+
+    await renderReady(client);
+
+    expect(screen.getByText('Connected')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Agent provider: Codex, Connected' })).toBeVisible();
+    expect(screen.queryByText(/Provider default/)).not.toBeInTheDocument();
+  });
+
+  it('follows streamed output only while the user is following the bottom', async () => {
+    const client = new AppClient();
+    client.history = [detail()];
+    const { user } = await renderReady(client);
+    await user.click(screen.getByRole('button', { name: 'Conversation history' }));
+    await user.click(await screen.findByRole('button', { name: /Existing conversation/ }));
+    await screen.findByText('Existing answer');
+
+    const scroll = document.querySelector('.chat-scroll') as HTMLElement;
+    let scrollHeight = 1_000;
+    Object.defineProperty(scroll, 'scrollHeight', { configurable: true, get: () => scrollHeight });
+    Object.defineProperty(scroll, 'clientHeight', { configurable: true, value: 200 });
+
+    scroll.scrollTop = 800;
+    fireEvent.scroll(scroll);
+    scrollHeight = 1_100;
+    act(() => {
+      client.emit({
+        type: 'panerelay.conversation.event',
+        event: {
+          kind: 'message.delta',
+          conversationId: 'conversation-1',
+          turnId: 'turn-1',
+          messageId: 'stream-1',
+          delta: 'First streamed update',
+        },
+      });
+    });
+    await waitFor(() => expect(scroll.scrollTop).toBe(1_100));
+
+    scroll.scrollTop = 300;
+    fireEvent.scroll(scroll);
+    scrollHeight = 1_200;
+    act(() => {
+      client.emit({
+        type: 'panerelay.conversation.event',
+        event: {
+          kind: 'message.delta',
+          conversationId: 'conversation-1',
+          turnId: 'turn-1',
+          messageId: 'stream-1',
+          delta: ' while reading older content',
+        },
+      });
+    });
+    await screen.findByText('First streamed update while reading older content');
+    expect(scroll.scrollTop).toBe(300);
+
+    await user.type(screen.getByRole('textbox'), 'Follow my new message');
+    await user.click(screen.getByRole('button', { name: 'Send' }));
+    await waitFor(() => expect(scroll.scrollTop).toBe(1_200));
   });
 
   it('renders Chinese copy and unavailable-provider setup guidance', async () => {
@@ -342,6 +425,10 @@ describe('React Side Panel', () => {
     await user.click(screen.getByRole('option', { name: 'Qoder · Not installed' }));
 
     expect(await screen.findByRole('heading', { name: 'Set up Qoder' })).toBeVisible();
+    expect(
+      screen.getByRole('button', { name: 'Agent provider: Qoder, Qoder unavailable' }),
+    ).toBeVisible();
+    expect(screen.queryByText(/Provider default/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Summarize this page' })).not.toBeInTheDocument();
     expect(screen.getByRole('textbox')).toBeDisabled();
     expect(screen.getByText('No tab authorized')).toBeVisible();
@@ -1142,8 +1229,23 @@ describe('React Side Panel', () => {
         },
       });
     });
-    expect(screen.getByText('panerelay · agent_browser_read')).toBeVisible();
-    expect(screen.queryByText('panerelay_browser · agent_browser_read')).not.toBeInTheDocument();
+    const completedActivity = screen.getByText('panerelay · agent_browser_read').closest('details');
+    expect(completedActivity).not.toHaveAttribute('open');
+    expect(
+      within(completedActivity as HTMLElement).getByText('panerelay_browser · agent_browser_read'),
+    ).not.toBeVisible();
+    await user.click(
+      within(completedActivity as HTMLElement).getByLabelText(/Show or hide activity details/),
+    );
+    expect(completedActivity).toHaveAttribute('open');
+    expect(
+      within(completedActivity as HTMLElement).getByText('panerelay_browser · agent_browser_read'),
+    ).toBeVisible();
+    expect(within(completedActivity as HTMLElement).getAllByText('snapshot')).toHaveLength(2);
+    await user.click(
+      within(completedActivity as HTMLElement).getByLabelText(/Show or hide activity details/),
+    );
+    expect(completedActivity).not.toHaveAttribute('open');
 
     act(() => {
       client.emit({
@@ -1164,11 +1266,14 @@ describe('React Side Panel', () => {
     });
     expect(screen.getByText('Panerelay setup needed')).toBeVisible();
     expect(screen.getByText('npx --yes @panerelay/setup')).toBeVisible();
-    const activityDetails = screen.getByText('agent-browser').closest('details');
+    const activityDetails = screen.getAllByText('agent-browser')[0]?.closest('details');
     expect(activityDetails).not.toHaveAttribute('open');
-    expect(activityDetails?.querySelector('.activity-chevron')).toBeNull();
-    await user.click(within(activityDetails as HTMLElement).getByLabelText('Show error details'));
+    expect(activityDetails?.querySelector('.activity-chevron')).toBeVisible();
+    await user.click(
+      within(activityDetails as HTMLElement).getByLabelText(/Show or hide activity details/),
+    );
     expect(activityDetails).toHaveAttribute('open');
+    expect(within(activityDetails as HTMLElement).getAllByText('agent-browser')).toHaveLength(2);
     expect(
       within(activityDetails as HTMLElement).getAllByText(
         "Plugin 'panerelay' returned success=false",
@@ -1191,8 +1296,33 @@ describe('React Side Panel', () => {
         },
       });
     });
-    expect(screen.getByText('Plain failure').closest('article')).toHaveClass('activity-card');
-    expect(screen.getByText('Plain failure').closest('details')).toBeNull();
+    const plainFailure = screen.getAllByText('Plain failure')[0]?.closest('details');
+    expect(plainFailure).toHaveClass('activity-card');
+    expect(plainFailure).not.toHaveAttribute('open');
+    await user.click(
+      within(plainFailure as HTMLElement).getByLabelText(/Show or hide activity details/),
+    );
+    expect(plainFailure).toHaveAttribute('open');
+    expect(within(plainFailure as HTMLElement).getAllByText('Plain failure')).toHaveLength(2);
+
+    act(() => {
+      client.emit({
+        type: 'panerelay.conversation.event',
+        event: {
+          kind: 'activity.updated',
+          conversationId: 'conversation-1',
+          turnId: 'turn-1',
+          activity: {
+            id: 'activity-running',
+            kind: 'command',
+            title: 'Still running',
+            status: 'running',
+          },
+        },
+      });
+    });
+    expect(screen.getByText('Still running').closest('article')).toHaveClass('activity-card');
+    expect(screen.getByText('Still running').closest('details')).toBeNull();
 
     act(() => {
       client.emit({

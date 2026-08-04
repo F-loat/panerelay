@@ -57,7 +57,19 @@ class FakeOpenCodeRuntime implements OpenCodeRuntime {
       } satisfies acp.ListSessionsResponse;
     }
     if (method === acp.methods.agent.session.new) {
-      return { sessionId: 'opencode-new', configOptions: [] } satisfies acp.NewSessionResponse;
+      return {
+        sessionId: 'opencode-new',
+        configOptions: [
+          {
+            id: 'model',
+            name: 'Model',
+            category: 'model',
+            type: 'select',
+            currentValue: 'opencode/model-new',
+            options: [{ value: 'opencode/model-new', name: 'OpenCode Model New' }],
+          },
+        ],
+      } satisfies acp.NewSessionResponse;
     }
     if (method === acp.methods.agent.session.load) {
       this.handlers.onUpdate({
@@ -76,7 +88,18 @@ class FakeOpenCodeRuntime implements OpenCodeRuntime {
           content: { type: 'text', text: 'Earlier answer' },
         },
       });
-      return { configOptions: [] } satisfies acp.LoadSessionResponse;
+      return {
+        configOptions: [
+          {
+            id: 'model',
+            name: 'Model',
+            category: 'model',
+            type: 'select',
+            currentValue: 'opencode/model-existing',
+            options: [{ value: 'opencode/model-existing', name: 'OpenCode Model Existing' }],
+          },
+        ],
+      } satisfies acp.LoadSessionResponse;
     }
     if (method === acp.methods.agent.session.prompt && this.prompt) {
       return this.prompt(params);
@@ -230,6 +253,7 @@ test('lists, starts, and loads OpenCode sessions without injecting browser MCP d
 
   const started = await provider.startConversation();
   assert.equal(started.conversation.id, 'opencode-new');
+  assert.equal(started.conversation.model, 'OpenCode Model New');
   const newRequest = runtimes[0]?.requests.find(
     request => request.method === acp.methods.agent.session.new,
   );
@@ -237,6 +261,7 @@ test('lists, starts, and loads OpenCode sessions without injecting browser MCP d
   assert.deepEqual(newParams.mcpServers, []);
 
   const resumed = await provider.resumeConversation('opencode-existing');
+  assert.equal(resumed.conversation.model, 'OpenCode Model Existing');
   assert.deepEqual(
     resumed.messages.map(message => [message.role, message.text]),
     [

@@ -40,3 +40,27 @@ PaneRelay SHALL report provider-preparation failures to the requesting Side Pane
 
 - **WHEN** the user selects a provider whose readiness is unavailable
 - **THEN** PaneRelay shows its installation guidance and does not attempt preparation
+
+### Requirement: Effective model metadata is visible when known
+
+PaneRelay SHALL expose the effective model reported by a provider for a prepared default or active conversation without exposing model credentials or presenting inferred data as authoritative. The Side Panel SHALL display that model only for a selected installed provider when the value is available and SHALL omit model copy when the value is not available.
+
+#### Scenario: Prepared provider reports its default model
+
+- **WHEN** a ready provider is prepared and reports the model that a new conversation would use
+- **THEN** the Side Panel displays that model before the first conversation is created
+
+#### Scenario: Conversation reports an effective model
+
+- **WHEN** PaneRelay starts or resumes a conversation whose provider reports an effective model
+- **THEN** the Side Panel displays the conversation model even when it differs from the provider default
+
+#### Scenario: Provider does not report a model
+
+- **WHEN** the selected provider or conversation does not expose an effective model
+- **THEN** the Side Panel shows its normal connection state without a model label or placeholder
+
+#### Scenario: Selected provider is not installed
+
+- **WHEN** the selected provider is unavailable even if stale conversation metadata exists locally
+- **THEN** the Side Panel does not display model copy for that provider
