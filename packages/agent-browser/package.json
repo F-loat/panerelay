@@ -1,6 +1,6 @@
 {
   "name": "@panerelay/agent-browser",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "Use agent-browser with current-tab or all-supported-tabs authorization in your existing browser through Panerelay.",
   "type": "module",
   "license": "MIT",
