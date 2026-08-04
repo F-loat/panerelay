@@ -34,7 +34,8 @@ test('validates the workspace and creates only untrusted tab context', async () 
   assert.doesNotMatch(instructions, /projectDirectory|panerelay_browser|browser tool/i);
   assert.match(instructions, /\$panerelay-browser/);
   assert.match(instructions, /Do not switch to another browser automation Skill or tool/);
-  assert.match(instructions, /first attempt to install it/);
+  assert.match(instructions, /browser-work request as authorization/);
+  assert.match(instructions, /normal command-approval flow/);
   assert.match(instructions, /npx skills add F-loat\/panerelay --skill panerelay-browser/);
   assert.match(instructions, /Only if installation cannot complete/);
   assert.match(instructions, /fall back to another available browser automation tool/);
@@ -51,7 +52,8 @@ test('keeps project selection as cwd while retaining provider-neutral Skill guid
   assert.equal(resolved.cwd, await realpath(directory));
   const instructions = createConversationContextInstructions(resolved);
   assert.match(instructions, /\$panerelay-browser/);
-  assert.match(instructions, /first attempt to install it/);
+  assert.match(instructions, /browser-work request as authorization/);
+  assert.match(instructions, /normal command-approval flow/);
   assert.match(instructions, /npx skills add F-loat\/panerelay --skill panerelay-browser/);
   assert.match(instructions, /Only if installation cannot complete/);
   assert.doesNotMatch(instructions, /browser tab context|projectDirectory/);

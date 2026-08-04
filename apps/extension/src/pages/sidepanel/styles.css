@@ -1961,7 +1961,7 @@ summary:focus-visible {
 
 .activity-extra-expanded {
   margin-top: 7px;
-  border-top: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-top: 1px solid color-mix(in srgb, currentcolor 18%, transparent);
   padding-top: 7px;
 }
 

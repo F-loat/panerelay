@@ -238,6 +238,7 @@ export class CodexProvider implements AgentProvider {
   private defaultModel: string | undefined;
   private modelMetadataPrepared = false;
   private modelMetadataPreparation: Promise<void> | null = null;
+  private modelMetadataGeneration = 0;
 
   constructor(private readonly options: CodexProviderOptions) {}
 
@@ -273,11 +274,17 @@ export class CodexProvider implements AgentProvider {
 
   async close(): Promise<void> {
     const client = this.client ?? (await this.clientStart?.catch(() => null));
-    await client?.close();
     this.client = null;
     this.clientStart = null;
     this.pendingApprovals.clear();
     this.activeTurns.clear();
+    this.resetModelMetadata();
+    await client?.close();
+  }
+
+  private resetModelMetadata(): void {
+    this.modelMetadataGeneration += 1;
+    this.defaultModel = undefined;
     this.modelMetadataPrepared = false;
     this.modelMetadataPreparation = null;
   }
@@ -313,6 +320,7 @@ export class CodexProvider implements AgentProvider {
     const client = await this.ensureClient();
     if (this.modelMetadataPrepared) return;
     if (!this.modelMetadataPreparation) {
+      const generation = this.modelMetadataGeneration;
       this.modelMetadataPreparation = (async () => {
         let model: string | undefined;
         try {
@@ -336,9 +344,11 @@ export class CodexProvider implements AgentProvider {
             }
           }
         } finally {
-          this.defaultModel = model ?? this.defaultModel;
-          this.modelMetadataPrepared = true;
-          this.modelMetadataPreparation = null;
+          if (generation === this.modelMetadataGeneration && this.client === client) {
+            this.defaultModel = model ?? this.defaultModel;
+            this.modelMetadataPrepared = true;
+            this.modelMetadataPreparation = null;
+          }
         }
       })();
     }
@@ -361,16 +371,19 @@ export class CodexProvider implements AgentProvider {
     if (!config.codexPath) {
       throw new Error('Codex CLI is unavailable. Install it and reinstall the Panerelay host.');
     }
+    let client: CodexClient | null = null;
     const handlers = {
       onNotification: (message: CodexRpcMessage) => this.handleNotification(message),
       onServerRequest: (message: CodexRpcMessage & { id: number | string; method: string }) =>
         this.handleServerRequest(message),
       onUnavailable: (message: string) => {
+        if (!client || this.client !== client) return;
         this.client = null;
+        this.resetModelMetadata();
         this.emit({ kind: 'error', message });
       },
     };
-    const client = this.options.createClient
+    client = this.options.createClient
       ? this.options.createClient(config, handlers)
       : new CodexAppServer({
           codexPath: config.codexPath,

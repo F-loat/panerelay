@@ -21,7 +21,7 @@ Non-goals:
 - PaneRelay will not synchronize conversations across browser profiles, computers, or Chrome restarts in `0.1.0`.
 - A focused tab will not gain authorization or a control lease, and switching tabs will not move an Agent's browser-control lease.
 - PaneRelay will not invent opener relationships for unrelated tabs or expose raw Chrome tab IDs through the shared protocol.
-- PaneRelay will not select or reconfigure provider models from the Side Panel, enumerate unrelated Skills, or install the Skill without an explicit user action.
+- Panerelay will not select or reconfigure provider models from the Side Panel, enumerate unrelated Skills, or install the Skill merely because the Side Panel opens or a provider is prepared. An explicit browser-work request is the user action that authorizes the Agent to attempt one canonical Skill installation, subject to its normal command-approval flow.
 - This change does not add provider-side pagination or change agent-browser command semantics.
 
 ## Capabilities

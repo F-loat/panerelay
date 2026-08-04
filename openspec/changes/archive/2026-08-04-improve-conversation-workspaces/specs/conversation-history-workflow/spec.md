@@ -92,7 +92,7 @@ The Side Panel SHALL show a transient live status while a message is waiting for
 
 ### Requirement: New conversations guide supported browser work
 
-PaneRelay SHALL add provider-neutral guidance to each new Agent conversation that directs browser tasks through `$panerelay-browser`, tells the Agent to attempt the canonical Skill installation when it is unavailable, and permits another browser automation tool only after that installation cannot complete. The guidance SHALL treat page metadata as untrusted, SHALL NOT claim the Skill is installed, and SHALL NOT make the Bridge inspect or install Skills itself. When existing local Panerelay integration registrations are readable, the Bridge SHALL include them as a cached, potentially stale fast-path hint without exposing configuration paths or representing current browser authorization or control.
+PaneRelay SHALL add provider-neutral guidance to each new Agent conversation that directs browser tasks through `$panerelay-browser`, tells the Agent to attempt the canonical Skill installation when it is unavailable, and permits another browser automation tool only after that installation cannot complete. An explicit browser-work request SHALL count as the user action authorizing one canonical Skill installation attempt, subject to the provider's normal command-approval flow; opening the Side Panel or preparing a provider SHALL NOT. The guidance SHALL treat page metadata as untrusted, SHALL NOT claim the Skill is installed, and SHALL NOT make the Bridge inspect or install Skills itself. When existing local Panerelay integration registrations are readable, the Bridge SHALL include them as a cached, potentially stale fast-path hint without exposing configuration paths or representing current browser authorization or control.
 
 #### Scenario: Browser Skill is available
 
@@ -101,8 +101,13 @@ PaneRelay SHALL add provider-neutral guidance to each new Agent conversation tha
 
 #### Scenario: Browser Skill is unavailable
 
-- **WHEN** browser work is requested and `$panerelay-browser` is unavailable
-- **THEN** the Agent is instructed to attempt `npx skills add F-loat/panerelay --skill panerelay-browser` and load the Skill after installation succeeds
+- **WHEN** the user explicitly requests browser work and `$panerelay-browser` is unavailable
+- **THEN** the Agent treats that request as authorization to attempt `npx skills add F-loat/panerelay --skill panerelay-browser` through the normal command-approval flow and loads the Skill after installation succeeds
+
+#### Scenario: Browser work has not been requested
+
+- **WHEN** the Side Panel opens or prepares a provider without an explicit browser-work request
+- **THEN** the Agent does not attempt to install `$panerelay-browser`
 
 #### Scenario: Browser Skill installation cannot complete
 

@@ -1,12 +1,12 @@
 ## Purpose
 
-Define Extension-private browser-tab workspaces that restore the right Agent conversation while preserving PaneRelay's separate authorization and control-lease security boundaries.
+Define Extension-private browser-tab workspaces that restore the right Agent conversation while preserving Panerelay's separate authorization and control-lease security boundaries.
 
 ## Requirements
 
 ### Requirement: Each tab has at most one active workspace
 
-PaneRelay SHALL associate an eligible Chrome tab with at most one current provider conversation or local draft and SHALL restore that workspace when the tab becomes active.
+Panerelay SHALL associate an eligible Chrome tab with at most one current provider conversation or local draft and SHALL restore that workspace when the tab becomes active.
 
 #### Scenario: Returning to a bound tab
 
@@ -25,7 +25,7 @@ PaneRelay SHALL associate an eligible Chrome tab with at most one current provid
 
 ### Requirement: Page-created related tabs inherit the source workspace
 
-PaneRelay SHALL copy a workspace binding to a newly created eligible tab only when Chrome reports that the bound source page created the tab as a navigation target. A tab created through browser chrome, keyboard shortcuts, tab-strip controls, or another creation path without that page-navigation signal SHALL remain unbound even if Chrome exposes an opener identifier.
+Panerelay SHALL copy a workspace binding to a newly created eligible tab only when Chrome reports that the bound source page created the tab as a navigation target. A tab created through browser chrome, keyboard shortcuts, tab-strip controls, or another creation path without that page-navigation signal SHALL remain unbound even if Chrome exposes an opener identifier.
 
 #### Scenario: Bound tab opens a related tab
 
@@ -35,7 +35,7 @@ PaneRelay SHALL copy a workspace binding to a newly created eligible tab only wh
 #### Scenario: Browser creates a new tab
 
 - **WHEN** the user creates a tab through the browser UI or a keyboard command without a page-created navigation-target event
-- **THEN** PaneRelay leaves the new tab unbound
+- **THEN** Panerelay leaves the new tab unbound
 
 #### Scenario: Related tab outlives its source
 
@@ -44,7 +44,7 @@ PaneRelay SHALL copy a workspace binding to a newly created eligible tab only wh
 
 ### Requirement: Starting fresh detaches only the active tab
 
-PaneRelay SHALL detach the active tab into a new draft workspace when the user starts a new conversation from a group of related tabs. The prior conversation binding SHALL remain unchanged for every sibling tab, and later updates to either workspace SHALL not replace the other.
+Panerelay SHALL detach the active tab into a new draft workspace when the user starts a new conversation from a group of related tabs. The prior conversation binding SHALL remain unchanged for every sibling tab, and later updates to either workspace SHALL not replace the other.
 
 #### Scenario: Starting fresh from one related tab
 
@@ -54,39 +54,39 @@ PaneRelay SHALL detach the active tab into a new draft workspace when the user s
 #### Scenario: First send after detaching
 
 - **WHEN** the user sends the first message from the detached draft
-- **THEN** PaneRelay binds the new provider conversation only to the detached tab and leaves the sibling conversation unchanged
+- **THEN** Panerelay binds the new provider conversation only to the detached tab and leaves the sibling conversation unchanged
 
 #### Scenario: Sibling conversation continues
 
 - **WHEN** the prior conversation emits output after another tab detached into a new draft or conversation
-- **THEN** PaneRelay retains that output with the sibling workspace and does not render it in the detached tab
+- **THEN** Panerelay retains that output with the sibling workspace and does not render it in the detached tab
 
 ### Requirement: Workspace updates fail closed
 
-PaneRelay SHALL reject stale or conflicting workspace updates and SHALL NOT let an inactive Side Panel replace the binding for a newer active-tab workspace.
+Panerelay SHALL reject stale or conflicting workspace updates and SHALL NOT let an inactive Side Panel replace the binding for a newer active-tab workspace.
 
 #### Scenario: Active tab changes during resume
 
 - **WHEN** a conversation resume started for one tab completes after another tab became active
-- **THEN** PaneRelay does not apply the completed resume to the newly active tab
+- **THEN** Panerelay does not apply the completed resume to the newly active tab
 
 #### Scenario: Existing binding conflicts
 
 - **WHEN** a request attempts to replace a tab binding using stale workspace state
-- **THEN** PaneRelay rejects the update and preserves the current binding
+- **THEN** Panerelay rejects the update and preserves the current binding
 
 ### Requirement: Workspace identifiers remain private
 
-PaneRelay SHALL keep raw Chrome tab identifiers inside the Extension and SHALL NOT add them to the shared Agent protocol, activity stream, prompts, or provider conversation metadata.
+Panerelay SHALL keep raw Chrome tab identifiers inside the Extension and SHALL NOT add them to the shared Agent protocol, activity stream, prompts, or provider conversation metadata.
 
 #### Scenario: Binding a conversation
 
-- **WHEN** PaneRelay records or restores a tab workspace
+- **WHEN** Panerelay records or restores a tab workspace
 - **THEN** provider and protocol messages contain only existing opaque conversation identifiers and no raw Chrome tab identifier
 
 ### Requirement: Workspace state does not grant browser authority
 
-PaneRelay SHALL continue to require explicit site authorization and a current control lease for browser actions regardless of any conversation workspace binding.
+Panerelay SHALL continue to require explicit site authorization and a current control lease for browser actions regardless of any conversation workspace binding.
 
 #### Scenario: Bound tab lacks authorization
 

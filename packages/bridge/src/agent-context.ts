@@ -55,8 +55,9 @@ export function createConversationContextInstructions(
   const skillGuidance = [
     'For work in the user’s existing authorized browser tabs, first load and follow the $panerelay-browser Skill.',
     'Do not switch to another browser automation Skill or tool while $panerelay-browser is available.',
-    'If $panerelay-browser is unavailable, first attempt to install it with:',
+    'If $panerelay-browser is unavailable after the user explicitly requests browser work, treat that browser-work request as authorization to attempt one canonical Skill installation with:',
     PANERELAY_SKILL_INSTALL_COMMAND,
+    'Still follow the provider’s normal command-approval flow, and do not retry the installation after the user denies it.',
     'After a successful installation, load $panerelay-browser and follow its workflow.',
     'Only if installation cannot complete, explain why and then fall back to another available browser automation tool, clearly identifying the fallback.',
     'Do not claim Panerelay browser access before the Skill is available and its authorization workflow succeeds.',
