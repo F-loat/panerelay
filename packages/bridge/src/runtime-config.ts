@@ -1,9 +1,10 @@
 import { readFile } from 'node:fs/promises';
 import { runtimeConfigPath } from '@panerelay/protocol/node';
-import { isExecutableFile } from './platform.js';
+import { isExecutableFile, normalizeExecutablePathEntries } from './platform.js';
 
 export interface PanerelayRuntimeConfig {
   extensionId?: string;
+  agentPathEntries?: string[];
   codexPath?: string;
   claudePath?: string;
   claudeVersion?: string;
@@ -32,9 +33,13 @@ export async function readRuntimeConfig(): Promise<PanerelayRuntimeConfig> {
   const configuredClaude = process.env.PANERELAY_CLAUDE_PATH || stored.claudePath;
   const configuredQoder = process.env.PANERELAY_QODER_PATH || stored.qoderPath;
   const configuredOpenCode = process.env.PANERELAY_OPENCODE_PATH || stored.opencodePath;
+  const agentPathEntries = normalizeExecutablePathEntries(
+    Array.isArray(stored.agentPathEntries) ? stored.agentPathEntries : [],
+  );
 
   return {
     ...(typeof stored.extensionId === 'string' ? { extensionId: stored.extensionId } : {}),
+    ...(agentPathEntries.length > 0 ? { agentPathEntries } : {}),
     ...((await executable(configuredCodex)) ? { codexPath: configuredCodex } : {}),
     ...((await executable(configuredClaude)) ? { claudePath: configuredClaude } : {}),
     ...(typeof stored.claudeVersion === 'string' ? { claudeVersion: stored.claudeVersion } : {}),

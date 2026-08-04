@@ -29,6 +29,7 @@ describe('React Side Panel conversation presentation', () => {
             kind: 'browser',
             title: 'panerelay_browser · agent_browser_read',
             detail: 'snapshot',
+            output: 'tab t1\nATA - 阿里技术分享平台',
             status: 'completed',
           },
         },
@@ -40,6 +41,7 @@ describe('React Side Panel conversation presentation', () => {
     expect(
       within(completedActivity as HTMLElement).getByText('panerelay_browser · agent_browser_read'),
     ).not.toBeVisible();
+    expect(within(completedActivity as HTMLElement).getByText(/tab t1/)).not.toBeVisible();
     await user.click(
       within(completedActivity as HTMLElement).getByLabelText(/Show or hide activity details/),
     );
@@ -48,6 +50,10 @@ describe('React Side Panel conversation presentation', () => {
       within(completedActivity as HTMLElement).getByText('panerelay_browser · agent_browser_read'),
     ).toBeVisible();
     expect(within(completedActivity as HTMLElement).getAllByText('snapshot')).toHaveLength(2);
+    expect(within(completedActivity as HTMLElement).getByText(/tab t1/)).toBeVisible();
+    expect(completedActivity?.querySelector('.activity-output-expanded')).toHaveTextContent(
+      'ATA - 阿里技术分享平台',
+    );
     await user.click(
       within(completedActivity as HTMLElement).getByLabelText(/Show or hide activity details/),
     );
@@ -259,6 +265,55 @@ describe('React Side Panel conversation presentation', () => {
     expect(codeBlocks[1]).toHaveTextContent('agent-browser --provider panerelay tab list');
     expect(document.querySelector('.rich-text p code')).toHaveTextContent('pnpm run check');
     expect(screen.queryByText(/```bash/)).not.toBeInTheDocument();
+  });
+
+  it('renders safe responsive Markdown tables and leaves malformed tables as text', async () => {
+    const client = new AppClient();
+    const conversation = detail();
+    conversation.messages = [
+      {
+        id: 'message-table',
+        role: 'assistant',
+        text: [
+          '| 文章 | 数据 | 时间 |',
+          '| :--- | ---: | :---: |',
+          '| **Skill 的第一道门槛** | `865 浏览` | [4月12日](https://example.com/skill) |',
+          '| Mtop \\| DevTools | 505 浏览 | 1月21日 |',
+          '| `cloud|agent` | 351 浏览 | 5月8日 |',
+          '',
+          '| not a table | still text |',
+          '| -- | invalid |',
+        ].join('\n'),
+        createdAt: '2026-08-04T00:00:00.000Z',
+      },
+    ];
+    client.history = [conversation];
+    const { user } = await renderReady(client);
+
+    await user.click(screen.getByRole('button', { name: 'Conversation history' }));
+    await user.click(await screen.findByRole('button', { name: /Existing conversation/ }));
+
+    const table = screen.getByRole('table');
+    expect(within(table).getAllByRole('columnheader')).toHaveLength(3);
+    expect(within(table).getAllByRole('row')).toHaveLength(4);
+    expect(within(table).getAllByRole('cell')).toHaveLength(9);
+    const headers = within(table).getAllByRole('columnheader');
+    expect(headers[0]).toHaveAttribute('data-align', 'left');
+    expect(headers[1]).toHaveAttribute('data-align', 'right');
+    expect(headers[2]).toHaveAttribute('data-align', 'center');
+    expect(within(table).getByText('Skill 的第一道门槛').tagName).toBe('STRONG');
+    expect(within(table).getByText('865 浏览').tagName).toBe('CODE');
+    expect(within(table).getByRole('link', { name: '4月12日' })).toHaveAttribute(
+      'href',
+      'https://example.com/skill',
+    );
+    expect(within(table).getByText('Mtop | DevTools')).toBeVisible();
+    expect(within(table).getByText('cloud|agent').tagName).toBe('CODE');
+    expect(table.closest('.rich-table-scroll')).toHaveClass('rich-table-scroll');
+    expect(document.querySelectorAll('.rich-text table')).toHaveLength(1);
+    expect(screen.getByText(/not a table/).closest('p')).toHaveTextContent(
+      '| not a table | still text |',
+    );
   });
 
   it('loads history only when opened and filters recent conversations', async () => {

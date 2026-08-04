@@ -8,7 +8,7 @@ Define how Panerelay preserves bounded Agent failure diagnostics and presents th
 
 ### Requirement: Failed Agent activity preserves diagnostic detail
 
-Panerelay SHALL preserve a bounded provider-supplied error message for failed conversation activity while excluding successful tool results and arbitrary raw protocol payloads.
+Panerelay SHALL preserve a bounded provider-supplied error message for failed conversation activity while excluding successful tool results and arbitrary raw protocol payloads from diagnostic detail. A successful terminal tool MAY carry bounded displayable text in the separate activity output field, which MUST NOT be labeled or rendered as an error.
 
 #### Scenario: Codex MCP tool fails
 
@@ -24,9 +24,10 @@ Panerelay SHALL preserve a bounded provider-supplied error message for failed co
 
 #### Scenario: Tool succeeds
 
-- **GIVEN** a tool completes successfully with page content or another result
+- **GIVEN** a tool completes successfully with displayable text content
 - **WHEN** Panerelay converts it to conversation activity
 - **THEN** Panerelay does not add that successful result as error detail
+- **AND** it MAY preserve the bounded text in the separate activity output field
 
 ### Requirement: Error details are collapsed until requested
 

@@ -66,6 +66,8 @@ export function createConversationContextInstructions(
   const skillGuidance = [
     'For work in the user’s existing authorized browser tabs, first load and follow the $panerelay-browser Skill.',
     'Do not switch to another browser automation Skill or tool while $panerelay-browser is available.',
+    'Select exactly one automation engine before readiness checks: use an engine named by the user, otherwise follow the registered-integration priority below when present, and otherwise use agent-browser.',
+    'Inspect, invoke, set up, and diagnose only that selected engine. Do not probe every supported executable or ask the user to choose an engine merely because none was named.',
     'If $panerelay-browser is unavailable after the user explicitly requests browser work, treat that browser-work request as authorization to attempt one canonical Skill installation with:',
     PANERELAY_SKILL_INSTALL_COMMAND,
     'Still follow the provider’s normal command-approval flow, and do not retry the installation after the user denies it.',
@@ -90,7 +92,8 @@ export function createConversationContextInstructions(
         ...(automationHint.playwright
           ? ['- Playwright CLI: Panerelay adapter registered; explicit CDP attach is required.']
           : []),
-        'For ordinary browser tasks, use these registrations as a fast path: use the user-requested engine, otherwise prefer a registered default and then agent-browser, Browser Use, or Playwright CLI in that order.',
+        'For ordinary browser tasks, select exactly one registration as the fast path: use the user-requested engine, otherwise prefer a registered default and then agent-browser, Browser Use, or Playwright CLI in that order.',
+        'Do not inspect the other registered engines after selecting one.',
         'Before the first direct attempt, do not repeat generic operating-system, shell, Node.js, executable-version, Panerelay setup, or doctor checks.',
         'For an ordinary task, this fast-path rule takes precedence over the Skill’s generic readiness workflow.',
         'A registration does not prove that its executable is still present, the Extension is connected, any tab is authorized, or a control lease exists.',

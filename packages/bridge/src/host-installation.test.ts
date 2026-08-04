@@ -67,6 +67,8 @@ test('Native Host setup remains automation-engine neutral', async () => {
     >;
     assert.equal('agentBrowserPath' in runtime, false);
     assert.equal('agentBrowserConfigPath' in runtime, false);
+    assert.ok(Array.isArray(runtime.agentPathEntries));
+    assert.ok((runtime.agentPathEntries as string[]).includes(binDirectory));
   } finally {
     await rm(root, { force: true, recursive: true });
   }
@@ -123,11 +125,13 @@ test('installs and removes an isolated Native Messaging host', async () => {
       claudePath: string;
       claudeVersion: string;
       extensionId: string;
+      agentPathEntries: string[];
       opencodePath: string;
       opencodeVersion: string;
     };
     assert.deepEqual(runtime, {
       extensionId: customExtensionId,
+      agentPathEntries: ['/test', binDirectory],
       codexPath: result.codexPath,
       claudePath: result.claudePath,
       claudeVersion: '2.1.0',

@@ -1,7 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
-import { delimiter, dirname } from 'node:path';
+import { dirname } from 'node:path';
 import { createInterface, type Interface } from 'node:readline';
-import { resolveSpawnCommand } from './platform.js';
+import { environmentWithExecutablePath, resolveSpawnCommand } from './platform.js';
 
 interface PendingRequest {
   resolve: (value: unknown) => void;
@@ -22,6 +22,7 @@ export interface CodexRpcMessage {
 
 export interface CodexAppServerOptions {
   codexPath: string;
+  environment?: NodeJS.ProcessEnv;
   pathEntries?: string[];
   onNotification: (message: CodexRpcMessage) => void;
   onServerRequest: (message: CodexRpcMessage & { id: number | string; method: string }) => void;
@@ -93,17 +94,10 @@ export class CodexAppServer {
   }
 
   private async launch(): Promise<void> {
-    const runtimePath = [
+    const environment = environmentWithExecutablePath(this.options.environment ?? process.env, [
       dirname(this.options.codexPath),
       ...(this.options.pathEntries ?? []),
-      process.env.PATH,
-    ]
-      .filter((entry): entry is string => Boolean(entry))
-      .join(delimiter);
-    const environment: NodeJS.ProcessEnv = {
-      ...process.env,
-      PATH: runtimePath,
-    };
+    ]);
     const launch = resolveSpawnCommand(
       this.options.codexPath,
       ['app-server', '--stdio'],

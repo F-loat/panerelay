@@ -13,13 +13,15 @@ import { Timeline, Welcome } from './components/conversation.js';
 import { AppHeader } from './components/header.js';
 import { ProviderPreparationNotice } from './components/notices.js';
 import { useCopy } from './components/presentation.js';
+import type { ProviderBootstrap } from './provider-selection.js';
 
 interface AppProps {
+  bootstrap?: ProviderBootstrap;
   client?: SidepanelClient;
 }
 
-export function SidepanelApp({ client = browserSidepanelClient }: AppProps) {
-  const controller = useSidepanelController(client);
+export function SidepanelApp({ bootstrap, client = browserSidepanelClient }: AppProps) {
+  const controller = useSidepanelController(client, bootstrap);
   const { state } = controller;
   const { t } = useCopy(state);
   const scrollRef = useRef<HTMLElement>(null);

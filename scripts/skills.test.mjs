@@ -23,6 +23,13 @@ test('publishes one unified repository Skill for all supported engines', async (
   assert.match(skill, /tab-select 0/);
   assert.match(skill, /Do not locate by URL or title/);
   assert.match(skill, /Do not start a per-conversation or fallback daemon/);
+  assert.match(skill, /If no trusted setup hint exists, select `agent-browser`/);
+  assert.match(skill, /Do not probe all three supported executables/);
+  assert.match(skill, /ask the user to choose an engine merely because none was named/);
+  assert.match(skill, /Select exactly one engine/);
+  assert.match(skill, /Use the engine the user names/);
+  assert.match(skill, /Do not inspect the other listed registrations/);
+  assert.match(skill, /Do not switch engines merely because the cached hint was stale/);
   assert.match(skill, /npx skills add F-loat\/panerelay --skill panerelay-browser/);
   assert.match(skill, /npx skills update panerelay-browser/);
   assert.match(skill, /npx skills remove panerelay-browser/);

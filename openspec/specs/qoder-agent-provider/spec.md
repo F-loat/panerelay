@@ -40,13 +40,20 @@ Panerelay SHALL start, list, resume, prompt, interrupt, and close Qoder conversa
 
 ### Requirement: Qoder events are provider neutral at the Extension boundary
 
-Panerelay SHALL normalize Qoder text, reasoning, plan, tool, usage, completion, cancellation, and error updates into the shared conversation event model before sending them to the Extension.
+Panerelay SHALL normalize Qoder text, reasoning, plan, tool, usage, completion, cancellation, and error updates into the shared conversation event model before sending them to the Extension. For terminal tool updates, Panerelay SHALL preserve bounded displayable ACP text content as activity output separately from failure detail, while excluding images, terminal handles, raw input, raw output, metadata, and provider-native objects.
 
 #### Scenario: Qoder streams a turn
 
 - **GIVEN** an active Qoder ACP prompt emits thought, message, plan, and tool updates
 - **WHEN** Panerelay forwards the turn to the side panel
 - **THEN** the panel receives bounded normalized events associated with the correct conversation and turn
+
+#### Scenario: Qoder tool completes with text content
+
+- **GIVEN** Qoder completes an ACP tool call and publishes displayable text content
+- **WHEN** Panerelay normalizes the terminal tool update
+- **THEN** the conversation activity contains the bounded text as output
+- **AND** it contains no ACP raw input, raw output, metadata, image, terminal handle, or provider-native object
 
 #### Scenario: Qoder emits an unknown provider-native update
 
@@ -110,7 +117,7 @@ Panerelay SHALL translate supported ACP permission options into explicit side-pa
 
 ### Requirement: Qoder browser access uses the existing scoped relay
 
-Panerelay SHALL NOT inject an agent-browser or Browser Use MCP server, Skill, browser instruction, or per-conversation automation session into Qoder. Qoder SHALL receive its normal Agent configuration and environment, and any user-configured browser tool that connects through Panerelay SHALL remain subject to the same browser-side authorization, routing, and exclusive control lease as other automation participants.
+Panerelay SHALL NOT inject an agent-browser or Browser Use MCP server, Skill, browser instruction, per-conversation automation session, or local executable path into Qoder conversation context. Qoder SHALL receive its normal Agent configuration and a bounded command environment reconstructed from protected setup-time path entries plus the current Native Host environment. Any user-configured browser tool that connects through Panerelay SHALL remain subject to the same browser-side authorization, routing, and exclusive control lease as other automation participants.
 
 #### Scenario: Qoder starts without a configured browser tool
 
@@ -119,12 +126,27 @@ Panerelay SHALL NOT inject an agent-browser or Browser Use MCP server, Skill, br
 - **THEN** the ACP session receives no Panerelay-injected browser MCP server or Skill
 - **AND** ordinary conversation behavior remains available
 
+#### Scenario: Qoder invokes a setup-visible user command
+
+- **GIVEN** `agent-browser` and its Node runtime were available on the absolute command-search path when Panerelay setup installed the Native Host
+- **AND** Chrome later starts the Native Host with only a minimal system path
+- **WHEN** Qoder invokes `agent-browser` from its normal command tool
+- **THEN** Qoder resolves it through the protected setup-captured Agent runtime path
+- **AND** no absolute executable path is added to the prompt, activity title, provider descriptor, or shared protocol
+
 #### Scenario: Qoder uses its own Panerelay browser configuration
 
 - **GIVEN** the user configured a supported browser tool directly in Qoder
 - **WHEN** that tool connects through Panerelay from a side-panel conversation
 - **THEN** it uses the current browser routing context and normal authorization and control-lease checks
 - **AND** Panerelay does not rewrite or replace Qoder's tool configuration
+
+#### Scenario: Captured command path is stale
+
+- **GIVEN** a protected path entry no longer contains the requested executable
+- **WHEN** Qoder invokes that command
+- **THEN** the command fails through Qoder's ordinary execution result
+- **AND** Panerelay does not scan version-manager directories, source shell startup files, or silently install or switch tools
 
 ### Requirement: Qoder-owned browser sessions clean up at terminal boundaries
 

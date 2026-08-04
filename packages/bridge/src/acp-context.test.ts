@@ -23,6 +23,22 @@ function message(id: string, role: ConversationMessage['role'], text: string): C
   };
 }
 
+function asLegacyContext(context: string): string {
+  return context
+    .replace(
+      '\nSelect exactly one automation engine before readiness checks: use an engine named by the user, otherwise follow the registered-integration priority below when present, and otherwise use agent-browser.',
+      '',
+    )
+    .replace(
+      '\nInspect, invoke, set up, and diagnose only that selected engine. Do not probe every supported executable or ask the user to choose an engine merely because none was named.',
+      '',
+    )
+    .replace(
+      'For ordinary browser tasks, select exactly one registration as the fast path: use the user-requested engine, otherwise prefer a registered default and then agent-browser, Browser Use, or Playwright CLI in that order.\nDo not inspect the other registered engines after selecting one.',
+      'For ordinary browser tasks, use these registrations as a fast path: use the user-requested engine, otherwise prefer a registered default and then agent-browser, Browser Use, or Playwright CLI in that order.',
+    );
+}
+
 test('wraps and strips only the literal v1 context envelope', () => {
   const wrapped = wrapAcpConversationContext('internal\ncontext', '  user text  ');
   assert.equal(
@@ -71,17 +87,23 @@ test('normalizes complete v1 history without changing later messages', () => {
 });
 
 test('strictly normalizes known legacy context variants and image-only text entries', () => {
-  const base = createConversationContextInstructions(resolveConversationStartOptions({}));
-  const setup = createConversationContextInstructions(resolveConversationStartOptions({}), {
-    agentBrowser: { registered: true, isDefault: true },
-    browserUse: { registered: true, mode: 'extension' },
-    playwright: { registered: true },
-  });
-  const page = createConversationContextInstructions(
-    resolveConversationStartOptions({
-      initialPage: { title: 'Example', url: 'https://example.com/app' },
+  const base = asLegacyContext(
+    createConversationContextInstructions(resolveConversationStartOptions({})),
+  );
+  const setup = asLegacyContext(
+    createConversationContextInstructions(resolveConversationStartOptions({}), {
+      agentBrowser: { registered: true, isDefault: true },
+      browserUse: { registered: true, mode: 'extension' },
+      playwright: { registered: true },
     }),
-    { browserUse: { registered: true, mode: 'extension' } },
+  );
+  const page = asLegacyContext(
+    createConversationContextInstructions(
+      resolveConversationStartOptions({
+        initialPage: { title: 'Example', url: 'https://example.com/app' },
+      }),
+      { browserUse: { registered: true, mode: 'extension' } },
+    ),
   );
 
   assert.equal(stripAcpConversationContext(`${base}\n\nbase question`), 'base question');

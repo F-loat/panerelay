@@ -85,6 +85,8 @@ export class AppClient implements SidepanelClient {
   statusError = '';
   installError = '';
   installPromise: Promise<void> | null = null;
+  providerDiscoveryPromise: Promise<void> | null = null;
+  storagePromise: Promise<void> | null = null;
   sendHandler:
     | ((message: Extract<SidePanelRequest, { type: 'panerelay.conversation.send' }>) => Promise<{
         success: true;
@@ -101,6 +103,7 @@ export class AppClient implements SidepanelClient {
   nextWorkspace = 1;
 
   async getStored(): Promise<Record<string, unknown>> {
+    if (this.storagePromise) await this.storagePromise;
     return this.stored;
   }
 
@@ -115,6 +118,7 @@ export class AppClient implements SidepanelClient {
         if (this.statusError) throw new Error(this.statusError);
         return { success: true as const, status: this.status };
       case 'panerelay.agent.providers':
+        if (this.providerDiscoveryPromise) await this.providerDiscoveryPromise;
         return { success: true as const, providers: this.providers };
       case 'panerelay.agent.prepare':
         if (this.prepareError) throw new Error(this.prepareError);

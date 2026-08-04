@@ -1,12 +1,13 @@
 import { chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, win32 } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PANERELAY_EXTENSION_ID, PANERELAY_NATIVE_HOST_NAME } from '@panerelay/protocol';
 import {
   probeExecutableVersion,
   resolveExecutablePath,
   runCommand,
+  executablePathEntries,
   type CommandRunner,
 } from './platform.js';
 import { resolveOpenCodeExecutable } from './opencode-executable.js';
@@ -262,21 +263,23 @@ export async function installNativeHost(
   const bundledHostPath =
     options.bundledHostPath ?? fileURLToPath(new URL('./native-host.bundle.cjs', import.meta.url));
   const bundledHost = await readFile(bundledHostPath, 'utf8');
+  const nodePath = options.nodePath ?? process.execPath;
+  const nodeDirectory = platform === 'win32' ? win32.dirname(nodePath) : dirname(nodePath);
+  const agentPathEntries = executablePathEntries(environment, {
+    platform,
+    prepend: [nodeDirectory],
+  });
   const installedHost =
-    platform === 'win32'
-      ? bundledHost
-      : bundledHost.replace(/^#![^\n]*/, `#!${options.nodePath ?? process.execPath}`);
+    platform === 'win32' ? bundledHost : bundledHost.replace(/^#![^\n]*/, `#!${nodePath}`);
 
   await mkdir(dirname(paths.hostPath), { recursive: true, mode: 0o700 });
   await writeFile(paths.hostPath, installedHost, { mode: 0o755 });
   if (platform !== 'win32') await chmod(paths.hostPath, 0o755);
   await rm(paths.legacyHostPath, { force: true });
   if (paths.launcherPath) {
-    await writeFile(
-      paths.launcherPath,
-      windowsLauncherContent(options.nodePath ?? process.execPath, paths.hostPath),
-      { mode: 0o700 },
-    );
+    await writeFile(paths.launcherPath, windowsLauncherContent(nodePath, paths.hostPath), {
+      mode: 0o700,
+    });
   }
 
   const codexPath = await resolveExecutablePath('codex', {
@@ -322,6 +325,7 @@ export async function installNativeHost(
     `${JSON.stringify(
       {
         extensionId,
+        agentPathEntries,
         ...(codexPath ? { codexPath } : {}),
         ...(claudePath ? { claudePath } : {}),
         ...(claudeVersion ? { claudeVersion } : {}),

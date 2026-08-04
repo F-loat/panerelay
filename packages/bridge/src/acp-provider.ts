@@ -69,7 +69,15 @@ export interface AcpRuntime {
 }
 
 export interface AcpProviderOptions {
-  createRuntime?: (executable: string, handlers: AcpRuntimeHandlers) => AcpRuntime;
+  createRuntime?: (
+    executable: string,
+    handlers: AcpRuntimeHandlers,
+    options: {
+      environment?: NodeJS.ProcessEnv;
+      platform?: NodeJS.Platform;
+      timeoutMs?: number;
+    },
+  ) => AcpRuntime;
   cwd?: () => string;
   environment?: NodeJS.ProcessEnv;
   onDiagnostic?: (message: string) => void;
@@ -184,15 +192,14 @@ function activityStatus(
   return 'running';
 }
 
-function failedToolDetail(update: acp.ToolCall | acp.ToolCallUpdate): string | undefined {
-  if (update.status !== 'failed') return undefined;
-  const detail = (update.content ?? [])
+function displayableToolText(update: acp.ToolCall | acp.ToolCallUpdate): string | undefined {
+  const text = (update.content ?? [])
     .flatMap(item =>
       item.type === 'content' && item.content.type === 'text' ? [item.content.text.trim()] : [],
     )
     .filter(Boolean)
     .join('\n');
-  return detail ? bounded(detail, MAX_DELTA_CHARS) : undefined;
+  return text ? bounded(text, MAX_DELTA_CHARS) : undefined;
 }
 
 export class AcpProcessRuntime implements AcpRuntime {
@@ -729,7 +736,11 @@ export class AcpProvider implements AgentProvider {
       onUpdate: notification => this.handleUpdate(notification),
     };
     const runtime = this.options.createRuntime
-      ? this.options.createRuntime(resolution.executable, handlers)
+      ? this.options.createRuntime(resolution.executable, handlers, {
+          environment: this.options.environment,
+          platform: this.options.platform,
+          timeoutMs: this.options.requestTimeoutMs,
+        })
       : new AcpProcessRuntime(resolution.executable, handlers, {
           environment: this.options.environment,
           label: this.profile.name,
@@ -887,8 +898,20 @@ export class AcpProvider implements AgentProvider {
         return;
       case 'tool_call':
       case 'tool_call_update': {
-        const detail = failedToolDetail(update);
         const previous = turn.activities.get(update.toolCallId);
+        const status =
+          update.status === undefined || update.status === null
+            ? previous?.status || 'running'
+            : activityStatus(update.status);
+        const replacesContent = update.content !== undefined;
+        const incomingText = displayableToolText(update);
+        const retainedText = replacesContent ? incomingText : previous?.output;
+        const detail =
+          status === 'failed'
+            ? replacesContent
+              ? incomingText
+              : previous?.detail
+            : previous?.detail;
         const defaultTitle = `${this.profile.name} tool`;
         const incomingTitle = update.title?.trim();
         const incomingKind = activityKind(update);
@@ -902,8 +925,9 @@ export class AcpProvider implements AgentProvider {
               : previous?.title || incomingTitle || defaultTitle,
             256,
           ),
-          ...(detail ? { detail } : previous?.detail ? { detail: previous.detail } : {}),
-          status: activityStatus(update.status),
+          ...(status !== 'failed' && retainedText ? { output: retainedText } : {}),
+          ...(detail ? { detail } : {}),
+          status,
         };
         turn.activities.set(update.toolCallId, activity);
         this.emit({

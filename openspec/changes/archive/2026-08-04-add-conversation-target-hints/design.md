@@ -17,6 +17,7 @@ The sibling `fix-acp-prompt-lifecycle-privacy` change introduces the exact `<pan
 **Goals:**
 
 - Make a new Side Panel conversation able to name the exact originating Extension target across the three pinned engine interfaces.
+- Make the unified Skill select one engine for an ordinary task without enumerating every supported executable or asking the user to make an unsolicited engine choice.
 - Keep target resolution inside the originating live browser registration and the participant's existing authorization boundary.
 - Preserve ordinary tab listing, creation, selection, controlled-lineage discovery, revocation, and control behavior after orientation.
 - Produce an early and distinguishable target-unavailable failure instead of a valid handle for another tab.
@@ -43,6 +44,14 @@ panerelay-tab-v1-<browser-uuid>-<target-uuid>
 ```
 
 The fixed UUID lengths keep the string below the upstream 128-character session-label bound and make parsing exact without accepting arbitrary delimiter variants. The renderer also derives a target-scoped Playwright gateway URL. These values are emitted as Panerelay locating instructions inside the provider's existing system/developer context path; ACP text uses the sibling change's v1 context envelope. The IDs and URL are explicitly described as staleable and non-authorizing.
+
+### Select one automation engine before readiness checks
+
+The unified Skill resolves one engine for an ordinary browser task in this order: an engine explicitly named by the user; a trusted Panerelay registered default; registered agent-browser; registered Browser Use; registered Playwright CLI; and agent-browser when no trusted setup registration exists. A user-named engine always wins. When multiple default-capable integrations are registered, agent-browser wins the tie because it is the general-purpose CLI/MCP recommendation and already precedes Browser Use in the established fallback order.
+
+After selection, the Skill inspects, invokes, sets up, and diagnoses only that engine. A missing executable produces that engine's targeted official installation path rather than probes for the two alternatives or a question asking the user to choose among implementation technologies. A failed or stale registered integration also remains selected for the smallest repair; the Skill does not silently change engines.
+
+Listing all supported engines before selection was rejected because Agents interpret a compatibility inventory as a required user choice and perform redundant version probes. Selecting whichever executable happens to appear first on `PATH` was rejected because it ignores Panerelay's explicit defaults and makes behavior environment-order dependent. Removing the other integrations from the Skill entirely was rejected because explicit user requests and configured defaults must remain supported.
 
 ### Bind agent-browser session selection in the Provider and relay
 

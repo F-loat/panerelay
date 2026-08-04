@@ -3,8 +3,82 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { SidepanelApp } from './app.js';
 import { AppClient, detail, readyProviders, renderReady } from './app.test-support.js';
+import { createProviderBootstrap, providerCacheValue } from './provider-selection.js';
 
 describe('React Side Panel shell and providers', () => {
+  it('shows the cached provider with a neutral status while live discovery starts', () => {
+    const client = new AppClient();
+    client.storagePromise = new Promise(() => undefined);
+    const bootstrap = createProviderBootstrap(
+      'qoder',
+      providerCacheValue([
+        {
+          id: 'qoder',
+          name: 'Qoder',
+          status: 'ready',
+          description: 'Qoder fixture',
+          model: 'qoder-model',
+        },
+      ]),
+    );
+
+    render(<SidepanelApp bootstrap={bootstrap} client={client} />);
+
+    expect(
+      screen.getByRole('button', {
+        name: 'Agent provider: Qoder, Connecting…, Current model: qoder-model',
+      }),
+    ).toBeVisible();
+    expect(screen.queryByText('Codex unavailable')).not.toBeInTheDocument();
+    expect(screen.queryByText('Qoder unavailable')).not.toBeInTheDocument();
+  });
+
+  it('does not report cached readiness between Extension status and live provider discovery', async () => {
+    const client = new AppClient();
+    let releaseDiscovery: (() => void) | undefined;
+    client.providerDiscoveryPromise = new Promise<void>(resolve => {
+      releaseDiscovery = resolve;
+    });
+    client.providers = readyProviders.map(provider =>
+      provider.id === 'qoder' ? { ...provider, status: 'ready', model: 'qoder-model' } : provider,
+    );
+    client.workspace = {
+      kind: 'draft',
+      providerId: 'qoder',
+      revision: 'qoder-workspace',
+    };
+    const cache = providerCacheValue([
+      {
+        id: 'qoder',
+        name: 'Qoder',
+        status: 'ready',
+        description: 'Qoder fixture',
+        model: 'qoder-model',
+      },
+    ]);
+    client.stored = {
+      'panerelay.agentProvider': 'qoder',
+      'panerelay.agentProviders.v1': cache,
+      'panerelay.locale': 'en',
+    };
+    const bootstrap = createProviderBootstrap('qoder', cache);
+
+    render(<SidepanelApp bootstrap={bootstrap} client={client} />);
+    await waitFor(() =>
+      expect(client.requests).toContainEqual({ type: 'panerelay.agent.providers' }),
+    );
+
+    expect(
+      screen.getByRole('button', {
+        name: 'Agent provider: Qoder, Connecting…, Current model: qoder-model',
+      }),
+    ).toBeVisible();
+    expect(screen.queryByText('qoder-model · Connected')).not.toBeInTheDocument();
+
+    releaseDiscovery?.();
+    await screen.findByText('qoder-model · Connected');
+  });
+
   it('renders the compact English welcome state and fills a suggestion', async () => {
     const { user } = await renderReady();
 

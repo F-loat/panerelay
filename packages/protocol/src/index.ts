@@ -258,6 +258,7 @@ export interface ConversationActivity {
   id: string;
   kind: ConversationActivityKind;
   title: string;
+  output?: string;
   detail?: string;
   status: 'running' | 'completed' | 'failed' | 'declined';
 }

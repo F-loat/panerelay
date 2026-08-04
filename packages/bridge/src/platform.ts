@@ -51,6 +51,9 @@ export interface VersionProbeOptions {
 }
 
 const MAX_CAPTURE_LENGTH = 64 * 1024;
+const MAX_PATH_ENTRIES = 64;
+const MAX_PATH_ENTRY_LENGTH = 2_048;
+const MAX_PATH_TOTAL_LENGTH = 32 * 1024;
 const WINDOWS_COMMAND_META_CHARACTERS = /([()%!^"`<>&|;, *?])/g;
 
 function escapeWindowsCommand(value: string): string {
@@ -71,6 +74,69 @@ function platformPath(platform: NodeJS.Platform): typeof path.posix {
 function environmentPath(environment: NodeJS.ProcessEnv): string {
   const pathKey = Object.keys(environment).find(key => key.toLowerCase() === 'path');
   return (pathKey && environment[pathKey]) || '';
+}
+
+function environmentPathKey(environment: NodeJS.ProcessEnv, platform: NodeJS.Platform): string {
+  return (
+    Object.keys(environment).find(key => key.toLowerCase() === 'path') ||
+    (platform === 'win32' ? 'Path' : 'PATH')
+  );
+}
+
+export function normalizeExecutablePathEntries(
+  entries: readonly unknown[],
+  platform: NodeJS.Platform = process.platform,
+): string[] {
+  const pathApi = platformPath(platform);
+  const normalized: string[] = [];
+  const seen = new Set<string>();
+  let totalLength = 0;
+  for (const value of entries) {
+    if (normalized.length >= MAX_PATH_ENTRIES) break;
+    if (typeof value !== 'string') continue;
+    const trimmed = value.trim();
+    if (!trimmed || trimmed.length > MAX_PATH_ENTRY_LENGTH || !pathApi.isAbsolute(trimmed)) {
+      continue;
+    }
+    const entry = pathApi.normalize(trimmed);
+    const key = platform === 'win32' ? entry.toLocaleLowerCase('en-US') : entry;
+    if (seen.has(key)) continue;
+    if (totalLength + entry.length > MAX_PATH_TOTAL_LENGTH) break;
+    seen.add(key);
+    normalized.push(entry);
+    totalLength += entry.length;
+  }
+  return normalized;
+}
+
+export function executablePathEntries(
+  environment: NodeJS.ProcessEnv,
+  options: { platform?: NodeJS.Platform; prepend?: readonly string[] } = {},
+): string[] {
+  const platform = options.platform ?? process.platform;
+  return normalizeExecutablePathEntries(
+    [
+      ...(options.prepend ?? []),
+      ...environmentPath(environment).split(platform === 'win32' ? ';' : ':'),
+    ],
+    platform,
+  );
+}
+
+export function environmentWithExecutablePath(
+  environment: NodeJS.ProcessEnv,
+  capturedEntries: readonly unknown[],
+  platform: NodeJS.Platform = process.platform,
+): NodeJS.ProcessEnv {
+  const pathKey = environmentPathKey(environment, platform);
+  const entries = normalizeExecutablePathEntries(
+    [...capturedEntries, ...environmentPath(environment).split(platform === 'win32' ? ';' : ':')],
+    platform,
+  );
+  return {
+    ...environment,
+    [pathKey]: entries.join(platform === 'win32' ? ';' : ':'),
+  };
 }
 
 export function executableNames(

@@ -69,6 +69,74 @@ function inlineText(value: string, keyPrefix: string): ReactNode[] {
   return nodes;
 }
 
+type TableAlignment = 'center' | 'left' | 'right';
+
+function splitTableRow(line: string): string[] | null {
+  const trimmed = line.trim();
+  const leadingPipe = trimmed.startsWith('|');
+  const trailingPipe = trimmed.endsWith('|') && !trimmed.endsWith('\\|');
+  const value = trimmed.slice(leadingPipe ? 1 : 0, trailingPipe ? -1 : undefined);
+  const cells: string[] = [];
+  let cell = '';
+  let inCode = false;
+  let structuralPipes = leadingPipe || trailingPipe ? 1 : 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index] ?? '';
+    const next = value[index + 1];
+    if (character === '\\' && next === '|') {
+      cell += '|';
+      index += 1;
+      continue;
+    }
+    if (character === '`') {
+      inCode = !inCode;
+      cell += character;
+      continue;
+    }
+    if (character === '|' && !inCode) {
+      cells.push(cell.trim());
+      cell = '';
+      structuralPipes += 1;
+      continue;
+    }
+    cell += character;
+  }
+  cells.push(cell.trim());
+  return structuralPipes > 0 ? cells : null;
+}
+
+function tableAlignments(line: string, columns: number): TableAlignment[] | null {
+  const cells = splitTableRow(line);
+  if (!cells || cells.length !== columns) return null;
+  const alignments: TableAlignment[] = [];
+  for (const cell of cells) {
+    if (!/^:?-{3,}:?$/.test(cell)) return null;
+    alignments.push(
+      cell.startsWith(':') && cell.endsWith(':') ? 'center' : cell.endsWith(':') ? 'right' : 'left',
+    );
+  }
+  return alignments;
+}
+
+function tableStart(
+  lines: readonly string[],
+  index: number,
+): { alignments: TableAlignment[]; header: string[] } | null {
+  const header = splitTableRow(lines[index] ?? '');
+  if (!header || header.length === 0) return null;
+  const alignments = tableAlignments(lines[index + 1] ?? '', header.length);
+  return alignments ? { alignments, header } : null;
+}
+
+function normalizedTableRow(line: string, columns: number): string[] | null {
+  const cells = splitTableRow(line);
+  if (!cells) return null;
+  if (cells.length < columns) return [...cells, ...Array(columns - cells.length).fill('')];
+  if (cells.length === columns) return cells;
+  return [...cells.slice(0, columns - 1), cells.slice(columns - 1).join(' | ')];
+}
+
 function RichText({ value }: { value: string }) {
   const lines = value.replace(/\r\n?/g, '\n').split('\n');
   const nodes: ReactNode[] = [];
@@ -111,6 +179,53 @@ function RichText({ value }: { value: string }) {
         <pre key={key}>
           <code data-language={fence[1] || undefined}>{codeLines.join('\n')}</code>
         </pre>,
+      );
+      continue;
+    }
+    const table = tableStart(lines, index);
+    if (table) {
+      const rows: string[][] = [];
+      index += 2;
+      while (index < lines.length && lines[index]?.trim()) {
+        const row = normalizedTableRow(lines[index] ?? '', table.header.length);
+        if (!row) break;
+        rows.push(row);
+        index += 1;
+      }
+      nodes.push(
+        <div className="rich-table-scroll" key={key}>
+          <table>
+            <thead>
+              <tr>
+                {table.header.map((cell, column) => (
+                  <th
+                    data-align={table.alignments[column]}
+                    key={`${key}-header-${column}`}
+                    scope="col"
+                  >
+                    {inlineText(cell, `${key}-header-${column}`)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            {rows.length > 0 && (
+              <tbody>
+                {rows.map((row, rowIndex) => (
+                  <tr key={`${key}-row-${rowIndex}`}>
+                    {row.map((cell, column) => (
+                      <td
+                        data-align={table.alignments[column]}
+                        key={`${key}-row-${rowIndex}-${column}`}
+                      >
+                        {inlineText(cell, `${key}-row-${rowIndex}-${column}`)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            )}
+          </table>
+        </div>,
       );
       continue;
     }
@@ -158,7 +273,12 @@ function RichText({ value }: { value: string }) {
     }
     const paragraph = [line];
     index += 1;
-    while (index < lines.length && lines[index]?.trim() && !blockStart(lines[index] ?? '')) {
+    while (
+      index < lines.length &&
+      lines[index]?.trim() &&
+      !blockStart(lines[index] ?? '') &&
+      !tableStart(lines, index)
+    ) {
       paragraph.push(lines[index] ?? '');
       index += 1;
     }
@@ -391,6 +511,9 @@ export function Timeline({
                   </summary>
                   <div className="activity-detail-expanded">
                     <div className="activity-command-expanded">{item.activity.title}</div>
+                    {item.activity.output && (
+                      <div className="activity-output-expanded">{item.activity.output}</div>
+                    )}
                     {item.activity.detail && (
                       <div className="activity-extra-expanded">{item.activity.detail}</div>
                     )}

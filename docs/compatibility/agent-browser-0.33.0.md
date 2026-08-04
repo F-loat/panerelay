@@ -118,6 +118,7 @@ Side-panel providers do not create or close agent-browser MCP connections. They 
 | capability | Status | Notes |
 | --- | --- | --- |
 | Selected-provider preparation | Verified | Codex app-server and Qoder ACP initialize idempotently without listing history or creating a conversation. |
+| Provider child command environment | Verified | Setup captures a bounded absolute command-search path in the protected runtime configuration, and the Native Host passes one reconstructed environment to every built-in provider. POSIX, Windows, AgentService, installation, and Qoder ACP regressions pass. A Qoder-selected daily-Chrome run confirmed the Agent environment resolves its normally installed browser command after Native Host setup refresh. |
 | Lazy recent-conversation history | Verified | History loads on explicit open and covers loading, search, empty, error, retry, and resume states. |
 | Draft-first conversation creation | Verified | “New” stays local until the first non-empty message, then starts, binds, and sends exactly once. |
 | Active-tab conversation restoration | Verified | Opaque revisions reject stale async results and restore cached or provider-native conversation state. |

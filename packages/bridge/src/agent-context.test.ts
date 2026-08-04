@@ -39,6 +39,10 @@ test('validates the workspace and creates only untrusted tab context', async () 
   assert.doesNotMatch(instructions, /projectDirectory|panerelay_browser|browser tool/i);
   assert.match(instructions, /\$panerelay-browser/);
   assert.match(instructions, /Do not switch to another browser automation Skill or tool/);
+  assert.match(instructions, /Select exactly one automation engine/);
+  assert.match(instructions, /otherwise use agent-browser/);
+  assert.match(instructions, /Do not probe every supported executable/);
+  assert.match(instructions, /ask the user to choose an engine merely because none was named/);
   assert.match(instructions, /browser-work request as authorization/);
   assert.match(instructions, /normal command-approval flow/);
   assert.match(instructions, /npx skills add F-loat\/panerelay --skill panerelay-browser/);
@@ -104,6 +108,12 @@ test('adds registered integrations as a staleable fast-path hint', () => {
   assert.match(instructions, /agent-browser: Panerelay Provider registered and selected/);
   assert.match(instructions, /Browser Use: Panerelay adapter registered with extension mode/);
   assert.match(instructions, /Playwright CLI: Panerelay adapter registered/);
+  assert.match(instructions, /select exactly one registration as the fast path/);
+  assert.match(
+    instructions,
+    /registered default and then agent-browser, Browser Use, or Playwright CLI/,
+  );
+  assert.match(instructions, /Do not inspect the other registered engines/);
   assert.match(instructions, /do not repeat generic operating-system/);
   assert.match(instructions, /takes precedence over the Skill’s generic readiness workflow/);
   assert.match(instructions, /does not prove.*Extension is connected/);

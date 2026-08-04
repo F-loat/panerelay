@@ -9,6 +9,7 @@ Side Panel conversations know the current page URL and title but do not carry a 
   - agent-browser 0.33.0: a derived `--session` name that the Panerelay Provider binds to the hinted browser and target before assigning session-local `t1`;
   - Browser Use 0.13.7 with Browser Harness 0.1.8: the existing Panerelay daemon lane plus the exact `switch_tab(targetId)` helper;
   - Playwright CLI 0.1.17: a derived `-s=<session>` name and a target-scoped explicit CDP attach URL whose initial tab index `0` is the hinted target.
+- Make the unified browser Skill choose one engine for an ordinary task: honor an engine named by the user, otherwise use the highest-priority registered default or integration, and use agent-browser as the fallback recommendation when no trusted setup hint exists. Inspect, set up, and diagnose only that selected engine instead of enumerating all supported engines or asking the user to make an unsolicited technical choice.
 - Resolve a target hint only within the originating live browser registration and the participant's already authorized target set. A missing, stale, closed, unauthorized, or wrong-browser target fails explicitly and never lets the documented local handle (`t1` or index `0`) silently select another tab.
 - Preserve each engine's normal session, tab-list, tab-create, and automation behavior after the initial target is selected.
 - Update RFC-0002 and RFC-0007, the unified browser Skill, pinned compatibility records, deterministic relay/provider tests, and real-engine probes.
@@ -33,7 +34,7 @@ None.
 - `browser-use-connection-adapter`: Browser Use can consume the hinted opaque target through its native `switch_tab(targetId)` helper while retaining the shared persistent lane.
 - `playwright-cdp-connection`: A target-scoped explicit attach route and CLI session make the hinted authorized target the initial Playwright index `0` or fail closed.
 - `cdp-http-bootstrap`: Optional target hints are bound to bootstrap participants without broadening target exposure or authorization.
-- `panerelay-browser-skill`: The Skill documents and validates the exact engine-specific session and target-selection commands.
+- `panerelay-browser-skill`: The Skill deterministically selects one recommended engine for ordinary tasks, then documents and validates that engine's exact session and target-selection commands without probing every supported alternative.
 
 ## Impact
 

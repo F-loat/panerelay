@@ -2,6 +2,7 @@ import {
   ConversationApproval,
   ConversationApprovalDecision,
   ConversationDetail,
+  type AgentProviderSummary,
   type AutomationIntegrationId,
   type ConversationSummary,
 } from '@panerelay/protocol';
@@ -19,9 +20,14 @@ import {
   translate,
 } from './i18n.js';
 import {
+  bootstrapProviderId,
   conversationProviderId,
+  createProviderBootstrap,
+  providerCacheValue,
+  PROVIDER_CACHE_KEY,
   selectProviderId,
   supportedProviders,
+  type ProviderBootstrap,
 } from './provider-selection.js';
 import type { SidepanelClient } from './sidepanel-client.js';
 import { appendPageCommentsContext, pageCommentsDisplayMessage } from './page-comment-context.js';
@@ -122,9 +128,12 @@ export interface SidepanelController {
   dismissError(): void;
 }
 
-export function useSidepanelController(client: SidepanelClient): SidepanelController {
+export function useSidepanelController(
+  client: SidepanelClient,
+  bootstrap?: ProviderBootstrap,
+): SidepanelController {
   const [state, dispatch] = useReducer(sidepanelReducer, undefined, () =>
-    createInitialSidepanelState(),
+    createInitialSidepanelState(undefined, bootstrap),
   );
   const stateRef = useRef(state);
   const activationGenerationRef = useRef(0);
@@ -172,6 +181,15 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
     [commit],
   );
 
+  const persistProviderCache = useCallback(
+    (providers: AgentProviderSummary[]) => {
+      void client
+        .setStored({ [PROVIDER_CACHE_KEY]: providerCacheValue(providers) })
+        .catch(() => undefined);
+    },
+    [client],
+  );
+
   const loadConversation = useCallback(
     (detail: ConversationDetail, workspace?: ConversationWorkspaceSnapshot) => {
       patch({
@@ -210,13 +228,17 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
       try {
         await client.request({ type: 'panerelay.agent.prepare', providerId });
         const providerResponse = await client.request({ type: 'panerelay.agent.providers' });
+        const providers = supportedProviders(
+          providerResponse.providers ?? stateRef.current.providers,
+        );
         patch({
-          providers: supportedProviders(providerResponse.providers ?? stateRef.current.providers),
+          providers,
           providerPreparations: {
             ...stateRef.current.providerPreparations,
             [providerId]: { status: 'ready' },
           },
         });
+        persistProviderCache(providers);
       } catch (error) {
         patch({
           providerPreparations: {
@@ -226,7 +248,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
         });
       }
     },
-    [client, patch],
+    [client, patch, persistProviderCache],
   );
 
   const activateWorkspace = useCallback(
@@ -367,6 +389,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
       const stored = await client.getStored([
         LOCALE_KEY,
         PROVIDER_KEY,
+        PROVIDER_CACHE_KEY,
         THEME_KEY,
         AUTO_APPROVE_KEY,
       ]);
@@ -380,7 +403,18 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
         stored[THEME_KEY] === 'light'
           ? stored[THEME_KEY]
           : stateRef.current.themeSetting;
-      patch({ locale, themeSetting, autoApprove: stored[AUTO_APPROVE_KEY] === true });
+      const cached = createProviderBootstrap(stored[PROVIDER_KEY], stored[PROVIDER_CACHE_KEY]);
+      patch({
+        locale,
+        themeSetting,
+        autoApprove: stored[AUTO_APPROVE_KEY] === true,
+        ...(cached.providers.length > 0
+          ? {
+              providers: cached.providers,
+              currentProviderId: bootstrapProviderId(cached.providers, cached.preferredProviderId),
+            }
+          : {}),
+      });
 
       const statusResponse = await client.request({ type: 'panerelay.status.get' });
       const extensionStatus = statusResponse.status ?? null;
@@ -390,8 +424,9 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
           ? stored[PROVIDER_KEY]
           : stateRef.current.currentProviderId;
       if (!extensionStatus?.bridgeConnected) {
-        const providers = supportedProviders([]);
-        patch({ providers, currentProviderId: selectProviderId(providers, preferred) });
+        patch({
+          currentProviderId: bootstrapProviderId(stateRef.current.providers, preferred),
+        });
         return;
       }
 
@@ -400,6 +435,7 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
       providerDiscoveryCompleted = true;
       const currentProviderId = selectProviderId(providers, preferred);
       patch({ providers, currentProviderId, providerPreparations: {} });
+      persistProviderCache(providers);
       const generation = ++activationGenerationRef.current;
       const workspaceResponse = await client.request({
         type: 'panerelay.workspace.get',
@@ -410,18 +446,18 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
       }
       await activateWorkspace(workspaceResponse.workspace, generation);
     } catch (error) {
-      const providers = supportedProviders(
-        providerDiscoveryCompleted ? stateRef.current.providers : [],
-      );
+      const providers = supportedProviders(stateRef.current.providers);
       patch({
         providers,
-        currentProviderId: selectProviderId(providers, stateRef.current.currentProviderId),
+        currentProviderId: providerDiscoveryCompleted
+          ? selectProviderId(providers, stateRef.current.currentProviderId)
+          : bootstrapProviderId(providers, stateRef.current.currentProviderId),
         error: errorText(error),
       });
     } finally {
       patch({ initializing: false });
     }
-  }, [activateWorkspace, client, patch]);
+  }, [activateWorkspace, client, patch, persistProviderCache]);
 
   const interruptCurrent = useCallback(async () => {
     const current = stateRef.current;
@@ -565,16 +601,18 @@ export function useSidepanelController(client: SidepanelClient): SidepanelContro
       if (generation !== activationGenerationRef.current) return;
       const providerPreparations = { ...stateRef.current.providerPreparations };
       delete providerPreparations[providerId];
+      const providers = supportedProviders(response.providers ?? stateRef.current.providers);
       patch({
-        providers: supportedProviders(response.providers ?? stateRef.current.providers),
+        providers,
         providerPreparations,
       });
+      persistProviderCache(providers);
     } catch (error) {
       if (generation === activationGenerationRef.current) patch({ error: errorText(error) });
     } finally {
       patch({ providerDiscoveryPending: false });
     }
-  }, [client, patch]);
+  }, [client, patch, persistProviderCache]);
 
   const setAuthorization = useCallback(
     async (mode: AuthorizationMode) => {

@@ -138,6 +138,22 @@ test('aggregates descriptors while containing an unavailable adapter failure', a
   ]);
 });
 
+test('passes one explicit reconstructed environment to the default provider factory', async () => {
+  const environment = { HOME: '/home/example', PATH: '/home/example/bin:/usr/bin' };
+  const codex = new FakeProvider('codex', 'codex-1');
+  let received: NodeJS.ProcessEnv | undefined;
+  const service = new AgentService(() => {}, {
+    environment,
+    createProviders: value => {
+      received = value;
+      return [codex];
+    },
+  });
+
+  assert.equal(received, environment);
+  await service.close();
+});
+
 test('routes conversations to their provider and rejects mismatches before adapter access', async () => {
   const messages: HostToExtensionMessage[] = [];
   const codex = new FakeProvider('codex', 'codex-1');

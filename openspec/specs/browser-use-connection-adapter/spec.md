@@ -3,7 +3,9 @@
 ## Purpose
 
 Define how an optional Panerelay adapter connects supported Browser Use CLI and Browser Harness workflows to explicitly authorized tabs in the user's existing Chromium browser without changing Browser Use automation semantics or unrelated configuration.
+
 ## Requirements
+
 ### Requirement: Setup installs the Browser Use integration only when requested
 
 Panerelay setup SHALL install and register the Browser Use adapter, its Panerelay Skill, private runtime configuration, and diagnostics only when the user selects the Browser Use integration. Setup SHALL preserve Browser Use's own configuration, official Skill, executable installation, default daemon, and shell `PATH`, and uninstall SHALL remove only Panerelay-owned Browser Use artifacts. User-facing setup, doctor, Skill, and package documentation SHALL present Browser Use as the single product prerequisite and SHALL NOT require the user to install or manage its internal Browser Harness runtime separately.
@@ -267,3 +269,28 @@ The setup-managed launcher SHALL be named `panerelay-browser-use` and SHALL invo
 - **GIVEN** the saved mode is Extension
 - **WHEN** the no-argument launcher starts Browser Use
 - **THEN** it uses the same adapter, authorization, protected runtime, concurrency, and lifecycle path as the previous explicit adapter invocation
+
+### Requirement: Conversation target hints are directly selectable in Browser Use
+
+Panerelay SHALL expose the Extension-generated opaque target ID in bounded conversation guidance so Browser Use 0.13.7 with Browser Harness 0.1.8 can select it through the unchanged `switch_tab(targetId)` helper. Target selection SHALL retain the existing shared persistent Panerelay daemon lane and MUST NOT create a per-conversation daemon, infer a target from URL/title, or widen the participant's target inventory.
+
+#### Scenario: Hinted target exists in the persistent lane
+
+- **GIVEN** the Browser Use Panerelay lane is connected to the originating browser and exposes the hinted authorized target
+- **WHEN** the Agent calls `switch_tab` with the injected opaque target ID
+- **THEN** Browser Harness selects that exact target and subsequent helpers address it
+- **AND** the shared lane, normal helper behavior, authorization, and control policy remain unchanged
+
+#### Scenario: Persistent lane cannot see the hint
+
+- **GIVEN** the Browser Use lane is pinned to another browser generation or its exposed target set does not contain the hinted target
+- **WHEN** the Agent calls `switch_tab` with the injected opaque target ID
+- **THEN** the operation fails explicitly
+- **AND** Panerelay does not restart the daemon, select another target, or fall back to Direct mode automatically
+
+#### Scenario: Another Agent already uses the shared lane
+
+- **GIVEN** the persistent Browser Use lane is busy or retains another Agent's current-page state
+- **WHEN** a conversation attempts to select its hinted target
+- **THEN** the existing serialization or busy behavior remains authoritative
+- **AND** the target hint does not create a second daemon or claim per-Agent isolation

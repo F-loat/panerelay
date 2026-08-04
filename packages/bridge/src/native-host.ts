@@ -24,6 +24,7 @@ import { AgentService } from './agent-service.js';
 import { NativeMessageDecoder, encodeNativeMessage } from './native-messaging.js';
 import { BrowserRelay } from './browser-relay.js';
 import { readRuntimeConfig } from './runtime-config.js';
+import { environmentWithExecutablePath } from './platform.js';
 import { IntegrationService } from './integration-service.js';
 import { ensureBrowserUseGateway, runBrowserUseGateway } from './browser-use-gateway.js';
 
@@ -61,7 +62,9 @@ async function main(): Promise<void> {
   const runtimeConfig = await readRuntimeConfig();
   const expectedExtensionId = runtimeConfig.extensionId ?? PANERELAY_EXTENSION_ID;
   let currentBrowser: BridgeState | null = null;
-  const agents = new AgentService(sendToExtension);
+  const agents = new AgentService(sendToExtension, {
+    environment: environmentWithExecutablePath(process.env, runtimeConfig.agentPathEntries ?? []),
+  });
   const integrations = new IntegrationService(sendToExtension, {
     currentBrowser: () => currentBrowser,
   });

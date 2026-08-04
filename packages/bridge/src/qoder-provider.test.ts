@@ -191,6 +191,25 @@ test('reports missing Qoder without blocking and exposes negotiated capabilities
   });
 });
 
+test('passes the explicit Agent command environment to the Qoder ACP runtime', async () => {
+  const environment = {
+    HOME: '/Users/example',
+    PATH: '/Users/example/.nvm/bin:/usr/bin:/bin',
+  };
+  let received: NodeJS.ProcessEnv | undefined;
+  const { provider } = harness(undefined, {
+    environment,
+    createRuntime: (_executable, handlers, options) => {
+      received = options.environment;
+      return new FakeQoderRuntime(handlers);
+    },
+  });
+
+  await provider.prepare();
+  assert.equal(received, environment);
+  await provider.close();
+});
+
 test('deduplicates concurrent Qoder preparation and retries after startup failure', async () => {
   let starts = 0;
   let creations = 0;
@@ -424,6 +443,12 @@ test('normalizes streaming, reasoning, plan, tools, usage, completion, and unkno
         title: 'git status --short',
         kind: 'execute',
         status: 'in_progress',
+        content: [
+          {
+            type: 'content',
+            content: { type: 'text', text: 'M packages/bridge/src/acp-provider.ts' },
+          },
+        ],
       },
     });
     handlers.onUpdate({
@@ -434,6 +459,59 @@ test('normalizes streaming, reasoning, plan, tools, usage, completion, and unkno
         title: 'Qoder tool',
         kind: 'other',
         status: 'completed',
+      },
+    });
+    handlers.onUpdate({
+      sessionId: 'qoder-new',
+      update: {
+        sessionUpdate: 'tool_call',
+        toolCallId: 'tool-cleared',
+        title: 'temporary output',
+        kind: 'execute',
+        status: 'in_progress',
+        content: [
+          {
+            type: 'content',
+            content: { type: 'text', text: 'must be cleared' },
+          },
+        ],
+      },
+    });
+    handlers.onUpdate({
+      sessionId: 'qoder-new',
+      update: {
+        sessionUpdate: 'tool_call_update',
+        toolCallId: 'tool-cleared',
+        status: 'completed',
+        content: null,
+      },
+    });
+    handlers.onUpdate({
+      sessionId: 'qoder-new',
+      update: {
+        sessionUpdate: 'tool_call_update',
+        toolCallId: 'tool-output-bounded',
+        title: 'bounded output',
+        kind: 'execute',
+        status: 'completed',
+        content: [
+          {
+            type: 'content',
+            content: { type: 'text', text: 'o'.repeat(9_000) },
+          },
+          {
+            type: 'content',
+            content: {
+              type: 'image',
+              data: 'successful-image-must-not-cross',
+              mimeType: 'image/png',
+            },
+          },
+          { type: 'terminal', terminalId: 'terminal-must-not-cross' },
+        ],
+        rawInput: { secret: 'raw-input-must-not-cross' },
+        rawOutput: { secret: 'raw-output-must-not-cross' },
+        _meta: { secret: 'metadata-must-not-cross' },
       },
     });
     handlers.onUpdate({
@@ -504,9 +582,32 @@ test('normalizes streaming, reasoning, plan, tools, usage, completion, and unkno
         event.activity.id === 'tool-command' &&
         event.activity.kind === 'command' &&
         event.activity.title === 'git status --short' &&
+        event.activity.output === 'M packages/bridge/src/acp-provider.ts' &&
         event.activity.status === 'completed',
     ),
   );
+  assert.ok(
+    events.some(
+      event =>
+        event.kind === 'activity.updated' &&
+        event.activity.id === 'tool-cleared' &&
+        event.activity.status === 'completed' &&
+        event.activity.output === undefined,
+    ),
+  );
+  assert.ok(
+    events.some(
+      event =>
+        event.kind === 'activity.updated' &&
+        event.activity.id === 'tool-output-bounded' &&
+        event.activity.output?.length === 8 * 1024,
+    ),
+  );
+  assert.ok(!JSON.stringify(events).includes('successful-image-must-not-cross'));
+  assert.ok(!JSON.stringify(events).includes('terminal-must-not-cross'));
+  assert.ok(!JSON.stringify(events).includes('raw-input-must-not-cross'));
+  assert.ok(!JSON.stringify(events).includes('raw-output-must-not-cross'));
+  assert.ok(!JSON.stringify(events).includes('metadata-must-not-cross'));
   assert.ok(
     events.some(
       event =>

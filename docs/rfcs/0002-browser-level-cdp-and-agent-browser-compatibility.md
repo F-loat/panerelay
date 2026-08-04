@@ -6,7 +6,7 @@
 - Authors: F-loat
 - Created: 2026-07-29
 - Updated: 2026-08-04
-- Amendments: `openspec/changes/add-conversation-target-hints`
+- Amendments: `openspec/changes/archive/2026-08-04-add-conversation-target-hints`
 
 RFC-0004 supersedes this RFC's attachment-as-control and control-visibility semantics. Target discovery and flattened sessions remain virtual, while passive observation may now attach without entering the controlled count or changing the favicon.
 

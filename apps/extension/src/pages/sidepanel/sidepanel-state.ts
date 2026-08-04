@@ -11,7 +11,11 @@ import type { ConversationWorkspaceSnapshot } from '../../shared/conversation-wo
 import type { ExtensionStatus } from '../../shared/messages.js';
 import type { PageElementComment } from '../../shared/page-comments.js';
 import { defaultLocale, type Locale, type ThemeSetting } from './i18n.js';
-import { supportedProviders } from './provider-selection.js';
+import {
+  bootstrapProviderId,
+  supportedProviders,
+  type ProviderBootstrap,
+} from './provider-selection.js';
 
 export type TimelineItem =
   | { type: 'message'; message: ConversationMessage; streaming?: boolean }
@@ -91,19 +95,23 @@ export function automaticApprovalDecision(
   return approval.decisions.includes('accept') ? 'accept' : null;
 }
 
-export function createInitialSidepanelState(language?: string): SidepanelState {
+export function createInitialSidepanelState(
+  language?: string,
+  bootstrap?: ProviderBootstrap,
+): SidepanelState {
+  const providers = bootstrap?.providers.length ? bootstrap.providers : supportedProviders([]);
   return {
     locale: defaultLocale(language),
     themeSetting: 'system',
     extensionStatus: null,
-    providers: supportedProviders([]),
+    providers,
     conversations: [],
     historyOpen: false,
     historyLoading: false,
     historyError: '',
     historyLoadedProviderId: '',
     historyQuery: '',
-    currentProviderId: 'codex',
+    currentProviderId: bootstrapProviderId(providers, bootstrap?.preferredProviderId),
     providerDiscoveryPending: false,
     providerPreparations: {},
     workspace: null,

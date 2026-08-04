@@ -22,6 +22,9 @@ import { useCopy } from './presentation.js';
 function connectionDetails(state: SidepanelState) {
   const currentProvider = state.providers.find(item => item.id === state.currentProviderId);
   const preparation = state.providerPreparations[state.currentProviderId];
+  if (state.initializing) {
+    return { label: translate(state.locale, 'connecting'), status: 'idle' };
+  }
   if (!state.extensionStatus?.bridgeConnected) {
     return { label: translate(state.locale, 'bridgeDisconnected'), status: 'error' };
   }

@@ -15,6 +15,12 @@ import {
   useSidepanelController,
 } from './sidepanel-controller.js';
 import type { SidepanelClient, SidepanelRuntimeMessage } from './sidepanel-client.js';
+import {
+  createProviderBootstrap,
+  providerCacheValue,
+  PROVIDER_CACHE_KEY,
+  supportedProviders,
+} from './provider-selection.js';
 
 const baseStatus: ExtensionStatus = {
   bridgeConnected: true,
@@ -100,6 +106,7 @@ class FakeSidepanelClient implements SidepanelClient {
   installError = '';
   installPromise: Promise<void> | null = null;
   providerDiscoveryPromise: Promise<void> | null = null;
+  providerCacheWriteError = '';
   providerResponse = providers;
   sendError = '';
   resumeHandler:
@@ -115,6 +122,9 @@ class FakeSidepanelClient implements SidepanelClient {
   }
 
   async setStored(values: Record<string, unknown>): Promise<void> {
+    if (this.providerCacheWriteError && PROVIDER_CACHE_KEY in values) {
+      throw new Error(this.providerCacheWriteError);
+    }
     this.storedWrites.push(values);
     Object.assign(this.stored, values);
   }
@@ -325,6 +335,65 @@ async function readyController() {
 }
 
 describe('Side Panel controller', () => {
+  it('uses the cached preferred provider before live discovery', () => {
+    const bootstrap = createProviderBootstrap(
+      'qoder',
+      providerCacheValue([
+        {
+          id: 'qoder',
+          name: 'Qoder',
+          status: 'ready',
+          description: 'Qoder fixture',
+          model: 'qoder-model',
+        },
+      ]),
+    );
+
+    const state = createInitialSidepanelState('en', bootstrap);
+    expect(state.currentProviderId).toBe('qoder');
+    expect(state.providers[0]).toEqual(
+      expect.objectContaining({ id: 'qoder', status: 'ready', model: 'qoder-model' }),
+    );
+    expect(state.initializing).toBe(true);
+  });
+
+  it('replaces cached provider presentation with live discovery and persists it', async () => {
+    const client = new FakeSidepanelClient();
+    client.stored['panerelay.agentProvider'] = 'qoder';
+    client.stored[PROVIDER_CACHE_KEY] = providerCacheValue([
+      {
+        id: 'qoder',
+        name: 'Qoder',
+        status: 'ready',
+        description: 'Cached Qoder',
+      },
+    ]);
+    client.providerResponse = [providers[0]!, { ...providers[1]!, status: 'unavailable' }];
+    const bootstrap = createProviderBootstrap(
+      client.stored['panerelay.agentProvider'],
+      client.stored[PROVIDER_CACHE_KEY],
+    );
+
+    const hook = renderHook(() => useSidepanelController(client, bootstrap));
+    await waitFor(() => expect(hook.result.current.state.initializing).toBe(false));
+
+    expect(hook.result.current.state.currentProviderId).toBe('codex');
+    expect(client.stored[PROVIDER_CACHE_KEY]).toEqual(
+      providerCacheValue(supportedProviders(client.providerResponse)),
+    );
+  });
+
+  it('keeps provider cache write failures out of the user-facing error state', async () => {
+    const client = new FakeSidepanelClient();
+    client.providerCacheWriteError = 'storage unavailable';
+    const hook = renderHook(() => useSidepanelController(client));
+
+    await waitFor(() => expect(hook.result.current.state.initializing).toBe(false));
+
+    expect(hook.result.current.state.error).toBe('');
+    expect(hook.result.current.state.currentProviderId).toBe('codex');
+  });
+
   it('keeps history lazy and explicitly resumes the selected provider conversation', async () => {
     const { client, hook } = await readyController();
 

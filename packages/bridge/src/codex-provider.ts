@@ -387,6 +387,7 @@ export class CodexProvider implements AgentProvider {
       ? this.options.createClient(config, handlers)
       : new CodexAppServer({
           codexPath: config.codexPath,
+          environment: this.options.environment,
           ...handlers,
         });
     try {

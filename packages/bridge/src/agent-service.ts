@@ -16,6 +16,8 @@ import { OpenCodeProvider } from './opencode-provider.js';
 import { QoderProvider } from './qoder-provider.js';
 
 export interface AgentServiceOptions {
+  createProviders?: (environment: NodeJS.ProcessEnv | undefined) => AgentProvider[];
+  environment?: NodeJS.ProcessEnv;
   providers?: AgentProvider[];
 }
 
@@ -38,12 +40,13 @@ export class AgentService {
     private readonly sendToExtension: (message: HostToExtensionMessage) => void,
     options: AgentServiceOptions = {},
   ) {
-    const providers = options.providers ?? [
-      new CodexProvider({}),
-      new ClaudeProvider(),
-      new QoderProvider(),
-      new OpenCodeProvider(),
-    ];
+    const providers = options.providers ??
+      options.createProviders?.(options.environment) ?? [
+        new CodexProvider({ environment: options.environment }),
+        new ClaudeProvider({ environment: options.environment }),
+        new QoderProvider({ environment: options.environment }),
+        new OpenCodeProvider({ environment: options.environment }),
+      ];
     for (const provider of providers) {
       if (this.providers.has(provider.id)) {
         throw new Error(`Duplicate agent provider: ${provider.id}`);

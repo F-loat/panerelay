@@ -15,7 +15,7 @@ Use the engine the user names:
 - `browser-use`: the official Browser Use CLI or `--cli-mcp` workflow. Minimum and verified baseline: browser-use 0.13.7 with Browser Harness 0.1.8.
 - `playwright-cli`: the upstream Playwright CLI through an explicit CDP attach. Minimum and verified baseline: 0.1.17.
 
-If the user does not name an engine, use a trusted Panerelay setup hint as described below. Otherwise inspect which supported engines are already installed and ask which they want before changing the environment. Do not configure an unrelated engine.
+If the user does not name an engine, use a trusted Panerelay setup hint as described below. If no trusted setup hint exists, select `agent-browser` as the general-purpose default. Inspect, invoke, set up, and diagnose only the selected engine. Do not probe all three supported executables or ask the user to choose an engine merely because none was named. Do not configure an unrelated engine or silently switch after selection.
 
 Chrome is the verified browser baseline. Microsoft Edge uses the shared Chromium implementation and remains `Forwarded` where its compatibility record says so. Do not present shared implementation as complete Edge verification.
 
@@ -32,10 +32,10 @@ Chrome is the verified browser baseline. Microsoft Edge uses the shared Chromium
 
 When trusted developer or system instructions contain `Local Panerelay setup registrations (cached hint; may be stale)`, use the listed registrations for an ordinary browser task:
 
-1. Use the engine the user requested. If none was requested, prefer the listed default, then registered agent-browser, Browser Use, or Playwright CLI in that order.
+1. Select exactly one engine: use the engine the user requested. If none was requested, prefer the listed default, then registered agent-browser, Browser Use, or Playwright CLI in that order. If more than one listed integration is described as a default, prefer agent-browser and then Browser Use.
 2. Skip the generic operating-system, shell, Node.js, executable-version, setup, and doctor probes before the first attempt.
 3. Continue at the user-owned authorization boundary, then invoke the selected engine's tab-list operation directly. A successful invocation is the live availability check.
-4. If invocation or attach fails, treat only that registration as stale and resume at the smallest matching readiness or troubleshooting layer below. Do not switch engines merely because the cached hint was stale.
+4. Do not inspect the other listed registrations after selecting one. If invocation or attach fails, treat only that registration as stale and resume at the smallest matching readiness or troubleshooting layer below. Do not switch engines merely because the cached hint was stale.
 
 Do not use this fast path when the user explicitly asks to install, upgrade, verify, or troubleshoot Panerelay or an engine. A registration does not prove that the executable is still present, the Extension is connected, a tab is authorized, or a control lease exists.
 

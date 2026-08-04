@@ -3,9 +3,12 @@ import { constants } from 'node:fs';
 import test from 'node:test';
 import {
   compareVersions,
+  environmentWithExecutablePath,
   executableCandidatePaths,
   executableNames,
+  executablePathEntries,
   isExecutableFile,
+  normalizeExecutablePathEntries,
   parseCliVersion,
   probeExecutableVersion,
   resolveExecutablePath,
@@ -35,6 +38,43 @@ test('builds platform-specific executable names and PATH candidates', () => {
       'D:\\bin\\qodercli.exe',
       'D:\\bin\\qodercli',
     ],
+  );
+});
+
+test('captures and reconstructs bounded absolute executable paths', () => {
+  assert.deepEqual(
+    executablePathEntries(
+      { PATH: '/usr/bin:/Users/example/.nvm/bin:relative:/usr/bin' },
+      { platform: 'darwin', prepend: ['/opt/node/bin'] },
+    ),
+    ['/opt/node/bin', '/usr/bin', '/Users/example/.nvm/bin'],
+  );
+  assert.deepEqual(
+    environmentWithExecutablePath(
+      { HOME: '/Users/example', PATH: '/usr/bin:/bin' },
+      ['/Users/example/.nvm/bin', '/usr/bin', '../relative'],
+      'darwin',
+    ),
+    {
+      HOME: '/Users/example',
+      PATH: '/Users/example/.nvm/bin:/usr/bin:/bin',
+    },
+  );
+  assert.deepEqual(
+    environmentWithExecutablePath(
+      { Path: 'C:\\Windows\\System32;C:\\Tools', USERPROFILE: 'C:\\Users\\example' },
+      ['C:\\Node\\bin', 'c:\\node\\bin', 'relative'],
+      'win32',
+    ),
+    {
+      Path: 'C:\\Node\\bin;C:\\Windows\\System32;C:\\Tools',
+      USERPROFILE: 'C:\\Users\\example',
+    },
+  );
+  assert.equal(
+    normalizeExecutablePathEntries(Array.from({ length: 80 }, (_, index) => `/bin/${index}`))
+      .length,
+    64,
   );
 });
 
