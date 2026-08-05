@@ -271,10 +271,13 @@ test('source provides complete English and Simplified Chinese language contracts
   assert.equal((html.match(/data-language-option=/g) ?? []).length, 2);
   assert.match(html, /data-language-option="zh-CN"/);
   assert.match(html, /data-language-option="en"/);
-  assert.match(script, /navigator\.languages\[0\]/);
-  assert.match(script, /window\.localStorage\.getItem\(localeStorageKey\)/);
+  assert.match(
+    html,
+    /data-language-option="zh-CN"[\s\S]*?href="\.\/zh-CN\/"|href="\.\/zh-CN\/"[\s\S]{0,200}?data-language-option="zh-CN"/,
+  );
+  assert.match(script, /function documentLocale\(\): Locale/);
   assert.match(script, /document\.documentElement\.lang = locale/);
-  assert.match(script, /const localeStorageKey = 'panerelay\.locale'/);
+  assert.doesNotMatch(script, /navigator\.languages|localStorage/);
   assert.match(i18n, /让 Agent 在<span>你的日常浏览器里工作。<\/span>/);
   assert.match(i18n, /复用 Chrome \/ Edge 的现有登录态/);
   assert.match(i18n, /可授权当前标签页或全部受支持网页/);
@@ -430,8 +433,7 @@ test('source has no analytics, advertising, external scripts, or unapproved font
   assert.match(styles, /word-break: keep-all/);
   assert.doesNotMatch(styles, /@font-face|TsangerJinKai02/);
   assert.doesNotMatch(html, /document\.cookie|localStorage|sessionStorage/);
-  assert.doesNotMatch(script, /document\.cookie|sessionStorage/);
-  assert.equal((script.match(/panerelay\.locale/g) ?? []).length, 1);
+  assert.doesNotMatch(script, /document\.cookie|sessionStorage|localStorage/);
 });
 
 test('illustration labels keep content separate from decorative affordances', async () => {
@@ -473,4 +475,54 @@ test('production output uses relative project-path assets', async () => {
   assert.deepEqual([...socialCard.subarray(0, 8)], [137, 80, 78, 71, 13, 10, 26, 10]);
   assert.match(robots, /https:\/\/f-loat\.github\.io\/panerelay\/sitemap\.xml/);
   assert.match(workflow, /if: github\.ref == 'refs\/heads\/main'/);
+});
+
+test('localized homepage is statically rendered, canonical, and cross-linked', async () => {
+  const source = await read('index.html');
+  const sitemap = await read('public/sitemap.xml');
+  const viteConfig = await read('vite.config.ts');
+  const english = await read('dist/index.html');
+  const chinese = await read('dist/zh-CN/index.html');
+
+  assert.match(source, /rel="canonical" href="https:\/\/f-loat\.github\.io\/panerelay\/"/);
+  assert.match(sitemap, /<loc>https:\/\/f-loat\.github\.io\/panerelay\/zh-CN\/<\/loc>/);
+  assert.match(viteConfig, /mainZhCn: resolve\(websiteRoot, 'zh-CN\/index\.html'\)/);
+  assert.match(viteConfig, /generateLocalePages/);
+
+  // `lang`/`hreflang` use BCP 47 tags, while `og:locale` uses Open Graph `language_TERRITORY`.
+  for (const [html, canonical, languageTag, openGraphLocale] of [
+    [english, 'https://f-loat.github.io/panerelay/', 'en', 'en_US'],
+    [chinese, 'https://f-loat.github.io/panerelay/zh-CN/', 'zh-CN', 'zh_CN'],
+  ]) {
+    assert.match(html, new RegExp(`<html lang="${languageTag}"`));
+    assert.match(html, new RegExp(`rel="canonical" href="${canonical}"`));
+    assert.match(html, new RegExp(`property="og:url" content="${canonical}"`));
+    assert.match(html, new RegExp(`property="og:locale" content="${openGraphLocale}"`));
+    assert.doesNotMatch(html, new RegExp(`property="og:locale" content="${languageTag}"`));
+    assert.match(html, /hreflang="en" href="https:\/\/f-loat\.github\.io\/panerelay\/"/);
+    assert.match(html, /hreflang="zh-CN" href="https:\/\/f-loat\.github\.io\/panerelay\/zh-CN\/"/);
+    assert.match(html, /hreflang="x-default" href="https:\/\/f-loat\.github\.io\/panerelay\/"/);
+    assert.equal((html.match(/data-language-option=/g) ?? []).length, 2);
+  }
+
+  // Chinese metadata and body copy must be present before any script runs.
+  assert.match(chinese, /<title[^>]*>Panerelay — 浏览器不用换，Agent 直接上手<\/title>/);
+  assert.match(
+    chinese,
+    /name="description"[^>]*content="Panerelay 让 AI Agent 复用 Chrome \/ Edge/,
+  );
+  assert.match(chinese, /property="og:title"[^>]*content="Panerelay — 浏览器不用换/);
+  assert.match(chinese, /name="twitter:description"[^>]*content="复用已登录的浏览器会话。/);
+  assert.match(chinese, /让 Agent 在<span>你的日常浏览器里工作。<\/span>/);
+  assert.match(chinese, /授权当前标签页或全部受支持网页/);
+  assert.match(chinese, /获得访问，<br>不等于获得控制。/);
+  assert.doesNotMatch(chinese, /Let Agents work with/);
+
+  // The switcher must navigate between stable locale URLs and keep the matching comparison page.
+  assert.match(english, /href="\.\/zh-CN\/"[^>]*?data-language-option="zh-CN"/s);
+  assert.match(english, /href="\.\/"[^>]*?data-language-option="en"[^>]*?aria-current="page"/s);
+  assert.match(chinese, /href="\.\/"[^>]*?data-language-option="zh-CN"[^>]*?aria-current="page"/s);
+  assert.match(chinese, /href="\.\.\/"[^>]*?data-language-option="en"/s);
+  assert.equal((english.match(/href="\.\/compare\/"/g) ?? []).length, 2);
+  assert.equal((chinese.match(/href="\.\/compare\/"/g) ?? []).length, 2);
 });

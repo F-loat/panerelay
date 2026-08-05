@@ -414,6 +414,7 @@ test('reads protected setup state again on each interactive run instead of cachi
 test('reconciles an isolated interactive selection while preserving upstream executables', async () => {
   const fixture = await mkdtemp(join(tmpdir(), 'panerelay-interactive-reconcile-'));
   const homeDirectory = join(fixture, 'home');
+  const environment = { HOME: homeDirectory };
   const browserUseExecutable = join(fixture, 'browser-use');
   const playwrightExecutable = join(fixture, 'playwright-cli');
   const agentBrowserExecutable = join(fixture, 'agent-browser');
@@ -438,6 +439,7 @@ test('reconciles an isolated interactive selection while preserving upstream exe
         browserUse: '0.13.7',
         browserUseExecutable,
       },
+      environment,
       homeDirectory,
     });
     await installPlaywrightIntegration({
@@ -461,7 +463,7 @@ test('reconciles an isolated interactive selection while preserving upstream exe
         confirmDefault: async () => {
           throw new Error('An empty selection must not ask for a default');
         },
-        environment: { HOME: homeDirectory },
+        environment,
         interactive: () => true,
         selectIntegrations: async prompt => {
           assert.deepEqual(prompt.initialValues, ['agentBrowser', 'browserUse', 'playwright']);

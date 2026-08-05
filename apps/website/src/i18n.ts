@@ -4,6 +4,9 @@ const english = {
   'meta.title': 'Panerelay — Your browser. Agent-ready.',
   'meta.description':
     'Panerelay connects AI agents to your existing Chrome or Edge. Choose one tab or all supported tabs, stay signed in, and release visible control anytime.',
+  'meta.social.title': 'Panerelay — Your browser. Agent-ready.',
+  'meta.social.description':
+    'Reuse your signed-in browser. Authorize one tab or all supported tabs, with visible control you can release anytime.',
   'nav.skip': 'Skip to content',
   'nav.home': 'Panerelay home',
   'nav.open': 'Open navigation',
@@ -295,6 +298,9 @@ const simplifiedChinese: Record<TranslationKey, string> = {
   'meta.title': 'Panerelay — 浏览器不用换，Agent 直接上手',
   'meta.description':
     'Panerelay 让 AI Agent 复用 Chrome / Edge 的现有登录态，可授权当前标签页或全部受支持网页；后台工作不抢焦点，控制随时可释放。',
+  'meta.social.title': 'Panerelay — 浏览器不用换，Agent 直接上手',
+  'meta.social.description':
+    '复用已登录的浏览器会话。授权当前标签页或全部受支持网页，控制过程始终可见，也可随时释放。',
   'nav.skip': '跳到主要内容',
   'nav.home': 'Panerelay 首页',
   'nav.open': '打开导航',
