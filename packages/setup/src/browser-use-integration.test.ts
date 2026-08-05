@@ -56,6 +56,7 @@ exec '/node path/node' '/user'"'"'s path/adapter.mjs' "$@"
 test('installs the official Browser Use integration without private CLI or MCP launchers', async () => {
   const root = await mkdtemp(join(tmpdir(), 'panerelay-browser-use-install-'));
   const homeDirectory = join(root, 'home');
+  const environment = {};
   const browserUseExecutable = join(root, 'browser-use');
   const adapterBundlePath = join(root, 'adapter.mjs');
   try {
@@ -68,6 +69,7 @@ test('installs the official Browser Use integration without private CLI or MCP l
         browserUse: '0.13.8',
         browserUseExecutable,
       },
+      environment,
       homeDirectory,
     });
     const paths = installation.paths;
@@ -83,7 +85,7 @@ test('installs the official Browser Use integration without private CLI or MCP l
         .adapters[0]?.executablePath,
       paths.adapterLauncherPath,
     );
-    const env = await readFile(browserUseEnvironmentPath(homeDirectory), 'utf8');
+    const env = await readFile(browserUseEnvironmentPath(homeDirectory, environment), 'utf8');
     assert.match(env, /BU_CDP_URL=/);
     assert.ok(BROWSER_USE_CHILD_ENVIRONMENT_KEYS.every(key => env.includes(key)));
     assert.doesNotMatch(env, /BH_RUNTIME_DIR=/);
@@ -94,11 +96,13 @@ test('installs the official Browser Use integration without private CLI or MCP l
     await assert.rejects(readFile(join(paths.dataDirectory, 'bin', 'panerelay-browser-use')), {
       code: 'ENOENT',
     });
-    const removed = await uninstallBrowserUseIntegrationArtifacts({ homeDirectory });
+    const removed = await uninstallBrowserUseIntegrationArtifacts({ environment, homeDirectory });
     assert.equal(removed.runtimeStateRemoved, false);
     assert.equal(removed.gatewayStop, 'absent');
     await assert.rejects(readFile(paths.adapterLauncherPath), { code: 'ENOENT' });
-    await assert.rejects(readFile(browserUseEnvironmentPath(homeDirectory)), { code: 'ENOENT' });
+    await assert.rejects(readFile(browserUseEnvironmentPath(homeDirectory, environment)), {
+      code: 'ENOENT',
+    });
     assert.equal(await readFile(browserUseExecutable, 'utf8'), '#!/bin/sh\n');
     assert.deepEqual(
       (await readCliAdapterRegistry({ dataDirectory: paths.dataDirectory, homeDirectory }))
@@ -113,12 +117,14 @@ test('installs the official Browser Use integration without private CLI or MCP l
 test('stops the owned Browser Use gateway before removing its integration state', async () => {
   const root = await mkdtemp(join(tmpdir(), 'panerelay-browser-use-gateway-uninstall-'));
   const homeDirectory = join(root, 'home');
+  const environment = {};
   let stoppedFor: string | undefined;
   try {
     const statePath = browserUseGatewayStatePath(homeDirectory);
     await mkdir(join(statePath, '..'), { recursive: true, mode: 0o700 });
     await writeFile(statePath, '{}');
     const removed = await uninstallBrowserUseIntegrationArtifacts({
+      environment,
       homeDirectory,
       stopGateway: async ({ homeDirectory: selectedHome } = {}) => {
         stoppedFor = selectedHome;
@@ -135,6 +141,7 @@ test('stops the owned Browser Use gateway before removing its integration state'
 test('treats malformed previous integration config as absent during setup', async () => {
   const root = await mkdtemp(join(tmpdir(), 'panerelay-browser-use-malformed-config-'));
   const homeDirectory = join(root, 'home');
+  const environment = {};
   const browserUseExecutable = join(root, 'browser-use');
   const adapterBundlePath = join(root, 'adapter.mjs');
   const paths = resolveBrowserUseIntegrationPaths({ homeDirectory });
@@ -146,6 +153,7 @@ test('treats malformed previous integration config as absent during setup', asyn
     const installation = await installBrowserUseIntegrationArtifacts({
       adapterBundlePath,
       browserUseVersions: { browserUseExecutable },
+      environment,
       homeDirectory,
     });
     assert.deepEqual(
@@ -160,7 +168,8 @@ test('treats malformed previous integration config as absent during setup', asyn
 test('preserves unrelated Browser Harness environment configuration on uninstall', async () => {
   const root = await mkdtemp(join(tmpdir(), 'panerelay-browser-use-environment-'));
   const homeDirectory = join(root, 'home');
-  const envPath = browserUseEnvironmentPath(homeDirectory);
+  const environment = {};
+  const envPath = browserUseEnvironmentPath(homeDirectory, environment);
   try {
     await mkdir(join(envPath, '..'), { recursive: true });
     await writeFile(envPath, 'CUSTOM_BROWSER_FLAG="keep-me"\n');
@@ -168,9 +177,10 @@ test('preserves unrelated Browser Harness environment configuration on uninstall
     await writeFile(browserUseExecutable, '#!/bin/sh\n', { mode: 0o700 });
     await installBrowserUseIntegrationArtifacts({
       browserUseVersions: { browserUseExecutable },
+      environment,
       homeDirectory,
     });
-    await uninstallBrowserUseIntegrationArtifacts({ homeDirectory });
+    await uninstallBrowserUseIntegrationArtifacts({ environment, homeDirectory });
     assert.equal(await readFile(envPath, 'utf8'), 'CUSTOM_BROWSER_FLAG="keep-me"\n');
   } finally {
     await rm(root, { force: true, recursive: true });
