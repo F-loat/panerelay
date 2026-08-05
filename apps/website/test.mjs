@@ -3,11 +3,86 @@ import { readFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import vm from 'node:vm';
+import ts from 'typescript';
 
 const websiteRoot = dirname(fileURLToPath(import.meta.url));
 
 async function read(relativePath) {
   return readFile(join(websiteRoot, relativePath), 'utf8');
+}
+
+async function runLocalePreference({
+  documentLocale,
+  pageUrl,
+  links,
+  storedLocale = null,
+  storageReadError = false,
+  storageWriteError = false,
+}) {
+  const source = await read('src/locale-preference.ts');
+  const compiled = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+    },
+  }).outputText;
+  const clickListeners = new Map();
+  const replacements = [];
+  const writes = [];
+  const currentUrl = new URL(pageUrl);
+  const languageLinks = links.map(({ locale, href }) => ({
+    dataset: { languageOption: locale },
+    href: new URL(href, currentUrl).href,
+    addEventListener(event, listener) {
+      assert.equal(event, 'click');
+      clickListeners.set(locale, listener);
+    },
+  }));
+  const module = { exports: {} };
+  const context = vm.createContext({
+    URL,
+    document: {
+      documentElement: { lang: documentLocale },
+      querySelectorAll(selector) {
+        assert.equal(selector, '[data-language-option]');
+        return languageLinks;
+      },
+    },
+    exports: module.exports,
+    module,
+    window: {
+      localStorage: {
+        getItem(key) {
+          assert.equal(key, 'panerelay.website.locale');
+          if (storageReadError) {
+            throw new Error('storage read unavailable');
+          }
+          return storedLocale;
+        },
+        setItem(key, value) {
+          assert.equal(key, 'panerelay.website.locale');
+          if (storageWriteError) {
+            throw new Error('storage write unavailable');
+          }
+          writes.push(value);
+        },
+      },
+      location: {
+        hash: currentUrl.hash,
+        href: currentUrl.href,
+        search: currentUrl.search,
+        replace(target) {
+          replacements.push(String(target));
+        },
+      },
+    },
+  });
+
+  vm.runInContext(compiled, context);
+  module.exports.initializeLocalePreference();
+
+  return { clickListeners, replacements, writes };
 }
 
 test('source contains the complete product and installation journey', async () => {
@@ -278,6 +353,7 @@ test('source provides complete English and Simplified Chinese language contracts
   assert.match(script, /function documentLocale\(\): Locale/);
   assert.match(script, /document\.documentElement\.lang = locale/);
   assert.doesNotMatch(script, /navigator\.languages|localStorage/);
+  assert.match(script, /initializeLocalePreference\(\)/);
   assert.match(i18n, /让 Agent 在<span>你的日常浏览器里工作。<\/span>/);
   assert.match(i18n, /复用 Chrome \/ Edge 的现有登录态/);
   assert.match(i18n, /可授权当前标签页或全部受支持网页/);
@@ -311,6 +387,81 @@ test('source provides complete English and Simplified Chinese language contracts
     assert.match(english, keyPattern, `missing English translation for ${key}`);
     assert.match(simplifiedChinese, keyPattern, `missing Chinese translation for ${key}`);
   }
+});
+
+test('explicit website locale choices are stored and restored across static routes', async () => {
+  const englishHome = await runLocalePreference({
+    documentLocale: 'en',
+    pageUrl: 'https://example.test/panerelay/',
+    links: [
+      { locale: 'zh-CN', href: './zh-CN/' },
+      { locale: 'en', href: './' },
+    ],
+  });
+  assert.equal(englishHome.replacements.length, 0);
+  englishHome.clickListeners.get('zh-CN')();
+  assert.deepEqual(englishHome.writes, ['zh-CN']);
+
+  for (const route of [
+    {
+      documentLocale: 'en',
+      storedLocale: 'zh-CN',
+      pageUrl: 'https://example.test/panerelay/?campaign=launch#setup',
+      links: [
+        { locale: 'zh-CN', href: './zh-CN/' },
+        { locale: 'en', href: './' },
+      ],
+      expected: 'https://example.test/panerelay/zh-CN/?campaign=launch#setup',
+    },
+    {
+      documentLocale: 'zh-CN',
+      storedLocale: 'en',
+      pageUrl: 'https://example.test/panerelay/zh-CN/?campaign=launch#trust',
+      links: [
+        { locale: 'zh-CN', href: './' },
+        { locale: 'en', href: '../' },
+      ],
+      expected: 'https://example.test/panerelay/?campaign=launch#trust',
+    },
+    {
+      documentLocale: 'en',
+      storedLocale: 'zh-CN',
+      pageUrl: 'https://example.test/panerelay/compare/?campaign=launch#matrix',
+      links: [{ locale: 'zh-CN', href: '../zh-CN/compare/' }],
+      expected: 'https://example.test/panerelay/zh-CN/compare/?campaign=launch#matrix',
+    },
+    {
+      documentLocale: 'zh-CN',
+      storedLocale: 'en',
+      pageUrl: 'https://example.test/panerelay/zh-CN/compare/?campaign=launch#sources',
+      links: [{ locale: 'en', href: '../../compare/' }],
+      expected: 'https://example.test/panerelay/compare/?campaign=launch#sources',
+    },
+  ]) {
+    const result = await runLocalePreference(route);
+    assert.deepEqual(result.replacements, [route.expected]);
+  }
+});
+
+test('invalid or unavailable locale storage leaves static pages functional', async () => {
+  for (const storage of [{ storedLocale: 'fr' }, { storageReadError: true }]) {
+    const result = await runLocalePreference({
+      documentLocale: 'en',
+      pageUrl: 'https://example.test/panerelay/',
+      links: [{ locale: 'zh-CN', href: './zh-CN/' }],
+      ...storage,
+    });
+    assert.equal(result.replacements.length, 0);
+  }
+
+  const writeUnavailable = await runLocalePreference({
+    documentLocale: 'en',
+    pageUrl: 'https://example.test/panerelay/',
+    links: [{ locale: 'zh-CN', href: './zh-CN/' }],
+    storageWriteError: true,
+  });
+  assert.doesNotThrow(() => writeUnavailable.clickListeners.get('zh-CN')());
+  assert.equal(writeUnavailable.writes.length, 0);
 });
 
 test('public copy keeps flexible authorization and active control distinct', async () => {
@@ -370,6 +521,7 @@ test('comparison pages provide bilingual, sourced, and responsive decision suppo
     assert.match(html, /packages\/extension\/README\.md/);
     assert.match(html, /docs\.browser-use\.com\/open-source\/browser-use-cli/);
     assert.match(html, /agent-browser\.dev\/configuration/);
+    assert.equal((html.match(/data-language-option=/g) ?? []).length, 1);
     assert.doesNotMatch(html, /google-analytics|googletagmanager|segment\.com|plausible\.io/i);
     assert.doesNotMatch(html, /<script[^>]+src="https?:\/\//i);
   }
@@ -388,6 +540,7 @@ test('comparison pages provide bilingual, sourced, and responsive decision suppo
   assert.match(styles, /\.js \.compare-navigation\[data-open='true'\]/);
   assert.doesNotMatch(styles, /overflow-x:\s*hidden/);
   assert.match(script, /document\.documentElement\.classList\.add\('js'\)/);
+  assert.match(script, /initializeLocalePreference\(\)/);
   assert.match(script, /event\.key !== 'Escape'/);
   assert.match(sitemap, /https:\/\/f-loat\.github\.io\/panerelay\/compare\//);
   assert.match(sitemap, /https:\/\/f-loat\.github\.io\/panerelay\/zh-CN\/compare\//);
@@ -418,6 +571,7 @@ test('unified Agent Skill keeps upstream installation and user authorization exp
 test('source has no analytics, advertising, external scripts, or unapproved fonts', async () => {
   const html = await read('index.html');
   const script = await read('src/main.ts');
+  const localePreference = await read('src/locale-preference.ts');
   const styles = await read('src/styles.css');
   const externalStylesheets = [
     ...html.matchAll(/<link[^>]+rel="stylesheet"[^>]+href="(https?:\/\/[^"]+)"/g),
@@ -434,6 +588,8 @@ test('source has no analytics, advertising, external scripts, or unapproved font
   assert.doesNotMatch(styles, /@font-face|TsangerJinKai02/);
   assert.doesNotMatch(html, /document\.cookie|localStorage|sessionStorage/);
   assert.doesNotMatch(script, /document\.cookie|sessionStorage|localStorage/);
+  assert.doesNotMatch(localePreference, /document\.cookie|sessionStorage/);
+  assert.match(localePreference, /window\.localStorage/);
 });
 
 test('illustration labels keep content separate from decorative affordances', async () => {

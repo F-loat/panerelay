@@ -1,3 +1,6 @@
+import { initializeLocalePreference } from './locale-preference';
+
+initializeLocalePreference();
 document.documentElement.classList.add('js');
 
 const compareNavigation = document.querySelector<HTMLElement>('[data-compare-navigation]');
