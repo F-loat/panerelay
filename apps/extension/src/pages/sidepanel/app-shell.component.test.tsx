@@ -151,6 +151,23 @@ describe('React Side Panel shell and providers', () => {
       });
     });
 
+    await waitFor(() =>
+      expect(
+        client.requests
+          .filter(request => request.type === 'panerelay.conversation-timeline.save')
+          .at(-1),
+      ).toMatchObject({
+        snapshot: {
+          timeline: expect.arrayContaining([
+            expect.objectContaining({
+              type: 'message',
+              message: expect.objectContaining({ id: 'message-after-tool' }),
+            }),
+          ]),
+        },
+      }),
+    );
+
     await user.click(screen.getByRole('button', { name: /Browser access:/ }));
     const requestsBeforeCopy = [...client.requests];
     const diagnosticCopy = screen.getByRole('button', {
