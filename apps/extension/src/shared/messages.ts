@@ -18,6 +18,10 @@ import type {
   ConversationWorkspaceSnapshot,
 } from './conversation-workspaces.js';
 import type { PageCommentRuntimeMessage } from './page-comments.js';
+import type {
+  ConversationTimelineReplay,
+  ConversationTimelineSnapshot,
+} from './conversation-timeline.js';
 
 export type { ConversationWorkspaceChangedMessage } from './conversation-workspaces.js';
 
@@ -105,6 +109,15 @@ export type SidePanelRequest =
   | { type: 'panerelay.page-comments.clear' }
   | { type: 'panerelay.conversation.list'; providerId: string }
   | {
+      type: 'panerelay.conversation-timeline.load';
+      providerId: string;
+      conversationId: string;
+    }
+  | {
+      type: 'panerelay.conversation-timeline.save';
+      snapshot: ConversationTimelineSnapshot;
+    }
+  | {
       type: 'panerelay.conversation.resume';
       providerId: string;
       conversationId: string;
@@ -140,6 +153,7 @@ export interface StatusChangedMessage {
 export interface ConversationChangedMessage {
   type: 'panerelay.conversation.event';
   event: ConversationEvent;
+  timelineSequence?: number;
 }
 
 export interface SidePanelSuccessResponse {
@@ -148,6 +162,7 @@ export interface SidePanelSuccessResponse {
   providers?: AgentProviderSummary[];
   conversations?: ConversationSummary[];
   conversation?: ConversationDetail;
+  timeline?: ConversationTimelineReplay;
   turnId?: string;
   workspace?: ConversationWorkspaceSnapshot;
 }

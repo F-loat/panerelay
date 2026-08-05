@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { AgentRequest } from '@panerelay/protocol';
 import type { ExtensionStatus } from '../shared/messages.js';
+import { createConversationTimelineSnapshot } from '../shared/conversation-timeline.js';
 import {
   createSidePanelRequestRouter,
   type SidePanelRequestRouterOptions,
@@ -80,6 +81,10 @@ function router(overrides: Partial<SidePanelRequestRouterOptions> = {}) {
     },
     setDefaultProvider: async () => extensionStatus,
     status: async () => extensionStatus,
+    timelines: {
+      load: async () => ({ snapshot: null, events: [] }),
+      save: async value => value,
+    },
     workspace: {
       get: async () => workspace,
       reset: async () => workspace,
@@ -181,4 +186,49 @@ test('routes page-comment commands to the existing service boundary', async () =
     'comments:remove:comment-1',
     'comments:clear',
   ]);
+});
+
+test('routes timeline loads and saves only through the session store boundary', async () => {
+  const calls: string[] = [];
+  const snapshot = createConversationTimelineSnapshot({
+    providerId: 'qoder',
+    conversation: {
+      id: 'conversation-1',
+      providerId: 'qoder',
+      title: 'Conversation',
+      preview: '',
+      status: 'idle',
+      createdAt: '2026-08-05T00:00:00.000Z',
+      updatedAt: '2026-08-05T00:00:01.000Z',
+    },
+    timeline: [],
+    runningTurnId: null,
+    throughSequence: 0,
+  });
+  assert.ok(snapshot);
+  const { handle } = router({
+    timelines: {
+      load: async (providerId, conversationId) => {
+        calls.push(`load:${providerId}:${conversationId}`);
+        return { snapshot, events: [] };
+      },
+      save: async value => {
+        calls.push(`save:${value.providerId}:${value.conversationId}`);
+        return value;
+      },
+    },
+  });
+
+  assert.deepEqual(
+    await handle({
+      type: 'panerelay.conversation-timeline.load',
+      providerId: 'qoder',
+      conversationId: 'conversation-1',
+    }),
+    { success: true, timeline: { snapshot, events: [] } },
+  );
+  assert.deepEqual(await handle({ type: 'panerelay.conversation-timeline.save', snapshot }), {
+    success: true,
+  });
+  assert.deepEqual(calls, ['load:qoder:conversation-1', 'save:qoder:conversation-1']);
 });

@@ -29,6 +29,7 @@ const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_TEXT_CHARS = 64 * 1024;
 const MAX_DELTA_CHARS = 8 * 1024;
 const MAX_MODEL_CHARS = 256;
+const MAX_SESSION_MESSAGES = 1_000;
 
 export interface AcpExecutableResolution {
   error?: string;
@@ -91,15 +92,17 @@ interface AcpSession {
   activeTurn?: AcpTurn;
   cwd: string;
   initialContext?: string;
+  messages: ConversationMessage[];
   summary: ConversationSummary;
 }
 
 interface AcpTurn {
   activities: Map<string, ConversationActivity>;
+  activeReasoningItemId?: string;
   assistantMessageId: string;
-  assistantText: string;
+  assistantMessages: Map<string, { createdAt: string; id: string; text: string }>;
   id: string;
-  reasoningItemId: string;
+  reasoningItemSequence: number;
 }
 
 interface PendingPermission {
@@ -121,6 +124,20 @@ function errorMessage(error: unknown): string {
 
 function bounded(value: string, maximum = MAX_TEXT_CHARS): string {
   return value.slice(0, maximum);
+}
+
+function boundedSessionMessages(messages: readonly ConversationMessage[]): ConversationMessage[] {
+  return messages.slice(-MAX_SESSION_MESSAGES).map(message => ({
+    ...message,
+    text: bounded(message.text),
+  }));
+}
+
+function retainSessionMessage(session: AcpSession, message: ConversationMessage): void {
+  session.messages.push({ ...message, text: bounded(message.text) });
+  if (session.messages.length > MAX_SESSION_MESSAGES) {
+    session.messages.splice(0, session.messages.length - MAX_SESSION_MESSAGES);
+  }
 }
 
 function modelFromConfigOptions(
@@ -497,6 +514,7 @@ export class AcpProvider implements AgentProvider {
     this.sessions.set(result.sessionId, {
       cwd,
       ...(initialContext ? { initialContext } : {}),
+      messages: [],
       summary,
     });
     this.sessionDirectories.set(result.sessionId, cwd);
@@ -511,8 +529,9 @@ export class AcpProvider implements AgentProvider {
         `This ${this.profile.name} CLI does not advertise ACP session resume or load`,
       );
     }
+    const existingSession = this.sessions.get(conversationId);
     const cwd =
-      this.sessions.get(conversationId)?.cwd ??
+      existingSession?.cwd ??
       this.sessionDirectories.get(conversationId) ??
       (this.options.cwd ?? homedir)();
     const request = {
@@ -536,17 +555,40 @@ export class AcpProvider implements AgentProvider {
           `${this.profile.name} session load`,
         )) as acp.LoadSessionResponse;
         configOptions = result.configOptions;
-        messages = normalizeAcpHistoryMessages(capture.messages);
+        const providerMessages = boundedSessionMessages(
+          normalizeAcpHistoryMessages(capture.messages),
+        );
+        messages =
+          providerMessages.length > 0
+            ? providerMessages
+            : boundedSessionMessages(existingSession?.messages ?? []);
       } finally {
         this.historyCaptures.delete(conversationId);
       }
     } else if (capabilities?.sessionCapabilities?.resume) {
-      const result = (await this.request(
-        acp.methods.agent.session.resume,
-        request,
-        `${this.profile.name} session resume`,
-      )) as acp.ResumeSessionResponse;
-      configOptions = result.configOptions;
+      const capture: HistoryCapture = {
+        messages: [],
+        messageIndexes: new Map(),
+        nextId: 1,
+      };
+      this.historyCaptures.set(conversationId, capture);
+      try {
+        const result = (await this.request(
+          acp.methods.agent.session.resume,
+          request,
+          `${this.profile.name} session resume`,
+        )) as acp.ResumeSessionResponse;
+        configOptions = result.configOptions;
+        const providerMessages = boundedSessionMessages(
+          normalizeAcpHistoryMessages(capture.messages),
+        );
+        messages =
+          providerMessages.length > 0
+            ? providerMessages
+            : boundedSessionMessages(existingSession?.messages ?? []);
+      } finally {
+        this.historyCaptures.delete(conversationId);
+      }
     }
     const now = new Date().toISOString();
     const model = modelFromConfigOptions(configOptions);
@@ -560,7 +602,15 @@ export class AcpProvider implements AgentProvider {
       createdAt: messages[0]?.createdAt || now,
       updatedAt: messages.at(-1)?.createdAt || now,
     };
-    this.sessions.set(conversationId, { cwd, summary });
+    this.sessions.set(conversationId, {
+      ...(existingSession?.activeTurn ? { activeTurn: existingSession.activeTurn } : {}),
+      cwd,
+      ...(existingSession?.initialContext
+        ? { initialContext: existingSession.initialContext }
+        : {}),
+      messages: boundedSessionMessages(messages),
+      summary,
+    });
     this.sessionDirectories.set(conversationId, cwd);
     return { conversation: summary, messages };
   }
@@ -588,11 +638,19 @@ export class AcpProvider implements AgentProvider {
     const turn: AcpTurn = {
       activities: new Map(),
       assistantMessageId: `${turnId}-message`,
-      assistantText: '',
+      assistantMessages: new Map(),
       id: turnId,
-      reasoningItemId: `${turnId}-reasoning`,
+      reasoningItemSequence: 0,
     };
     session.activeTurn = turn;
+    if (trimmed) {
+      retainSessionMessage(session, {
+        id: `${turnId}-user`,
+        role: 'user',
+        text: trimmed,
+        createdAt: new Date().toISOString(),
+      });
+    }
     this.emit({ kind: 'turn.started', conversationId, turnId });
     const prompt = session.initialContext
       ? wrapAcpConversationContext(session.initialContext, trimmed)
@@ -804,18 +862,21 @@ export class AcpProvider implements AgentProvider {
         prompt,
       })) as acp.PromptResponse;
       if (session.activeTurn !== turn) return;
-      if (turn.assistantText) {
+      for (const assistantMessage of turn.assistantMessages.values()) {
+        if (!assistantMessage.text) continue;
+        const completedMessage: ConversationMessage = {
+          id: assistantMessage.id,
+          role: 'assistant',
+          text: assistantMessage.text,
+          phase: 'final',
+          createdAt: assistantMessage.createdAt,
+        };
+        retainSessionMessage(session, completedMessage);
         this.emit({
           kind: 'message.completed',
           conversationId,
           turnId: turn.id,
-          message: {
-            id: turn.assistantMessageId,
-            role: 'assistant',
-            text: turn.assistantText,
-            phase: 'final',
-            createdAt: new Date().toISOString(),
-          },
+          message: completedMessage,
         });
       }
       if (result.usage) {
@@ -876,28 +937,41 @@ export class AcpProvider implements AgentProvider {
     switch (update.sessionUpdate) {
       case 'agent_message_chunk':
         if (update.content.type !== 'text') return;
-        turn.assistantText = bounded(`${turn.assistantText}${update.content.text}`);
+        delete turn.activeReasoningItemId;
+        {
+          const messageId = update.messageId || turn.assistantMessageId;
+          const current = turn.assistantMessages.get(messageId);
+          const assistantMessage = current ?? {
+            id: messageId,
+            text: '',
+            createdAt: new Date().toISOString(),
+          };
+          assistantMessage.text = bounded(`${assistantMessage.text}${update.content.text}`);
+          turn.assistantMessages.set(messageId, assistantMessage);
+        }
         this.emit({
           kind: 'message.delta',
           conversationId,
           turnId: turn.id,
-          messageId: turn.assistantMessageId,
+          messageId: update.messageId || turn.assistantMessageId,
           delta: bounded(update.content.text, MAX_DELTA_CHARS),
           phase: 'final',
         });
         return;
       case 'agent_thought_chunk':
         if (update.content.type !== 'text') return;
+        turn.activeReasoningItemId ??= `${turn.id}-reasoning-${++turn.reasoningItemSequence}`;
         this.emit({
           kind: 'reasoning.delta',
           conversationId,
           turnId: turn.id,
-          itemId: turn.reasoningItemId,
+          itemId: turn.activeReasoningItemId,
           delta: bounded(update.content.text, MAX_DELTA_CHARS),
         });
         return;
       case 'tool_call':
       case 'tool_call_update': {
+        delete turn.activeReasoningItemId;
         const previous = turn.activities.get(update.toolCallId);
         const status =
           update.status === undefined || update.status === null
@@ -939,6 +1013,7 @@ export class AcpProvider implements AgentProvider {
         return;
       }
       case 'plan':
+        delete turn.activeReasoningItemId;
         this.emit({
           kind: 'activity.updated',
           conversationId,
@@ -955,6 +1030,7 @@ export class AcpProvider implements AgentProvider {
         });
         return;
       case 'plan_update': {
+        delete turn.activeReasoningItemId;
         const detail =
           'entries' in update && Array.isArray(update.entries)
             ? planText(update.entries as acp.PlanEntry[])
@@ -974,6 +1050,7 @@ export class AcpProvider implements AgentProvider {
         return;
       }
       case 'plan_removed':
+        delete turn.activeReasoningItemId;
         this.emit({
           kind: 'activity.updated',
           conversationId,
@@ -1056,6 +1133,7 @@ export class AcpProvider implements AgentProvider {
     }
     const approvalId = `${this.profile.id}:${String(requestId)}:${this.nextApprovalId++}`;
     return new Promise(resolve => {
+      delete turn.activeReasoningItemId;
       this.pendingPermissions.set(approvalId, {
         conversationId: request.sessionId,
         decisionOptions,

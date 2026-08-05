@@ -5,8 +5,8 @@
 - Status: Accepted
 - Authors: F-loat
 - Created: 2026-07-29
-- Updated: 2026-08-04
-- Amendments: `openspec/changes/archive/2026-08-04-add-conversation-target-hints`
+- Updated: 2026-08-05
+- Amendments: `openspec/changes/archive/2026-08-04-add-conversation-target-hints`, `openspec/changes/shorten-conversation-target-session`
 
 RFC-0004 supersedes this RFC's attachment-as-control and control-visibility semantics. Target discovery and flattened sessions remain virtual, while passive observation may now attach without entering the controlled count or changing the favicon.
 
@@ -59,7 +59,7 @@ The active eligible tab is returned first for an ordinary participant. A convers
 
 The Extension may include the current browser's opaque registration UUID and the existing opaque Panerelay target UUID in a new Side Panel conversation. These values are locating data only: they do not encode a Chrome tab ID, grant site permission or tab authorization, acquire control, attach the debugger, or expand a participant's exposed inventory.
 
-For agent-browser, Panerelay derives the reserved bounded session value `panerelay-tab-v1-<browser-uuid>-<target-uuid>`. The Provider plugin recognizes only this exact versioned form, selects the named live browser registration instead of the saved default, and forwards the target UUID as the participant's optional initial target. Every unrelated session name retains the ordinary Provider path.
+For agent-browser, Panerelay decodes each canonical UUID into 16 bytes and derives the 56-character reserved session value `panerelay-v2-<base64url(browser-bytes || target-bytes)>`. Its unpadded 43-character payload is reversible and canonical, while the complete value stays within agent-browser 0.33.0's 64-character session-name limit and portable character set. The Provider plugin recognizes only this exact current form, selects the named live browser registration instead of the saved default, and forwards the target UUID as the participant's optional initial target. Malformed current values and the unusable overlong `panerelay-tab-v1-...` prefix fail before default-browser selection; unrelated names such as `panerelay-task` retain the ordinary Provider path.
 
 Before allocating a targeted participant and again before initial discovery, the Bridge refreshes the selected browser's authorized inventory. It orders the exact target first in both `Target.getTargets` and initial `Target.targetCreated` publication, which makes it agent-browser's session-local `t1`. If the target is missing, stale, revoked, from another browser, or disappears during allocation, the Bridge returns one bounded target-unavailable failure and invalidates the participant rather than assigning `t1` to another page. Later tab creation, logical selection, close, controlled-lineage discovery, and participant cleanup keep their existing semantics.
 
@@ -167,5 +167,6 @@ RFC-0002 is implemented when:
 8. debugger attachment remains lazy and all attachments clear on release.
 9. independently opened tabs after initialization remain absent from target events and later target lists;
 10. Agent-created tabs and tabs opened from controlled sources are discovered exactly once.
+11. a generated conversation-target session satisfies agent-browser 0.33.0's session-name constraints, binds its exact authorized target to `t1`, and rejects malformed or legacy target prefixes without browser fallback.
 
 All acceptance criteria pass in the development build against agent-browser 0.33.0. The RFC remains `Accepted` until this implementation is released.

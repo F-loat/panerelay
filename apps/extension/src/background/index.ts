@@ -54,6 +54,7 @@ import {
 import { installConversationWorkspaceObservers } from './conversation-workspace-observers.js';
 import { ConversationWorkspaceService } from './conversation-workspace-service.js';
 import { createChromeConversationWorkspaceStore } from './conversation-workspaces.js';
+import { createChromeConversationTimelineStore } from './conversation-timelines.js';
 import type { ConversationWorkspaceSnapshot } from '../shared/conversation-workspaces.js';
 import { nativeHostDisconnectState } from './native-host-readiness.js';
 import { installPageCommentsRuntime } from '../content/page-comments-runtime.js';
@@ -103,6 +104,7 @@ const nativeTransferReceiver = new NativeTransferReceiver();
 let nativeTransferCleanupTimer: ReturnType<typeof setTimeout> | null = null;
 let controlActivityState = createControlActivityState();
 const conversationWorkspaceStore = createChromeConversationWorkspaceStore();
+const conversationTimelineStore = createChromeConversationTimelineStore();
 const conversationWorkspaceService = new ConversationWorkspaceService({
   activeTabId: async () => (await activeTab())?.id ?? null,
   activeTabContext: async tabId => {
@@ -145,6 +147,7 @@ const handleSidePanelRequest = createSidePanelRequestRouter({
   activateControlledTab,
   closeControlledTab,
   pageComments: pageCommentService,
+  timelines: conversationTimelineStore,
   releaseControl: releaseBrowserControl,
   refreshBrowserDefault,
   refreshBrowserUseDefault,
@@ -427,9 +430,13 @@ async function handleHostMessage(message: HostToExtensionMessage): Promise<void>
       handleIntegrationResponse(message);
       return;
     case 'conversation.event': {
+      const timelineSequence = await conversationTimelineStore
+        .append(message.event)
+        .catch(() => null);
       const eventMessage: ConversationChangedMessage = {
         type: 'panerelay.conversation.event',
         event: message.event,
+        ...(timelineSequence ? { timelineSequence } : {}),
       };
       await chrome.runtime.sendMessage(eventMessage).catch(() => undefined);
       return;

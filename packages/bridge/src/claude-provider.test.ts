@@ -304,7 +304,7 @@ test('streams text, reasoning, tool activity, images, usage, and terminal events
   assert.equal(cli.queryParameters?.resume, undefined);
   assert.match(cli.queryParameters?.systemPrompt ?? '', /App/);
   assert.doesNotMatch(cli.queryParameters?.systemPrompt ?? '', /secret/);
-  assert.match(cli.queryParameters?.systemPrompt ?? '', /panerelay-tab-v1-/);
+  assert.match(cli.queryParameters?.systemPrompt ?? '', /panerelay-v2-[A-Za-z0-9_-]{43}/);
   assert.match(cli.queryParameters?.systemPrompt ?? '', /switch_tab/);
   assert.match(cli.queryParameters?.systemPrompt ?? '', /tab-select 0/);
   assert.equal(cli.queryParameters?.mcpServers?.panerelay_browser, undefined);

@@ -15,6 +15,7 @@ describe('React Side Panel browser access and settings', () => {
     const picker = screen.getByLabelText('Accent color');
     const theme = screen.getByRole('button', { name: 'Theme' });
     expect(picker).toHaveAttribute('type', 'color');
+    expect(picker).toHaveAttribute('title', 'Accent color · Double-click to reset');
     expect(picker).toHaveValue('#336699');
     expect(picker.nextElementSibling).toContainElement(theme);
     expect(document.documentElement.style.getPropertyValue('--accent')).toBe(
@@ -27,6 +28,15 @@ describe('React Side Panel browser access and settings', () => {
     expect(theme).toHaveTextContent('System');
     expect(document.documentElement.style.getPropertyValue('--accent')).toBe(
       accentPalette('#aabbcc', 'light').color,
+    );
+
+    fireEvent.doubleClick(picker);
+
+    await waitFor(() => expect(client.stored[ACCENT_COLOR_KEY]).toBe(DEFAULT_ACCENT_COLOR));
+    expect(picker).toHaveValue(DEFAULT_ACCENT_COLOR);
+    expect(theme).toHaveTextContent('System');
+    expect(document.documentElement.style.getPropertyValue('--accent')).toBe(
+      accentPalette(DEFAULT_ACCENT_COLOR, 'light').color,
     );
   });
 
@@ -44,10 +54,11 @@ describe('React Side Panel browser access and settings', () => {
 
     await user.click(screen.getByRole('button', { name: /Browser access:/ }));
     expect(screen.getByText('Settings')).toBeVisible();
-    expect(screen.getByRole('link', { name: 'GitHub' })).toHaveAttribute(
-      'href',
-      'https://github.com/F-loat/panerelay',
-    );
+    const github = screen.getByRole('link', { name: 'GitHub' });
+    expect(
+      screen.queryByRole('button', { name: 'Copy conversation diagnostics' }),
+    ).not.toBeInTheDocument();
+    expect(github).toHaveAttribute('href', 'https://github.com/F-loat/panerelay');
     await user.click(screen.getByRole('button', { name: 'All tabs' }));
     await waitFor(() => expect(client.status.authorizationMode).toBe('all-tabs'));
     expect(screen.getAllByText('All web tabs authorized').length).toBeGreaterThan(0);
@@ -178,7 +189,7 @@ describe('React Side Panel browser access and settings', () => {
 
     await user.click(screen.getByRole('button', { name: /Browser access:/ }));
     expect(screen.getByText('Control by default')).toBeVisible();
-    await user.click(screen.getByRole('button', { name: 'Close' }));
+    await user.click(screen.getByRole('button', { name: /Browser access:/ }));
 
     client.status = {
       ...client.status,

@@ -109,6 +109,154 @@ describe('React Side Panel shell and providers', () => {
     expect(screen.getByTitle('Current model: gpt-5.4-codex')).toBeVisible();
   });
 
+  it('copies an ordered structured diagnostic record without issuing a runtime request', async () => {
+    const client = new AppClient();
+    client.history = [detail()];
+    const { user } = await renderReady(client);
+    await user.click(screen.getByRole('button', { name: /Browser access:/ }));
+    expect(
+      screen.queryByRole('button', { name: 'Copy conversation diagnostics' }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'GitHub' })).toBeVisible();
+    await user.click(screen.getByRole('button', { name: /Browser access:/ }));
+
+    await user.click(screen.getByRole('button', { name: 'Conversation history' }));
+    await user.click(await screen.findByRole('button', { name: /Existing conversation/ }));
+    act(() => {
+      client.emit({
+        type: 'panerelay.conversation.event',
+        event: {
+          kind: 'activity.updated',
+          conversationId: 'conversation-1',
+          turnId: 'turn-copy',
+          activity: {
+            id: 'tool-copy',
+            kind: 'browser',
+            title: 'agent-browser snapshot',
+            status: 'completed',
+            output: 'private page snapshot',
+          },
+        },
+      });
+      client.emit({
+        type: 'panerelay.conversation.event',
+        event: {
+          kind: 'message.delta',
+          conversationId: 'conversation-1',
+          turnId: 'turn-copy',
+          messageId: 'message-after-tool',
+          delta: 'Result after tool',
+          phase: 'final',
+        },
+      });
+    });
+
+    await user.click(screen.getByRole('button', { name: /Browser access:/ }));
+    const requestsBeforeCopy = [...client.requests];
+    const diagnosticCopy = screen.getByRole('button', {
+      name: 'Copy conversation diagnostics',
+    });
+    expect(diagnosticCopy.nextElementSibling).toBe(screen.getByRole('link', { name: 'GitHub' }));
+    await user.click(diagnosticCopy);
+
+    const record = JSON.parse(await navigator.clipboard.readText()) as {
+      schema: string;
+      version: number;
+      provider: { id: string };
+      conversation: { id: string };
+      browserContext: {
+        activeTab: { id: number; title: string; url: string } | null;
+        control: { tab: { id: number } | null; tabs: Array<{ id: number }> };
+      };
+      capture: {
+        load: { source: string; conversationId: string };
+        eventTrace: Array<{ sequence: number; kind: string; turnId?: string }>;
+      };
+      timeline: Array<{
+        index: number;
+        type: string;
+        id: string;
+        text?: string;
+        turnId?: string;
+        outputSummary?: { characterCount: number; lineCount: number };
+      }>;
+    };
+    expect(record.schema).toBe('panerelay.conversation-diagnostics');
+    expect(record.version).toBe(3);
+    expect(record.provider.id).toBe('codex');
+    expect(record.conversation.id).toBe('conversation-1');
+    expect(record.browserContext.activeTab).toEqual({
+      id: 8,
+      title: 'Fixture page',
+      url: 'https://example.com/page',
+    });
+    expect(record.browserContext.control).toMatchObject({ tab: null, tabs: [] });
+    expect(record.capture.load).toEqual(
+      expect.objectContaining({ source: 'provider-resume', conversationId: 'conversation-1' }),
+    );
+    expect(record.capture.eventTrace).toEqual([
+      expect.objectContaining({ sequence: 1, kind: 'activity.updated', turnId: 'turn-copy' }),
+      expect.objectContaining({ sequence: 2, kind: 'message.delta', turnId: 'turn-copy' }),
+    ]);
+    expect(record.timeline).toEqual([
+      expect.objectContaining({ index: 0, type: 'message', id: 'message-1' }),
+      expect.objectContaining({
+        index: 1,
+        type: 'activity',
+        id: 'tool-copy',
+        turnId: 'turn-copy',
+        outputSummary: { characterCount: 21, lineCount: 1 },
+      }),
+      expect.objectContaining({
+        index: 2,
+        type: 'message',
+        id: 'message-after-tool',
+        text: 'Result after tool',
+      }),
+    ]);
+    expect(await navigator.clipboard.readText()).not.toContain('private page snapshot');
+    expect(client.requests).toEqual(requestsBeforeCopy);
+    expect(screen.getByRole('button', { name: 'Conversation diagnostics copied' })).toBeVisible();
+    expect(screen.getByRole('status')).toHaveTextContent('Conversation diagnostics copied');
+  });
+
+  it('announces a retryable diagnostic clipboard failure', async () => {
+    const client = new AppClient();
+    client.history = [detail()];
+    const { user } = await renderReady(client);
+    await user.click(screen.getByRole('button', { name: 'Conversation history' }));
+    await user.click(await screen.findByRole('button', { name: /Existing conversation/ }));
+    await user.click(screen.getByRole('button', { name: /Browser access:/ }));
+
+    const writeText = vi
+      .spyOn(navigator.clipboard, 'writeText')
+      .mockRejectedValue(new Error('clipboard denied'));
+    const execCommandDescriptor = Object.getOwnPropertyDescriptor(document, 'execCommand');
+    Object.defineProperty(document, 'execCommand', {
+      configurable: true,
+      value: vi.fn().mockReturnValue(false),
+    });
+    const conversationBeforeCopy = screen.getByText('Existing answer').textContent;
+
+    try {
+      await user.click(screen.getByRole('button', { name: 'Copy conversation diagnostics' }));
+      expect(
+        screen.getByRole('button', { name: 'Could not copy conversation diagnostics' }),
+      ).toBeVisible();
+      expect(screen.getByRole('status')).toHaveTextContent(
+        'Could not copy conversation diagnostics',
+      );
+      expect(screen.getByText('Existing answer')).toHaveTextContent(conversationBeforeCopy || '');
+    } finally {
+      writeText.mockRestore();
+      if (execCommandDescriptor) {
+        Object.defineProperty(document, 'execCommand', execCommandDescriptor);
+      } else {
+        Reflect.deleteProperty(document, 'execCommand');
+      }
+    }
+  });
+
   it('omits model copy when a ready provider has not reported one', async () => {
     const client = new AppClient();
     client.providers = readyProviders.map(provider => {

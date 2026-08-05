@@ -40,6 +40,10 @@
   transform: rotate(90deg);
 }
 
+.reasoning-card[open] .reasoning-preview {
+  display: none;
+}
+
 .reasoning-title {
   flex: none;
   color: var(--purple);
@@ -60,6 +64,11 @@
   padding: 8px 9px;
   line-height: 1.5;
   white-space: pre-wrap;
+}
+
+.reasoning-card[data-active='true'] .reasoning-content {
+  max-height: 7.5em;
+  overflow: hidden;
 }
 
 .activity-card {

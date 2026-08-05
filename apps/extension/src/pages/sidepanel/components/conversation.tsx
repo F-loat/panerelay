@@ -2,11 +2,14 @@ import type {
   ConversationActivity,
   ConversationApproval,
   ConversationApprovalDecision,
+  ConversationMessage,
 } from '@panerelay/protocol';
 import {
   Bot,
+  Check,
   ChevronRight,
   CircleAlert,
+  Copy,
   FilePenLine,
   ListCollapse,
   PanelTop,
@@ -17,13 +20,21 @@ import {
   Terminal,
   type LucideIcon,
 } from 'lucide-react';
-import { type ReactNode, type RefObject, useEffect, useLayoutEffect, useRef } from 'react';
+import {
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import {
   selectedAgentName,
   type SidepanelController,
   type SidepanelState,
 } from '../sidepanel-controller.js';
 import { translate, type CopyKey, type Locale } from '../i18n.js';
+import { writeClipboardText } from '../clipboard.js';
 import { isPanerelaySetupFailure } from '../setup-guidance.js';
 import { AuthorizationPanel } from './access-settings.js';
 import {
@@ -382,6 +393,54 @@ function TurnFeedback({ state }: { state: SidepanelState }) {
   );
 }
 
+function liveReasoningPreview(value: string): string {
+  const normalized = value.replace(/\r\n?/g, '\n');
+  const lines = normalized.split('\n');
+  const recent = lines.slice(-5).join('\n');
+  const maximum = 500;
+  const bounded = recent.length > maximum ? recent.slice(-maximum) : recent;
+  return lines.length > 5 || recent.length > maximum ? `…${bounded}` : bounded;
+}
+
+function ReasoningCard({
+  active,
+  item,
+  label,
+}: {
+  active: boolean;
+  item: Extract<SidepanelState['timeline'][number], { type: 'reasoning' }>;
+  label: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const open = active || expanded;
+
+  useEffect(() => {
+    if (active) setExpanded(false);
+  }, [active]);
+
+  return (
+    <details
+      className="reasoning-card"
+      data-active={active ? 'true' : 'false'}
+      onToggle={event => {
+        if (active) {
+          if (!event.currentTarget.open) event.currentTarget.open = true;
+          return;
+        }
+        setExpanded(event.currentTarget.open);
+      }}
+      open={open}
+    >
+      <summary>
+        <ChevronRight aria-hidden="true" className="reasoning-chevron" />
+        <span className="reasoning-title">{label}</span>
+        <span className="reasoning-preview">{item.text.replace(/\s+/g, ' ').trim()}</span>
+      </summary>
+      <p className="reasoning-content">{active ? liveReasoningPreview(item.text) : item.text}</p>
+    </details>
+  );
+}
+
 export function Timeline({
   controller,
   scrollRef,
@@ -432,51 +491,26 @@ export function Timeline({
     <div className="timeline flex flex-col gap-3 px-3 pt-[15px] pb-5">
       {state.timeline.map(item => {
         if (item.type === 'message') {
+          const timelineId = item.segmentId ?? item.message.id;
           return (
-            <article
-              className={`message ${item.message.role}`}
-              data-streaming={Boolean(item.streaming)}
-              key={`message-${item.message.id}`}
-            >
-              {item.message.role === 'assistant' ? (
-                <>
-                  <Bot aria-hidden="true" className="message-avatar" />
-                  <div className="message-shell">
-                    <div className="message-heading">
-                      <span>{providerName}</span>
-                      <MessageTime locale={state.locale} value={item.message.createdAt} />
-                    </div>
-                    <div className="message-bubble">
-                      <RichText value={item.message.text} />
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <MessageTime locale={state.locale} value={item.message.createdAt} />
-                  <div className="message-shell">
-                    <div className="message-bubble">
-                      <RichText value={item.message.text} />
-                    </div>
-                  </div>
-                </>
-              )}
-            </article>
+            <MessageCard
+              locale={state.locale}
+              message={item.message}
+              providerName={providerName}
+              streaming={Boolean(item.streaming)}
+              timelineId={timelineId}
+              key={`message-${timelineId}`}
+            />
           );
         }
         if (item.type === 'reasoning') {
-          if (state.turnFeedback === 'working' && state.activeReasoning?.id === item.id) {
-            return null;
-          }
           return (
-            <details className="reasoning-card" key={`reasoning-${item.id}`}>
-              <summary>
-                <ChevronRight aria-hidden="true" className="reasoning-chevron" />
-                <span className="reasoning-title">{t('thinking')}</span>
-                <span className="reasoning-preview">{item.text.replace(/\s+/g, ' ').trim()}</span>
-              </summary>
-              <p className="reasoning-content">{item.text}</p>
-            </details>
+            <ReasoningCard
+              active={state.activeReasoning?.id === item.id && state.runningTurnId === item.turnId}
+              item={item}
+              label={t('thinking')}
+              key={`reasoning-${item.id}`}
+            />
           );
         }
         if (item.type === 'activity') {
@@ -580,6 +614,92 @@ export function Timeline({
       })}
       <TurnFeedback state={state} />
     </div>
+  );
+}
+
+function MessageCard({
+  locale,
+  message,
+  providerName,
+  streaming,
+  timelineId,
+}: {
+  locale: Locale;
+  message: ConversationMessage;
+  providerName: string;
+  streaming: boolean;
+  timelineId: string;
+}) {
+  const copyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle');
+  const copyLabel = translate(
+    locale,
+    copyStatus === 'copied'
+      ? 'messageMarkdownCopied'
+      : copyStatus === 'failed'
+        ? 'messageMarkdownCopyFailed'
+        : 'copyMessageMarkdown',
+  );
+
+  useEffect(
+    () => () => {
+      if (copyTimer.current) clearTimeout(copyTimer.current);
+    },
+    [],
+  );
+
+  const copyMarkdown = async () => {
+    const copied = await writeClipboardText(message.text);
+    setCopyStatus(copied ? 'copied' : 'failed');
+    if (copyTimer.current) clearTimeout(copyTimer.current);
+    copyTimer.current = setTimeout(() => setCopyStatus('idle'), 2_000);
+  };
+
+  const bubble = (
+    <div className="message-bubble">
+      <RichText value={message.text} />
+      <button
+        aria-label={copyLabel}
+        className="icon-button small message-copy-button"
+        data-status={copyStatus}
+        onClick={() => void copyMarkdown()}
+        title={copyLabel}
+        type="button"
+      >
+        {copyStatus === 'copied' ? <Check aria-hidden="true" /> : <Copy aria-hidden="true" />}
+      </button>
+      {copyStatus !== 'idle' && (
+        <span aria-live="polite" className="sr-only" role="status">
+          {copyLabel}
+        </span>
+      )}
+    </div>
+  );
+
+  return (
+    <article
+      className={`message ${message.role}`}
+      data-streaming={streaming}
+      data-testid={`message-${timelineId}`}
+    >
+      {message.role === 'assistant' ? (
+        <>
+          <Bot aria-hidden="true" className="message-avatar" />
+          <div className="message-shell">
+            <div className="message-heading">
+              <span>{providerName}</span>
+              <MessageTime locale={locale} value={message.createdAt} />
+            </div>
+            {bubble}
+          </div>
+        </>
+      ) : (
+        <>
+          <MessageTime locale={locale} value={message.createdAt} />
+          <div className="message-shell">{bubble}</div>
+        </>
+      )}
+    </article>
   );
 }
 

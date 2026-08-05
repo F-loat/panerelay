@@ -85,3 +85,19 @@ test('keeps the accent picker and theme selector together at narrow widths', asy
   assert.match(picker, /height: 22px/);
   assert.match(picker, /border-radius: 50%/);
 });
+
+test('overlays message Markdown copy for card hover, keyboard focus, and non-hover input', async () => {
+  const styles = await readSidepanelStyles();
+  const copyButton = styles.match(/\.message-copy-button\s*\{[^}]*\}/)?.[0] ?? '';
+  const richTextSpacing = styles.match(/\.message-bubble > \.rich-text\s*\{[^}]*\}/)?.[0] ?? '';
+
+  assert.match(copyButton, /position: absolute/);
+  assert.match(copyButton, /opacity: 0/);
+  assert.match(styles, /\.message-bubble:hover \.message-copy-button/);
+  assert.match(styles, /\.message-bubble:focus-within \.message-copy-button/);
+  assert.equal(richTextSpacing, '');
+  assert.match(
+    styles,
+    /@media \(hover: none\)[\s\S]*\.message-copy-button\s*\{[^}]*opacity: 0\.72/,
+  );
+});

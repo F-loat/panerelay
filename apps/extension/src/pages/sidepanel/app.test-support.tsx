@@ -153,6 +153,10 @@ export class AppClient implements SidepanelClient {
           success: true as const,
           conversations: this.history.map(item => item.conversation),
         };
+      case 'panerelay.conversation-timeline.load':
+        return { success: true as const, timeline: { snapshot: null, events: [] } };
+      case 'panerelay.conversation-timeline.save':
+        return { success: true as const };
       case 'panerelay.conversation.resume': {
         const conversation =
           this.history.find(item => item.conversation.id === message.conversationId) ?? detail();

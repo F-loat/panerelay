@@ -15,6 +15,10 @@ import {
   type ResolvedTheme,
 } from '../../shared/appearance.js';
 import type { ConversationWorkspaceSnapshot } from '../../shared/conversation-workspaces.js';
+import {
+  createConversationTimelineSnapshot,
+  type TimelineItem,
+} from '../../shared/conversation-timeline.js';
 import type { AuthorizationMode } from '../../shared/messages.js';
 import {
   formatCopy,
@@ -39,12 +43,12 @@ import type { SidepanelClient } from './sidepanel-client.js';
 import { appendPageCommentsContext, pageCommentsDisplayMessage } from './page-comment-context.js';
 import {
   automaticApprovalDecision,
+  conversationDiagnosticLoad,
   createInitialSidepanelState,
   sidepanelRandomId as randomId,
   sidepanelReducer,
   type SidepanelAction,
   type SidepanelState,
-  type TimelineItem,
   type TurnFeedbackPhase,
 } from './sidepanel-state.js';
 import { preparePastedImages, selectPastedImageFiles } from './sidepanel-images.js';
@@ -54,14 +58,15 @@ export {
   createInitialSidepanelState,
   sidepanelReducer,
 } from './sidepanel-state.js';
-export type {
-  PastedImage,
-  SidepanelState,
-  TimelineItem,
-  TurnFeedbackPhase,
-} from './sidepanel-state.js';
+export type { PastedImage, SidepanelState, TurnFeedbackPhase } from './sidepanel-state.js';
+export type { TimelineItem } from '../../shared/conversation-timeline.js';
 
 export const AUTO_APPROVE_KEY = 'panerelay.agentAutoApprove';
+const TIMELINE_SAVE_DEBOUNCE_MS = 100;
+
+function conversationKey(providerId: string, conversationId: string): string {
+  return `${providerId}:${conversationId}`;
+}
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error || '');
@@ -169,6 +174,8 @@ export function useSidepanelController(
   const activationGenerationRef = useRef(0);
   const pastedImageGenerationRef = useRef(0);
   const autoApprovingApprovalIdsRef = useRef(new Set<string>());
+  const timelineSequencesRef = useRef(new Map<string, number>());
+  const timelineSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const conversationViewsRef = useRef(
     new Map<
       string,
@@ -178,37 +185,99 @@ export function useSidepanelController(
         runningTurnId: string | null;
         turnFeedback: TurnFeedbackPhase | null;
         activeReasoning: { id: string; text: string } | null;
+        throughSequence: number;
       }
     >(),
   );
   const draftTextRef = useRef(new Map<string, string>());
 
-  const conversationKey = (providerId: string, conversationId: string) =>
-    `${providerId}:${conversationId}`;
+  const persistTimelineState = useCallback(
+    (next: SidepanelState) => {
+      const conversation = next.currentConversation;
+      if (!conversation) return;
+      const key = conversationKey(conversation.providerId, conversation.id);
+      const snapshot = createConversationTimelineSnapshot({
+        providerId: conversation.providerId,
+        conversation,
+        timeline: next.timeline,
+        runningTurnId: next.runningTurnId,
+        throughSequence: timelineSequencesRef.current.get(key) ?? 0,
+      });
+      if (!snapshot) return;
+      void client
+        .request({ type: 'panerelay.conversation-timeline.save', snapshot })
+        .catch(() => undefined);
+    },
+    [client],
+  );
 
-  const commit = useCallback((action: SidepanelAction) => {
-    const next = sidepanelReducer(stateRef.current, action);
-    stateRef.current = next;
-    if (next.currentConversation) {
-      conversationViewsRef.current.set(
-        conversationKey(next.currentConversation.providerId, next.currentConversation.id),
-        {
+  const scheduleTimelineSave = useCallback(
+    (next: SidepanelState, immediate: boolean) => {
+      if (timelineSaveTimerRef.current) {
+        clearTimeout(timelineSaveTimerRef.current);
+        timelineSaveTimerRef.current = null;
+      }
+      if (immediate) {
+        persistTimelineState(next);
+        return;
+      }
+      timelineSaveTimerRef.current = setTimeout(() => {
+        timelineSaveTimerRef.current = null;
+        persistTimelineState(stateRef.current);
+      }, TIMELINE_SAVE_DEBOUNCE_MS);
+    },
+    [persistTimelineState],
+  );
+
+  const commit = useCallback(
+    (action: SidepanelAction) => {
+      const previous = stateRef.current;
+      const next = sidepanelReducer(previous, action);
+      stateRef.current = next;
+      if (next.currentConversation) {
+        const key = conversationKey(
+          next.currentConversation.providerId,
+          next.currentConversation.id,
+        );
+        conversationViewsRef.current.set(key, {
           conversation: next.currentConversation,
           timeline: next.timeline,
           runningTurnId: next.runningTurnId,
           turnFeedback: next.turnFeedback,
           activeReasoning: next.activeReasoning,
-        },
-      );
-    } else if (next.workspace?.kind === 'draft') {
-      draftTextRef.current.set(next.workspace.revision, next.composerText);
-    }
-    dispatch(action);
-  }, []);
+          throughSequence: timelineSequencesRef.current.get(key) ?? 0,
+        });
+      } else if (next.workspace?.kind === 'draft') {
+        draftTextRef.current.set(next.workspace.revision, next.composerText);
+      }
+      if (
+        next.currentConversation &&
+        (next.currentConversation !== previous.currentConversation ||
+          next.timeline !== previous.timeline ||
+          next.runningTurnId !== previous.runningTurnId)
+      ) {
+        const debouncedDelta =
+          action.type === 'conversation-event' &&
+          (action.event.kind === 'message.delta' || action.event.kind === 'reasoning.delta');
+        scheduleTimelineSave(next, !debouncedDelta);
+      }
+      dispatch(action);
+    },
+    [scheduleTimelineSave],
+  );
 
   const patch = useCallback(
     (next: Partial<SidepanelState>) => commit({ type: 'patch', patch: next }),
     [commit],
+  );
+
+  useEffect(
+    () => () => {
+      if (timelineSaveTimerRef.current) clearTimeout(timelineSaveTimerRef.current);
+      timelineSaveTimerRef.current = null;
+      persistTimelineState(stateRef.current);
+    },
+    [persistTimelineState],
   );
 
   const persistProviderCache = useCallback(
@@ -222,6 +291,15 @@ export function useSidepanelController(
 
   const loadConversation = useCallback(
     (detail: ConversationDetail, workspace?: ConversationWorkspaceSnapshot) => {
+      const sameConversation =
+        stateRef.current.currentConversation?.id === detail.conversation.id &&
+        stateRef.current.currentConversation.providerId === detail.conversation.providerId;
+      const retained = sameConversation ? stateRef.current.timeline : [];
+      const restoredFromSession =
+        sameConversation &&
+        stateRef.current.diagnostics.load?.source === 'session-snapshot' &&
+        stateRef.current.diagnostics.load.conversationId === detail.conversation.id;
+      const hasLocalTimeline = restoredFromSession || retained.length > 0;
       patch({
         ...(workspace
           ? {
@@ -231,13 +309,23 @@ export function useSidepanelController(
             }
           : {}),
         currentConversation: detail.conversation,
-        timeline: detail.messages.map(message => ({ type: 'message', message })),
+        timeline: hasLocalTimeline
+          ? retained
+          : detail.messages.map(message => ({ type: 'message', message })),
         runningTurnId:
           detail.conversation.status === 'running' ? stateRef.current.runningTurnId : null,
         turnFeedback: null,
         activeReasoning: null,
         loadingConversation: false,
         error: '',
+        diagnostics: restoredFromSession
+          ? stateRef.current.diagnostics
+          : conversationDiagnosticLoad(
+              stateRef.current.diagnostics,
+              'provider-resume',
+              new Date().toISOString(),
+              detail.conversation.id,
+            ),
       });
     },
     [patch],
@@ -304,6 +392,11 @@ export function useSidepanelController(
           pastedImages: [],
           imageError: '',
           error: '',
+          diagnostics: conversationDiagnosticLoad(
+            stateRef.current.diagnostics,
+            'draft',
+            new Date().toISOString(),
+          ),
         });
         return;
       }
@@ -311,6 +404,7 @@ export function useSidepanelController(
       const key = conversationKey(workspace.providerId, workspace.conversationId);
       const cached = conversationViewsRef.current.get(key);
       if (cached) {
+        timelineSequencesRef.current.set(key, cached.throughSequence);
         patch({
           workspace,
           currentProviderId: workspace.providerId,
@@ -325,6 +419,12 @@ export function useSidepanelController(
           pastedImages: [],
           imageError: '',
           error: '',
+          diagnostics: conversationDiagnosticLoad(
+            stateRef.current.diagnostics,
+            'memory-cache',
+            new Date().toISOString(),
+            cached.conversation.id,
+          ),
         });
         return;
       }
@@ -343,7 +443,81 @@ export function useSidepanelController(
         pastedImages: [],
         imageError: '',
       });
-      if (provider?.status !== 'ready') return;
+
+      try {
+        const timelineResponse = await client.request({
+          type: 'panerelay.conversation-timeline.load',
+          providerId: workspace.providerId,
+          conversationId: workspace.conversationId,
+        });
+        if (generation !== activationGenerationRef.current) return;
+        const replay = timelineResponse.timeline;
+        const snapshot = replay?.snapshot;
+        if (
+          snapshot &&
+          snapshot.providerId === workspace.providerId &&
+          snapshot.conversationId === workspace.conversationId
+        ) {
+          const latestSnapshotItem = snapshot.timeline.at(-1);
+          const restoredActiveReasoning =
+            snapshot.runningTurnId &&
+            latestSnapshotItem?.type === 'reasoning' &&
+            latestSnapshotItem.turnId === snapshot.runningTurnId
+              ? { id: latestSnapshotItem.id, text: latestSnapshotItem.text }
+              : null;
+          let restoredState: SidepanelState = {
+            ...stateRef.current,
+            workspace,
+            currentProviderId: workspace.providerId,
+            currentConversation: snapshot.conversation,
+            timeline: snapshot.timeline,
+            runningTurnId: snapshot.runningTurnId,
+            turnFeedback: null,
+            activeReasoning: restoredActiveReasoning,
+            loadingConversation: provider?.status === 'ready',
+            submitting: false,
+            composerText: '',
+            pastedImages: [],
+            imageError: '',
+            error: '',
+            diagnostics: conversationDiagnosticLoad(
+              stateRef.current.diagnostics,
+              'session-snapshot',
+              new Date().toISOString(),
+              snapshot.conversationId,
+            ),
+          };
+          let throughSequence = snapshot.throughSequence;
+          for (const item of replay?.events ?? []) {
+            restoredState = sidepanelReducer(restoredState, {
+              type: 'conversation-event',
+              event: item.event,
+              interruptedMessage: translate(stateRef.current.locale, 'interrupted'),
+              failedMessage: translate(stateRef.current.locale, 'failed'),
+              diagnosticReceivedAt: new Date().toISOString(),
+            });
+            throughSequence = Math.max(throughSequence, item.sequence);
+          }
+          timelineSequencesRef.current.set(key, throughSequence);
+          patch({
+            currentConversation: restoredState.currentConversation,
+            timeline: restoredState.timeline,
+            runningTurnId: restoredState.runningTurnId,
+            turnFeedback: restoredState.turnFeedback,
+            activeReasoning: restoredState.activeReasoning,
+            loadingConversation: restoredState.loadingConversation,
+            diagnostics: restoredState.diagnostics,
+            scrollRequest: stateRef.current.scrollRequest + 1,
+          });
+        }
+      } catch {
+        // Timeline retention is a session-local enhancement; provider resume remains the fallback.
+      }
+
+      if (provider?.status !== 'ready') {
+        patch({ loadingConversation: false });
+        return;
+      }
       try {
         const response = await client.request({
           type: 'panerelay.conversation.resume',
@@ -1085,6 +1259,16 @@ export function useSidepanelController(
         patch({
           ...(response.workspace ? { workspace: response.workspace } : {}),
           ...(created ? { currentConversation: created } : {}),
+          ...(created && !conversation
+            ? {
+                diagnostics: conversationDiagnosticLoad(
+                  stateRef.current.diagnostics,
+                  'live-created',
+                  new Date().toISOString(),
+                  created.id,
+                ),
+              }
+            : {}),
           ...(response.turnId ? { runningTurnId: response.turnId } : {}),
           turnFeedback: stateRef.current.turnFeedback ? 'working' : null,
           ...(created && stateRef.current.historyLoadedProviderId === created.providerId
@@ -1322,6 +1506,9 @@ export function useSidepanelController(
           if (message.event.conversationId !== stateRef.current.currentConversation?.id) {
             for (const [key, cached] of conversationViewsRef.current) {
               if (cached.conversation.id !== message.event.conversationId) continue;
+              if (message.timelineSequence) {
+                timelineSequencesRef.current.set(key, message.timelineSequence);
+              }
               const cachedState = sidepanelReducer(
                 {
                   ...stateRef.current,
@@ -1344,15 +1531,26 @@ export function useSidepanelController(
                 runningTurnId: cachedState.runningTurnId,
                 turnFeedback: cachedState.turnFeedback,
                 activeReasoning: cachedState.activeReasoning,
+                throughSequence: timelineSequencesRef.current.get(key) ?? cached.throughSequence,
               });
             }
             return;
+          }
+          if (message.timelineSequence && stateRef.current.currentConversation) {
+            timelineSequencesRef.current.set(
+              conversationKey(
+                stateRef.current.currentConversation.providerId,
+                stateRef.current.currentConversation.id,
+              ),
+              message.timelineSequence,
+            );
           }
           commit({
             type: 'conversation-event',
             event: message.event,
             interruptedMessage: translate(stateRef.current.locale, 'interrupted'),
             failedMessage: translate(stateRef.current.locale, 'failed'),
+            diagnosticReceivedAt: new Date().toISOString(),
           });
           if (message.event.kind === 'approval.requested' && stateRef.current.autoApprove) {
             void automaticallyApprove(message.event.approval);

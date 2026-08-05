@@ -168,7 +168,7 @@ test('exposes Codex through provider-neutral conversation results', async () => 
   assert.match(String(params.developerInstructions), /Example app/);
   assert.match(String(params.developerInstructions), /%5BREDACTED%5D/);
   assert.doesNotMatch(String(params.developerInstructions), /secret/);
-  assert.match(String(params.developerInstructions), /panerelay-tab-v1-/);
+  assert.match(String(params.developerInstructions), /panerelay-v2-[A-Za-z0-9_-]{43}/);
   assert.match(String(params.developerInstructions), /switch_tab/);
   assert.match(String(params.developerInstructions), /tab-select 0/);
   assert.doesNotMatch(
