@@ -159,10 +159,6 @@ pre {
 }
 
 .language-switcher {
-  display: none;
-}
-
-.js .language-switcher {
   display: inline-flex;
   min-height: 32px;
   align-items: center;
@@ -176,8 +172,11 @@ pre {
   font-size: 10px;
 }
 
-.language-switcher button {
+.language-switcher a {
+  display: inline-flex;
   min-width: 31px;
+  align-items: center;
+  justify-content: center;
   height: 24px;
   padding: 0 7px;
   border: 0;
@@ -192,11 +191,11 @@ pre {
     color 160ms ease;
 }
 
-.language-switcher button:hover {
+.language-switcher a:hover {
   color: var(--ink);
 }
 
-.language-switcher button[aria-pressed='true'] {
+.language-switcher a[aria-current='page'] {
   background: var(--green);
   color: #03130c;
 }

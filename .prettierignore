@@ -2,3 +2,4 @@
 **/node_modules/
 coverage/
 pnpm-lock.yaml
+apps/website/zh-CN/index.html

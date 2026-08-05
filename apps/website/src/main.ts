@@ -4,40 +4,19 @@ import { translations, type Locale, type TranslationKey } from './i18n';
 
 document.documentElement.classList.add('js');
 
-const localeStorageKey = 'panerelay.locale';
-const languageButtons = document.querySelectorAll<HTMLButtonElement>('[data-language-option]');
-let currentLocale: Locale = 'en';
+const languageLinks = document.querySelectorAll<HTMLAnchorElement>('[data-language-option]');
 
 function isLocale(value: string | null): value is Locale {
   return value === 'en' || value === 'zh-CN';
 }
 
-function readStoredLocale(): Locale | null {
-  try {
-    const storedLocale = window.localStorage.getItem(localeStorageKey);
-    return isLocale(storedLocale) ? storedLocale : null;
-  } catch {
-    return null;
-  }
+// Each locale has its own statically rendered document, so the served page decides the locale.
+function documentLocale(): Locale {
+  const lang = document.documentElement.lang;
+  return isLocale(lang) ? lang : 'en';
 }
 
-function detectLocale(): Locale {
-  const storedLocale = readStoredLocale();
-  if (storedLocale) {
-    return storedLocale;
-  }
-
-  const preferredLanguage = navigator.languages[0] ?? navigator.language;
-  return preferredLanguage.toLowerCase().startsWith('zh') ? 'zh-CN' : 'en';
-}
-
-function persistLocale(locale: Locale): void {
-  try {
-    window.localStorage.setItem(localeStorageKey, locale);
-  } catch {
-    // Storage can be unavailable in hardened browser contexts; switching still works in memory.
-  }
-}
+let currentLocale: Locale = documentLocale();
 
 function translation(key: TranslationKey): string {
   return translations[currentLocale][key];
@@ -80,12 +59,12 @@ function applyLocale(locale: Locale): void {
     }
   }
 
-  for (const button of languageButtons) {
-    button.setAttribute('aria-pressed', String(button.dataset.languageOption === locale));
-  }
-
-  for (const link of document.querySelectorAll<HTMLAnchorElement>('[data-compare-link]')) {
-    link.href = locale === 'zh-CN' ? './zh-CN/compare/' : './compare/';
+  for (const link of languageLinks) {
+    if (link.dataset.languageOption === locale) {
+      link.setAttribute('aria-current', 'page');
+    } else {
+      link.removeAttribute('aria-current');
+    }
   }
 
   setMenuOpen(navigation?.dataset.open === 'true');
@@ -104,18 +83,6 @@ function setMenuOpen(open: boolean): void {
   navigation.dataset.open = String(open);
   menuButton.setAttribute('aria-expanded', String(open));
   menuButton.setAttribute('aria-label', translation(open ? 'nav.close' : 'nav.open'));
-}
-
-for (const button of languageButtons) {
-  button.addEventListener('click', () => {
-    const locale = button.dataset.languageOption ?? null;
-    if (!isLocale(locale)) {
-      return;
-    }
-
-    persistLocale(locale);
-    applyLocale(locale);
-  });
 }
 
 menuButton?.addEventListener('click', () => {
@@ -618,5 +585,5 @@ if (year) {
   year.textContent = String(new Date().getFullYear());
 }
 
-applyLocale(detectLocale());
+applyLocale(documentLocale());
 initializeProductDemo();
