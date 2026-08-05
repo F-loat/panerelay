@@ -7,6 +7,7 @@ import type {
 } from '../shared/messages.js';
 import type { ConversationWorkspaceService } from './conversation-workspace-service.js';
 import type { PageCommentService } from './page-comments.js';
+import type { ConversationTimelineStore } from './conversation-timelines.js';
 
 type WorkspaceRequests = Pick<
   ConversationWorkspaceService,
@@ -16,12 +17,14 @@ type PageCommentRequests = Pick<
   PageCommentService,
   'clear' | 'edit' | 'remove' | 'start' | 'stop' | 'updateAppearance'
 >;
+type ConversationTimelineRequests = Pick<ConversationTimelineStore, 'load' | 'save'>;
 
 export interface SidePanelRequestRouterOptions {
   activateControlledTab: (tabId: number) => Promise<void>;
   closeControlledTab: (tabId: number) => Promise<void>;
   installIntegration: (integration: AutomationIntegrationId) => Promise<ExtensionStatus>;
   pageComments: PageCommentRequests;
+  timelines: ConversationTimelineRequests;
   releaseControl: () => Promise<ExtensionStatus>;
   refreshBrowserDefault: () => Promise<void>;
   refreshBrowserUseDefault: () => Promise<void>;
@@ -133,6 +136,14 @@ export function createSidePanelRequestRouter(options: SidePanelRequestRouterOpti
             providerId: message.providerId,
           })) as Awaited<Extract<SidePanelResponse, { conversations: unknown }>['conversations']>,
         };
+      case 'panerelay.conversation-timeline.load':
+        return {
+          success: true,
+          timeline: await options.timelines.load(message.providerId, message.conversationId),
+        };
+      case 'panerelay.conversation-timeline.save':
+        await options.timelines.save(message.snapshot);
+        return { success: true };
       case 'panerelay.conversation.resume':
         return {
           success: true,

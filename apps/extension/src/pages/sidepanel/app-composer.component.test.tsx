@@ -1,5 +1,5 @@
 import type { ConversationDetail } from '@panerelay/protocol';
-import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { ConversationWorkspaceSnapshot } from '../../shared/conversation-workspaces.js';
 import { accentPalette, DEFAULT_ACCENT_COLOR } from '../../shared/appearance.js';
@@ -214,14 +214,14 @@ describe('React Side Panel composer', () => {
         },
       });
     });
-    const workingStatus = screen.getByRole('status');
-    expect(
-      within(workingStatus).getByText('Checking the page structure before choosing an action.'),
-    ).toBeVisible();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
     expect(
       screen.queryByText('Progress and results will appear here as they arrive.'),
     ).not.toBeInTheDocument();
-    expect(screen.queryByText('Reasoning')).not.toBeInTheDocument();
+    expect(screen.getByText('Reasoning')).toBeVisible();
+    expect(
+      screen.getAllByText('Checking the page structure before choosing an action.'),
+    ).toHaveLength(2);
 
     act(() => {
       client.emit({

@@ -61,7 +61,7 @@ test('renders exact non-authorizing engine target guidance and rejects malformed
   assert.deepEqual(resolved.initialPage, { target });
   assert.match(
     instructions,
-    /--session panerelay-tab-v1-11111111-1111-4111-8111-111111111111-22222222-2222-4222-8222-222222222222 --provider panerelay/,
+    /--session panerelay-v2-ERERERERQRGBERERERERESIiIiIiIkIigiIiIiIiIiI --provider panerelay/,
   );
   assert.match(instructions, /BU_NAME=panerelay/);
   assert.match(instructions, /switch_tab\("22222222-2222-4222-8222-222222222222"\)/);

@@ -13,7 +13,9 @@ class FakeQoderRuntime implements QoderRuntime {
   readonly notifications: Array<{ method: string; params: unknown }> = [];
   readonly requests: Array<{ method: string; params: unknown }> = [];
   closed = false;
+  historyAnswer: string | null = 'Earlier answer';
   historyChunks = ['Earlier question'];
+  historyMessages: Array<{ id: string; role: 'assistant' | 'user'; text: string }> | undefined;
   prompt: ((params: unknown) => Promise<acp.PromptResponse>) | undefined;
 
   constructor(
@@ -63,24 +65,40 @@ class FakeQoderRuntime implements QoderRuntime {
       } satisfies acp.NewSessionResponse;
     }
     if (method === acp.methods.agent.session.load) {
-      for (const text of this.historyChunks) {
-        this.handlers.onUpdate({
-          sessionId: 'qoder-existing',
-          update: {
-            sessionUpdate: 'user_message_chunk',
-            messageId: 'user-1',
-            content: { type: 'text', text },
-          },
-        });
+      const sessionId = (params as acp.LoadSessionRequest).sessionId;
+      if (this.historyMessages) {
+        for (const message of this.historyMessages) {
+          this.handlers.onUpdate({
+            sessionId,
+            update: {
+              sessionUpdate: message.role === 'user' ? 'user_message_chunk' : 'agent_message_chunk',
+              messageId: message.id,
+              content: { type: 'text', text: message.text },
+            },
+          });
+        }
+      } else {
+        for (const text of this.historyChunks) {
+          this.handlers.onUpdate({
+            sessionId,
+            update: {
+              sessionUpdate: 'user_message_chunk',
+              messageId: 'user-1',
+              content: { type: 'text', text },
+            },
+          });
+        }
+        if (this.historyAnswer !== null) {
+          this.handlers.onUpdate({
+            sessionId,
+            update: {
+              sessionUpdate: 'agent_message_chunk',
+              messageId: 'assistant-1',
+              content: { type: 'text', text: this.historyAnswer },
+            },
+          });
+        }
       }
-      this.handlers.onUpdate({
-        sessionId: 'qoder-existing',
-        update: {
-          sessionUpdate: 'agent_message_chunk',
-          messageId: 'assistant-1',
-          content: { type: 'text', text: 'Earlier answer' },
-        },
-      });
       return {
         configOptions: [
           {
@@ -298,6 +316,76 @@ test('lists, starts, and loads Qoder sessions without injecting browser MCP defi
   );
 });
 
+test('restores retained Qoder messages when session load emits no history', async () => {
+  const { provider, runtimes } = harness();
+  await provider.startConversation({
+    initialPage: { title: 'Private page orientation' },
+  });
+  const runtime = runtimes[0]!;
+  runtime.prompt = async () => {
+    runtime.handlers.onUpdate({
+      sessionId: 'qoder-new',
+      update: {
+        sessionUpdate: 'agent_message_chunk',
+        messageId: 'assistant-commentary',
+        content: { type: 'text', text: 'First response' },
+      },
+    });
+    runtime.handlers.onUpdate({
+      sessionId: 'qoder-new',
+      update: {
+        sessionUpdate: 'agent_message_chunk',
+        messageId: 'assistant-final',
+        content: { type: 'text', text: 'Final response' },
+      },
+    });
+    return { stopReason: 'end_turn' } satisfies acp.PromptResponse;
+  };
+
+  await provider.sendMessage('qoder-new', 'Inspect this page');
+  await flush();
+  runtime.historyChunks = [];
+  runtime.historyAnswer = null;
+
+  const resumed = await provider.resumeConversation('qoder-new');
+  assert.deepEqual(
+    resumed.messages.map(message => [message.role, message.text]),
+    [
+      ['user', 'Inspect this page'],
+      ['assistant', 'First response'],
+      ['assistant', 'Final response'],
+    ],
+  );
+  assert.doesNotMatch(
+    resumed.messages.map(message => message.text).join('\n'),
+    /panerelay-context|Private page orientation/,
+  );
+});
+
+test('prefers Qoder provider history and refreshes the bounded fallback transcript', async () => {
+  const { provider, runtimes } = harness();
+  await provider.startConversation();
+  const runtime = runtimes[0]!;
+  await provider.sendMessage('qoder-new', 'Live question');
+  await flush();
+
+  runtime.historyMessages = Array.from({ length: 1_002 }, (_, index) => ({
+    id: `provider-${index + 1}`,
+    role: 'user' as const,
+    text: `Provider question ${index + 1}`,
+  }));
+  const providerHistory = await provider.resumeConversation('qoder-new');
+  assert.equal(providerHistory.messages.length, 1_000);
+  assert.equal(providerHistory.messages[0]?.text, 'Provider question 3');
+  assert.equal(providerHistory.messages.at(-1)?.text, 'Provider question 1002');
+
+  runtime.historyMessages = [];
+  runtime.historyChunks = [];
+  runtime.historyAnswer = null;
+  const fallback = await provider.resumeConversation('qoder-new');
+  assert.deepEqual(fallback.messages, providerHistory.messages);
+});
+
 test('uses a validated project and prepends bounded page context only to the first prompt', async () => {
   const { provider, runtimes } = harness();
   await provider.startConversation({
@@ -329,7 +417,7 @@ test('uses a validated project and prepends bounded page context only to the fir
   assert.equal(firstPromptText.split(PANERELAY_CONTEXT_START).length - 1, 1);
   assert.equal(firstPromptText.split(PANERELAY_CONTEXT_END).length - 1, 1);
   assert.match(firstPromptText, /Example app/);
-  assert.match(firstPromptText, /panerelay-tab-v1-/);
+  assert.match(firstPromptText, /panerelay-v2-[A-Za-z0-9_-]{43}/);
   assert.match(firstPromptText, /switch_tab/);
   assert.match(firstPromptText, /tab-select 0/);
   assert.doesNotMatch(firstPromptText, /secret/);
@@ -381,6 +469,14 @@ test('normalizes streaming, reasoning, plan, tools, usage, completion, and unkno
   await provider.startConversation();
   runtimes[0]!.prompt = async () => {
     const handlers = runtimes[0]!.handlers;
+    handlers.onUpdate({
+      sessionId: 'qoder-new',
+      update: {
+        sessionUpdate: 'agent_message_chunk',
+        messageId: 'commentary-1',
+        content: { type: 'text', text: 'I will inspect first.' },
+      },
+    });
     handlers.onUpdate({
       sessionId: 'qoder-new',
       update: {
@@ -622,9 +718,103 @@ test('normalizes streaming, reasoning, plan, tools, usage, completion, and unkno
         event.kind === 'usage.updated' && event.contextUsed === 100 && event.contextSize === 10_000,
     ),
   );
-  assert.ok(events.some(event => event.kind === 'message.completed'));
+  const messageDeltas = events.filter(event => event.kind === 'message.delta');
+  assert.deepEqual(
+    messageDeltas.map(event =>
+      event.kind === 'message.delta' ? [event.messageId, event.delta] : [],
+    ),
+    [
+      ['commentary-1', 'I will inspect first.'],
+      ['message-1', 'Done'],
+    ],
+  );
+  const completedMessages = events.filter(event => event.kind === 'message.completed');
+  assert.deepEqual(
+    completedMessages.map(event =>
+      event.kind === 'message.completed' ? [event.message.id, event.message.text] : [],
+    ),
+    [
+      ['commentary-1', 'I will inspect first.'],
+      ['message-1', 'Done'],
+    ],
+  );
+  const firstActivityIndex = events.findIndex(
+    event => event.kind === 'activity.updated' && event.activity.id === 'tool-1',
+  );
+  const finalDeltaIndex = events.findIndex(
+    event => event.kind === 'message.delta' && event.messageId === 'message-1',
+  );
+  assert.ok(firstActivityIndex >= 0 && finalDeltaIndex > firstActivityIndex);
   assert.ok(events.some(event => event.kind === 'turn.completed' && event.status === 'completed'));
   assert.deepEqual(diagnostics, ['Ignored Qoder update: available_commands_update']);
+});
+
+test('keeps contiguous reasoning deltas together and starts a new segment after visible output', async () => {
+  const { events, provider, runtimes } = harness();
+  await provider.startConversation();
+  runtimes[0]!.prompt = async () => {
+    const handlers = runtimes[0]!.handlers;
+    const thought = (text: string) =>
+      handlers.onUpdate({
+        sessionId: 'qoder-new',
+        update: {
+          sessionUpdate: 'agent_thought_chunk',
+          content: { type: 'text', text },
+        },
+      });
+    thought('first');
+    thought(' contiguous');
+    handlers.onUpdate({
+      sessionId: 'qoder-new',
+      update: {
+        sessionUpdate: 'tool_call',
+        toolCallId: 'tool-between-thoughts',
+        title: 'Inspect page',
+        status: 'completed',
+      },
+    });
+    thought('second');
+    thought(' contiguous');
+    handlers.onUpdate({
+      sessionId: 'qoder-new',
+      update: {
+        sessionUpdate: 'agent_message_chunk',
+        messageId: 'message-between-thoughts',
+        content: { type: 'text', text: 'Visible answer' },
+      },
+    });
+    thought('third');
+    return { stopReason: 'end_turn' };
+  };
+
+  await provider.sendMessage('qoder-new', 'Inspect');
+  await flush();
+
+  const reasoning = events.filter(
+    (event): event is Extract<ConversationEvent, { kind: 'reasoning.delta' }> =>
+      event.kind === 'reasoning.delta',
+  );
+  assert.equal(reasoning.length, 5);
+  assert.equal(reasoning[0]?.itemId, reasoning[1]?.itemId);
+  assert.equal(reasoning[2]?.itemId, reasoning[3]?.itemId);
+  assert.notEqual(reasoning[0]?.itemId, reasoning[2]?.itemId);
+  assert.notEqual(reasoning[2]?.itemId, reasoning[4]?.itemId);
+  assert.deepEqual(
+    events
+      .filter(event =>
+        ['reasoning.delta', 'activity.updated', 'message.delta'].includes(event.kind),
+      )
+      .map(event => event.kind),
+    [
+      'reasoning.delta',
+      'reasoning.delta',
+      'activity.updated',
+      'reasoning.delta',
+      'reasoning.delta',
+      'message.delta',
+      'reasoning.delta',
+    ],
+  );
 });
 
 test('keeps ACP option IDs private and cancels pending permission on interruption', async () => {

@@ -17,6 +17,7 @@ class FakeOpenCodeRuntime implements OpenCodeRuntime {
   readonly notifications: Array<{ method: string; params: unknown }> = [];
   readonly requests: Array<{ method: string; params: unknown }> = [];
   closed = false;
+  historyAnswer: string | null = 'Earlier answer';
   historyChunks = ['Earlier question'];
   prompt: ((params: unknown) => Promise<acp.PromptResponse>) | undefined;
 
@@ -67,9 +68,10 @@ class FakeOpenCodeRuntime implements OpenCodeRuntime {
       } satisfies acp.NewSessionResponse;
     }
     if (method === acp.methods.agent.session.load) {
+      const sessionId = (params as acp.LoadSessionRequest).sessionId;
       for (const text of this.historyChunks) {
         this.handlers.onUpdate({
-          sessionId: 'opencode-existing',
+          sessionId,
           update: {
             sessionUpdate: 'user_message_chunk',
             messageId: 'user-1',
@@ -77,14 +79,16 @@ class FakeOpenCodeRuntime implements OpenCodeRuntime {
           },
         });
       }
-      this.handlers.onUpdate({
-        sessionId: 'opencode-existing',
-        update: {
-          sessionUpdate: 'agent_message_chunk',
-          messageId: 'assistant-1',
-          content: { type: 'text', text: 'Earlier answer' },
-        },
-      });
+      if (this.historyAnswer !== null) {
+        this.handlers.onUpdate({
+          sessionId,
+          update: {
+            sessionUpdate: 'agent_message_chunk',
+            messageId: 'assistant-1',
+            content: { type: 'text', text: this.historyAnswer },
+          },
+        });
+      }
       return {
         configOptions: [
           {
@@ -283,6 +287,47 @@ test('lists, starts, and loads OpenCode sessions without injecting browser MCP d
   );
 });
 
+test('restores retained OpenCode messages only when session load history is empty', async () => {
+  const { provider, runtimes } = harness();
+  await provider.startConversation();
+  const runtime = runtimes[0]!;
+  runtime.prompt = async () => {
+    runtime.handlers.onUpdate({
+      sessionId: 'opencode-new',
+      update: {
+        sessionUpdate: 'agent_message_chunk',
+        messageId: 'assistant-live',
+        content: { type: 'text', text: 'Live answer' },
+      },
+    });
+    return { stopReason: 'end_turn' } satisfies acp.PromptResponse;
+  };
+  await provider.sendMessage('opencode-new', 'Live question');
+  await flush();
+
+  runtime.historyChunks = [];
+  runtime.historyAnswer = null;
+  const fallback = await provider.resumeConversation('opencode-new');
+  assert.deepEqual(
+    fallback.messages.map(message => [message.role, message.text]),
+    [
+      ['user', 'Live question'],
+      ['assistant', 'Live answer'],
+    ],
+  );
+
+  runtime.historyChunks = ['Provider question'];
+  runtime.historyAnswer = 'Provider answer';
+  const providerHistory = await provider.resumeConversation('opencode-new');
+  assert.deepEqual(
+    providerHistory.messages.map(message => [message.role, message.text]),
+    [
+      ['user', 'Provider question'],
+      ['assistant', 'Provider answer'],
+    ],
+  );
+});
+
 test('uses a validated project and prepends bounded page context only to the first prompt', async () => {
   const { provider, runtimes } = harness();
   await provider.startConversation({
@@ -314,7 +359,7 @@ test('uses a validated project and prepends bounded page context only to the fir
   assert.equal(firstPromptText.split(PANERELAY_CONTEXT_START).length - 1, 1);
   assert.equal(firstPromptText.split(PANERELAY_CONTEXT_END).length - 1, 1);
   assert.match(firstPromptText, /Example app/);
-  assert.match(firstPromptText, /panerelay-tab-v1-/);
+  assert.match(firstPromptText, /panerelay-v2-[A-Za-z0-9_-]{43}/);
   assert.match(firstPromptText, /switch_tab/);
   assert.match(firstPromptText, /tab-select 0/);
   assert.doesNotMatch(firstPromptText, /secret/);
@@ -366,6 +411,14 @@ test('normalizes streaming, reasoning, plan, tools, usage, completion, and unkno
   await provider.startConversation();
   runtimes[0]!.prompt = async () => {
     const handlers = runtimes[0]!.handlers;
+    handlers.onUpdate({
+      sessionId: 'opencode-new',
+      update: {
+        sessionUpdate: 'agent_message_chunk',
+        messageId: 'commentary-1',
+        content: { type: 'text', text: 'I will inspect first.' },
+      },
+    });
     handlers.onUpdate({
       sessionId: 'opencode-new',
       update: {
@@ -495,9 +548,69 @@ test('normalizes streaming, reasoning, plan, tools, usage, completion, and unkno
         event.kind === 'usage.updated' && event.contextUsed === 100 && event.contextSize === 10_000,
     ),
   );
-  assert.ok(events.some(event => event.kind === 'message.completed'));
+  const messageDeltas = events.filter(event => event.kind === 'message.delta');
+  assert.deepEqual(
+    messageDeltas.map(event =>
+      event.kind === 'message.delta' ? [event.messageId, event.delta] : [],
+    ),
+    [
+      ['commentary-1', 'I will inspect first.'],
+      ['message-1', 'Done'],
+    ],
+  );
+  const completedMessages = events.filter(event => event.kind === 'message.completed');
+  assert.deepEqual(
+    completedMessages.map(event =>
+      event.kind === 'message.completed' ? [event.message.id, event.message.text] : [],
+    ),
+    [
+      ['commentary-1', 'I will inspect first.'],
+      ['message-1', 'Done'],
+    ],
+  );
+  const firstActivityIndex = events.findIndex(
+    event => event.kind === 'activity.updated' && event.activity.id === 'tool-1',
+  );
+  const finalDeltaIndex = events.findIndex(
+    event => event.kind === 'message.delta' && event.messageId === 'message-1',
+  );
+  assert.ok(firstActivityIndex >= 0 && finalDeltaIndex > firstActivityIndex);
   assert.ok(events.some(event => event.kind === 'turn.completed' && event.status === 'completed'));
   assert.deepEqual(diagnostics, ['Ignored OpenCode update: available_commands_update']);
+});
+
+test('keeps ACP assistant chunks together when the provider omits a message ID', async () => {
+  const { events, provider, runtimes } = harness();
+  await provider.startConversation();
+  runtimes[0]!.prompt = async () => {
+    const handlers = runtimes[0]!.handlers;
+    for (const text of ['Fallback ', 'message']) {
+      handlers.onUpdate({
+        sessionId: 'opencode-new',
+        update: {
+          sessionUpdate: 'agent_message_chunk',
+          content: { type: 'text', text },
+        },
+      });
+    }
+    return { stopReason: 'end_turn' } satisfies acp.PromptResponse;
+  };
+
+  await provider.sendMessage('opencode-new', 'Use the fallback');
+  await flush();
+
+  const deltas = events.filter(event => event.kind === 'message.delta');
+  assert.equal(deltas.length, 2);
+  assert.equal(
+    deltas[0]?.kind === 'message.delta' ? deltas[0].messageId : '',
+    deltas[1]?.kind === 'message.delta' ? deltas[1].messageId : '',
+  );
+  const completions = events.filter(event => event.kind === 'message.completed');
+  assert.deepEqual(
+    completions.map(event => (event.kind === 'message.completed' ? event.message.text : '')),
+    ['Fallback message'],
+  );
+  await provider.close();
 });
 
 test('keeps ACP option IDs private and cancels pending permission on interruption', async () => {

@@ -18,7 +18,7 @@ playwright-cli snapshot
 
 Choose the intended authorized tab ID from the first `tab-list` result. After `tab-select`, run `tab-list` again and confirm the intended tab is selected before continuing.
 
-New Side Panel conversations may instead inject a reserved `-s=panerelay-tab-v1-...` session and a target-scoped `/cdp/playwright/target/...` attach URL. Use both exact values, then run `tab-list`, `tab-select 0`, and `tab-list` again. Panerelay validates the opaque browser/target pair against the current authorized inventory and exposes that page first without changing Playwright CLI. A stale or unauthorized target fails closed; do not retry through the unscoped URL or match URL/title.
+New Side Panel conversations may instead inject a reserved 56-character `-s=panerelay-v2-...` session and a target-scoped `/cdp/playwright/target/...` attach URL. Use both exact values, then run `tab-list`, `tab-select 0`, and `tab-list` again. Panerelay validates the compact reversible browser/target pair against the current authorized inventory and exposes that page first without changing Playwright CLI. A malformed, legacy, stale, or unauthorized target fails closed; do not shorten the session, retry through the unscoped URL, or match URL/title.
 
 The setup package verifies the upstream executable and installs only Panerelay-owned adapter metadata. It does not install a shim, modify `PATH` or shell startup files, write `.playwright/cli.config.json`, set Playwright as a default, or manage an Agent Skill. The independently installed `panerelay-browser` Skill contains the Playwright workflow.
 

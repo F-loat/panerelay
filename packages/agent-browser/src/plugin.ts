@@ -6,6 +6,7 @@ import {
 import {
   PANERELAY_PROTOCOL_VERSION,
   PANERELAY_CONVERSATION_TARGET_SESSION_PREFIX,
+  PANERELAY_LEGACY_CONVERSATION_TARGET_SESSION_PREFIX,
   parseConversationTargetSessionName,
   type BridgeState,
   type RelaySessionCreated,
@@ -166,7 +167,12 @@ export async function handlePluginRequest(input: PluginRequest): Promise<PluginR
   try {
     const label = sessionLabel(input.request);
     const target = label ? parseConversationTargetSessionName(label) : undefined;
-    if (label?.startsWith(PANERELAY_CONVERSATION_TARGET_SESSION_PREFIX) && !target) {
+    if (
+      label &&
+      !target &&
+      (label.startsWith(PANERELAY_CONVERSATION_TARGET_SESSION_PREFIX) ||
+        label.startsWith(PANERELAY_LEGACY_CONVERSATION_TARGET_SESSION_PREFIX))
+    ) {
       throw new Error('The Panerelay conversation target session is malformed or unsupported');
     }
     const selection = target ? undefined : await selectBrowserRegistration();

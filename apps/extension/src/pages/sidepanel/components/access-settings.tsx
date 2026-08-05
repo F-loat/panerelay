@@ -4,8 +4,9 @@ import type {
   AutomationActivityStatus,
   ControlSessionState,
 } from '@panerelay/protocol';
-import { Bot, ChevronDown, CircleAlert, Github, PanelTop, X } from 'lucide-react';
-import { type RefObject, useState } from 'react';
+import { Bot, Bug, Check, ChevronDown, CircleAlert, Github, PanelTop, X } from 'lucide-react';
+import { type RefObject, useEffect, useRef, useState } from 'react';
+import { DEFAULT_ACCENT_COLOR } from '../../../shared/appearance.js';
 import type { AuthorizationMode } from '../../../shared/messages.js';
 import {
   formatForState,
@@ -14,6 +15,11 @@ import {
 } from '../sidepanel-controller.js';
 import { translate, type CopyKey, type Locale, type ThemeSetting } from '../i18n.js';
 import { SelectMenu, type SelectMenuOption } from '../dropdown.js';
+import { writeClipboardText } from '../clipboard.js';
+import {
+  hasConversationDiagnostics,
+  serializeConversationDiagnostics,
+} from '../conversation-diagnostics.js';
 import { useCopy } from './presentation.js';
 
 export function authorizationDetails(state: SidepanelState) {
@@ -462,6 +468,10 @@ export function SettingsPopover({
 }) {
   const { state } = controller;
   const { t } = useCopy(state);
+  const diagnosticCopyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [diagnosticCopyStatus, setDiagnosticCopyStatus] = useState<'idle' | 'copied' | 'failed'>(
+    'idle',
+  );
   const themeOptions: SelectMenuOption[] = [
     { value: 'system', label: t('themeSystem') },
     { value: 'dark', label: t('themeDark') },
@@ -474,11 +484,55 @@ export function SettingsPopover({
   const themeLabel = themeOptions.find(item => item.value === state.themeSetting)?.label ?? '';
   const languageLabel = languageOptions.find(item => item.value === state.locale)?.label ?? '';
 
+  useEffect(
+    () => () => {
+      if (diagnosticCopyTimer.current) clearTimeout(diagnosticCopyTimer.current);
+    },
+    [],
+  );
+
+  const copyConversationDiagnostics = async () => {
+    const copied = await writeClipboardText(serializeConversationDiagnostics(state));
+    setDiagnosticCopyStatus(copied ? 'copied' : 'failed');
+    if (diagnosticCopyTimer.current) clearTimeout(diagnosticCopyTimer.current);
+    diagnosticCopyTimer.current = setTimeout(() => setDiagnosticCopyStatus('idle'), 2_000);
+  };
+
+  const diagnosticCopyLabel = t(
+    diagnosticCopyStatus === 'copied'
+      ? 'conversationDiagnosticsCopied'
+      : diagnosticCopyStatus === 'failed'
+        ? 'conversationDiagnosticsCopyFailed'
+        : 'copyConversationDiagnostics',
+  );
+
   return (
     <aside className="settings-popover" id="settings-popover" ref={popoverRef}>
       <div className="settings-heading">
         <strong>{t('settings')}</strong>
         <div className="settings-heading-actions">
+          {hasConversationDiagnostics(state) && (
+            <>
+              <button
+                aria-label={diagnosticCopyLabel}
+                className="icon-button small"
+                onClick={() => void copyConversationDiagnostics()}
+                title={diagnosticCopyLabel}
+                type="button"
+              >
+                {diagnosticCopyStatus === 'copied' ? (
+                  <Check aria-hidden="true" />
+                ) : (
+                  <Bug aria-hidden="true" />
+                )}
+              </button>
+              {diagnosticCopyStatus !== 'idle' && (
+                <span aria-live="polite" className="sr-only" role="status">
+                  {diagnosticCopyLabel}
+                </span>
+              )}
+            </>
+          )}
           <a
             aria-label="GitHub"
             className="icon-button small"
@@ -488,14 +542,6 @@ export function SettingsPopover({
           >
             <Github aria-hidden="true" />
           </a>
-          <button
-            aria-label={t('close')}
-            className="icon-button small"
-            onClick={() => controller.setSettingsOpen(false)}
-            type="button"
-          >
-            <X aria-hidden="true" />
-          </button>
         </div>
       </div>
       <div className="settings-field settings-theme-field">
@@ -505,7 +551,8 @@ export function SettingsPopover({
             aria-label={t('accentColor')}
             className="settings-color-picker"
             onChange={event => void controller.setAccentColor(event.currentTarget.value)}
-            title={t('accentColor')}
+            onDoubleClick={() => void controller.setAccentColor(DEFAULT_ACCENT_COLOR)}
+            title={t('accentColorResetHint')}
             type="color"
             value={state.accentColor}
           />

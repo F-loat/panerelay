@@ -2,11 +2,17 @@ import type {
   AgentProviderSummary,
   ConversationApproval,
   ConversationDetail,
+  ConversationEvent,
 } from '@panerelay/protocol';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { ExtensionStatus, SidePanelRequest } from '../../shared/messages.js';
 import type { ConversationWorkspaceSnapshot } from '../../shared/conversation-workspaces.js';
+import {
+  createConversationTimelineSnapshot,
+  type ConversationTimelineReplay,
+  type ConversationTimelineSnapshot,
+} from '../../shared/conversation-timeline.js';
 import { ACCENT_COLOR_KEY, accentPalette, DEFAULT_ACCENT_COLOR } from '../../shared/appearance.js';
 import type { PageElementComment } from '../../shared/page-comments.js';
 import {
@@ -110,6 +116,13 @@ class FakeSidepanelClient implements SidepanelClient {
   providerCacheWriteError = '';
   providerResponse = providers;
   sendError = '';
+  timelineReplay: ConversationTimelineReplay = { snapshot: null, events: [] };
+  timelineLoadHandler:
+    | ((
+        message: Extract<SidePanelRequest, { type: 'panerelay.conversation-timeline.load' }>,
+      ) => Promise<ConversationTimelineReplay>)
+    | undefined;
+  savedTimelineSnapshots: ConversationTimelineSnapshot[] = [];
   resumeHandler:
     | ((message: Extract<SidePanelRequest, { type: 'panerelay.conversation.resume' }>) => Promise<{
         success: true;
@@ -173,6 +186,16 @@ class FakeSidepanelClient implements SidepanelClient {
         const detail = conversation(message.providerId);
         return { success: true as const, conversations: [detail.conversation] };
       }
+      case 'panerelay.conversation-timeline.load':
+        return {
+          success: true as const,
+          timeline: this.timelineLoadHandler
+            ? await this.timelineLoadHandler(message)
+            : this.timelineReplay,
+        };
+      case 'panerelay.conversation-timeline.save':
+        this.savedTimelineSnapshots.push(message.snapshot);
+        return { success: true as const };
       case 'panerelay.conversation.resume': {
         if (this.resumeHandler) return this.resumeHandler(message);
         const loaded = conversation(message.providerId);
@@ -337,6 +360,179 @@ async function readyController() {
 }
 
 describe('Side Panel controller', () => {
+  it('keeps assistant messages around intervening activity instead of merging them', () => {
+    const conversationState = {
+      ...createInitialSidepanelState('en'),
+      currentConversation: conversation().conversation,
+    };
+    const reduceEvent = (
+      state: ReturnType<typeof createInitialSidepanelState>,
+      event: ConversationEvent,
+    ) =>
+      sidepanelReducer(state, {
+        type: 'conversation-event',
+        event,
+        interruptedMessage: 'Interrupted',
+        failedMessage: 'Failed',
+      });
+
+    const baseEvent = { conversationId: 'codex-conversation', turnId: 'turn-order' };
+    let state = reduceEvent(conversationState, {
+      kind: 'message.delta',
+      ...baseEvent,
+      messageId: 'commentary-1',
+      delta: 'Working',
+    });
+    state = reduceEvent(state, {
+      kind: 'activity.updated',
+      ...baseEvent,
+      activity: {
+        id: 'tool-1',
+        kind: 'command',
+        title: 'agent-browser snapshot',
+        status: 'completed',
+      },
+    });
+    state = reduceEvent(state, {
+      kind: 'message.delta',
+      ...baseEvent,
+      messageId: 'final-1',
+      delta: 'Final',
+    });
+    state = reduceEvent(state, {
+      kind: 'message.delta',
+      ...baseEvent,
+      messageId: 'final-1',
+      delta: ' answer',
+    });
+
+    expect(
+      state.timeline.map(item => (item.type === 'message' ? item.message.id : item.type)),
+    ).toEqual(['commentary-1', 'activity', 'final-1']);
+    expect(state.timeline[0]).toEqual(
+      expect.objectContaining({
+        type: 'message',
+        streaming: false,
+        message: expect.objectContaining({ id: 'commentary-1', text: 'Working' }),
+      }),
+    );
+    expect(state.timeline[2]).toEqual(
+      expect.objectContaining({
+        type: 'message',
+        streaming: true,
+        message: expect.objectContaining({ id: 'final-1', text: 'Final answer' }),
+      }),
+    );
+    expect(state.timeline.filter(item => item.type === 'message' && item.streaming)).toHaveLength(
+      1,
+    );
+  });
+
+  it('segments one assistant message around intervening activity and preserves completion order', () => {
+    const conversationState = {
+      ...createInitialSidepanelState('en'),
+      currentConversation: conversation().conversation,
+    };
+    let sequence = 0;
+    const reduceEvent = (
+      state: ReturnType<typeof createInitialSidepanelState>,
+      event: ConversationEvent,
+    ) => {
+      sequence += 1;
+      return sidepanelReducer(state, {
+        type: 'conversation-event',
+        event,
+        interruptedMessage: 'Interrupted',
+        failedMessage: 'Failed',
+        diagnosticReceivedAt: `2026-08-05T04:00:0${sequence}.000Z`,
+      });
+    };
+
+    const baseEvent = { conversationId: 'codex-conversation', turnId: 'turn-shared' };
+    let state = reduceEvent(conversationState, {
+      kind: 'message.delta',
+      ...baseEvent,
+      messageId: 'assistant-shared',
+      delta: 'Before tool. ',
+      phase: 'final',
+    });
+    state = reduceEvent(state, {
+      kind: 'activity.updated',
+      ...baseEvent,
+      activity: {
+        id: 'tool-shared',
+        kind: 'browser',
+        title: 'agent-browser snapshot',
+        status: 'completed',
+      },
+    });
+    state = reduceEvent(state, {
+      kind: 'message.delta',
+      ...baseEvent,
+      messageId: 'assistant-shared',
+      delta: 'After tool.',
+      phase: 'final',
+    });
+
+    expect(state.timeline.map(item => item.type)).toEqual(['message', 'activity', 'message']);
+    expect(state.timeline[0]).toMatchObject({ type: 'message', streaming: false });
+    expect(state.timeline[2]).toMatchObject({ type: 'message', streaming: true });
+    expect(state.timeline.filter(item => item.type === 'message' && item.streaming)).toHaveLength(
+      1,
+    );
+
+    state = reduceEvent(state, {
+      kind: 'message.completed',
+      ...baseEvent,
+      message: {
+        id: 'assistant-shared',
+        role: 'assistant',
+        text: 'Before tool. After tool.',
+        phase: 'final',
+        createdAt: '2026-08-05T04:00:04.000Z',
+      },
+    });
+
+    expect(state.timeline.map(item => item.type)).toEqual(['message', 'activity', 'message']);
+    expect(state.timeline[0]).toMatchObject({
+      type: 'message',
+      turnId: 'turn-shared',
+      streaming: false,
+      message: { id: 'assistant-shared', text: 'Before tool. ' },
+    });
+    expect(state.timeline[2]).toMatchObject({
+      type: 'message',
+      turnId: 'turn-shared',
+      streaming: false,
+      segmentId: expect.any(String),
+      message: { id: 'assistant-shared', text: 'After tool.' },
+    });
+    expect(state.diagnostics.eventTrace).toEqual([
+      expect.objectContaining({
+        sequence: 1,
+        kind: 'message.delta',
+        messageId: 'assistant-shared',
+        deltaLength: 13,
+      }),
+      expect.objectContaining({
+        sequence: 2,
+        kind: 'activity.updated',
+        activityId: 'tool-shared',
+      }),
+      expect.objectContaining({
+        sequence: 3,
+        kind: 'message.delta',
+        messageId: 'assistant-shared',
+        deltaLength: 11,
+      }),
+      expect.objectContaining({
+        sequence: 4,
+        kind: 'message.completed',
+        messageId: 'assistant-shared',
+      }),
+    ]);
+  });
+
   it('uses the cached preferred provider before live discovery', () => {
     const bootstrap = createProviderBootstrap(
       'qoder',
@@ -451,10 +647,13 @@ describe('Side Panel controller', () => {
         },
       });
     });
-    expect(hook.result.current.state.timeline).toContainEqual({
-      type: 'activity',
-      activity: expect.objectContaining({ id: 'activity-1' }),
-    });
+    expect(hook.result.current.state.timeline).toContainEqual(
+      expect.objectContaining({
+        type: 'activity',
+        activity: expect.objectContaining({ id: 'activity-1' }),
+        turnId: 'turn-1',
+      }),
+    );
 
     const approval: ConversationApproval = {
       id: 'approval-1',
@@ -943,6 +1142,274 @@ describe('Side Panel controller', () => {
     const hook = renderHook(() => useSidepanelController(client));
     await waitFor(() => expect(hook.result.current.state.initializing).toBe(false));
     expect(hook.result.current.state.autoApprove).toBe(true);
+  });
+
+  it('applies provider-resumed messages on a fresh mount without restoring browser authority', async () => {
+    const client = new FakeSidepanelClient();
+    client.workspace = {
+      kind: 'conversation',
+      providerId: 'qoder',
+      conversationId: 'qoder-conversation',
+      revision: 'qoder-bound-workspace',
+    };
+    const resumed = conversation('qoder');
+    resumed.messages = [
+      {
+        id: 'qoder-user-retained',
+        role: 'user',
+        text: 'Retained question',
+        createdAt: '2026-08-05T04:18:26.000Z',
+      },
+      {
+        id: 'qoder-assistant-retained',
+        role: 'assistant',
+        text: 'Retained answer',
+        phase: 'final',
+        createdAt: '2026-08-05T04:18:30.000Z',
+      },
+    ];
+    client.resumeHandler = async message => {
+      expect(message).toEqual({
+        type: 'panerelay.conversation.resume',
+        providerId: 'qoder',
+        conversationId: 'qoder-conversation',
+        expectedRevision: 'qoder-bound-workspace',
+      });
+      return { success: true, conversation: resumed, workspace: client.workspace };
+    };
+
+    const hook = renderHook(() => useSidepanelController(client));
+    await waitFor(() => expect(hook.result.current.state.initializing).toBe(false));
+
+    expect(
+      hook.result.current.state.timeline.map(item =>
+        item.type === 'message' ? [item.message.role, item.message.text] : item.type,
+      ),
+    ).toEqual([
+      ['user', 'Retained question'],
+      ['assistant', 'Retained answer'],
+    ]);
+    expect(hook.result.current.state.diagnostics.load.source).toBe('provider-resume');
+    expect(hook.result.current.state.extensionStatus?.authorizationMode).toBe('none');
+    expect(
+      client.requests.some(
+        request =>
+          request.type === 'panerelay.authorization.set' ||
+          request.type === 'panerelay.control.release',
+      ),
+    ).toBe(false);
+  });
+
+  it('restores the semantic session timeline and replays background events before empty provider history', async () => {
+    const client = new FakeSidepanelClient();
+    const retained = conversation('qoder');
+    client.workspace = {
+      kind: 'conversation',
+      providerId: 'qoder',
+      conversationId: retained.conversation.id,
+      revision: 'qoder-session-workspace',
+    };
+    const snapshot = createConversationTimelineSnapshot({
+      providerId: 'qoder',
+      conversation: { ...retained.conversation, status: 'running' },
+      timeline: [
+        {
+          type: 'message',
+          message: {
+            id: 'qoder-user-snapshot',
+            role: 'user',
+            text: 'Inspect the current page',
+            createdAt: '2026-08-05T05:00:00.000Z',
+          },
+        },
+        { type: 'reasoning', id: 'reasoning-1', text: 'I will inspect it', turnId: 'turn-1' },
+        {
+          type: 'activity',
+          turnId: 'turn-1',
+          activity: {
+            id: 'tool-1',
+            kind: 'tool',
+            title: 'Read current page',
+            status: 'completed',
+          },
+        },
+        { type: 'error', id: 'warning-1', message: 'A bounded warning', turnId: 'turn-1' },
+      ],
+      runningTurnId: 'turn-1',
+      throughSequence: 4,
+    });
+    expect(snapshot).not.toBeNull();
+    client.timelineReplay = {
+      snapshot: snapshot!,
+      events: [
+        {
+          sequence: 5,
+          event: {
+            kind: 'message.completed',
+            conversationId: retained.conversation.id,
+            turnId: 'turn-1',
+            message: {
+              id: 'qoder-assistant-replayed',
+              role: 'assistant',
+              text: 'Output produced while the panel was closed',
+              phase: 'final',
+              createdAt: '2026-08-05T05:00:05.000Z',
+            },
+          },
+        },
+      ],
+    };
+    client.resumeHandler = async () => ({
+      success: true,
+      conversation: { conversation: { ...retained.conversation, status: 'idle' }, messages: [] },
+      workspace: client.workspace,
+    });
+
+    const hook = renderHook(() => useSidepanelController(client));
+    await waitFor(() => expect(hook.result.current.state.initializing).toBe(false));
+
+    expect(
+      hook.result.current.state.timeline.map(item =>
+        item.type === 'message' ? `message:${item.message.id}` : item.type,
+      ),
+    ).toEqual([
+      'message:qoder-user-snapshot',
+      'reasoning',
+      'activity',
+      'error',
+      'message:qoder-assistant-replayed',
+    ]);
+    expect(hook.result.current.state.diagnostics.load.source).toBe('session-snapshot');
+    expect(hook.result.current.state.diagnostics.eventTrace).toHaveLength(1);
+    await waitFor(() =>
+      expect(client.savedTimelineSnapshots.some(item => item.throughSequence === 5)).toBe(true),
+    );
+    expect(
+      client.savedTimelineSnapshots.some(item =>
+        item.timeline.some(timelineItem => timelineItem.type === 'approval'),
+      ),
+    ).toBe(false);
+    expect(hook.result.current.state.extensionStatus?.authorizationMode).toBe('none');
+  });
+
+  it('keeps retained messages once when provider history changes ids and order', async () => {
+    const client = new FakeSidepanelClient();
+    const retained = conversation('qoder');
+    client.workspace = {
+      kind: 'conversation',
+      providerId: 'qoder',
+      conversationId: retained.conversation.id,
+      revision: 'qoder-merge-workspace',
+    };
+    const snapshot = createConversationTimelineSnapshot({
+      providerId: 'qoder',
+      conversation: retained.conversation,
+      timeline: [
+        {
+          type: 'message',
+          message: {
+            id: 'local-user-message',
+            role: 'user',
+            text: 'Summarize the current page.',
+            createdAt: '2026-08-05T05:10:00.000Z',
+          },
+        },
+        { type: 'reasoning', id: 'retained-reasoning', text: 'Retained thought' },
+        {
+          type: 'activity',
+          activity: { id: 'retained-tool', kind: 'tool', title: 'Tool', status: 'completed' },
+        },
+        {
+          type: 'message',
+          message: {
+            id: 'live-assistant-message',
+            role: 'assistant',
+            text: 'Retained final answer',
+            createdAt: '2026-08-05T05:10:02.000Z',
+          },
+        },
+      ],
+      runningTurnId: null,
+      throughSequence: 2,
+    });
+    expect(snapshot).not.toBeNull();
+    client.timelineReplay = { snapshot: snapshot!, events: [] };
+    client.resumeHandler = async () => ({
+      success: true,
+      conversation: {
+        conversation: retained.conversation,
+        messages: [
+          {
+            id: 'provider-assistant-message',
+            role: 'assistant',
+            text: 'Provider final answer',
+            createdAt: '2026-08-05T05:10:02.500Z',
+          },
+          {
+            id: 'provider-user-message',
+            role: 'user',
+            text: 'Summarize the current page.',
+            createdAt: '2026-08-05T05:10:00.500Z',
+          },
+        ],
+      },
+      workspace: client.workspace,
+    });
+
+    const hook = renderHook(() => useSidepanelController(client));
+    await waitFor(() => expect(hook.result.current.state.initializing).toBe(false));
+    expect(
+      hook.result.current.state.timeline.map(item =>
+        item.type === 'message' ? `message:${item.message.id}:${item.message.text}` : item.type,
+      ),
+    ).toEqual([
+      'message:local-user-message:Summarize the current page.',
+      'reasoning',
+      'activity',
+      'message:live-assistant-message:Retained final answer',
+    ]);
+    expect(hook.result.current.state.diagnostics.load.source).toBe('session-snapshot');
+  });
+
+  it('discards a delayed session snapshot after the active workspace changes', async () => {
+    const client = new FakeSidepanelClient();
+    const retained = conversation('codex');
+    client.workspace = {
+      kind: 'conversation',
+      providerId: 'codex',
+      conversationId: retained.conversation.id,
+      revision: 'codex-delayed-snapshot',
+    };
+    let resolveTimeline!: (value: ConversationTimelineReplay) => void;
+    client.timelineLoadHandler = () =>
+      new Promise(resolve => {
+        resolveTimeline = resolve;
+      });
+    const hook = renderHook(() => useSidepanelController(client));
+    await waitFor(() => expect(resolveTimeline).toBeTypeOf('function'));
+
+    const qoderDraft: ConversationWorkspaceSnapshot = {
+      kind: 'draft',
+      providerId: 'qoder',
+      revision: 'qoder-newer-workspace',
+    };
+    act(() => {
+      client.workspace = qoderDraft;
+      client.emit({ type: 'panerelay.workspace.changed', workspace: qoderDraft });
+    });
+    const snapshot = createConversationTimelineSnapshot({
+      providerId: 'codex',
+      conversation: retained.conversation,
+      timeline: [{ type: 'reasoning', id: 'late-reasoning', text: 'Too late' }],
+      runningTurnId: null,
+      throughSequence: 0,
+    });
+    expect(snapshot).not.toBeNull();
+    resolveTimeline({ snapshot: snapshot!, events: [] });
+
+    await waitFor(() => expect(hook.result.current.state.currentProviderId).toBe('qoder'));
+    expect(hook.result.current.state.currentConversation).toBeNull();
+    expect(hook.result.current.state.timeline).toEqual([]);
   });
 
   it('restores cached tab conversations and discards a delayed resume after activation changes', async () => {

@@ -26,6 +26,8 @@ test('forwards a Playwright target selection into one exact bootstrap lane', () 
     targetId: '22222222-2222-4222-8222-222222222222',
   };
   const session = conversationTargetSessionName(target);
+  assert.equal(session.length, 56);
+  assert.match(session, /^panerelay-v2-[A-Za-z0-9_-]{43}$/);
   assert.deepEqual(
     automationGatewayBootstrapRequest(
       { browserId: target.browserId, generation: 'generation-1' },

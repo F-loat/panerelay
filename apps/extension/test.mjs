@@ -13,6 +13,7 @@ const entryPoints = [
   'src/background/conversation-workspaces.test.ts',
   'src/background/conversation-workspace-observers.test.ts',
   'src/background/conversation-workspace-service.test.ts',
+  'src/background/conversation-timelines.test.ts',
   'src/background/debugger-detach.test.ts',
   'src/background/native-host-readiness.test.ts',
   'src/background/page-comments.test.ts',
@@ -27,6 +28,7 @@ const entryPoints = [
   'src/shared/appearance.test.ts',
   'src/shared/authorization.test.ts',
   'src/shared/browser-runtime.test.ts',
+  'src/shared/conversation-timeline.test.ts',
   'src/shared/identity.test.ts',
 ];
 

@@ -6,6 +6,140 @@ import { SidepanelApp } from './app.js';
 import { AppClient, detail, readyStatus, renderReady } from './app.test-support.js';
 
 describe('React Side Panel conversation presentation', () => {
+  it('keeps streamed reasoning cards visible and ordered around activity output', async () => {
+    const client = new AppClient();
+    client.history = [detail()];
+    const user = userEvent.setup();
+    render(<SidepanelApp client={client} />);
+    await screen.findByRole('heading', { name: 'What should Codex do?' });
+    await user.click(screen.getByRole('button', { name: 'Conversation history' }));
+    await user.click(await screen.findByRole('button', { name: /Existing conversation/ }));
+
+    act(() => {
+      client.emit({
+        type: 'panerelay.conversation.event',
+        event: {
+          kind: 'turn.started',
+          conversationId: 'conversation-1',
+          turnId: 'turn-reasoning',
+        },
+      });
+    });
+    expect(document.querySelector('.turn-feedback')).toBeInTheDocument();
+
+    act(() => {
+      client.emit({
+        type: 'panerelay.conversation.event',
+        event: {
+          kind: 'reasoning.delta',
+          conversationId: 'conversation-1',
+          turnId: 'turn-reasoning',
+          itemId: 'reasoning-1',
+          delta: 'Inspecting',
+        },
+      });
+      client.emit({
+        type: 'panerelay.conversation.event',
+        event: {
+          kind: 'reasoning.delta',
+          conversationId: 'conversation-1',
+          turnId: 'turn-reasoning',
+          itemId: 'reasoning-1',
+          delta: ' the page',
+        },
+      });
+      client.emit({
+        type: 'panerelay.conversation.event',
+        event: {
+          kind: 'reasoning.delta',
+          conversationId: 'conversation-1',
+          turnId: 'turn-reasoning',
+          itemId: 'reasoning-1',
+          delta:
+            '\nold line 1\nold line 2\nrecent line 3\nrecent line 4\nrecent line 5\nrecent line 6\nlatest line 7',
+        },
+      });
+    });
+    expect(document.querySelector('.turn-feedback')).not.toBeInTheDocument();
+    let reasoningCards = document.querySelectorAll('.reasoning-card');
+    expect(reasoningCards).toHaveLength(1);
+    expect(reasoningCards[0]).toHaveTextContent('Inspecting the page');
+    expect(reasoningCards[0]).toHaveAttribute('data-active', 'true');
+    expect(reasoningCards[0]).toHaveAttribute('open');
+    expect(reasoningCards[0]?.querySelector('.reasoning-content')).toHaveTextContent(
+      'latest line 7',
+    );
+    expect(reasoningCards[0]?.querySelector('.reasoning-content')).not.toHaveTextContent(
+      'old line 1',
+    );
+    expect(reasoningCards[0]?.querySelector('.reasoning-content')).not.toHaveTextContent(
+      'old line 2',
+    );
+
+    act(() => {
+      client.emit({
+        type: 'panerelay.conversation.event',
+        event: {
+          kind: 'activity.updated',
+          conversationId: 'conversation-1',
+          turnId: 'turn-reasoning',
+          activity: {
+            id: 'tool-between-reasoning',
+            kind: 'tool',
+            title: 'Read page',
+            status: 'completed',
+          },
+        },
+      });
+      client.emit({
+        type: 'panerelay.conversation.event',
+        event: {
+          kind: 'reasoning.delta',
+          conversationId: 'conversation-1',
+          turnId: 'turn-reasoning',
+          itemId: 'reasoning-2',
+          delta: 'Checking the result',
+        },
+      });
+    });
+
+    reasoningCards = document.querySelectorAll('.reasoning-card');
+    expect(reasoningCards).toHaveLength(2);
+    const activity = screen.getAllByText('Read page')[0]?.closest('.activity-stack');
+    expect(reasoningCards[0]?.compareDocumentPosition(activity!)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(activity?.compareDocumentPosition(reasoningCards[1]!)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(reasoningCards[0]).toHaveAttribute('data-active', 'false');
+    expect(reasoningCards[0]).not.toHaveAttribute('open');
+    expect(reasoningCards[1]).toHaveAttribute('data-active', 'true');
+    expect(reasoningCards[1]).toHaveAttribute('open');
+    expect(document.querySelector('.turn-feedback')).not.toBeInTheDocument();
+
+    await user.click(reasoningCards[0]!.querySelector('summary')!);
+    expect(reasoningCards[0]?.querySelector('.reasoning-content')).toHaveTextContent('old line 1');
+    await user.click(reasoningCards[0]!.querySelector('summary')!);
+
+    act(() => {
+      client.emit({
+        type: 'panerelay.conversation.event',
+        event: {
+          kind: 'turn.completed',
+          conversationId: 'conversation-1',
+          turnId: 'turn-reasoning',
+          status: 'completed',
+        },
+      });
+    });
+    expect(reasoningCards[1]).toHaveAttribute('data-active', 'false');
+    expect(reasoningCards[1]).not.toHaveAttribute('open');
+
+    await user.click(reasoningCards[1]!.querySelector('summary')!);
+    expect(reasoningCards[1]).toHaveAttribute('open');
+  });
+
   it('renders activity, approvals, and global errors from runtime events', async () => {
     const client = new AppClient();
     client.history = [detail()];
@@ -265,6 +399,63 @@ describe('React Side Panel conversation presentation', () => {
     expect(codeBlocks[1]).toHaveTextContent('agent-browser --provider panerelay tab list');
     expect(document.querySelector('.rich-text p code')).toHaveTextContent('pnpm run check');
     expect(screen.queryByText(/```bash/)).not.toBeInTheDocument();
+  });
+
+  it('copies each user or assistant message as its original Markdown source', async () => {
+    const client = new AppClient();
+    const conversation = detail();
+    const userMarkdown = '**Question** with `inline code`';
+    const assistantMarkdown = [
+      '## Result',
+      '',
+      '| Item | Status |',
+      '| --- | --- |',
+      '| Copy | done |',
+      '',
+      '```ts',
+      'const copied = true;',
+      '```',
+    ].join('\n');
+    conversation.messages = [
+      {
+        id: 'message-user-copy',
+        role: 'user',
+        text: userMarkdown,
+        createdAt: '2026-08-04T00:00:00.000Z',
+      },
+      {
+        id: 'message-assistant-copy',
+        role: 'assistant',
+        text: assistantMarkdown,
+        createdAt: '2026-08-04T00:01:00.000Z',
+      },
+    ];
+    client.history = [conversation];
+    const { user } = await renderReady(client);
+
+    await user.click(screen.getByRole('button', { name: 'Conversation history' }));
+    await user.click(await screen.findByRole('button', { name: /Existing conversation/ }));
+
+    const userCard = screen.getByTestId('message-message-user-copy');
+    const assistantCard = screen.getByTestId('message-message-assistant-copy');
+    const userCopy = within(userCard).getByRole('button', { name: 'Copy message as Markdown' });
+    const assistantCopy = within(assistantCard).getByRole('button', {
+      name: 'Copy message as Markdown',
+    });
+    expect(userCopy).toHaveClass('message-copy-button');
+    expect(assistantCopy).toHaveClass('message-copy-button');
+
+    assistantCopy.focus();
+    expect(assistantCopy).toHaveFocus();
+    await user.click(assistantCopy);
+    expect(await navigator.clipboard.readText()).toBe(assistantMarkdown);
+    expect(
+      within(assistantCard).getByRole('button', { name: 'Message Markdown copied' }),
+    ).toBeVisible();
+    expect(within(assistantCard).getByRole('status')).toHaveTextContent('Message Markdown copied');
+
+    await user.click(userCopy);
+    expect(await navigator.clipboard.readText()).toBe(userMarkdown);
   });
 
   it('renders safe responsive Markdown tables and leaves malformed tables as text', async () => {

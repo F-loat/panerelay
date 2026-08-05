@@ -104,7 +104,7 @@ test('creates and releases a browser-level relay session through live Bridge sta
       protocol: AGENT_BROWSER_PLUGIN_PROTOCOL,
       type: 'browser.launch',
       capability: 'browser.provider',
-      request: { session: 'agent-session-1' },
+      request: { session: 'panerelay-task' },
     });
 
     assert.equal(response.success, true);
@@ -133,7 +133,7 @@ test('creates and releases a browser-level relay session through live Bridge sta
         actor: {
           kind: 'automation',
           name: 'agent-browser',
-          sessionLabel: 'agent-session-1',
+          sessionLabel: 'panerelay-task',
         },
       },
     });
@@ -282,15 +282,21 @@ test('binds a reserved conversation session to its exact browser and target hint
 });
 
 test('rejects malformed reserved conversation sessions before browser selection', async () => {
-  const response = await handlePluginRequest({
-    protocol: AGENT_BROWSER_PLUGIN_PROTOCOL,
-    type: 'browser.launch',
-    capability: 'browser.provider',
-    request: { session: 'panerelay-tab-v1-not-a-valid-target' },
-  });
+  for (const session of [
+    'panerelay-v2-not-a-valid-target',
+    'panerelay-tab-v1-not-a-valid-target',
+    'panerelay-tab-v1-11111111-1111-4111-8111-111111111111-22222222-2222-4222-8222-222222222222',
+  ]) {
+    const response = await handlePluginRequest({
+      protocol: AGENT_BROWSER_PLUGIN_PROTOCOL,
+      type: 'browser.launch',
+      capability: 'browser.provider',
+      request: { session },
+    });
 
-  assert.equal(response.success, false);
-  assert.match(String(response.error), /malformed or unsupported/);
+    assert.equal(response.success, false);
+    assert.match(String(response.error), /malformed or unsupported/);
+  }
 });
 
 test('fails before contacting the Bridge when the browser explicitly lacks CDP support', async () => {

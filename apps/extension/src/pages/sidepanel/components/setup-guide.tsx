@@ -2,6 +2,7 @@ import type { AutomationIntegrationId } from '@panerelay/protocol';
 import { Check, Copy, PanelTop, ShieldCheck } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { SidepanelController } from '../sidepanel-controller.js';
+import { writeClipboardText } from '../clipboard.js';
 import { useCopy } from './presentation.js';
 
 const PANERELAY_SETUP_COMMAND = 'npx --yes @panerelay/setup';
@@ -13,28 +14,6 @@ export const EMPTY_SETUP_INTEGRATION_SELECTION: Readonly<SetupIntegrationSelecti
   'agent-browser': false,
   'browser-use': false,
 };
-
-async function writeClipboardText(value: string): Promise<boolean> {
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(value);
-      return true;
-    }
-  } catch {
-    // Continue with the user-gesture fallback for extension contexts without Clipboard API access.
-  }
-
-  const input = document.createElement('textarea');
-  input.value = value;
-  input.setAttribute('readonly', '');
-  input.style.position = 'fixed';
-  input.style.opacity = '0';
-  document.body.append(input);
-  input.select();
-  const copied = document.execCommand('copy');
-  input.remove();
-  return copied;
-}
 
 export function PanerelaySetupGuide({
   controller,
