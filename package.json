@@ -37,6 +37,7 @@
     "release:prepare": "node scripts/prepare-release.mjs",
     "release:channel": "node scripts/release-channel.mjs",
     "release:publish": "node scripts/publish-release.mjs",
+    "prepare": "husky",
     "publish": "pnpm --filter @panerelay/protocol --filter @panerelay/browser-registry --filter @panerelay/cli --filter @panerelay/agent-browser --filter @panerelay/browser-use --filter @panerelay/playwright --filter @panerelay/bridge --filter @panerelay/setup publish --access public",
     "install:host": "pnpm --filter @panerelay/bridge install:host",
     "uninstall:host": "pnpm --filter @panerelay/bridge uninstall:host"
@@ -46,16 +47,25 @@
       "esbuild"
     ]
   },
+  "lint-staged": {
+    "{apps,packages}/**/*.{ts,tsx,mjs,json,css,html}": "prettier --write",
+    "scripts/**/*.{mjs,json}": "prettier --write",
+    "docs/**/*.md": "prettier --write",
+    ".github/**/*.yml": "prettier --write",
+    "*.{md,json,mjs,yaml,yml}": "prettier --write"
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/chrome": "^0.2.2",
     "@types/node": "^20.19.43",
     "@types/ws": "^8.18.1",
+    "esbuild": "^0.28.1",
     "eslint": "^10.1.0",
     "eslint-config-prettier": "^10.1.8",
-    "esbuild": "^0.28.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.4.0",
     "prettier": "^3.8.1",
-    "typescript-eslint": "^8.58.0",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.58.0"
   }
 }
