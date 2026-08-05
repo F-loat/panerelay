@@ -489,14 +489,16 @@ test('localized homepage is statically rendered, canonical, and cross-linked', a
   assert.match(viteConfig, /mainZhCn: resolve\(websiteRoot, 'zh-CN\/index\.html'\)/);
   assert.match(viteConfig, /generateLocalePages/);
 
-  for (const [html, canonical, locale] of [
-    [english, 'https://f-loat.github.io/panerelay/', 'en'],
-    [chinese, 'https://f-loat.github.io/panerelay/zh-CN/', 'zh-CN'],
+  // `lang`/`hreflang` use BCP 47 tags, while `og:locale` uses Open Graph `language_TERRITORY`.
+  for (const [html, canonical, languageTag, openGraphLocale] of [
+    [english, 'https://f-loat.github.io/panerelay/', 'en', 'en_US'],
+    [chinese, 'https://f-loat.github.io/panerelay/zh-CN/', 'zh-CN', 'zh_CN'],
   ]) {
-    assert.match(html, new RegExp(`<html lang="${locale}"`));
+    assert.match(html, new RegExp(`<html lang="${languageTag}"`));
     assert.match(html, new RegExp(`rel="canonical" href="${canonical}"`));
     assert.match(html, new RegExp(`property="og:url" content="${canonical}"`));
-    assert.match(html, new RegExp(`property="og:locale" content="${locale}"`));
+    assert.match(html, new RegExp(`property="og:locale" content="${openGraphLocale}"`));
+    assert.doesNotMatch(html, new RegExp(`property="og:locale" content="${languageTag}"`));
     assert.match(html, /hreflang="en" href="https:\/\/f-loat\.github\.io\/panerelay\/"/);
     assert.match(html, /hreflang="zh-CN" href="https:\/\/f-loat\.github\.io\/panerelay\/zh-CN\/"/);
     assert.match(html, /hreflang="x-default" href="https:\/\/f-loat\.github\.io\/panerelay\/"/);

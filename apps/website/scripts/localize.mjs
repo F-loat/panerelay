@@ -15,6 +15,8 @@ export const siteOrigin = 'https://f-loat.github.io/panerelay/';
 export const localePages = [
   {
     locale: 'zh-CN',
+    // Open Graph locales use `language_TERRITORY`, unlike the BCP 47 tag used by `lang`/`hreflang`.
+    openGraphLocale: 'zh_CN',
     output: 'zh-CN/index.html',
     canonical: `${siteOrigin}zh-CN/`,
     // Assets referenced as `./name` from the root document live one directory up.
@@ -93,7 +95,7 @@ function localizeDocument(html, page, catalog) {
 
   root.querySelector('link[rel="canonical"]').setAttribute('href', page.canonical);
   root.querySelector('meta[property="og:url"]').setAttribute('content', page.canonical);
-  root.querySelector('meta[property="og:locale"]').setAttribute('content', page.locale);
+  root.querySelector('meta[property="og:locale"]').setAttribute('content', page.openGraphLocale);
 
   return `${root.toString()}\n`;
 }
