@@ -59,7 +59,7 @@ test('source contains the complete product and installation journey', async () =
   assert.match(html, /browser-use CLI/);
   assert.match(html, /data-engine-panel="playwright"/);
   assert.match(html, /playwright-cli attach --cdp[\s\S]+\/cdp\/playwright/);
-  assert.match(html, /packages\/playwright\/README\.md/);
+  assert.match(html, /packages\/adapters\/playwright\/README\.md/);
   assert.match(html, /docs\/compatibility\/playwright-cli-0\.1\.17\.md/);
   assert.match(
     html,

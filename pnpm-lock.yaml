@@ -110,14 +110,33 @@ importers:
         specifier: 7.3.6
         version: 7.3.6(@types/node@20.19.43)(jiti@2.7.0)(lightningcss@1.33.0)(yaml@2.9.0)
 
-  packages/agent-browser:
+  packages/adapters/agent-browser:
     dependencies:
       '@panerelay/browser-registry':
         specifier: workspace:*
-        version: link:../browser-registry
+        version: link:../../browser-registry
       '@panerelay/protocol':
         specifier: workspace:*
-        version: link:../protocol
+        version: link:../../protocol
+
+  packages/adapters/browser-use:
+    dependencies:
+      '@panerelay/browser-registry':
+        specifier: workspace:*
+        version: link:../../browser-registry
+      '@panerelay/protocol':
+        specifier: workspace:*
+        version: link:../../protocol
+
+  packages/adapters/playwright:
+    dependencies:
+      '@panerelay/protocol':
+        specifier: workspace:*
+        version: link:../../protocol
+    devDependencies:
+      '@types/node':
+        specifier: ^20.19.43
+        version: 20.19.43
 
   packages/bridge:
     dependencies:
@@ -126,19 +145,19 @@ importers:
         version: 1.3.0(zod@4.4.3)
       '@panerelay/agent-browser':
         specifier: workspace:*
-        version: link:../agent-browser
+        version: link:../adapters/agent-browser
       '@panerelay/browser-registry':
         specifier: workspace:*
         version: link:../browser-registry
       '@panerelay/browser-use':
         specifier: workspace:*
-        version: link:../browser-use
+        version: link:../adapters/browser-use
       '@panerelay/cli':
         specifier: workspace:*
         version: link:../cli
       '@panerelay/playwright':
         specifier: workspace:*
-        version: link:../playwright
+        version: link:../adapters/playwright
       '@panerelay/protocol':
         specifier: workspace:*
         version: link:../protocol
@@ -152,15 +171,6 @@ importers:
         specifier: workspace:*
         version: link:../protocol
 
-  packages/browser-use:
-    dependencies:
-      '@panerelay/browser-registry':
-        specifier: workspace:*
-        version: link:../browser-registry
-      '@panerelay/protocol':
-        specifier: workspace:*
-        version: link:../protocol
-
   packages/cli:
     dependencies:
       '@panerelay/browser-registry':
@@ -168,20 +178,10 @@ importers:
         version: link:../browser-registry
       '@panerelay/browser-use':
         specifier: workspace:*
-        version: link:../browser-use
+        version: link:../adapters/browser-use
       '@panerelay/protocol':
         specifier: workspace:*
         version: link:../protocol
-
-  packages/playwright:
-    dependencies:
-      '@panerelay/protocol':
-        specifier: workspace:*
-        version: link:../protocol
-    devDependencies:
-      '@types/node':
-        specifier: ^20.19.43
-        version: 20.19.43
 
   packages/protocol: {}
 
@@ -198,13 +198,13 @@ importers:
         version: link:../browser-registry
       '@panerelay/browser-use':
         specifier: workspace:*
-        version: link:../browser-use
+        version: link:../adapters/browser-use
       '@panerelay/cli':
         specifier: workspace:*
         version: link:../cli
       '@panerelay/playwright':
         specifier: workspace:*
-        version: link:../playwright
+        version: link:../adapters/playwright
       '@panerelay/protocol':
         specifier: workspace:*
         version: link:../protocol

@@ -8,12 +8,12 @@ import {
   type ConversationSummary,
   type HostToExtensionMessage,
 } from '@panerelay/protocol';
-import type { AgentProvider } from './agent-provider.js';
-import { ClaudeProvider } from './claude-provider.js';
-import { CodexProvider } from './codex-provider.js';
+import type { AgentProvider } from './providers/contract.js';
+import { ClaudeProvider } from './providers/claude-code/provider.js';
+import { CodexProvider } from './providers/codex/provider.js';
 import { validateConversationImages } from './conversation-images.js';
-import { OpenCodeProvider } from './opencode-provider.js';
-import { QoderProvider } from './qoder-provider.js';
+import { OpenCodeProvider } from './providers/opencode/provider.js';
+import { QoderProvider } from './providers/qoder/provider.js';
 
 export interface AgentServiceOptions {
   createProviders?: (environment: NodeJS.ProcessEnv | undefined) => AgentProvider[];

@@ -37,11 +37,11 @@ const documentationIndexZhCn = readFileSync(
 );
 const setupReadme = readFileSync(new URL('../packages/setup/README.md', import.meta.url), 'utf8');
 const browserUseReadme = readFileSync(
-  new URL('../packages/browser-use/README.md', import.meta.url),
+  new URL('../packages/adapters/browser-use/README.md', import.meta.url),
   'utf8',
 );
 const playwrightReadme = readFileSync(
-  new URL('../packages/playwright/README.md', import.meta.url),
+  new URL('../packages/adapters/playwright/README.md', import.meta.url),
   'utf8',
 );
 const unifiedSkill = readFileSync(
@@ -580,8 +580,8 @@ test('rejects workspace references and incomplete packed package contents', () =
 
 test('accepts an external-Claude bridge tarball and rejects a bundled Claude SDK dependency', () => {
   const requiredEntries = [
-    'package/dist/claude-cli.js',
-    'package/dist/claude-provider.js',
+    'package/dist/providers/claude-code/cli.js',
+    'package/dist/providers/claude-code/provider.js',
     'package/package.json',
   ];
   const manifest = {

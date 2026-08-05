@@ -3,7 +3,7 @@
     {
       "name": "panerelay",
       "command": "node",
-      "args": ["./packages/agent-browser/dist/index.js"],
+      "args": ["./packages/adapters/agent-browser/dist/index.js"],
       "capabilities": ["browser.provider"]
     }
   ]

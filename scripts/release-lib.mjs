@@ -51,7 +51,7 @@ export const PACKAGE_DEFINITIONS = [
     ],
   },
   {
-    directory: 'packages/agent-browser',
+    directory: 'packages/adapters/agent-browser',
     name: '@panerelay/agent-browser',
     requiredEntries: [
       'package/LICENSE',
@@ -63,7 +63,7 @@ export const PACKAGE_DEFINITIONS = [
     ],
   },
   {
-    directory: 'packages/browser-use',
+    directory: 'packages/adapters/browser-use',
     name: '@panerelay/browser-use',
     requiredEntries: [
       'package/LICENSE',
@@ -75,7 +75,7 @@ export const PACKAGE_DEFINITIONS = [
     ],
   },
   {
-    directory: 'packages/playwright',
+    directory: 'packages/adapters/playwright',
     name: '@panerelay/playwright',
     requiredEntries: [
       'package/LICENSE',
@@ -96,16 +96,16 @@ export const PACKAGE_DEFINITIONS = [
       'package/dist/host-installation.d.ts',
       'package/dist/host-installation.js',
       'package/dist/install.js',
-      'package/dist/claude-cli.js',
-      'package/dist/claude-permission-server.js',
-      'package/dist/claude-provider.js',
-      'package/dist/acp-provider.js',
+      'package/dist/providers/claude-code/cli.js',
+      'package/dist/providers/claude-code/permission-server.js',
+      'package/dist/providers/claude-code/provider.js',
+      'package/dist/providers/acp/provider.js',
       'package/dist/native-host.bundle.cjs',
-      'package/dist/opencode-executable.js',
-      'package/dist/opencode-provider.js',
+      'package/dist/providers/opencode/executable.js',
+      'package/dist/providers/opencode/provider.js',
       'package/dist/platform.js',
-      'package/dist/qoder-executable.js',
-      'package/dist/qoder-provider.js',
+      'package/dist/providers/qoder/executable.js',
+      'package/dist/providers/qoder/provider.js',
       'package/package.json',
     ],
   },
@@ -985,10 +985,13 @@ export async function loadReleaseMetadata(root) {
       ),
       protocolConstants: await readFile(join(root, 'packages/protocol/src/constants.ts'), 'utf8'),
       opencodeProvider: await readFile(
-        join(root, 'packages/bridge/src/opencode-provider.ts'),
+        join(root, 'packages/bridge/src/providers/opencode/provider.ts'),
         'utf8',
       ),
-      qoderProvider: await readFile(join(root, 'packages/bridge/src/qoder-provider.ts'), 'utf8'),
+      qoderProvider: await readFile(
+        join(root, 'packages/bridge/src/providers/qoder/provider.ts'),
+        'utf8',
+      ),
     },
     packageManifests,
     rootPackage: await readJson(join(root, 'package.json')),

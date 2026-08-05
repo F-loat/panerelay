@@ -12,8 +12,8 @@ import {
   type ConversationSummary,
   type HostToExtensionMessage,
 } from '@panerelay/protocol';
-import type { AgentProvider } from './agent-provider.js';
 import { AgentService } from './agent-service.js';
+import type { AgentProvider } from './providers/contract.js';
 
 class FakeProvider implements AgentProvider {
   readonly calls: string[] = [];
@@ -109,7 +109,7 @@ function request(requestId: string, value: AgentRequest): AgentRequestMessage {
   };
 }
 
-test('aggregates descriptors while containing an unavailable adapter failure', async () => {
+test('aggregates descriptors while containing an unavailable provider failure', async () => {
   const messages: HostToExtensionMessage[] = [];
   const codex = new FakeProvider('codex', 'codex-1');
   const qoder = new FakeProvider('qoder', 'qoder-1');
@@ -154,7 +154,7 @@ test('passes one explicit reconstructed environment to the default provider fact
   await service.close();
 });
 
-test('routes conversations to their provider and rejects mismatches before adapter access', async () => {
+test('routes conversations to their provider and rejects mismatches before provider access', async () => {
   const messages: HostToExtensionMessage[] = [];
   const codex = new FakeProvider('codex', 'codex-1');
   const qoder = new FakeProvider('qoder', 'qoder-1');
@@ -248,7 +248,7 @@ test('routes project and initial page context only to conversation start', async
   assert.equal(messages[0]?.type, 'agent.response');
 });
 
-test('correlates provider events and closes every adapter', async () => {
+test('correlates provider events and closes every provider', async () => {
   const messages: HostToExtensionMessage[] = [];
   const codex = new FakeProvider('codex', 'codex-1');
   const qoder = new FakeProvider('qoder', 'qoder-1');

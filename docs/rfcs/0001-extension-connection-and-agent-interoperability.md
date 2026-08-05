@@ -42,7 +42,7 @@ A browser extension can attach to explicitly authorized tabs, use Chrome's debug
 
 1. Let an unmodified agent-browser client control an authorized tab in the user's existing Chrome installation.
 2. Provide a browser side panel for starting, resuming, observing, interrupting, and approving agent work.
-3. Define provider-neutral protocols so agent-browser and the initial agent runtime remain adapters rather than permanent core dependencies.
+3. Define neutral protocols so agent-browser remains an Automation Adapter and the initial agent runtime remains behind an Agent Provider rather than becoming a permanent core dependency.
 4. Keep the first complete workflow local-first and open source.
 5. Make authorization, ownership, visibility, and revocation protocol-level invariants.
 
@@ -71,7 +71,7 @@ The following goals extend the accepted foundation and will be specified indepen
 - **Extension**: the Panerelay Manifest V3 browser extension.
 - **Bridge**: the local native process that terminates Native Messaging, exposes local automation endpoints, and enforces session policy.
 - **Automation adapter**: an integration that connects a browser automation engine to the Bridge. The first adapter targets agent-browser.
-- **Agent provider**: an adapter for an agent runtime, such as an app-server or an Agent Client Protocol implementation.
+- **Agent provider**: a Bridge-owned integration for an agent runtime, such as Codex, Qoder, Claude Code, or OpenCode, implemented through an app-server, CLI, or Agent Client Protocol transport.
 - **Browser registration**: the durable identity and current connection metadata for one extension installation.
 - **Relay participant**: an independently authenticated automation-client connection within one browser control lease.
 - **Control lease**: revocable Panerelay automation ownership that may contain bounded relay participants and permits serialized mutation of authorized tabs.
@@ -341,7 +341,7 @@ The user can interrupt a conversation, deny an approval, release a tab, or trans
 
 ## Agent provider contract
 
-The Bridge will expose a provider-neutral conversation contract. A provider adapter is responsible for:
+The Bridge will expose a provider-neutral conversation contract. An Agent Provider is responsible for:
 
 - availability and setup status;
 - explicit, idempotent runtime preparation without creating a conversation;
@@ -353,7 +353,7 @@ The Bridge will expose a provider-neutral conversation contract. A provider adap
 - approval and structured-question responses;
 - cleanup.
 
-The reference implementation adapts Codex app-server over its local stdio JSON-RPC transport. The Bridge owns the process, initialization, thread lifecycle, streaming-event normalization, approval responses, and interruption. Codex app-server types remain adapter-private and do not become the Panerelay public conversation protocol.
+The reference implementation integrates Codex app-server over its local stdio JSON-RPC transport. The Bridge owns the process, initialization, thread lifecycle, streaming-event normalization, approval responses, and interruption. Codex app-server types remain Provider-private and do not become the Panerelay public conversation protocol.
 
 The same internal registry adapts Qoder CLI over ACP when a compatible optional runtime is available. The Bridge negotiates capabilities, keeps ACP option identifiers private, normalizes supported streams and permissions, and contains process failure so Qoder availability cannot block Codex.
 
@@ -473,7 +473,7 @@ The initial monorepo is expected to contain:
 apps/extension
 packages/protocol
 packages/bridge
-packages/agent-browser
+packages/adapters/agent-browser
 packages/cli
 ```
 
@@ -547,7 +547,7 @@ RFC-0001 can move from `Draft` to `Accepted` when:
 | Large messages support bounded chunks, integrity checks, cancellation, timeout, and cleanup. | Pass | Protocol tests cover UTF-8 reassembly, sub-1 MiB frames, corruption rejection, explicit cancellation, timeout, and released receiver state. |
 | The browser visibly identifies controlled state and offers immediate release. | Pass | The Extension shows a substantively controlled-tab count in its action badge, marks each document touched by an Agent page command with the agent-browser favicon and a green status dot, and keeps release in the side panel. Virtual target discovery and page-session bootstrap remain unmarked. |
 | Codex uses the provider-neutral conversation contract for lifecycle, streaming, approvals, and interruption. | Pass | Bridge contract tests cover provider discovery, normalized events, and approval requests. |
-| Qoder ACP uses the same provider-neutral boundary without becoming a prerequisite. | Pass | Adapter tests cover capabilities, streaming, permissions, interruption, process restart, project working directories, bounded tab context, the explicit reconstructed Agent command environment, and the absence of Panerelay-injected browser MCPs or engine cleanup. |
+| Qoder ACP uses the same provider-neutral boundary without becoming a prerequisite. | Pass | Provider tests cover capabilities, streaming, permissions, interruption, process restart, project working directories, bounded tab context, the explicit reconstructed Agent command environment, and the absence of Panerelay-injected browser MCPs or engine cleanup. |
 | Local setup installs, diagnoses, and removes only the selected components. | Pass | Plain setup covers the Native Host and side-panel prerequisites. `--agent-browser`, `--browser-use`, and `--playwright` independently gate their program probes, Provider/adapter registrations, output, success, settings availability, and doctor checks; user defaults require an explicitly selected default-capable integration. Agent Skill lifecycle is independent and belongs to `npx skills`. The settings installer accepts only fixed adapter identifiers, pins the lockstep setup package, revalidates registration, and then changes only that adapter's default. |
 | Real Windows Chrome launches and removes the installed Native Host. | Pending | Windows path, launcher, registry, update, and uninstall behavior has deterministic coverage; the stable release gate still requires a real Windows Chrome run from a path containing spaces. |
 
@@ -561,7 +561,7 @@ The following dispositions keep unresolved ecosystem work from making RFC-0001 i
 4. External-agent activity convergence and handoff require a follow-up interoperability RFC.
 5. Rich browser-context objects require a follow-up privacy and data-model RFC.
 6. Relay participants belong to one browser control lease. Human handoff and non-automation principals remain deferred.
-7. Codex app-server and Qoder ACP are the initial provider adapters; future providers must adapt to the same normalized contract.
+7. Codex app-server and Qoder ACP are the initial Agent Providers; future Providers must implement the same normalized contract.
 8. Setup registers one exact official or user-selected Extension ID. Broader pairing and managed enterprise distribution remain future policy topics.
 
 ## References

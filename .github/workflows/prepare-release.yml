@@ -180,9 +180,9 @@ jobs:
             echo "apps/extension/manifest.json"
             echo "apps/extension/package.json"
             echo "package.json"
-            echo "packages/agent-browser/package.json"
-            echo "packages/browser-use/package.json"
-            echo "packages/playwright/package.json"
+            echo "packages/adapters/agent-browser/package.json"
+            echo "packages/adapters/browser-use/package.json"
+            echo "packages/adapters/playwright/package.json"
             echo "packages/browser-registry/package.json"
             echo "packages/bridge/package.json"
             echo "packages/cli/package.json"
@@ -206,9 +206,9 @@ jobs:
             apps/extension/manifest.json \
             apps/extension/package.json \
             package.json \
-            packages/agent-browser/package.json \
-            packages/browser-use/package.json \
-            packages/playwright/package.json \
+            packages/adapters/agent-browser/package.json \
+            packages/adapters/browser-use/package.json \
+            packages/adapters/playwright/package.json \
             packages/browser-registry/package.json \
             packages/bridge/package.json \
             packages/cli/package.json \

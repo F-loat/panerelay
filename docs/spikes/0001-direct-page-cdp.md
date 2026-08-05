@@ -86,7 +86,7 @@ agent-browser --session panerelay-spike --provider panerelay get title
 agent-browser --session panerelay-spike --provider panerelay close
 ```
 
-The checked-in `agent-browser.json` registers the local provider build. Rebuild after changing `packages/agent-browser` or `packages/protocol`.
+The checked-in `agent-browser.json` registers the local provider build. Rebuild after changing `packages/adapters/agent-browser` or `packages/protocol`.
 
 Chrome resolves user-level Native Messaging hosts relative to its user-data directory. If a development browser uses a temporary or custom profile, install an additional manifest into that profile before launching it:
 

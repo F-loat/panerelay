@@ -177,7 +177,7 @@ Protocol identifiers remain opaque. Chrome tab IDs, debugger session IDs, and ra
 3. Activity observation never widens Chrome permissions or tab authorization.
 4. Activity events are emitted after the Bridge has associated a command with an authorized virtual target session.
 5. Parameters and results are excluded by construction rather than redacted after logging.
-6. Browser activity excludes raw error payloads. Conversation Provider adapters may separately expose bounded documented user-facing failure text in an expandable error disclosure.
+6. Browser activity excludes raw error payloads. Agent Providers may separately expose bounded documented user-facing failure text in an expandable error disclosure.
 7. Histories are bounded, memory-only, and cleared on browser unregister or Bridge restart.
 8. User release remains available even when activity rendering fails.
 

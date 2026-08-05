@@ -11,7 +11,7 @@ await build({
   absWorkingDir: packageDirectory,
   bundle: true,
   entryPoints: {
-    'panerelay-browser-use-adapter': '../browser-use/src/index.ts',
+    'panerelay-browser-use-adapter': '../adapters/browser-use/src/index.ts',
   },
   format: 'esm',
   legalComments: 'none',
@@ -27,7 +27,7 @@ await build({
   absWorkingDir: packageDirectory,
   bundle: true,
   entryPoints: {
-    'panerelay-playwright-adapter': '../playwright/src/index.ts',
+    'panerelay-playwright-adapter': '../adapters/playwright/src/index.ts',
   },
   format: 'esm',
   legalComments: 'none',

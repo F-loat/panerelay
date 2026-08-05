@@ -10,8 +10,8 @@ import {
   executablePathEntries,
   type CommandRunner,
 } from './platform.js';
-import { resolveOpenCodeExecutable } from './opencode-executable.js';
-import { resolveQoderExecutable } from './qoder-executable.js';
+import { resolveOpenCodeExecutable } from './providers/opencode/executable.js';
+import { resolveQoderExecutable } from './providers/qoder/executable.js';
 
 export const CHROME_EXTENSION_ID_PATTERN = /^[a-p]{32}$/;
 

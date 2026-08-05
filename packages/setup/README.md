@@ -58,7 +58,7 @@ npx --yes @panerelay/setup --agent-browser
 npx --yes @panerelay/setup doctor --agent-browser
 ```
 
-Setup verifies a compatible agent-browser executable before registering the Panerelay Provider. It does not install or update agent-browser or manage an Agent Skill. See the [agent-browser integration guide](../agent-browser/README.md) and [compatibility record](../../docs/compatibility/agent-browser-0.33.0.md).
+Setup verifies a compatible agent-browser executable before registering the Panerelay Provider. It does not install or update agent-browser or manage an Agent Skill. See the [agent-browser integration guide](../adapters/agent-browser/README.md) and [compatibility record](../../docs/compatibility/agent-browser-0.33.0.md).
 
 ### Explicit browser-use integration
 
@@ -115,7 +115,7 @@ Choose the intended authorized tab ID from the first `tab-list` result. After `t
 
 Setup verifies the upstream executable and registers only Panerelay-owned adapter metadata. It does not install a shim, modify `PATH` or shell startup files, write user-owned Playwright configuration, or set Playwright as a default. Users who want persistent explicit configuration may set `PLAYWRIGHT_MCP_CDP_ENDPOINT` or manage their own `.playwright/cli.config.json`.
 
-The independently installed `panerelay-browser` Skill contains the Playwright workflow. See the [Playwright integration guide](../playwright/README.md) and [compatibility record](../../docs/compatibility/playwright-cli-0.1.17.md).
+The independently installed `panerelay-browser` Skill contains the Playwright workflow. See the [Playwright integration guide](../adapters/playwright/README.md) and [compatibility record](../../docs/compatibility/playwright-cli-0.1.17.md).
 
 This connection reuses authorized tabs and does not provide isolated BrowserContexts, launch-time executable or proxy options, or browser-wide close. The fixed endpoint is loopback discovery, not a reusable browser credential.
 

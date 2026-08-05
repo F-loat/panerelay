@@ -1,0 +1,50 @@
+{
+  "name": "@panerelay/browser-use",
+  "version": "0.7.0",
+  "description": "Use browser-use CLI, Skill, and CLI MCP with current-tab or all-supported-tabs authorization through Panerelay.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/F-loat/panerelay.git",
+    "directory": "packages/adapters/browser-use"
+  },
+  "homepage": "https://github.com/F-loat/panerelay#readme",
+  "bugs": {
+    "url": "https://github.com/F-loat/panerelay/issues"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/public.d.ts",
+      "import": "./dist/public.js",
+      "default": "./dist/public.js"
+    },
+    "./environment": {
+      "types": "./dist/environment.d.ts",
+      "import": "./dist/environment.js",
+      "default": "./dist/environment.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.test.*",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm run build && node ../../../scripts/run-compiled-tests.mjs dist",
+    "prepublishOnly": "pnpm build"
+  },
+  "dependencies": {
+    "@panerelay/browser-registry": "workspace:*",
+    "@panerelay/protocol": "workspace:*"
+  }
+}
