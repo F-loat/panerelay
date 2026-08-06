@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { chmod, mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
@@ -11,6 +11,20 @@ import type { CommandRunner } from '@panerelay/bridge/platform';
 import { setCliAdapterMode } from '@panerelay/cli/adapter-config';
 import { configureGlobalProvider } from './config.js';
 import { doctorPanerelay } from './doctor.js';
+
+const currentReleaseVersion = (
+  JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')) as {
+    version: string;
+  }
+).version;
+
+function nativeHostFixture(): string {
+  return `#!/usr/bin/env node
+if (process.argv.includes('--self-check')) process.stdout.write(${JSON.stringify(
+    JSON.stringify({ protocol: PANERELAY_PROTOCOL_VERSION, release: currentReleaseVersion }),
+  )});
+`;
+}
 
 test('doctor verifies the optional global default Provider', async () => {
   const homeDirectory = await mkdtemp(join(tmpdir(), 'panerelay-doctor-'));
@@ -232,12 +246,7 @@ test('doctor verifies Windows registry, manifest, launcher, and effective origin
   const codexPath = join(root, 'codex.cmd');
   const extensionId = 'abcdefghijklmnopabcdefghijklmnop';
   await mkdir(dirname(bundledHostPath), { recursive: true });
-  await writeFile(
-    bundledHostPath,
-    `#!/usr/bin/env node
-if (process.argv.includes('--self-check')) process.stdout.write('{"protocol":"panerelay.relay.v2","release":"0.7.0"}');
-`,
-  );
+  await writeFile(bundledHostPath, nativeHostFixture());
   await writeFile(agentBrowserPath, '@exit /b 0\r\n');
   await writeFile(codexPath, '@exit /b 0\r\n');
 
@@ -398,12 +407,7 @@ test('doctor reports OpenCode version metadata without making it a core health r
   const codexPath = join(binDirectory, 'codex');
   const opencodePath = join(binDirectory, 'opencode');
   await mkdir(binDirectory, { recursive: true });
-  await writeFile(
-    bundledHostPath,
-    `#!/usr/bin/env node
-if (process.argv.includes('--self-check')) process.stdout.write('{"protocol":"panerelay.relay.v2","release":"0.7.0"}');
-`,
-  );
+  await writeFile(bundledHostPath, nativeHostFixture());
   await writeFile(codexPath, '#!/bin/sh\nexit 0\n');
   await writeFile(opencodePath, '#!/bin/sh\necho "1.18.12"\n');
   await chmod(codexPath, 0o755);
