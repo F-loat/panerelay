@@ -99,6 +99,8 @@ Options:
   --json      Print a machine-readable doctor report
   --lang      Use en or zh-CN instead of the system language
   --yes, -y   Confirm uninstall without a prompt
+  --version, -v
+              Show the version
   --help, -h  Show this help
 
 Optional automation integrations:
@@ -212,6 +214,8 @@ const chineseMessages: Record<MessageKey, string> = {
   --json      输出机器可读的 doctor 报告
   --lang      使用 en 或 zh-CN，不跟随系统语言
   --yes, -y   无需确认直接卸载
+  --version, -v
+              显示版本
   --help, -h  显示帮助
 
 可选自动化集成：

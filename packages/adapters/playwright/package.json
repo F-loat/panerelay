@@ -29,9 +29,6 @@
       "import": "./dist/environment.js"
     }
   },
-  "bin": {
-    "panerelay-playwright-adapter": "./dist/index.js"
-  },
   "files": [
     "dist",
     "!dist/**/*.test.*",

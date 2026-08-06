@@ -54,6 +54,8 @@ Commands:
 
 Options:
   --lang      Use en or zh-CN instead of the system language
+  --version, -v
+              Show the version
   --help, -h  Show this help
 
 Occasional use without a global installation:
@@ -114,6 +116,8 @@ const chineseMessages: Record<MessageKey, string> = {
 
 选项：
   --lang      使用 en 或 zh-CN，不跟随系统语言
+  --version, -v
+              显示版本
   --help, -h  显示帮助
 
 无需全局安装的临时用法：

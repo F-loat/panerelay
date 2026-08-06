@@ -56,7 +56,6 @@ export const PACKAGE_DEFINITIONS = [
     requiredEntries: [
       'package/LICENSE',
       'package/README.md',
-      'package/dist/index.js',
       'package/dist/plugin.d.ts',
       'package/dist/plugin.js',
       'package/package.json',

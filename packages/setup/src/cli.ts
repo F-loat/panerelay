@@ -13,6 +13,7 @@ import {
 } from '@panerelay/browser-use';
 import { PANERELAY_PLAYWRIGHT_GATEWAY_URL } from '@panerelay/playwright';
 import { realpathSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { stdin, stdout } from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -46,6 +47,18 @@ export interface ParsedSetupArgs {
 interface LanguageArguments {
   argv: string[];
   language?: SupportedLocale;
+}
+
+function versionRequested(argv: string[]): boolean {
+  return argv.includes('--version') || argv.includes('-v');
+}
+
+async function packageVersion(): Promise<string> {
+  const manifest = JSON.parse(
+    await readFile(new URL('../package.json', import.meta.url), 'utf8'),
+  ) as { version?: unknown };
+  if (typeof manifest.version !== 'string') throw new Error('Setup package version is invalid');
+  return manifest.version;
 }
 
 interface SetupIntegrationPrompt {
@@ -590,6 +603,10 @@ export async function main(
   argv: string[] = process.argv.slice(2),
   dependencies: CliDependencies = {},
 ): Promise<number> {
+  if (versionRequested(argv)) {
+    console.log(`v${await packageVersion()}`);
+    return 0;
+  }
   let locale = resolveLocale({
     environment: dependencies.environment,
     requestedLocale: languageValue(argv),

@@ -105,7 +105,19 @@ test('passes the exact child command through the run surface', async () => {
   let input: RunCliConnectionInput | undefined;
   assert.equal(
     await main(
-      ['run', 'browser-use', '--mode', 'direct', '--', 'browser-use', '--json', '--help'],
+      [
+        'run',
+        'browser-use',
+        '--mode',
+        'direct',
+        '--',
+        'browser-use',
+        '--json',
+        '-h',
+        '--help',
+        '-v',
+        '--version',
+      ],
       {
         environment: {},
         runCliConnectionCommand: async value => {
@@ -116,7 +128,14 @@ test('passes the exact child command through the run surface', async () => {
     ),
     23,
   );
-  assert.deepEqual(input?.childCommand, ['browser-use', '--json', '--help']);
+  assert.deepEqual(input?.childCommand, [
+    'browser-use',
+    '--json',
+    '-h',
+    '--help',
+    '-v',
+    '--version',
+  ]);
   assert.equal(input?.mode, 'direct');
 });
 

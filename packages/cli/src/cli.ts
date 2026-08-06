@@ -9,8 +9,10 @@ import {
   selectBrowserRegistration,
   setBrowserDefault,
 } from '@panerelay/browser-registry';
-import { realpathSync } from 'node:fs';
 import { setBrowserUseEnvironmentMode } from '@panerelay/browser-use/environment';
+import type { CliAdapterMode } from '@panerelay/protocol';
+import { realpathSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { normalizeLocale, resolveLocale, translate, type SupportedLocale } from './i18n.js';
@@ -19,7 +21,6 @@ import {
   resolveCliConnection,
   saveCliConnectionMode,
 } from './adapter-dispatcher.js';
-import type { CliAdapterMode } from '@panerelay/protocol';
 import { runCliConnectionCommand } from './command-runner.js';
 
 export type CliOperation =
@@ -40,6 +41,24 @@ export interface ParsedCliArgs {
 interface LanguageArguments {
   argv: string[];
   language?: SupportedLocale;
+}
+
+function topLevelArguments(argv: string[]): string[] {
+  const separator = argv.indexOf('--');
+  return separator < 0 ? argv : argv.slice(0, separator);
+}
+
+function versionRequested(argv: string[]): boolean {
+  const commandArguments = topLevelArguments(argv);
+  return commandArguments.includes('--version') || commandArguments.includes('-v');
+}
+
+async function packageVersion(): Promise<string> {
+  const manifest = JSON.parse(
+    await readFile(new URL('../package.json', import.meta.url), 'utf8'),
+  ) as { version?: unknown };
+  if (typeof manifest.version !== 'string') throw new Error('CLI package version is invalid');
+  return manifest.version;
 }
 
 function optionAndInlineValue(argument: string): [string, string | undefined] {
@@ -87,8 +106,7 @@ function extractLanguageArguments(argv: string[]): LanguageArguments {
 
 export function parseCliArgs(argv: string[]): ParsedCliArgs {
   const localized = extractLanguageArguments(argv);
-  const separator = localized.argv.indexOf('--');
-  const commandArguments = separator < 0 ? localized.argv : localized.argv.slice(0, separator);
+  const commandArguments = topLevelArguments(localized.argv);
   if (
     localized.argv.length === 0 ||
     commandArguments.includes('--help') ||
@@ -295,6 +313,10 @@ export async function main(
   argv: string[] = process.argv.slice(2),
   dependencies: CliDependencies = {},
 ): Promise<number> {
+  if (versionRequested(argv)) {
+    console.log(`v${await packageVersion()}`);
+    return 0;
+  }
   let locale = resolveLocale({
     environment: dependencies.environment,
     requestedLocale: languageValue(argv),
