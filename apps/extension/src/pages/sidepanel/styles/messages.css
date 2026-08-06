@@ -153,6 +153,8 @@
   right: 5px;
   width: 22px;
   height: 22px;
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
   pointer-events: none;
   opacity: 0;
   transition:
@@ -161,20 +163,27 @@
     background 120ms ease;
 }
 
+.message-copy-button svg {
+  width: 13px;
+  height: 13px;
+}
+
 .message-bubble:hover .message-copy-button,
-.message-bubble:focus-within .message-copy-button,
+.message-copy-button:focus-visible,
 .message-copy-button:not([data-status='idle']) {
   pointer-events: auto;
   opacity: 1;
 }
 
 .message.user .message-copy-button {
+  border-color: color-mix(in srgb, var(--bg) 18%, transparent);
+  background: color-mix(in srgb, var(--bg) 12%, transparent);
   color: color-mix(in srgb, var(--bg) 72%, transparent);
 }
 
 .message.user .message-copy-button:hover,
 .message.user .message-copy-button:focus-visible {
-  background: color-mix(in srgb, var(--bg) 16%, transparent);
+  background: color-mix(in srgb, var(--bg) 20%, transparent);
   color: var(--bg);
 }
 

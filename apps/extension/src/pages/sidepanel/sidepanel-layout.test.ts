@@ -93,8 +93,11 @@ test('overlays message Markdown copy for card hover, keyboard focus, and non-hov
 
   assert.match(copyButton, /position: absolute/);
   assert.match(copyButton, /opacity: 0/);
+  assert.match(copyButton, /background: var\(--surface-raised\)/);
   assert.match(styles, /\.message-bubble:hover \.message-copy-button/);
-  assert.match(styles, /\.message-bubble:focus-within \.message-copy-button/);
+  assert.match(styles, /\.message-copy-button:focus-visible/);
+  assert.doesNotMatch(styles, /\.message-bubble:focus-within \.message-copy-button/);
+  assert.match(styles, /\.message-copy-button svg\s*\{[^}]*width: 13px/);
   assert.equal(richTextSpacing, '');
   assert.match(
     styles,
