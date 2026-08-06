@@ -118,6 +118,11 @@ interface PhysicalChildTarget {
   url: string;
 }
 
+interface TargetControlClaim {
+  engine: AutomationEngineId;
+  sequence: number;
+}
+
 const MAX_LEASE_PARTICIPANTS = 8;
 const MAX_PARTICIPANT_CONNECTIONS = 4;
 const MAX_LEASE_CONNECTIONS = MAX_LEASE_PARTICIPANTS * MAX_PARTICIPANT_CONNECTIONS;
@@ -188,7 +193,8 @@ export class BrowserRelay {
   private readonly autoAttachTargets = new Set<string>();
   private readonly autoAttachChildSessions = new Set<string>();
   private readonly childAutoAttachPromises = new Map<string, Promise<void>>();
-  private readonly controlledTargets = new Set<string>();
+  private readonly targetControlClaims = new Map<string, Map<string, TargetControlClaim>>();
+  private controlClaimSequence = 0;
   private readonly focusEmulationTargets = new Set<string>();
   private readonly focusEmulationParticipants = new Map<string, Set<string>>();
   private readonly attachPromises = new Map<string, Promise<void>>();
@@ -1503,9 +1509,8 @@ export class BrowserRelay {
       return;
     }
 
-    if (classifyCdpTargetAccess(method) === 'control' && !this.controlledTargets.has(targetId)) {
-      this.controlledTargets.add(targetId);
-      this.emitCurrentSessionState('active');
+    if (classifyCdpTargetAccess(method) === 'control') {
+      this.claimTargetControl(targetId, participant);
     }
 
     const requestId = randomUUID();
@@ -2094,7 +2099,7 @@ export class BrowserRelay {
     this.playwrightMainFrameIds.delete(targetId);
     this.clearRuntimeExecutionContexts(targetId);
     this.autoAttachTargets.delete(targetId);
-    this.controlledTargets.delete(targetId);
+    this.targetControlClaims.delete(targetId);
     this.removePhysicalChildrenForTarget(
       targetId,
       'Panerelay could not restore target focus emulation after participant release',
@@ -2432,7 +2437,7 @@ export class BrowserRelay {
     this.clearRuntimeExecutionContexts(targetId);
     const wasAttached = this.attachedTargets.delete(targetId);
     this.autoAttachTargets.delete(targetId);
-    this.controlledTargets.delete(targetId);
+    this.targetControlClaims.delete(targetId);
     this.focusEmulationTargets.delete(targetId);
     this.focusEmulationParticipants.delete(targetId);
     this.removePhysicalChildrenForTarget(targetId, 'The owning target is no longer authorized');
@@ -2448,9 +2453,12 @@ export class BrowserRelay {
   private removePageSession(sessionId: string): boolean {
     const session = this.pageSessions.get(sessionId);
     if (!session) return false;
+    const participantId = this.clients.get(session.client)?.participantId;
     this.removeAutoAttachedChildSessions(sessionId);
     this.pageSessions.delete(sessionId);
     this.clients.get(session.client)?.sessions.delete(sessionId);
+    if (participantId)
+      this.releaseTargetControlClaimIfUnreferenced(session.targetId, participantId);
     this.detachTargetIfUnreferenced(session.targetId);
     return true;
   }
@@ -2458,6 +2466,7 @@ export class BrowserRelay {
   private removeChildSession(sessionId: string, detachIfUnreferenced = true): boolean {
     const session = this.childSessions.get(sessionId);
     if (!session) return false;
+    const participantId = this.clients.get(session.client)?.participantId;
     this.childSessions.delete(sessionId);
     this.clients.get(session.client)?.sessions.delete(sessionId);
     for (const [descendantId, descendant] of [...this.childSessions]) {
@@ -2465,6 +2474,8 @@ export class BrowserRelay {
         this.removeChildSession(descendantId, detachIfUnreferenced);
       }
     }
+    if (participantId)
+      this.releaseTargetControlClaimIfUnreferenced(session.targetId, participantId);
     if (detachIfUnreferenced) this.detachTargetIfUnreferenced(session.targetId);
     return true;
   }
@@ -2478,6 +2489,70 @@ export class BrowserRelay {
     );
   }
 
+  private claimTargetControl(targetId: string, participant: RelayParticipant): void {
+    const claims = this.targetControlClaims.get(targetId) ?? new Map<string, TargetControlClaim>();
+    const wasControlled = claims.size > 0;
+    claims.set(participant.id, {
+      engine: participant.engine,
+      sequence: ++this.controlClaimSequence,
+    });
+    this.targetControlClaims.set(targetId, claims);
+    if (!wasControlled) this.emitCurrentSessionState('active');
+  }
+
+  private latestTargetControlClaim(
+    targetId: string,
+  ): (TargetControlClaim & { participantId: string }) | undefined {
+    const claims = this.targetControlClaims.get(targetId);
+    if (!claims) return undefined;
+    let latest: (TargetControlClaim & { participantId: string }) | undefined;
+    for (const [participantId, claim] of claims) {
+      if (!latest || claim.sequence > latest.sequence) latest = { participantId, ...claim };
+    }
+    return latest;
+  }
+
+  private participantReferencesTarget(participantId: string, targetId: string): boolean {
+    return [...this.pageSessions.values(), ...this.childSessions.values()].some(session => {
+      if (session.targetId !== targetId) return false;
+      return this.clients.get(session.client)?.participantId === participantId;
+    });
+  }
+
+  private releaseTargetControlClaimIfUnreferenced(targetId: string, participantId: string): void {
+    if (this.participantReferencesTarget(participantId, targetId)) return;
+    this.releaseTargetControlClaim(targetId, participantId);
+  }
+
+  private releaseTargetControlClaim(targetId: string, participantId: string): boolean {
+    const claims = this.targetControlClaims.get(targetId);
+    if (!claims?.has(participantId)) return false;
+    const previousLatest = this.latestTargetControlClaim(targetId);
+    claims.delete(participantId);
+    if (claims.size === 0) this.targetControlClaims.delete(targetId);
+    const nextLatest = this.latestTargetControlClaim(targetId);
+
+    if (previousLatest?.participantId === participantId) {
+      const nextEngine = nextLatest?.engine ?? null;
+      if (!nextLatest || nextEngine !== previousLatest.engine) {
+        this.options.sendToExtension({
+          type: 'cdp.control.updated',
+          protocol: PANERELAY_PROTOCOL_VERSION,
+          targetId,
+          engine: nextEngine,
+        });
+      }
+    }
+    if (!nextLatest) this.emitCurrentSessionState();
+    return true;
+  }
+
+  private releaseParticipantControlClaims(participantId: string): void {
+    for (const targetId of [...this.targetControlClaims.keys()]) {
+      this.releaseTargetControlClaim(targetId, participantId);
+    }
+  }
+
   private detachTargetIfUnreferenced(targetId: string): void {
     const stillReferenced =
       [...this.pageSessions.values()].some(session => session.targetId === targetId) ||
@@ -2486,7 +2561,7 @@ export class BrowserRelay {
     this.playwrightMainFrameIds.delete(targetId);
     this.clearRuntimeExecutionContexts(targetId);
     this.autoAttachTargets.delete(targetId);
-    this.controlledTargets.delete(targetId);
+    this.targetControlClaims.delete(targetId);
     this.focusEmulationTargets.delete(targetId);
     this.focusEmulationParticipants.delete(targetId);
     this.removePhysicalChildrenForTarget(targetId, 'No CDP sessions remain for the target');
@@ -2511,7 +2586,7 @@ export class BrowserRelay {
       this.playwrightMainFrameIds.delete(message.targetId);
       this.clearRuntimeExecutionContexts(message.targetId);
       this.autoAttachTargets.delete(message.targetId);
-      this.controlledTargets.delete(message.targetId);
+      this.targetControlClaims.delete(message.targetId);
       this.focusEmulationTargets.delete(message.targetId);
       this.focusEmulationParticipants.delete(message.targetId);
       this.removePhysicalChildrenForTarget(message.targetId, message.reason);
@@ -2584,6 +2659,7 @@ export class BrowserRelay {
       this.disconnectClient(client, closeCode, reason);
     }
     participant.clients.clear();
+    this.releaseParticipantControlClaims(participant.id);
     this.releaseParticipantFocusClaims(participant.id);
     if (lease.activeParticipantId === participant.id) {
       const next = [...lease.participants.values()].at(-1);
@@ -2649,7 +2725,8 @@ export class BrowserRelay {
     this.autoAttachTargets.clear();
     this.autoAttachChildSessions.clear();
     this.childAutoAttachPromises.clear();
-    this.controlledTargets.clear();
+    this.targetControlClaims.clear();
+    this.controlClaimSequence = 0;
     this.focusEmulationTargets.clear();
     this.focusEmulationParticipants.clear();
     this.attachPromises.clear();
@@ -2759,8 +2836,8 @@ export class BrowserRelay {
 
   private emitCurrentSessionState(
     state?: ControlSessionState,
-    controlledTargetCount = this.controlledTargets.size,
-    observedTargetCount = this.attachedTargets.size - this.controlledTargets.size,
+    controlledTargetCount = this.targetControlClaims.size,
+    observedTargetCount = Math.max(0, this.attachedTargets.size - this.targetControlClaims.size),
   ): void {
     const lease = this.activeLease;
     if (!lease) return;

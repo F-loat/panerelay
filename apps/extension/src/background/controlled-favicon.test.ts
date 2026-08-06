@@ -9,6 +9,8 @@ import {
   applyControlledFavicon,
   controlledFaviconDataUrl,
   overrideControlledFavicon,
+  replaceControlledFavicon,
+  replaceControlledFaviconEngine,
   releaseControlledFavicon,
   restoreControlledFavicon,
 } from './controlled-favicon.js';
@@ -52,13 +54,14 @@ test('injects and restores the favicon in the requested tab', async () => {
     scripting: {
       executeScript: async (details: Record<string, unknown>) => {
         calls.push(details);
-        return [];
+        return [{ result: details.func === replaceControlledFavicon }];
       },
     },
   } as typeof chrome;
 
   try {
     assert.equal(await applyControlledFavicon(17, 'browser-use'), true);
+    assert.equal(await replaceControlledFaviconEngine(17, 'playwright'), true);
     assert.equal(await releaseControlledFavicon(17), true);
   } finally {
     globalThis.chrome = previousChrome;
@@ -69,7 +72,10 @@ test('injects and restores the favicon in the requested tab', async () => {
   assert.deepEqual(calls[0].args, [BROWSER_USE_CONTROLLED_FAVICON_DATA_URL]);
   assert.equal(calls[0].injectImmediately, true);
   assert.deepEqual(calls[1].target, { tabId: 17 });
-  assert.equal(calls[1].func, restoreControlledFavicon);
+  assert.equal(calls[1].func, replaceControlledFavicon);
+  assert.deepEqual(calls[1].args, [PLAYWRIGHT_CONTROLLED_FAVICON_DATA_URL]);
+  assert.deepEqual(calls[2].target, { tabId: 17 });
+  assert.equal(calls[2].func, restoreControlledFavicon);
 });
 
 test('keeps indicator failures separate from browser control', async () => {
@@ -84,6 +90,7 @@ test('keeps indicator failures separate from browser control', async () => {
 
   try {
     assert.equal(await applyControlledFavicon(23, 'agent-browser'), false);
+    assert.equal(await replaceControlledFaviconEngine(23, 'browser-use'), false);
     assert.equal(await releaseControlledFavicon(23), false);
   } finally {
     globalThis.chrome = previousChrome;
@@ -192,6 +199,12 @@ test('preserves the original favicon and updates idempotently', () => {
       ['data:image/svg+xml,second'],
     );
 
+    assert.equal(replaceControlledFavicon('data:image/svg+xml,fallback'), true);
+    assert.deepEqual(
+      head.children.map(link => link.href),
+      ['data:image/svg+xml,fallback'],
+    );
+
     const replacement = new FakeLink(head);
     replacement.rel = 'icon';
     replacement.href = 'https://example.test/replacement.png';
@@ -199,10 +212,15 @@ test('preserves the original favicon and updates idempotently', () => {
     FakeMutationObserver.latest?.callback();
     assert.deepEqual(
       head.children.map(link => link.href),
-      ['data:image/svg+xml,second'],
+      ['data:image/svg+xml,fallback'],
     );
 
     restoreControlledFavicon();
+    assert.deepEqual(
+      head.children.map(link => link.href),
+      ['https://example.test/original.png'],
+    );
+    assert.equal(replaceControlledFavicon('data:image/svg+xml,stale'), false);
     assert.deepEqual(
       head.children.map(link => link.href),
       ['https://example.test/original.png'],

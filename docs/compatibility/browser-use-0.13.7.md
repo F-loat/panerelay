@@ -5,8 +5,8 @@
 - Browser Harness: 0.1.8
 - Chrome: 151.0.7922.72, existing daily profile
 - agent-browser regression baseline: 0.33.0
-- Last verified: 2026-08-01
-- Last updated: 2026-08-04
+- Last verified: 2026-08-06
+- Last updated: 2026-08-06
 
 This record covers the setup-managed Panerelay connection adapter, the fixed Browser Harness environment default consumed by the official Browser Use CLI and CLI MCP, and the Browser Use workflow in the independently installed unified `panerelay-browser` Skill. It does not claim transparent interception of arbitrary Browser Use Python SDK construction or the official Browser Use Skill.
 
@@ -52,6 +52,7 @@ This is exact evidence for Browser Use 0.13.7 and its Browser Harness 0.1.8 runt
 | Sequential process reuse | Verified, shared | Separate CLI processes reused one Browser Harness PID, participant, and established TCP/WebSocket. The second process observed the first process's current-tab state, so this is explicitly not per-Agent task isolation. |
 | Simultaneous invocation | Verified | One CLI process held the user-scoped lane; the other failed within the bounded wait with an explicit busy message. |
 | Native Host generation replacement | Verified | Terminating the exact registered Native Host invalidated an old ticket and disconnected the stale daemon. The next CLI invocation replaced the stale Browser Harness PID and recovered through a fresh generation/ticket. |
+| Participant-scoped control claim cleanup | Verified | Browser Use control claims are ordered independently from Playwright and agent-browser references. Deterministic coverage verifies recency refresh, fallback, last-claim downgrade, and no forced debugger detach. In updated daily Chrome, Browser Use opened and retained Bing while Playwright temporarily became the newest claimant across the authorized inventory; Playwright detach restored the Browser Use mark and a following `page_info()` succeeded without reconnecting. Edge remains `Forwarded`. |
 | Browser-process methods | Unsupported | `Browser.setDownloadBehavior` and `Browser.close` fail with an explicit browser-process ownership error. |
 | Isolated browser context | Unsupported | `Target.createBrowserContext` fails explicitly; normal daily-Chrome windows are not represented as isolated contexts. |
 | Top-level request containment | Unsupported | Pausing auto-attach with `waitForDebuggerOnStart=true` fails explicitly; Extension attachment does not claim pre-request containment. |
@@ -65,4 +66,4 @@ The final acceptance scan found real connection material only in Browser Harness
 
 ## Regression boundary
 
-The existing agent-browser path remains separate: it still creates authenticated multi-connection participants through `/sessions`. Provider contract tests, the full Bridge relay suite, and a daily-Chrome agent-browser 0.33.0 fixture baseline passed after the Browser Use bootstrap and single-connection policy were added.
+The existing agent-browser path remains separate: it still creates authenticated multi-connection participants through `/sessions`. Provider contract tests, the full Bridge relay suite, and a daily-Chrome agent-browser 0.33.0 fixture baseline passed after the Browser Use bootstrap and single-connection policy were added. The 2026-08-06 coexistence regression combines deterministic three-participant coverage with the updated 0.8.0 Extension in daily Chrome: agent-browser, Browser Use, and Playwright remained live together; Playwright detach restored the remaining per-engine presentation; and Browser Use continued reading its selected Bing page afterward.

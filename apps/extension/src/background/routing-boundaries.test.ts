@@ -99,6 +99,23 @@ test('marks the current document asynchronously without blocking the routed CDP 
   );
 });
 
+test('updates participant control presentation without changing debugger attachment', async () => {
+  const source = await readFile(join(process.cwd(), 'src/background/index.ts'), 'utf8');
+  const handler = source.slice(
+    source.indexOf('async function updateTargetControl'),
+    source.indexOf('async function detachTarget'),
+  );
+
+  assert.match(handler, /attachedTabs\.get\(targetId\) \?\? controlledTabs\.get\(targetId\)/);
+  assert.match(handler, /if \(!current\) return/);
+  assert.match(handler, /if \(engine === null\)/);
+  assert.match(handler, /controlledTabs\.delete\(targetId\)/);
+  assert.match(handler, /await restoreTargetFavicon\(targetId, current\.id\)/);
+  assert.match(handler, /replaceTargetFavicon\(targetId, current\.id, engine\)/);
+  assert.doesNotMatch(handler, /chrome\.debugger\.detach/);
+  assert.doesNotMatch(handler, /releaseControl/);
+});
+
 test('releases the single-tab lease when navigation leaves its authorized origin', async () => {
   const source = await readFile(join(process.cwd(), 'src/background/index.ts'), 'utf8');
   const tabUpdatedHandler = source.slice(

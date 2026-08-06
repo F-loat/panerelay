@@ -44,7 +44,11 @@ import {
   isOriginEligible,
   originAuthorizationForUrl,
 } from '../shared/authorization.js';
-import { applyControlledFavicon, releaseControlledFavicon } from './controlled-favicon.js';
+import {
+  applyControlledFavicon,
+  releaseControlledFavicon,
+  replaceControlledFaviconEngine,
+} from './controlled-favicon.js';
 import { cdpCommandTouchesDocument } from './cdp-document-activity.js';
 import { debuggerDetachReason } from './debugger-detach.js';
 import {
@@ -466,6 +470,9 @@ async function handleHostMessage(message: HostToExtensionMessage): Promise<void>
     case 'cdp.command':
       await runCdpCommand(message);
       return;
+    case 'cdp.control.updated':
+      await updateTargetControl(message.targetId, message.engine);
+      return;
     case 'cdp.detach':
       if (message.targetId) {
         await detachTarget(message.targetId, message.reason, false);
@@ -642,6 +649,24 @@ function renderTargetFavicon(targetId: string, tabId: number, engine: Automation
     .then(async () => {
       const currentEngine = controlledFaviconEngines.get(targetId);
       if (currentEngine) await applyControlledFavicon(tabId, currentEngine);
+    })
+    .finally(() => {
+      if (controlledFaviconTasks.get(targetId) === task) controlledFaviconTasks.delete(targetId);
+    });
+  controlledFaviconTasks.set(targetId, task);
+}
+
+function replaceTargetFavicon(targetId: string, tabId: number, engine: AutomationEngineId): void {
+  if (controlledFaviconEngines.get(targetId) === engine) return;
+  controlledFaviconEngines.set(targetId, engine);
+  const previous = controlledFaviconTasks.get(targetId) ?? Promise.resolve();
+  const task = previous
+    .then(async () => {
+      if (controlledFaviconEngines.get(targetId) !== engine) return;
+      const replaced = await replaceControlledFaviconEngine(tabId, engine);
+      if (!replaced && controlledFaviconEngines.get(targetId) === engine) {
+        controlledFaviconEngines.delete(targetId);
+      }
     })
     .finally(() => {
       if (controlledFaviconTasks.get(targetId) === task) controlledFaviconTasks.delete(targetId);
@@ -923,6 +948,31 @@ async function runCdpCommand(message: CdpCommandMessage): Promise<void> {
         message: error instanceof Error ? error.message : String(error),
       },
     });
+  }
+}
+
+async function updateTargetControl(
+  targetId: string,
+  engine: AutomationEngineId | null,
+): Promise<void> {
+  const current = attachedTabs.get(targetId) ?? controlledTabs.get(targetId);
+  if (!current) return;
+  if (engine === null) {
+    const wasControlled = controlledTabs.delete(targetId);
+    await restoreTargetFavicon(targetId, current.id);
+    if (wasControlled) {
+      await updateActionBadge();
+      await broadcastStatus();
+    }
+    return;
+  }
+
+  const becameControlled = !controlledTabs.has(targetId);
+  controlledTabs.set(targetId, current);
+  replaceTargetFavicon(targetId, current.id, engine);
+  if (becameControlled) {
+    await updateActionBadge();
+    await broadcastStatus();
   }
 }
 

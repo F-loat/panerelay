@@ -4,8 +4,8 @@
 - agent-browser: 0.33.0
 - Support policy: minimum supported version and initial version-specific verified baseline
 - Connection: browser-level Provider over Native Messaging
-- Last verified: 2026-08-01
-- Last updated: 2026-08-05
+- Last verified: 2026-08-06
+- Last updated: 2026-08-06
 
 agent-browser versions newer than 0.33.0 satisfy Panerelay's minimum-version check, but they do not inherit this file's `Verified` classifications. Record a separate version-specific compatibility report before describing a newer version as verified.
 
@@ -67,6 +67,7 @@ agent-browser versions newer than 0.33.0 satisfy Panerelay's minimum-version che
 | Immediate user release | Verified | Deterministic Extension coverage verifies complete-lease cleanup. A daily-Chrome settings run confirmed that clicking the selected current-tab or all-tabs scope clears that selection, while the separate release action preserves the selected scope. Prior daily-Chrome evidence verifies that release immediately terminates the active lease and detaches observed and controlled targets. |
 | Read-only observation state | Verified | Passive page/runtime/network setup and explicitly allowlisted reads retain events while reporting a separate observed-target count, zero controlled targets, and no controlled favicon. `Runtime.evaluate` and unknown methods fail closed into control. |
 | Per-tab controlled favicon | Forwarded | Bridge and Extension tests keep discovery, passive setup, and allowlisted reads from changing the controlled count or favicon; the first control-class command, SPA resistance, refresh clearing, and restoration are covered. Daily-Chrome verification of the new observation/control split is pending. |
+| Participant-scoped control claims | Verified | Three-participant Bridge coverage keeps an agent-browser observer attached while Browser Use and Playwright claims overlap, refresh, fall back, and clear. A daily-Chrome run with the updated 0.8.0 Extension additionally kept agent-browser and Browser Use usable after Playwright detached, restored agent-browser's Google marker to the site favicon on Provider release, and did not detach Browser Use. Edge is `Forwarded` under the browser-platform matrix. |
 | Sanitized activity lifecycle | Verified | Real page and tab commands rendered localized completed rows; protocol tests reject raw sensitive fields. |
 | Bounded replay and history gaps | Verified | Bridge and Extension tests cover ring limits, epochs, sequence gaps, and reconnect snapshots. |
 | Durable activity history | Unsupported | Activity is intentionally memory-only and is cleared across process histories. |
@@ -80,6 +81,8 @@ The 2026-07-30 observation/control run created an inactive loopback fixture tab 
 The 2026-07-31 controlled-lineage run initialized one Agent participant, opened an independent loopback tab through Mearl, and confirmed that it stayed absent from both that participant and a freshly initialized second participant. An Agent-created parent and a child opened from that controlled parent each appeared exactly once. A separate Agent-created source remained observation-only; a Chrome tab opened with that source as its explicit opener stayed absent from both participants, confirming that observed lineage does not expand the inventory. Both Agent participants, every fixture tab, and the temporary server were removed afterward.
 
 Forced heartbeat expiry, Bridge-restart gaps, and injected failed or denied CDP commands remain automated-test scenarios to avoid perturbing the user's daily browser profile.
+
+The 2026-08-06 participant-claim regression combines deterministic coverage with an updated lockstep daily-Chrome run. agent-browser opened Google, Browser Use opened Bing, and Playwright attached to the same authorized inventory and opened DuckDuckGo. While Playwright was live, its newest claims supplied the visible engine mark. Detaching it restored the agent-browser and Browser Use marks without breaking either participant and restored the Playwright-only DuckDuckGo favicon. Closing the exact agent-browser session then restored Google's site favicon while Browser Use remained usable.
 
 ## Diagnostics, network, and emulation
 

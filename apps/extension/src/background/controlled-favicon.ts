@@ -129,6 +129,20 @@ export function overrideControlledFavicon(iconHref: string): void {
   }
 }
 
+/** Runs inside the page and replaces only an existing Panerelay controlled favicon. */
+export function replaceControlledFavicon(iconHref: string): boolean {
+  if (window !== window.top) return false;
+  const marked = window as ControlledFaviconWindow;
+  const state = marked.__panerelayControlledFavicon__;
+  const links = Array.from(
+    document.querySelectorAll<HTMLLinkElement>('link[data-panerelay-controlled-favicon]'),
+  );
+  if (!state || links.length === 0) return false;
+  state.iconHref = iconHref;
+  for (const link of links) link.href = iconHref;
+  return true;
+}
+
 /** Runs inside the page and restores the favicon nodes captured before control began. */
 export function restoreControlledFavicon(): void {
   if (window !== window.top) return;
@@ -159,6 +173,23 @@ export async function applyControlledFavicon(
       injectImmediately: true,
     });
     return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function replaceControlledFaviconEngine(
+  tabId: number,
+  engine: AutomationEngineId,
+): Promise<boolean> {
+  try {
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: replaceControlledFavicon,
+      args: [controlledFaviconDataUrl(engine)],
+      injectImmediately: true,
+    });
+    return results.some(result => result.result === true);
   } catch {
     return false;
   }

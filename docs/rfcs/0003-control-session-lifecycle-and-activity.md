@@ -5,8 +5,8 @@
 - Status: Draft
 - Authors: F-loat
 - Created: 2026-07-29
-- Updated: 2026-08-02
-- OpenSpec amendment: `openspec/changes/show-control-engine-favicon`
+- Updated: 2026-08-06
+- OpenSpec amendments: `openspec/changes/show-control-engine-favicon`, `openspec/changes/track-participant-control-claims`
 
 ## Summary
 
@@ -54,7 +54,8 @@ This foundation was insufficient for a public release until the activity and liv
 - **Activity**: one sanitized lifecycle record derived from an Agent CDP command.
 - **Activity epoch**: an opaque identifier for one in-memory activity history. A changed epoch tells the UI that earlier history is unavailable.
 - **Observed target**: a debugger-attached target that has received only RFC-0004 passive setup or explicitly allowlisted read-only commands.
-- **Controlled target**: an attached target that has accepted at least one RFC-0004 control-class command.
+- **Target-control claim**: one participant's live, engine-attributed claim acquired before forwarding a control-class command and retained while that participant still references the target.
+- **Controlled target**: an attached target with at least one live target-control claim.
 
 ## Proposed design
 
@@ -98,6 +99,8 @@ Heartbeat intervals and deadlines are internal bounded constants in the first im
 ### Target scheduling and isolation
 
 Every participant receives its own opaque credential, transport set, virtual flattened page sessions, pending command correlation, and cleanup boundary. Target discovery and the underlying Chrome debugger attachment are lease-wide. The Bridge processes a complete target-scoped command lifecycle FIFO per target and releases the queue on result, failure, timeout, cancellation, or participant cleanup. Different targets may progress independently.
+
+Control attribution is participant-scoped even though attachment is shared. For each target, the Bridge retains at most one claim per participant with that participant's validated automation engine and a lease-local monotonic activity sequence. A later control-class command refreshes the participant's sequence before forwarding. Ending a participant or its final virtual reference to that target removes its claim without detaching a target still referenced by another participant. The latest remaining claim determines engine presentation; no remaining claims return an attached target to observed state.
 
 ### Activity classification
 
@@ -149,7 +152,7 @@ The side panel's browser-access settings panel adds an external-control section 
 
 The panel does not display raw CDP method names, params, results, page URLs, or captured content. Side-panel Codex conversation activity remains a separate stream until handoff is specified.
 
-Outside the panel, a controlled top-level document uses a compact engine-attributed favicon indicator. The Bridge attaches the closed `agent-browser` or `browser-use` engine identifier from the exact authenticated participant to each forwarded control command; the Extension renders that engine's mark with the shared green control dot. This indicator means only that the engine most recently sent a control-class command to the page. It does not grant authority, imply exclusive ownership, or follow focus, actor display names, or default settings. Passive observation does not change the page favicon, and detach or release restores the favicon captured before control began.
+Outside the panel, a controlled top-level document uses a compact engine-attributed favicon indicator. The Bridge attaches the closed `agent-browser`, `browser-use`, or `playwright` engine identifier from the exact authenticated participant to each forwarded control command; the Extension renders that engine's mark with the shared green control dot. This indicator means only that the engine with the latest live participant claim most recently sent a control-class command to the page. It does not grant authority, imply exclusive ownership, or follow focus, actor display names, or default settings. When that claim ends, an already marked current document falls back to the newest remaining engine, or restores its captured favicon when no claim remains, without detaching a target another participant still references. Passive observation does not change the page favicon. Navigation does not inherit an old marker: claim fallback replaces only an existing Panerelay marker, while a new control-class command may create one for the current document.
 
 ## Protocol and data model
 
@@ -161,10 +164,11 @@ The shared protocol adds:
 - `control.activity.snapshot`
 - `control.activity.updated`
 - `AutomationEngineId`, carried on participant-attributed target commands that can update the controlled-page indicator
+- `cdp.control.updated`, carrying only an opaque target ID and a validated remaining engine or `null` for participant-claim fallback and cleanup
 
 The Bridge sends these messages to the Extension over the existing chunked Native Messaging channel. The Extension side panel continues to use `chrome.runtime` messages and does not connect directly to the loopback Bridge.
 
-`RelaySessionActor` remains provider-neutral. `ControlSessionSummary.participantCount` reports the bounded live participant set, while each activity preserves its issuing participant actor. The first actor kind is `automation`; future RFCs may add conversation and human principals without reinterpreting existing IDs.
+`RelaySessionActor` remains provider-neutral. `ControlSessionSummary.participantCount` reports the bounded live participant set, while each activity preserves its issuing participant actor. `controlledTargetCount` is derived from targets with live claims and `observedTargetCount` is the remaining debugger-attached set. The first actor kind is `automation`; future RFCs may add conversation and human principals without reinterpreting existing IDs.
 
 Automation-engine identity remains separate from `RelaySessionActor`: actor names and session labels are bounded presentation data and may be customized, while the engine identifier is assigned by the governed integration path. agent-browser `/sessions` participants receive `agent-browser`; authenticated Browser Use bootstrap participants receive `browser-use`. Unknown engine identifiers fail protocol validation until their branding and compatibility boundary are deliberately added.
 
@@ -228,7 +232,8 @@ Persistence would improve postmortem analysis but requires retention, encryption
 8. Activity events contain no raw params, results, page content, URLs, cookies, credentials, headers, prompts, request bodies, storage values, or file paths.
 9. The side panel displays current external actor, participant count, lease state, separate observed-target and controlled-target counts, and recent activity.
 10. A changed epoch or sequence discontinuity produces a visible history-gap notice.
-11. Bridge, Extension, protocol, and real-browser acceptance tests pass.
+11. Releasing one participant removes its claims, falls back to the newest remaining engine, or downgrades a shared attachment to observed without affecting another participant.
+12. Bridge, Extension, protocol, and real-browser acceptance tests pass.
 
 ## Implementation evidence
 
@@ -244,6 +249,10 @@ The 2026-07-29 development build was verified with agent-browser 0.33.0, the unp
 The 2026-07-30 participant-reuse run installed the updated Native Host into the same daily Chrome profile and kept the existing browser authorization. Two independently named agent-browser 0.33.0 sessions simultaneously listed the same eight eligible tabs and concurrently read the title of the same GitHub target. Closing the first participant left the second usable; closing the second completed normally. Deterministic Bridge tests additionally cover a stale participant expiring without affecting a responsive participant, shared target attachment reuse, per-target FIFO forwarding, and queued-command cancellation.
 
 The real-browser run does not deliberately suppress automatic WebSocket pong traffic, restart the Bridge during control, or inject arbitrary CDP failures into the daily profile. Expiry, replay-gap, and failed/denied states therefore remain deterministic automated-test evidence rather than daily-Chrome mutation scenarios.
+
+The 2026-08-06 participant-claim regression adds deterministic three-engine coverage. An observation-only agent-browser participant keeps one target attached while Browser Use and Playwright acquire ordered claims. A failed Playwright command retains its claim, a later Browser Use command refreshes recency, Browser Use release falls back to Playwright, and Playwright release restores an observed count with no physical detach. Protocol validation rejects unknown engines, extra participant data, malformed targets, and incomplete claim updates. Extension tests verify replace-only fallback, restoration without detach, and no marker recreation after navigation.
+
+The same candidate then passed an updated lockstep run with Extension and Native Host 0.8.0 in the authorized daily Chrome profile. agent-browser opened Google, Browser Use opened Bing, and Playwright attached to the same eight-target inventory and opened DuckDuckGo. Playwright's newest claims supplied the temporary visible mark; detaching its exact CLI session restored the agent-browser and Browser Use marks and the Playwright-only site favicon without breaking either remaining participant. Closing the exact agent-browser session restored Google's favicon, while Browser Use still returned its selected-page information. The test-created tabs, CLI session, and generated local artifacts were removed afterward; the persistent Browser Use daemon remained within its documented user-scoped lifecycle.
 
 ## Open questions
 

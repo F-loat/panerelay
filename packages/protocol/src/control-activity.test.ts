@@ -7,6 +7,7 @@ import {
   isAutomationActivity,
   isAutomationActivitySnapshotMessage,
   isAutomationActivityUpdatedMessage,
+  isCdpControlUpdatedMessage,
   isControlSessionChangedMessage,
   isHostToExtensionMessage,
   type AutomationActivity,
@@ -144,6 +145,33 @@ test('accepts valid control status and activity messages', () => {
   assert.equal(isHostToExtensionMessage(changed), true);
   assert.equal(isHostToExtensionMessage(updated), true);
   assert.equal(isHostToExtensionMessage(snapshot), true);
+});
+
+test('strictly validates target control presentation updates', () => {
+  const fallback = {
+    type: 'cdp.control.updated',
+    protocol: PANERELAY_PROTOCOL_VERSION,
+    targetId: 'opaque-target',
+    engine: 'browser-use',
+  };
+  const cleared = { ...fallback, engine: null };
+
+  assert.equal(isCdpControlUpdatedMessage(fallback), true);
+  assert.equal(isHostToExtensionMessage(fallback), true);
+  assert.equal(isCdpControlUpdatedMessage(cleared), true);
+  assert.equal(isHostToExtensionMessage(cleared), true);
+
+  for (const invalid of [
+    { ...fallback, engine: 'selenium' },
+    { ...fallback, targetId: '' },
+    { ...fallback, targetId: 'x'.repeat(257) },
+    { ...fallback, protocol: 999 },
+    { ...fallback, participantId: 'secret-participant' },
+    { type: 'cdp.control.updated', protocol: PANERELAY_PROTOCOL_VERSION, targetId: 'target' },
+  ]) {
+    assert.equal(isCdpControlUpdatedMessage(invalid), false);
+    assert.equal(isHostToExtensionMessage(invalid), false);
+  }
 });
 
 test('rejects activity records carrying raw commands, params, results, or page values', () => {

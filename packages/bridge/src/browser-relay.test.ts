@@ -6,6 +6,7 @@ import {
   type AutomationActivitySnapshotMessage,
   type AutomationActivityUpdatedMessage,
   type CdpCommandMessage,
+  type CdpControlUpdatedMessage,
   type CdpTargetInfo,
   type ControlSessionChangedMessage,
   type HostToExtensionMessage,
@@ -3263,6 +3264,157 @@ test('reuses target attachments and serializes commands across relay participant
   } finally {
     await closeClient(firstClient);
     await closeClient(secondClient);
+    await relay.close();
+  }
+});
+
+test('tracks ordered participant control claims and downgrades shared attachments', async () => {
+  const fixtureTarget = target('target-claims', 'https://claims.test/', true);
+  const extensionMessages: HostToExtensionMessage[] = [];
+  const relay = await BrowserRelay.listen({
+    sendToExtension: message => {
+      extensionMessages.push(message);
+      if (message.type === 'cdp.target.request' && message.operation.kind === 'list') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.target.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            targets: [fixtureTarget],
+          });
+        });
+      } else if (message.type === 'cdp.attach') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.attached',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            target: { ...fixtureTarget, attached: true },
+          });
+        });
+      } else if (message.type === 'cdp.command') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            ...(message.engine === 'playwright' && message.method === 'Runtime.evaluate'
+              ? { error: { code: -32000, message: 'Synthetic Playwright failure' } }
+              : { result: {} }),
+          });
+        });
+      }
+    },
+    onBrowserRegistered: () => undefined,
+    onBrowserDisconnected: () => undefined,
+  });
+  await register(relay);
+
+  const observer = new WebSocket((await createRelaySession(relay, 'observer')).cdpUrl);
+  await waitForOpen(observer);
+  const browserUse = await createBrowserUseClient(relay);
+  const playwright = await createPlaywrightClient(relay);
+  try {
+    for (const [client, id] of [
+      [observer, 1],
+      [browserUse, 1],
+      [playwright, 1],
+    ] as const) {
+      await command(client, { id, method: 'Target.getTargets' });
+    }
+    const observerSession = (
+      await command(observer, {
+        id: 2,
+        method: 'Target.attachToTarget',
+        params: { targetId: fixtureTarget.targetId, flatten: true },
+      })
+    ).result as { sessionId: string };
+    const browserUseSession = (
+      await command(browserUse, {
+        id: 2,
+        method: 'Target.attachToTarget',
+        params: { targetId: fixtureTarget.targetId, flatten: true },
+      })
+    ).result as { sessionId: string };
+    const playwrightSession = (
+      await command(playwright, {
+        id: 2,
+        method: 'Target.attachToTarget',
+        params: { targetId: fixtureTarget.targetId, flatten: true },
+      })
+    ).result as { sessionId: string };
+
+    await command(observer, {
+      id: 3,
+      method: 'Page.enable',
+      sessionId: observerSession.sessionId,
+    });
+    await command(browserUse, {
+      id: 3,
+      method: 'Runtime.evaluate',
+      sessionId: browserUseSession.sessionId,
+      params: { expression: '1' },
+    });
+    const failed = await command(playwright, {
+      id: 3,
+      method: 'Runtime.evaluate',
+      sessionId: playwrightSession.sessionId,
+      params: { expression: '2' },
+    });
+    assert.deepEqual(failed.error, { code: -32000, message: 'Synthetic Playwright failure' });
+    await command(browserUse, {
+      id: 4,
+      method: 'Runtime.evaluate',
+      sessionId: browserUseSession.sessionId,
+      params: { expression: '3' },
+    });
+
+    await closeClient(browserUse);
+    await waitForCondition(() =>
+      extensionMessages.some(
+        (message): message is CdpControlUpdatedMessage =>
+          message.type === 'cdp.control.updated' &&
+          message.targetId === fixtureTarget.targetId &&
+          message.engine === 'playwright',
+      ),
+    );
+    assert.equal(
+      extensionMessages.some(
+        message => message.type === 'cdp.detach' && message.targetId === fixtureTarget.targetId,
+      ),
+      false,
+    );
+
+    await closeClient(playwright);
+    await waitForCondition(() =>
+      extensionMessages.some(
+        (message): message is CdpControlUpdatedMessage =>
+          message.type === 'cdp.control.updated' &&
+          message.targetId === fixtureTarget.targetId &&
+          message.engine === null,
+      ),
+    );
+    assert.ok(
+      extensionMessages.some(
+        message =>
+          message.type === 'control.session.changed' &&
+          message.session.controlledTargetCount === 0 &&
+          message.session.observedTargetCount === 1,
+      ),
+    );
+    assert.equal(
+      extensionMessages.some(
+        message => message.type === 'cdp.detach' && message.targetId === fixtureTarget.targetId,
+      ),
+      false,
+    );
+    assert.equal((await command(observer, { id: 4, method: 'Browser.getVersion' })).id, 4);
+  } finally {
+    await closeClient(browserUse);
+    await closeClient(playwright);
+    await closeClient(observer);
     await relay.close();
   }
 });

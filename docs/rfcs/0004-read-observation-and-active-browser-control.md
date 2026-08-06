@@ -5,12 +5,13 @@
 - Status: Accepted
 - Authors: F-loat
 - Created: 2026-07-30
-- Updated: 2026-07-31
+- Updated: 2026-08-06
+- OpenSpec amendment: `openspec/changes/track-participant-control-claims`
 - Supersedes: RFC-0001 and RFC-0002 attachment-as-control and control-visibility semantics
 
 ## Summary
 
-Panerelay separates an authorized target's debugger attachment from active browser control. Passive agent-browser setup and explicitly allowlisted read-only CDP commands may attach a target as observed so events are available from the time the Agent requests them. Observation does not increase the controlled-target badge or replace the page favicon. Navigation, interaction, mutation, emulation, arbitrary JavaScript, and unknown target-scoped commands upgrade the target to controlled before they are forwarded.
+Panerelay separates an authorized target's debugger attachment from active browser control. Passive agent-browser setup and explicitly allowlisted read-only CDP commands may attach a target as observed so events are available from the time the Agent requests them. Observation does not increase the controlled-target badge or replace the page favicon. Navigation, interaction, mutation, emulation, arbitrary JavaScript, and unknown target-scoped commands acquire or refresh the sending participant's target-control claim before they are forwarded.
 
 Observed attachments remain visible in the side panel and share the same immediate lease-revocation path as controlled targets. The initial eligible inventory remains compatible with agent-browser, but later target discovery expands only for Agent-created tabs or Chrome-reported descendants of controlled tabs. The distinction changes presentation, not Chrome permission, target authorization, command routing, or the user's ability to release the Agent.
 
@@ -43,19 +44,20 @@ Debugger attachment is therefore necessary for complete requested observation, b
 
 - **Virtual target**: an authorized target known to the Bridge without a Chrome debugger attachment.
 - **Observed target**: a debugger-attached target that has received only passive setup or explicitly allowlisted read-only commands.
-- **Controlled target**: an attached target that has accepted at least one control-class command during its current attachment.
+- **Target-control claim**: one participant's live control state for an attached target, carrying its validated engine and latest control sequence.
+- **Controlled target**: an attached target with at least one live participant target-control claim.
 - **Exposed target**: a target in the active lease's bounded inventory and therefore visible to agent-browser.
 - **Control-class command**: a target-scoped command not present in the explicit observation allowlist.
 
-A controlled target is never downgraded to observed. Detach removes either state.
+A participant's claim is monotonic while that participant retains a target reference. The aggregate target may downgrade to observed without detach after its final live claim ends.
 
 ## Proposed design
 
 ### Independent attachment and control state
 
-The Bridge keeps the debugger-attachment set used for routing and a controlled subset used for product control state. The observed count is the set difference; a target appears in exactly one of the observed and controlled counts.
+The Bridge keeps the debugger-attachment set used for routing and participant-scoped control claims used for product control state. The controlled set is the targets with one or more live claims, and the observed count is the set difference; a target appears in exactly one of the observed and controlled counts.
 
-The Extension mirrors this separation. Its attachment map routes CDP commands and events and drives cleanup. Its controlled subset drives the action badge, controlled-tab action list, and document-local favicon. The side panel displays observed and controlled totals separately and retains the existing whole-lease release action.
+The Extension mirrors this separation. Its attachment map routes CDP commands and events and drives cleanup. Its controlled subset drives the action badge, controlled-tab action list, and document-local favicon. Participant cleanup may update or clear the controlled subset without detaching the target. The side panel displays observed and controlled totals separately and retains the existing whole-lease release action.
 
 ### Passive setup attaches immediately
 
@@ -80,11 +82,13 @@ The shared protocol package owns a method-level classifier returning `observe` o
 
 The allowlist does not classify a whole CDP domain. `Runtime.evaluate`, `Runtime.callFunctionOn`, setters, navigation, Input, interception, emulation, tracing, profiling, and unknown methods are control-class commands. This access classifier is separate from RFC-0003's provider-neutral activity categories, which are informational and can group read and write methods together.
 
-### Monotonic upgrade
+### Participant-monotonic claims and aggregate downgrade
 
-After target authorization and command policy checks pass, the Bridge upgrades an observed target before forwarding its first control-class command. The Extension performs the same upgrade before calling `chrome.debugger.sendCommand`, updates the badge and side-panel tab list, and best-effort applies the controlled favicon.
+After target authorization and command policy checks pass, the Bridge acquires or refreshes the sending participant's claim before forwarding a control-class command. The Extension applies the same aggregate upgrade before calling `chrome.debugger.sendCommand`, updates the badge and side-panel tab list, and best-effort applies the controlled favicon. One latest claim is retained per participant, and its sequence is refreshed by each later control-class command.
 
-A failed forwarded command leaves the target controlled: arbitrary control was attempted through a live debugger attachment, and the user-visible state must not disappear merely because Chrome returned an error.
+A failed forwarded command leaves that participant's claim live: arbitrary control was attempted through a live debugger attachment, and the user-visible state must not disappear merely because Chrome returned an error. When a participant's final target reference or participant lifetime ends, the Bridge removes its claim. A remaining newest claim supplies fallback engine attribution; no remaining claim downgrades a still-referenced attachment to observed.
+
+Favicon fallback is current-document-local. A claim transition replaces an existing Panerelay marker but never creates one after navigation removed it. The next control-class command may mark the new current document. A transition to no claims restores the captured current-document favicon without forcing debugger detach.
 
 ### Serialized target metadata publication
 
@@ -92,7 +96,7 @@ The Extension serializes lifecycle publication per Chrome tab and remembers the 
 
 ## Protocol and data model
 
-`ControlSessionSummary` adds `observedTargetCount`. `controlledTargetCount` now reports only the controlled subset. Both are non-negative integers validated with the existing strict envelope rules.
+`ControlSessionSummary` includes `observedTargetCount`; `controlledTargetCount` reports targets with at least one live claim. Both are non-negative integers validated with the existing strict envelope rules. The strict `cdp.control.updated` presentation message carries only an opaque target ID and a closed engine identifier or `null`, allowing participant-local fallback or restoration independently from physical detach.
 
 No raw Chrome tab ID, debugger session ID, command parameter, result, or page value is added. Observation and control continue to use the existing lease, participant credentials, CDP transport, activity stream, and release messages.
 
@@ -111,7 +115,7 @@ No raw Chrome tab ID, debugger session ID, command parameter, result, or page va
 
 The initial compatibility target remains agent-browser 0.33.0. The change is transparent to agent-browser because it uses the same CDP endpoint and response shapes. Panerelay's Extension, Bridge, and protocol packages remain a lockstep release unit because the control-session summary gains a required field.
 
-There is no persisted target-state migration. Restarting the Extension or Bridge ends the lease and clears both sets. Newer agent-browser versions require version-specific evidence before inheriting the 0.33.0 result.
+There is no persisted target-state migration. Restarting the Extension or Bridge ends the lease and clears attachments and claims. Newer automation-engine versions require version-specific evidence before inheriting a verified result.
 
 ## Alternatives considered
 
@@ -167,6 +171,7 @@ Rejected because Chrome reports the source relationship but not the initiating a
 9. Protocol, Bridge, Extension, full-repository, strict OpenSpec, and daily-Chrome checks pass.
 10. An independently opened eligible tab after initialization stays absent from target lists and counts.
 11. An Agent-created target and a tab opened from a controlled source are each discovered exactly once.
+12. Removing the newest participant claim falls back to the newest remaining engine, while removing the last claim restores observed state without detaching a target still referenced by another participant.
 
 ## Implementation evidence
 
@@ -175,3 +180,9 @@ The 2026-07-30 development build passed protocol, Bridge, Extension, side-panel 
 A daily-Chrome agent-browser 0.33.0 run created an inactive loopback fixture tab with repeated delayed requests. Before any control-class command, allowlisted DOM reads found no Panerelay favicon marker and the Agent's Network cache contained successful delayed requests. The first `Runtime.evaluate` observed the controlled marker during command execution, and a repeated evaluation still found exactly one marker. The exact test tab, Agent participants, and temporary server were removed after verification. Count separation and cleanup paths are also covered by deterministic Bridge and Extension tests.
 
 A 2026-07-31 daily-Chrome run verified bounded target expansion. An independently opened loopback tab stayed absent from an existing Agent participant and from a newly initialized participant. An Agent-created parent and a Chrome-reported child of that controlled parent each appeared exactly once. A child whose opener was an observation-only Agent-created source stayed absent from both participants. The two Agent participants, all fixture tabs, and the temporary server were removed after the run.
+
+The 2026-08-06 deterministic coexistence suite keeps an agent-browser observer attached while Browser Use and Playwright issue control-class commands on the same target. It verifies participant-local recency refresh, failed-command retention, engine fallback, last-claim downgrade, no unrelated detach, strict transition validation, current-document replace-only behavior, and full lease cleanup.
+
+An updated lockstep daily-Chrome run on the same date exercised the visible transition with all three engines. Playwright temporarily became the newest claimant across the authorized inventory; detaching it restored agent-browser on Google, Browser Use on Bing, and the original favicon on Playwright-only DuckDuckGo without detaching the remaining participants. Releasing the exact agent-browser session then restored Google's original favicon while Browser Use stayed operational.
+
+Two business pages already carried a cached Playwright favicon from the pre-update Extension background. Reloading the unpacked Extension necessarily discarded that background's isolated-world capture of their original favicon, so their cached visual could not be reconstructed without navigating or reloading the user pages. They had no live claim after the updated run. Acceptance deliberately left those pages untouched; this development-reload limitation does not affect documents first marked and released by the updated background.

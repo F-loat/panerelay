@@ -177,6 +177,27 @@ export interface CdpCommandMessage {
   sessionId?: string;
 }
 
+export interface CdpControlUpdatedMessage {
+  type: 'cdp.control.updated';
+  protocol: typeof PANERELAY_PROTOCOL_VERSION;
+  targetId: string;
+  engine: AutomationEngineId | null;
+}
+
+export function isCdpControlUpdatedMessage(value: unknown): value is CdpControlUpdatedMessage {
+  if (!value || typeof value !== 'object') return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    hasOnlyKeys(candidate, ['type', 'protocol', 'targetId', 'engine']) &&
+    candidate.type === 'cdp.control.updated' &&
+    candidate.protocol === PANERELAY_PROTOCOL_VERSION &&
+    typeof candidate.targetId === 'string' &&
+    candidate.targetId.length > 0 &&
+    candidate.targetId.length <= 256 &&
+    (candidate.engine === null || isAutomationEngineId(candidate.engine))
+  );
+}
+
 export interface CdpError {
   code: number;
   message: string;
@@ -519,6 +540,7 @@ export type HostToExtensionMessage =
   | CdpTargetRequestMessage
   | CdpAttachMessage
   | CdpCommandMessage
+  | CdpControlUpdatedMessage
   | CdpDetachMessage
   | import('./control-activity.js').ControlSessionChangedMessage
   | import('./control-activity.js').AutomationActivitySnapshotMessage
@@ -728,6 +750,9 @@ export function isHostToExtensionMessage(value: unknown): value is HostToExtensi
   }
   if (candidate.type === 'control.activity.updated') {
     return isAutomationActivityUpdatedMessage(value);
+  }
+  if (candidate.type === 'cdp.control.updated') {
+    return isCdpControlUpdatedMessage(value);
   }
   if (candidate.type === 'host.update.status') {
     return isHostUpdateStatusMessage(candidate);
