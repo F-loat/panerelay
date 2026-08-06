@@ -22,8 +22,13 @@ import type { CommandRunner } from './platform.js';
 
 const officialExtensionId = 'panplnkjlkoceaonlmpdekjphgmbggmi';
 const customExtensionId = 'abcdefghijklmnopabcdefghijklmnop';
+const currentReleaseVersion = (
+  JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')) as {
+    version: string;
+  }
+).version;
 
-function nativeHostFixture(release = '0.7.0', output = ''): string {
+function nativeHostFixture(release = currentReleaseVersion, output = ''): string {
   return `#!/usr/bin/env node
 if (process.argv.includes('--self-check')) {
   process.stdout.write(${JSON.stringify(
@@ -179,7 +184,7 @@ test('installs and removes an isolated Native Messaging host', async () => {
   const configuredOpenCodePath = join(root, 'configured tools', 'opencode');
   await mkdir(binDirectory, { recursive: true });
   await mkdir(dirname(configuredOpenCodePath), { recursive: true });
-  await writeFile(bundledHostPath, nativeHostFixture('0.7.0', 'ready'));
+  await writeFile(bundledHostPath, nativeHostFixture(currentReleaseVersion, 'ready'));
   for (const executable of ['claude', 'codex', 'opencode']) {
     const path = join(binDirectory, executable);
     await writeFile(
@@ -214,17 +219,17 @@ test('installs and removes an isolated Native Messaging host', async () => {
     assert.equal(result.opencodePath, configuredOpenCodePath);
     assert.equal(result.opencodeVersion, '1.18.12');
     assert.equal(result.launchPath, result.hostPath);
-    assert.equal(result.releaseVersion, '0.7.0');
+    assert.equal(result.releaseVersion, currentReleaseVersion);
     assert.equal(
       result.selectedHostPath,
-      join(result.hostsDirectory, '0.7.0', 'native-host.bundle.cjs'),
+      join(result.hostsDirectory, currentReleaseVersion, 'native-host.bundle.cjs'),
     );
     assert.match(await readFile(result.hostPath, 'utf8'), /^#!\/test\/node\n/);
     assert.match(await readFile(result.selectedHostPath, 'utf8'), /^#!\/usr\/bin\/env node\n/);
     assert.equal((await stat(result.hostPath)).mode & 0o777, 0o755);
     assert.equal((await stat(result.currentVersionPath)).mode & 0o777, 0o600);
     assert.deepEqual(JSON.parse(await readFile(result.currentVersionPath, 'utf8')), {
-      version: '0.7.0',
+      version: currentReleaseVersion,
     });
     const launched = spawnSync(process.execPath, [result.hostPath], { encoding: 'utf8' });
     assert.equal(launched.status, 0, launched.stderr);
@@ -535,7 +540,7 @@ test('installs, updates, and repeatedly uninstalls isolated Windows artifacts', 
   const bundledHostPath = join(root, 'native-host.bundle.cjs');
   const codexPath = join(root, 'npm wrappers', 'codex.cmd');
   await mkdir(dirname(codexPath), { recursive: true });
-  await writeFile(bundledHostPath, nativeHostFixture('0.7.0', 'ready'));
+  await writeFile(bundledHostPath, nativeHostFixture(currentReleaseVersion, 'ready'));
   await writeFile(codexPath, '@exit /b 0\r\n');
   let deleteCount = 0;
   const registryCalls: Array<{ args: string[]; command: string }> = [];
