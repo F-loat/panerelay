@@ -5,7 +5,10 @@
 - Status: Accepted
 - Authors: F-loat
 - Created: 2026-07-31
-- Updated: 2026-07-31
+- Updated: 2026-08-05
+- Amendment: `openspec/changes/add-native-host-self-update`
+
+RFC-0008 supersedes this RFC's compatibility exception for older registration shapes. Chrome and Edge share semantic release reporting, a stable launcher, a user-scoped update lock, and a success-only restart path; a valid release mismatch does not block registration. This RFC remains authoritative for browser identity, capability metadata, and platform discovery.
 
 ## Summary
 
@@ -32,7 +35,7 @@ A generic connected state is insufficient for future browser integrations becaus
 3. Make the required CDP transport explicit before any automation state is allocated.
 4. Install user-scoped Edge Native Messaging discovery entries on macOS, Linux, and Windows.
 5. Preserve one Chromium Extension source graph, identity, and release archive.
-6. Preserve compatibility with older same-protocol Chrome registrations that omit optional capability fields.
+6. Keep capability metadata shared across valid Chrome and Edge registrations.
 7. Keep Edge compatibility claims `Forwarded` until a dedicated real-Edge run records evidence.
 
 ### Non-goals
@@ -124,7 +127,7 @@ The manifest retains one configured `allowed_origins` entry. Edge installations 
 
 Chrome plus agent-browser 0.33.0 retains its existing `Verified` classifications. Edge shares the Chromium implementation, but its groups remain `Forwarded` until representative real-Edge evidence is recorded. Features requiring browser-process ownership remain `Unsupported` in both browsers.
 
-The protocol additions are optional and the components still ship in lockstep. Reconnecting an Extension re-registers current metadata, so there is no persisted lease, target, or capability migration.
+Capability fields remain optional inside a valid RFC-0008 registration. Reconnecting an Extension re-registers current metadata, so there is no persisted lease, target, or capability migration.
 
 Existing Chrome installations continue to use their current manifest paths and registry key. Update adds Edge discovery entries; uninstall removes both browser entries idempotently.
 

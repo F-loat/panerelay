@@ -28,6 +28,7 @@
 兼容性记录描述实际测试过的版本和能力分类。最低支持版本并不自动等于精确验证基线。
 
 - [浏览器平台](compatibility/browser-platforms.md)：Chrome 与 Microsoft Edge 的能力分类。
+- [Native Host 自动更新](compatibility/native-host-self-update.md)：非阻塞版本比对、稳定启动器、故障恢复和平台验证证据。
 - [agent-browser 0.33.0](compatibility/agent-browser-0.33.0.md)：Provider 行为和命令覆盖范围。
 - [browser-use 0.13.7](compatibility/browser-use-0.13.7.md)：Browser Harness 0.1.8 基线、支持入口、生命周期和限制。
 - [Playwright CLI 0.1.17](compatibility/playwright-cli-0.1.17.md)：显式 CDP 连接、命令组、生命周期和浏览器所有权边界。

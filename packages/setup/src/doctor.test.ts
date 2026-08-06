@@ -205,7 +205,9 @@ test('doctor recognizes multiple independent browser registrations', async () =>
           browserName,
           browserFamily,
           capabilities: { cdpRelay: true },
-          extensionVersion: '0.2.0',
+          extensionReleaseVersion: '0.2.0',
+          extensionBuildVersion: '0.2.0.0',
+          hostVersion: '0.2.0',
           extensionId,
           updatedAt: '2026-07-31T08:00:00.000Z',
         },
@@ -230,7 +232,12 @@ test('doctor verifies Windows registry, manifest, launcher, and effective origin
   const codexPath = join(root, 'codex.cmd');
   const extensionId = 'abcdefghijklmnopabcdefghijklmnop';
   await mkdir(dirname(bundledHostPath), { recursive: true });
-  await writeFile(bundledHostPath, '#!/usr/bin/env node\n');
+  await writeFile(
+    bundledHostPath,
+    `#!/usr/bin/env node
+if (process.argv.includes('--self-check')) process.stdout.write('{"protocol":"panerelay.relay.v2","release":"0.7.0"}');
+`,
+  );
   await writeFile(agentBrowserPath, '@exit /b 0\r\n');
   await writeFile(codexPath, '@exit /b 0\r\n');
 
@@ -267,6 +274,10 @@ test('doctor verifies Windows registry, manifest, launcher, and effective origin
       'extension-id',
       'native-host',
       'native-launcher',
+      'native-version-pointer',
+      'native-selected-bundle',
+      'native-embedded-release',
+      'native-update-lock',
       'native-manifest',
       'windows-registry-chrome',
       'windows-registry-edge',
@@ -387,7 +398,12 @@ test('doctor reports OpenCode version metadata without making it a core health r
   const codexPath = join(binDirectory, 'codex');
   const opencodePath = join(binDirectory, 'opencode');
   await mkdir(binDirectory, { recursive: true });
-  await writeFile(bundledHostPath, '#!/usr/bin/env node\n');
+  await writeFile(
+    bundledHostPath,
+    `#!/usr/bin/env node
+if (process.argv.includes('--self-check')) process.stdout.write('{"protocol":"panerelay.relay.v2","release":"0.7.0"}');
+`,
+  );
   await writeFile(codexPath, '#!/bin/sh\nexit 0\n');
   await writeFile(opencodePath, '#!/bin/sh\necho "1.18.12"\n');
   await chmod(codexPath, 0o755);

@@ -5,6 +5,11 @@ import {
   isAutomationActivityUpdatedMessage,
   isControlSessionChangedMessage,
 } from './control-activity.js';
+import {
+  comparePanerelayReleaseVersions,
+  isPanerelayChromiumBuildVersion,
+  isPanerelayReleaseVersion,
+} from './release-version.js';
 
 export * from './constants.js';
 export * from './cli-adapter.js';
@@ -12,6 +17,7 @@ export * from './cdp-bootstrap.js';
 export * from './conversation-target.js';
 export * from './control-activity.js';
 export * from './native-transfer.js';
+export * from './release-version.js';
 
 export type BrowserFamily = 'chrome' | 'chromium' | 'edge' | 'unknown';
 
@@ -23,7 +29,9 @@ export interface BrowserRegistration {
   browserId: string;
   browserName: string;
   extensionId: string;
-  extensionVersion: string;
+  releaseVersion: string;
+  buildVersion: string;
+  checkHostUpdate: boolean;
   browserFamily?: BrowserFamily;
   capabilities?: BrowserCapabilities;
 }
@@ -37,6 +45,57 @@ export interface BrowserRegisteredMessage {
   type: 'browser.registered';
   protocol: typeof PANERELAY_PROTOCOL_VERSION;
   browserId: string;
+  hostVersion: string;
+}
+
+export const HOST_UPDATE_DETAIL_MAX_LENGTH = 240;
+
+export type HostUpdateError =
+  | 'lock-timeout'
+  | 'network'
+  | 'package-unavailable'
+  | 'setup-failed'
+  | 'timeout'
+  | 'verification-failed'
+  | 'unknown';
+
+interface HostUpdateStatusBase {
+  type: 'host.update.status';
+  protocol: typeof PANERELAY_PROTOCOL_VERSION;
+  hostVersion: string;
+}
+
+export type HostUpdateStatusMessage =
+  | (HostUpdateStatusBase & {
+      state: 'required' | 'updating' | 'restart-pending';
+      targetVersion: string;
+      retryAvailable: false;
+    })
+  | (HostUpdateStatusBase & {
+      state: 'failed';
+      targetVersion: string;
+      retryAvailable: true;
+      error: HostUpdateError;
+      detail?: string;
+      manualCommand: string;
+    })
+  | (HostUpdateStatusBase & {
+      state: 'incompatible';
+      retryAvailable: false;
+      reason: 'invalid-extension-release' | 'newer-host';
+      targetVersion?: string;
+    });
+
+export interface HostUpdateRetryMessage {
+  type: 'host.update.retry';
+  protocol: typeof PANERELAY_PROTOCOL_VERSION;
+}
+
+export function nativeHostManualUpdateCommand(targetVersion: string): string {
+  if (!isPanerelayReleaseVersion(targetVersion)) {
+    throw new Error('A manual Native Host update requires a valid Panerelay release');
+  }
+  return `npx --yes @panerelay/setup@${targetVersion} update --yes`;
 }
 
 export interface CdpTargetInfo {
@@ -456,6 +515,7 @@ export interface ConversationEventMessage {
 
 export type HostToExtensionMessage =
   | BrowserRegisteredMessage
+  | HostUpdateStatusMessage
   | CdpTargetRequestMessage
   | CdpAttachMessage
   | CdpCommandMessage
@@ -469,6 +529,7 @@ export type HostToExtensionMessage =
 
 export type ExtensionToHostMessage =
   | BrowserRegisterMessage
+  | HostUpdateRetryMessage
   | CdpTargetResultMessage
   | CdpTargetEventMessage
   | CdpAttachedMessage
@@ -486,7 +547,9 @@ export interface BridgeState {
   generation: string;
   browserId: string;
   browserName: string;
-  extensionVersion: string;
+  extensionReleaseVersion: string;
+  extensionBuildVersion: string;
+  hostVersion: string;
   extensionId: string;
   browserFamily?: BrowserFamily;
   capabilities?: BrowserCapabilities;
@@ -518,6 +581,92 @@ export interface RelaySessionError {
   error: string;
 }
 
+function hasOnlyKeys(candidate: Record<string, unknown>, allowed: readonly string[]): boolean {
+  return Object.keys(candidate).every(key => allowed.includes(key));
+}
+
+function isHostUpdateError(value: unknown): value is HostUpdateError {
+  return [
+    'lock-timeout',
+    'network',
+    'package-unavailable',
+    'setup-failed',
+    'timeout',
+    'verification-failed',
+    'unknown',
+  ].includes(value as HostUpdateError);
+}
+
+function isHostUpdateStatusMessage(value: Record<string, unknown>): boolean {
+  if (
+    value.protocol !== PANERELAY_PROTOCOL_VERSION ||
+    value.type !== 'host.update.status' ||
+    !isPanerelayReleaseVersion(value.hostVersion) ||
+    typeof value.state !== 'string' ||
+    typeof value.retryAvailable !== 'boolean'
+  ) {
+    return false;
+  }
+  if (value.state === 'incompatible') {
+    if (
+      !hasOnlyKeys(value, [
+        'type',
+        'protocol',
+        'state',
+        'hostVersion',
+        'targetVersion',
+        'retryAvailable',
+        'reason',
+      ]) ||
+      value.retryAvailable !== false ||
+      !['invalid-extension-release', 'newer-host'].includes(value.reason as string)
+    ) {
+      return false;
+    }
+    if (value.reason === 'invalid-extension-release') return value.targetVersion === undefined;
+    return (
+      isPanerelayReleaseVersion(value.targetVersion) &&
+      comparePanerelayReleaseVersions(value.hostVersion, value.targetVersion) > 0
+    );
+  }
+  if (!isPanerelayReleaseVersion(value.targetVersion)) return false;
+  if (value.state === 'failed') {
+    return (
+      hasOnlyKeys(value, [
+        'type',
+        'protocol',
+        'state',
+        'hostVersion',
+        'targetVersion',
+        'retryAvailable',
+        'error',
+        'detail',
+        'manualCommand',
+      ]) &&
+      value.retryAvailable === true &&
+      isHostUpdateError(value.error) &&
+      (value.detail === undefined ||
+        (typeof value.detail === 'string' &&
+          value.detail.length <= HOST_UPDATE_DETAIL_MAX_LENGTH)) &&
+      value.manualCommand === nativeHostManualUpdateCommand(value.targetVersion) &&
+      comparePanerelayReleaseVersions(value.hostVersion, value.targetVersion) < 0
+    );
+  }
+  return (
+    ['required', 'updating', 'restart-pending'].includes(value.state) &&
+    hasOnlyKeys(value, [
+      'type',
+      'protocol',
+      'state',
+      'hostVersion',
+      'targetVersion',
+      'retryAvailable',
+    ]) &&
+    value.retryAvailable === false &&
+    comparePanerelayReleaseVersions(value.hostVersion, value.targetVersion) < 0
+  );
+}
+
 export function isExtensionToHostMessage(value: unknown): value is ExtensionToHostMessage {
   if (!value || typeof value !== 'object') return false;
   const candidate = value as Record<string, unknown>;
@@ -526,17 +675,35 @@ export function isExtensionToHostMessage(value: unknown): value is ExtensionToHo
   }
   if (candidate.type === 'browser.register') {
     return (
+      hasOnlyKeys(candidate, [
+        'type',
+        'protocol',
+        'browserId',
+        'browserName',
+        'extensionId',
+        'releaseVersion',
+        'buildVersion',
+        'checkHostUpdate',
+        'browserFamily',
+        'capabilities',
+      ]) &&
       typeof candidate.browserId === 'string' &&
       typeof candidate.browserName === 'string' &&
       typeof candidate.extensionId === 'string' &&
-      typeof candidate.extensionVersion === 'string' &&
+      isPanerelayReleaseVersion(candidate.releaseVersion) &&
+      isPanerelayChromiumBuildVersion(candidate.buildVersion) &&
+      typeof candidate.checkHostUpdate === 'boolean' &&
       (candidate.browserFamily === undefined ||
         ['chrome', 'chromium', 'edge', 'unknown'].includes(candidate.browserFamily as string)) &&
       (candidate.capabilities === undefined ||
         (typeof candidate.capabilities === 'object' &&
           candidate.capabilities !== null &&
+          hasOnlyKeys(candidate.capabilities as Record<string, unknown>, ['cdpRelay']) &&
           typeof (candidate.capabilities as Record<string, unknown>).cdpRelay === 'boolean'))
     );
+  }
+  if (candidate.type === 'host.update.retry') {
+    return hasOnlyKeys(candidate, ['type', 'protocol']);
   }
   return [
     'cdp.target.result',
@@ -562,11 +729,20 @@ export function isHostToExtensionMessage(value: unknown): value is HostToExtensi
   if (candidate.type === 'control.activity.updated') {
     return isAutomationActivityUpdatedMessage(value);
   }
+  if (candidate.type === 'host.update.status') {
+    return isHostUpdateStatusMessage(candidate);
+  }
+  if (candidate.type === 'browser.registered') {
+    return (
+      candidate.protocol === PANERELAY_PROTOCOL_VERSION &&
+      typeof candidate.browserId === 'string' &&
+      isPanerelayReleaseVersion(candidate.hostVersion)
+    );
+  }
   return (
     candidate.protocol === PANERELAY_PROTOCOL_VERSION &&
     typeof candidate.type === 'string' &&
     [
-      'browser.registered',
       'cdp.target.request',
       'cdp.attach',
       'cdp.command',

@@ -9,6 +9,12 @@ import type { SidepanelClient, SidepanelRuntimeMessage } from './sidepanel-clien
 export const readyStatus: ExtensionStatus = {
   bridgeConnected: true,
   nativeHostState: 'connected',
+  hostRelease: {
+    state: 'ready',
+    hostVersion: '0.7.0',
+    targetVersion: '0.7.0',
+    retryAvailable: false,
+  },
   defaultProvider: { available: true, provider: null, isPanerelay: false },
   browserUseDefault: { available: true, mode: 'direct', isPanerelay: false },
   browserDefault: {
@@ -207,6 +213,7 @@ export class AppClient implements SidepanelClient {
         };
         return { success: true as const, status: this.status };
       case 'panerelay.native.retry':
+      case 'panerelay.host-update.retry':
         return { success: true as const, status: this.status };
       case 'panerelay.integration.install':
         if (this.installPromise) await this.installPromise;

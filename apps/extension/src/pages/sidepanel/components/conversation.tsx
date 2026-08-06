@@ -39,6 +39,7 @@ import { isPanerelaySetupFailure } from '../setup-guidance.js';
 import { AuthorizationPanel } from './access-settings.js';
 import {
   PanerelaySetupGuide,
+  NativeHostUpdateGuide,
   type SetupIntegration,
   type SetupIntegrationSelection,
 } from './setup-guide.js';
@@ -767,15 +768,29 @@ export function Welcome({
   const provider = state.providers.find(item => item.id === state.currentProviderId);
   const bridgeConnected = state.extensionStatus?.bridgeConnected ?? false;
   const nativeHostMissing = state.extensionStatus?.nativeHostState === 'missing';
+  const hostReleaseState = state.extensionStatus?.hostRelease.state ?? 'checking';
+  const hostUpdateBlocked = !bridgeConnected && hostReleaseState === 'restart-pending';
   const providerReady = provider?.status === 'ready';
   const setup = provider?.setup;
   const title = !bridgeConnected
-    ? t(nativeHostMissing ? 'nativeHostMissingTitle' : 'emptyBridgeTitle')
+    ? t(
+        hostUpdateBlocked
+          ? 'hostUpdateRestartTitle'
+          : nativeHostMissing
+            ? 'nativeHostMissingTitle'
+            : 'emptyBridgeTitle',
+      )
     : !providerReady
       ? tf('emptyProviderTitle', { agent: selectedAgentName(state) })
       : tf('emptyTitle', { agent: selectedAgentName(state) });
   const body = !bridgeConnected
-    ? t(nativeHostMissing ? 'nativeHostMissingBody' : 'emptyBridgeBody')
+    ? t(
+        hostUpdateBlocked
+          ? 'hostUpdateRestartBody'
+          : nativeHostMissing
+            ? 'nativeHostMissingBody'
+            : 'emptyBridgeBody',
+      )
     : !providerReady
       ? provider
         ? t(
@@ -814,7 +829,13 @@ export function Welcome({
   return (
     <div className="empty-state flex min-h-full flex-col items-center justify-center px-[18px] py-7 text-center">
       <Sparkles aria-hidden="true" className="empty-mark shrink-0" />
-      {nativeHostMissing ? (
+      {hostUpdateBlocked ? (
+        <>
+          <h2>{title}</h2>
+          <p>{body}</p>
+          <NativeHostUpdateGuide controller={controller} />
+        </>
+      ) : nativeHostMissing ? (
         <>
           <h2>{title}</h2>
           <p>{body}</p>

@@ -32,6 +32,7 @@ import type {
   ConversationWorkspaceChangedMessage,
   DefaultProviderState,
   ExtensionStatus,
+  HostReleaseStatus,
   NativeHostState,
   SidePanelRequest,
   SidePanelResponse,
@@ -56,7 +57,13 @@ import { ConversationWorkspaceService } from './conversation-workspace-service.j
 import { createChromeConversationWorkspaceStore } from './conversation-workspaces.js';
 import { createChromeConversationTimelineStore } from './conversation-timelines.js';
 import type { ConversationWorkspaceSnapshot } from '../shared/conversation-workspaces.js';
-import { nativeHostDisconnectState } from './native-host-readiness.js';
+import {
+  hostReleaseAfterDisconnect,
+  hostReleaseAfterRegistration,
+  nativeHostBridgeReady,
+  nativeHostDisconnectPreservesAuthorization,
+  nativeHostDisconnectState,
+} from './native-host-readiness.js';
 import { installPageCommentsRuntime } from '../content/page-comments-runtime.js';
 import { PAGE_COMMENT_RUNTIME_ASSETS } from '../content/page-comments-runtime-assets.js';
 import { PageCommentService } from './page-comments.js';
@@ -65,6 +72,8 @@ import { PendingRequestTracker } from './pending-request-tracker.js';
 import { createSidePanelRequestRouter } from './sidepanel-request-router.js';
 import { ACCENT_COLOR_KEY } from '../shared/appearance.js';
 import { installReleaseActionContextMenu } from './action-context-menu.js';
+import { extensionManifestIdentity } from '../shared/manifest-identity.js';
+import { createHostUpdateCheck } from './host-update-check.js';
 
 const BROWSER_ID_KEY = 'panerelay.browserId';
 const ALL_TABS_AUTHORIZATION_KEY = 'panerelay.authorization.allTabs';
@@ -75,8 +84,11 @@ const INTEGRATION_INSTALL_REQUEST_TIMEOUT_MS = 5 * 60_000 + 10_000;
 const browserRuntime = detectBrowserRuntime();
 
 let nativePort: chrome.runtime.Port | null = null;
+let browserRegistered = false;
+const consumeHostUpdateCheck = createHostUpdateCheck();
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let nativeHostState: NativeHostState = 'connecting';
+let hostReleaseStatus: HostReleaseStatus = { state: 'checking', retryAvailable: false };
 let defaultProvider: DefaultProviderState | null = null;
 let browserUseDefault: IntegrationBrowserUseDefaultResult | null = null;
 let browserDefault: IntegrationBrowserDefaultResult | null = null;
@@ -153,6 +165,7 @@ const handleSidePanelRequest = createSidePanelRequestRouter({
   refreshBrowserUseDefault,
   requestAgent,
   retryNativeHost,
+  retryHostUpdate,
   selectWorkspaceDirectory: async () =>
     (await requestIntegration({ method: 'workspace.pick-directory' })).path,
   setAuthorization,
@@ -192,8 +205,9 @@ async function status(): Promise<ExtensionStatus> {
   const controlledTab =
     controlled.find(tab => tab.id === currentActiveTab?.id) ?? controlled[0] ?? null;
   return {
-    bridgeConnected: nativeHostState === 'connected',
+    bridgeConnected: nativeHostBridgeReady(nativeHostState, browserRegistered),
     nativeHostState,
+    hostRelease: { ...hostReleaseStatus },
     defaultProvider,
     browserUseDefault,
     browserDefault,
@@ -309,13 +323,17 @@ async function browserId(): Promise<string> {
 }
 
 async function registerBrowser(): Promise<void> {
+  const identity = extensionManifestIdentity();
+  const checkHostUpdate = consumeHostUpdateCheck();
   sendNative({
     type: 'browser.register',
     protocol: PANERELAY_PROTOCOL_VERSION,
     browserId: await browserId(),
     browserName: browserRuntime.browserName,
     extensionId: chrome.runtime.id,
-    extensionVersion: chrome.runtime.getManifest().version,
+    releaseVersion: identity.releaseVersion,
+    buildVersion: identity.buildVersion,
+    checkHostUpdate,
     browserFamily: browserRuntime.browserFamily,
     capabilities: {
       cdpRelay: browserRuntime.cdpRelay,
@@ -336,6 +354,9 @@ function connectNativeHost(): void {
   try {
     const port = chrome.runtime.connectNative(PANERELAY_NATIVE_HOST_NAME);
     nativePort = port;
+    browserRegistered = false;
+    nativeHostState = 'connected';
+    hostReleaseStatus = hostReleaseAfterDisconnect(hostReleaseStatus);
     lastError = undefined;
     port.onMessage.addListener((frame: unknown) => {
       try {
@@ -354,9 +375,13 @@ function connectNativeHost(): void {
     port.onDisconnect.addListener(() => {
       if (nativePort !== port) return;
       const error = chrome.runtime.lastError;
+      const preserveAuthorization = nativeHostDisconnectPreservesAuthorization(hostReleaseStatus);
+      const disconnectMessage = error?.message || 'Panerelay Bridge disconnected';
       nativePort = null;
-      lastError = error?.message || 'Panerelay Bridge disconnected';
-      nativeHostState = nativeHostDisconnectState(lastError);
+      browserRegistered = false;
+      lastError = preserveAuthorization ? undefined : disconnectMessage;
+      nativeHostState = nativeHostDisconnectState(disconnectMessage);
+      hostReleaseStatus = hostReleaseAfterDisconnect(hostReleaseStatus);
       defaultProvider = null;
       browserUseDefault = null;
       browserDefault = null;
@@ -365,13 +390,13 @@ function connectNativeHost(): void {
         clearTimeout(nativeTransferCleanupTimer);
         nativeTransferCleanupTimer = null;
       }
-      if (authorizationMode !== 'all-tabs') {
+      if (!preserveAuthorization && authorizationMode !== 'all-tabs') {
         authorizationMode = 'none';
         authorizedOriginPatterns = [];
       }
-      authorizedTab = null;
-      pendingAgentRequests.rejectAll(lastError);
-      pendingIntegrationRequests.rejectAll(lastError);
+      if (!preserveAuthorization) authorizedTab = null;
+      pendingAgentRequests.rejectAll(disconnectMessage);
+      pendingIntegrationRequests.rejectAll(disconnectMessage);
       void releaseControl('Panerelay Bridge disconnected', false);
       void broadcastStatus();
       scheduleReconnect();
@@ -381,8 +406,10 @@ function connectNativeHost(): void {
       .catch(error => handleDetachedNativeTaskError(port, error));
   } catch (error) {
     nativePort = null;
+    browserRegistered = false;
     lastError = error instanceof Error ? error.message : String(error);
     nativeHostState = nativeHostDisconnectState(lastError);
+    hostReleaseStatus = hostReleaseAfterDisconnect(hostReleaseStatus);
     defaultProvider = null;
     browserUseDefault = null;
     browserDefault = null;
@@ -392,14 +419,42 @@ function connectNativeHost(): void {
 }
 
 async function handleHostMessage(message: HostToExtensionMessage): Promise<void> {
+  if (
+    !browserRegistered &&
+    message.type !== 'browser.registered' &&
+    message.type !== 'host.update.status'
+  ) {
+    return;
+  }
   switch (message.type) {
     case 'browser.registered':
-      nativeHostState = 'connected';
+      browserRegistered = true;
+      hostReleaseStatus = hostReleaseAfterRegistration(
+        message.hostVersion,
+        extensionManifestIdentity().releaseVersion,
+      );
       lastError = undefined;
       await broadcastStatus();
       void refreshDefaultProvider();
       void refreshBrowserUseDefault();
       void refreshBrowserDefault();
+      return;
+    case 'host.update.status':
+      hostReleaseStatus = {
+        state: message.state,
+        hostVersion: message.hostVersion,
+        retryAvailable: message.retryAvailable,
+        ...(message.targetVersion ? { targetVersion: message.targetVersion } : {}),
+        ...(message.state === 'failed'
+          ? {
+              error: message.error,
+              ...(message.detail ? { detail: message.detail } : {}),
+              manualCommand: message.manualCommand,
+            }
+          : {}),
+      };
+      lastError = undefined;
+      await broadcastStatus();
       return;
     case 'cdp.target.request':
       await handleTargetRequest(message);
@@ -456,6 +511,9 @@ function handleAgentResponse(message: AgentResponseMessage): void {
 }
 
 function requestAgent(request: AgentRequest): Promise<unknown> {
+  if (!nativeHostBridgeReady(nativeHostState, browserRegistered)) {
+    return Promise.reject(new Error('Panerelay Bridge is disconnected'));
+  }
   return pendingAgentRequests.request(request.method, requestId => {
     sendNative({
       type: 'agent.request',
@@ -493,6 +551,9 @@ function requestIntegration(
   request: Extract<IntegrationRequest, { method: 'workspace.pick-directory' }>,
 ): Promise<IntegrationWorkspaceDirectoryResult>;
 function requestIntegration(request: IntegrationRequest): Promise<IntegrationResult> {
+  if (!nativeHostBridgeReady(nativeHostState, browserRegistered)) {
+    return Promise.reject(new Error('Panerelay Bridge is disconnected'));
+  }
   return pendingIntegrationRequests.request(
     request.method,
     requestId => {
@@ -965,6 +1026,16 @@ async function retryNativeHost(): Promise<ExtensionStatus> {
     lastError = undefined;
     await broadcastStatus();
     connectNativeHost();
+  }
+  return status();
+}
+
+async function retryHostUpdate(): Promise<ExtensionStatus> {
+  if (nativePort && hostReleaseStatus.state === 'failed' && hostReleaseStatus.retryAvailable) {
+    sendNative({
+      type: 'host.update.retry',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+    });
   }
   return status();
 }

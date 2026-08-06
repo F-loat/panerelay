@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { chmod, mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import test from 'node:test';
 import {
+  acquireNativeHostUpdateLock,
   installNativeHost,
   nativeHostManifestPaths,
   parseWindowsRegistryString,
@@ -19,6 +22,18 @@ import type { CommandRunner } from './platform.js';
 
 const officialExtensionId = 'panplnkjlkoceaonlmpdekjphgmbggmi';
 const customExtensionId = 'abcdefghijklmnopabcdefghijklmnop';
+
+function nativeHostFixture(release = '0.7.0', output = ''): string {
+  return `#!/usr/bin/env node
+if (process.argv.includes('--self-check')) {
+  process.stdout.write(${JSON.stringify(
+    JSON.stringify({ protocol: 'panerelay.relay.v2', release }),
+  )});
+} else {
+  process.stdout.write(${JSON.stringify(output)});
+}
+`;
+}
 
 test('fails clearly on unsupported Native Messaging platforms', () => {
   assert.throws(
@@ -47,13 +62,95 @@ test('validates and resolves Extension ID precedence', () => {
   );
 });
 
+test('serializes target-aware Host updates and releases only the owned lock', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'panerelay-host-lock-'));
+  const lockPath = join(root, 'update.lock');
+  try {
+    const chrome = await acquireNativeHostUpdateLock(lockPath, '0.8.0-beta.42', {
+      pollMs: 10,
+      timeoutMs: 1_000,
+    });
+    let edgeAcquired = false;
+    const edgePromise = acquireNativeHostUpdateLock(lockPath, '0.8.0-beta.42', {
+      pollMs: 10,
+      timeoutMs: 1_000,
+    }).then(lease => {
+      edgeAcquired = true;
+      return lease;
+    });
+    await delay(40);
+    assert.equal(edgeAcquired, false);
+    assert.deepEqual(JSON.parse(await readFile(lockPath, 'utf8')), chrome.record);
+
+    await chrome.release();
+    const edge = await edgePromise;
+    assert.equal(edgeAcquired, true);
+    assert.equal(edge.record.targetVersion, '0.8.0-beta.42');
+    await edge.release();
+    await assert.rejects(readFile(lockPath), { code: 'ENOENT' });
+  } finally {
+    await rm(root, { force: true, recursive: true });
+  }
+});
+
+test('recovers only an expired dead-owner lock and preserves malformed or live locks', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'panerelay-host-stale-lock-'));
+  const lockPath = join(root, 'update.lock');
+  try {
+    await writeFile(
+      lockPath,
+      `${JSON.stringify({ pid: 999_999, startedAt: 1, targetVersion: '0.7.0' })}\n`,
+      { mode: 0o600 },
+    );
+    const recovered = await acquireNativeHostUpdateLock(lockPath, '0.8.0', {
+      isProcessAlive: () => false,
+      now: () => 10_000,
+      staleMs: 1_000,
+      timeoutMs: 500,
+    });
+    assert.equal(recovered.record.targetVersion, '0.8.0');
+    await recovered.release();
+
+    await writeFile(lockPath, '{"targetVersion":"../../outside"}\n', { mode: 0o600 });
+    await assert.rejects(
+      acquireNativeHostUpdateLock(lockPath, '0.8.0', {
+        isProcessAlive: () => false,
+        now: () => 10_000,
+      }),
+      /lock is malformed/,
+    );
+    assert.equal(await readFile(lockPath, 'utf8'), '{"targetVersion":"../../outside"}\n');
+
+    await writeFile(
+      lockPath,
+      `${JSON.stringify({ pid: process.pid, startedAt: 1, targetVersion: '0.7.0' })}\n`,
+      { mode: 0o600 },
+    );
+    await assert.rejects(
+      acquireNativeHostUpdateLock(lockPath, '0.8.0', {
+        isProcessAlive: () => true,
+        now: () => 10_000,
+        staleMs: 1_000,
+        timeoutMs: 100,
+      }),
+      /Timed out/,
+    );
+    assert.equal(
+      (JSON.parse(await readFile(lockPath, 'utf8')) as { targetVersion: string }).targetVersion,
+      '0.7.0',
+    );
+  } finally {
+    await rm(root, { force: true, recursive: true });
+  }
+});
+
 test('Native Host setup remains automation-engine neutral', async () => {
   const root = await mkdtemp(join(tmpdir(), 'panerelay-base-host-'));
   const homeDirectory = join(root, 'home');
   const binDirectory = join(root, 'bin');
   const bundledHostPath = join(root, 'native-host.bundle.cjs');
   await mkdir(binDirectory, { recursive: true });
-  await writeFile(bundledHostPath, '#!/usr/bin/env node\n');
+  await writeFile(bundledHostPath, nativeHostFixture());
   try {
     const result = await installNativeHost({
       bundledHostPath,
@@ -82,7 +179,7 @@ test('installs and removes an isolated Native Messaging host', async () => {
   const configuredOpenCodePath = join(root, 'configured tools', 'opencode');
   await mkdir(binDirectory, { recursive: true });
   await mkdir(dirname(configuredOpenCodePath), { recursive: true });
-  await writeFile(bundledHostPath, '#!/usr/bin/env node\nprocess.stdout.write("ready");\n');
+  await writeFile(bundledHostPath, nativeHostFixture('0.7.0', 'ready'));
   for (const executable of ['claude', 'codex', 'opencode']) {
     const path = join(binDirectory, executable);
     await writeFile(
@@ -117,8 +214,21 @@ test('installs and removes an isolated Native Messaging host', async () => {
     assert.equal(result.opencodePath, configuredOpenCodePath);
     assert.equal(result.opencodeVersion, '1.18.12');
     assert.equal(result.launchPath, result.hostPath);
+    assert.equal(result.releaseVersion, '0.7.0');
+    assert.equal(
+      result.selectedHostPath,
+      join(result.hostsDirectory, '0.7.0', 'native-host.bundle.cjs'),
+    );
     assert.match(await readFile(result.hostPath, 'utf8'), /^#!\/test\/node\n/);
+    assert.match(await readFile(result.selectedHostPath, 'utf8'), /^#!\/usr\/bin\/env node\n/);
     assert.equal((await stat(result.hostPath)).mode & 0o777, 0o755);
+    assert.equal((await stat(result.currentVersionPath)).mode & 0o777, 0o600);
+    assert.deepEqual(JSON.parse(await readFile(result.currentVersionPath, 'utf8')), {
+      version: '0.7.0',
+    });
+    const launched = spawnSync(process.execPath, [result.hostPath], { encoding: 'utf8' });
+    assert.equal(launched.status, 0, launched.stderr);
+    assert.equal(launched.stdout, 'ready');
 
     const runtime = JSON.parse(await readFile(result.runtimeConfigPath, 'utf8')) as {
       codexPath: string;
@@ -157,10 +267,222 @@ test('installs and removes an isolated Native Messaging host', async () => {
     const paths = resolveNativeHostInstallationPaths({ homeDirectory, platform: 'linux' });
     await assert.rejects(readFile(paths.hostPath), { code: 'ENOENT' });
     await assert.rejects(readFile(paths.runtimeConfigPath), { code: 'ENOENT' });
+    await assert.rejects(readFile(paths.currentVersionPath), { code: 'ENOENT' });
+    await assert.rejects(readFile(result.selectedHostPath), { code: 'ENOENT' });
     for (const manifestPath of paths.manifestPaths) {
       await assert.rejects(readFile(manifestPath), { code: 'ENOENT' });
     }
   } finally {
+    await rm(root, { force: true, recursive: true });
+  }
+});
+
+test('commits one validated version pointer and retains only current and previous bundles', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'panerelay versioned host-'));
+  const homeDirectory = join(root, 'home with spaces');
+  const bundledHostPath = join(root, 'native-host.bundle.cjs');
+  try {
+    for (const release of ['0.6.0', '0.7.0', '0.8.0-beta.42']) {
+      await writeFile(bundledHostPath, nativeHostFixture(release, release));
+      const result = await installNativeHost({
+        bundledHostPath,
+        environment: { PATH: '' },
+        expectedReleaseVersion: release,
+        homeDirectory,
+        platform: 'linux',
+      });
+      assert.deepEqual(JSON.parse(await readFile(result.currentVersionPath, 'utf8')), {
+        version: release,
+      });
+      const launched = spawnSync(process.execPath, [result.hostPath], { encoding: 'utf8' });
+      assert.equal(launched.status, 0, launched.stderr);
+      assert.equal(launched.stdout, release);
+    }
+
+    const paths = resolveNativeHostInstallationPaths({ homeDirectory, platform: 'linux' });
+    await assert.rejects(readFile(join(paths.hostsDirectory, '0.6.0', 'native-host.bundle.cjs')), {
+      code: 'ENOENT',
+    });
+    assert.match(
+      await readFile(join(paths.hostsDirectory, '0.7.0', 'native-host.bundle.cjs'), 'utf8'),
+      /0\.7\.0/,
+    );
+    assert.match(
+      await readFile(join(paths.hostsDirectory, '0.8.0-beta.42', 'native-host.bundle.cjs'), 'utf8'),
+      /0\.8\.0-beta\.42/,
+    );
+  } finally {
+    await rm(root, { force: true, recursive: true });
+  }
+});
+
+test('a failed staged self-check preserves the selected launchable Host', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'panerelay host self-check failure-'));
+  const homeDirectory = join(root, 'home');
+  const bundledHostPath = join(root, 'native-host.bundle.cjs');
+  try {
+    await writeFile(bundledHostPath, nativeHostFixture('0.7.0', '0.7.0'));
+    const installed = await installNativeHost({
+      bundledHostPath,
+      environment: { PATH: '' },
+      expectedReleaseVersion: '0.7.0',
+      homeDirectory,
+      platform: 'linux',
+    });
+    await writeFile(bundledHostPath, nativeHostFixture('0.7.1', 'uncommitted'));
+    await assert.rejects(
+      installNativeHost({
+        bundledHostPath,
+        environment: { PATH: '' },
+        expectedReleaseVersion: '0.8.0',
+        homeDirectory,
+        platform: 'linux',
+      }),
+      /identity does not match setup/,
+    );
+
+    assert.deepEqual(JSON.parse(await readFile(installed.currentVersionPath, 'utf8')), {
+      version: '0.7.0',
+    });
+    const launched = spawnSync(process.execPath, [installed.hostPath], { encoding: 'utf8' });
+    assert.equal(launched.status, 0, launched.stderr);
+    assert.equal(launched.stdout, '0.7.0');
+    await assert.rejects(
+      readFile(join(installed.hostsDirectory, '0.8.0', 'native-host.bundle.cjs')),
+      { code: 'ENOENT' },
+    );
+  } finally {
+    await rm(root, { force: true, recursive: true });
+  }
+});
+
+test('staging, launcher, and lock failures preserve the committed launchable Host', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'panerelay host filesystem failures-'));
+  const homeDirectory = join(root, 'home');
+  const bundledHostPath = join(root, 'native-host.bundle.cjs');
+  try {
+    await writeFile(bundledHostPath, nativeHostFixture('0.7.0', 'committed'));
+    const installed = await installNativeHost({
+      bundledHostPath,
+      environment: { PATH: '' },
+      expectedReleaseVersion: '0.7.0',
+      homeDirectory,
+      platform: 'linux',
+    });
+
+    await assert.rejects(
+      installNativeHost({
+        bundledHostPath: join(root, 'missing.bundle.cjs'),
+        environment: { PATH: '' },
+        expectedReleaseVersion: '0.8.0',
+        homeDirectory,
+        platform: 'linux',
+      }),
+      /ENOENT/,
+    );
+
+    await chmod(dirname(installed.hostPath), 0o500);
+    try {
+      await writeFile(bundledHostPath, nativeHostFixture('0.8.0', 'uncommitted'));
+      await assert.rejects(
+        installNativeHost({
+          bundledHostPath,
+          environment: { PATH: '' },
+          expectedReleaseVersion: '0.8.0',
+          homeDirectory,
+          platform: 'linux',
+        }),
+        /EACCES|permission denied/i,
+      );
+    } finally {
+      await chmod(dirname(installed.hostPath), 0o700);
+    }
+
+    await writeFile(installed.updateLockPath, '{"targetVersion":"../../outside"}\n', {
+      mode: 0o600,
+    });
+    await assert.rejects(
+      installNativeHost({
+        bundledHostPath,
+        environment: { PATH: '' },
+        expectedReleaseVersion: '0.8.0',
+        homeDirectory,
+        platform: 'linux',
+      }),
+      /lock is malformed/,
+    );
+
+    assert.deepEqual(JSON.parse(await readFile(installed.currentVersionPath, 'utf8')), {
+      version: '0.7.0',
+    });
+    const launched = spawnSync(process.execPath, [installed.hostPath], { encoding: 'utf8' });
+    assert.equal(launched.status, 0, launched.stderr);
+    assert.equal(launched.stdout, 'committed');
+  } finally {
+    await rm(root, { force: true, recursive: true });
+  }
+});
+
+test('registry and pointer-commit failures never select an uncommitted Windows Host', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'panerelay windows commit failures-'));
+  const dataDirectory = join(root, 'Panerelay Data');
+  const bundledHostPath = join(root, 'native-host.bundle.cjs');
+  const successfulRegistry: CommandRunner = async () => ({ code: 0, stderr: '', stdout: '' });
+  try {
+    await writeFile(bundledHostPath, nativeHostFixture('0.7.0', 'committed'));
+    const installed = await installNativeHost({
+      bundledHostPath,
+      dataDirectory,
+      environment: { PATH: '' },
+      expectedReleaseVersion: '0.7.0',
+      nodePath: process.execPath,
+      platform: 'win32',
+      registryRunner: successfulRegistry,
+    });
+
+    await writeFile(bundledHostPath, nativeHostFixture('0.8.0', 'registry-uncommitted'));
+    await assert.rejects(
+      installNativeHost({
+        bundledHostPath,
+        dataDirectory,
+        environment: { PATH: '' },
+        expectedReleaseVersion: '0.8.0',
+        nodePath: process.execPath,
+        platform: 'win32',
+        registryRunner: async () => ({ code: 5, stderr: 'private registry error', stdout: '' }),
+      }),
+      /registration failed with code 5/,
+    );
+    assert.deepEqual(JSON.parse(await readFile(installed.currentVersionPath, 'utf8')), {
+      version: '0.7.0',
+    });
+
+    await writeFile(bundledHostPath, nativeHostFixture('0.9.0', 'pointer-uncommitted'));
+    await assert.rejects(
+      installNativeHost({
+        bundledHostPath,
+        dataDirectory,
+        environment: { PATH: '' },
+        expectedReleaseVersion: '0.9.0',
+        nodePath: process.execPath,
+        platform: 'win32',
+        registryRunner: async () => {
+          await chmod(dataDirectory, 0o500);
+          return { code: 0, stderr: '', stdout: '' };
+        },
+      }),
+      /EACCES|permission denied/i,
+    );
+    await chmod(dataDirectory, 0o700);
+
+    assert.deepEqual(JSON.parse(await readFile(installed.currentVersionPath, 'utf8')), {
+      version: '0.7.0',
+    });
+    const launched = spawnSync(process.execPath, [installed.hostPath], { encoding: 'utf8' });
+    assert.equal(launched.status, 0, launched.stderr);
+    assert.equal(launched.stdout, 'committed');
+  } finally {
+    await chmod(dataDirectory, 0o700).catch(() => {});
     await rm(root, { force: true, recursive: true });
   }
 });
@@ -213,7 +535,7 @@ test('installs, updates, and repeatedly uninstalls isolated Windows artifacts', 
   const bundledHostPath = join(root, 'native-host.bundle.cjs');
   const codexPath = join(root, 'npm wrappers', 'codex.cmd');
   await mkdir(dirname(codexPath), { recursive: true });
-  await writeFile(bundledHostPath, '#!/usr/bin/env node\nprocess.stdout.write("ready");\n');
+  await writeFile(bundledHostPath, nativeHostFixture('0.7.0', 'ready'));
   await writeFile(codexPath, '@exit /b 0\r\n');
   let deleteCount = 0;
   const registryCalls: Array<{ args: string[]; command: string }> = [];
@@ -241,6 +563,9 @@ test('installs, updates, and repeatedly uninstalls isolated Windows artifacts', 
     assert.equal(first.codexPath, codexPath);
     assert.equal(first.launchPath, first.launcherPath);
     assert.match(await readFile(first.launchPath, 'utf8'), /^@echo off\r\n/);
+    const launched = spawnSync(process.execPath, [first.hostPath], { encoding: 'utf8' });
+    assert.equal(launched.status, 0, launched.stderr);
+    assert.equal(launched.stdout, 'ready');
     const manifest = JSON.parse(await readFile(first.manifestPaths[0]!, 'utf8')) as {
       allowed_origins: string[];
       path: string;
@@ -263,6 +588,8 @@ test('installs, updates, and repeatedly uninstalls isolated Windows artifacts', 
     await uninstallNativeHost({ dataDirectory, platform: 'win32', registryRunner });
     await assert.rejects(readFile(first.hostPath), { code: 'ENOENT' });
     await assert.rejects(readFile(first.launchPath), { code: 'ENOENT' });
+    await assert.rejects(readFile(first.currentVersionPath), { code: 'ENOENT' });
+    await assert.rejects(readFile(first.selectedHostPath), { code: 'ENOENT' });
     await assert.rejects(readFile(first.manifestPaths[0]!), { code: 'ENOENT' });
     assert.equal(registryCalls.filter(call => call.args[0] === 'add').length, 4);
     assert.equal(registryCalls.filter(call => call.args[0] === 'delete').length, 4);

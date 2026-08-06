@@ -13,6 +13,12 @@ describe('conversation diagnostics', () => {
     const extensionStatus: ExtensionStatus = {
       bridgeConnected: true,
       nativeHostState: 'connected',
+      hostRelease: {
+        state: 'ready',
+        hostVersion: '0.7.0',
+        targetVersion: '0.7.0',
+        retryAvailable: false,
+      },
       defaultProvider: null,
       browserUseDefault: null,
       browserDefault: null,

@@ -875,7 +875,12 @@ export function useSidepanelController(
     if (stateRef.current.nativeRetryPending) return;
     patch({ nativeRetryPending: true, error: '' });
     try {
-      const response = await client.request({ type: 'panerelay.native.retry' });
+      const response = await client.request({
+        type:
+          stateRef.current.extensionStatus?.hostRelease.state === 'failed'
+            ? 'panerelay.host-update.retry'
+            : 'panerelay.native.retry',
+      });
       patch({ extensionStatus: response.status ?? stateRef.current.extensionStatus });
     } catch (error) {
       patch({ error: errorText(error) });

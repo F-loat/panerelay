@@ -13,6 +13,9 @@
 - Amendment: `openspec/changes/archive/2026-08-04-add-conversation-target-hints`
 - Amendment: `openspec/changes/archive/2026-08-04-fix-acp-prompt-lifecycle-privacy`
 - Amendment: `openspec/changes/archive/2026-08-04-restore-agent-runtime-path`
+- Amendment: `openspec/changes/add-native-host-self-update`
+
+RFC-0008 extends this RFC's Native Messaging registration and fixed setup-operation boundaries with semantic release reporting, a stable user-scoped launcher, and bounded best-effort Native Host self-update. Version mismatch remains separate from connection readiness and does not change this RFC's authorization, control, or Agent-provider boundaries.
 
 RFC-0004 supersedes this RFC's attachment-as-control and page-indicator semantics by separating visible read observation from active browser control.
 
@@ -413,7 +416,7 @@ The page-comment runtime is injected into the authorized active tab's currently 
 
 ### Native Messaging
 
-The Bridge installer registers only the effective Panerelay Extension ID selected by the user. Official builds default to `panplnkjlkoceaonlmpdekjphgmbggmi`, derived from the retained public manifest key; a validated custom ID can be persisted for self-built Extensions. The Bridge rejects messages that do not complete a versioned registration handshake with the same actual `chrome.runtime.id`. On Windows, installation uses a user-owned launcher and the exact current-user Chrome Native Messaging registry key.
+The Bridge installer registers only the effective Panerelay Extension ID selected by the user. Official builds default to `panplnkjlkoceaonlmpdekjphgmbggmi`, derived from the retained public manifest key; a validated custom ID can be persisted for self-built Extensions. The Bridge rejects messages that do not complete a versioned registration handshake with the same actual `chrome.runtime.id`. RFC-0008 requires Host/Extension semantic release reporting but completes valid ordinary registration before its one-shot best-effort maintenance check; it owns the stable launcher and self-update lifecycle. On Windows, installation uses a user-owned launcher and the exact current-user Chrome Native Messaging registry key.
 
 Large payloads use bounded `transport.chunk` envelopes with transfer IDs, byte counts, ordering, and CRC32 integrity metadata. `transport.cancel` abandons incomplete transfers. Receivers cap bytes, chunk count, and individual frame size, expire incomplete transfers, and clear transfer state on disconnect without retaining abandoned content.
 

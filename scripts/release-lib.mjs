@@ -299,6 +299,30 @@ export function run(command, args, options = {}) {
   });
 }
 
+export function validateNativeHostSelfCheck(identity, expectedVersion) {
+  invariant(
+    identity &&
+      typeof identity === 'object' &&
+      !Array.isArray(identity) &&
+      Object.keys(identity).sort().join(',') === 'protocol,release' &&
+      identity.protocol === 'panerelay.relay.v2' &&
+      identity.release === expectedVersion,
+    'Embedded Native Host release/protocol identity is not lockstep',
+  );
+  return identity.release;
+}
+
+async function inspectNativeHostBundle(bundlePath, expectedVersion, environment = process.env) {
+  const result = await run(process.execPath, [bundlePath, '--self-check'], { env: environment });
+  let identity;
+  try {
+    identity = JSON.parse(result.stdout);
+  } catch {
+    throw new Error('Embedded Native Host self-check returned malformed output');
+  }
+  return validateNativeHostSelfCheck(identity, expectedVersion);
+}
+
 function publicPackageMap(packageManifests) {
   return new Map(packageManifests.map(manifest => [manifest.name, manifest]));
 }
@@ -1005,6 +1029,10 @@ export async function createReleaseCandidate({ outputDirectory, root, sourceDirt
   await validateStableDistributionSources(root);
   await mkdir(outputDirectory, { recursive: true });
   await run('pnpm', ['run', 'build'], { cwd: root, echo: true });
+  const nativeHostReleaseVersion = await inspectNativeHostBundle(
+    join(root, 'packages/bridge/dist/native-host.bundle.cjs'),
+    metadata.descriptor.version,
+  );
 
   const tarballs = [];
   for (const definition of PACKAGE_DEFINITIONS) {
@@ -1028,6 +1056,7 @@ export async function createReleaseCandidate({ outputDirectory, root, sourceDirt
     channel: metadata.descriptor.channel ?? 'stable',
     version: metadata.descriptor.version,
     extensionVersion: metadata.descriptor.extensionVersion,
+    nativeHostReleaseVersion,
     extensionId: metadata.descriptor.extensionId,
     agentBrowserMinimumVersion: metadata.descriptor.agentBrowserMinimumVersion,
     agentBrowserVerifiedVersions: metadata.descriptor.agentBrowserVerifiedVersions,
@@ -1057,6 +1086,10 @@ export async function smokePackedConsumer({ root }) {
   const outputDirectory = await mkdtemp(join(tmpdir(), 'panerelay-packed-consumer-'));
   try {
     await run('pnpm', ['run', 'build'], { cwd: root, echo: true });
+    await inspectNativeHostBundle(
+      join(root, 'packages/bridge/dist/native-host.bundle.cjs'),
+      metadata.descriptor.version,
+    );
     const tarballs = [];
     for (const definition of PACKAGE_DEFINITIONS) {
       tarballs.push(

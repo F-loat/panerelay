@@ -15,8 +15,27 @@
 
 .settings-heading {
   justify-content: space-between;
+  gap: 8px;
   margin-bottom: 5px;
   font-size: 12px;
+}
+
+.settings-heading-title {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.settings-version {
+  max-width: 128px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 500;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .settings-heading-actions {

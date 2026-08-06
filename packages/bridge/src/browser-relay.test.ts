@@ -14,6 +14,8 @@ import {
 } from '@panerelay/protocol';
 import WebSocket from 'ws';
 import { BrowserRelay } from './browser-relay.js';
+import { HostReleaseCoordinator } from './host-release-coordinator.js';
+import { NativeHostUpdateFailure } from './host-updater.js';
 
 function waitForOpen(client: WebSocket): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -185,14 +187,20 @@ function target(
   };
 }
 
-async function register(relay: BrowserRelay): Promise<void> {
+async function register(
+  relay: BrowserRelay,
+  releaseVersion = '0.0.0',
+  checkHostUpdate = false,
+): Promise<void> {
   await relay.handleExtensionMessage({
     type: 'browser.register',
     protocol: PANERELAY_PROTOCOL_VERSION,
     browserId: 'browser-1',
     browserName: 'Test Chrome',
     extensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
-    extensionVersion: '0.0.0',
+    releaseVersion,
+    buildVersion: '0.0.0.0',
+    checkHostUpdate,
   });
 }
 
@@ -214,11 +222,149 @@ test('rejects a browser registration from a different configured Extension ID', 
         browserId: 'browser-1',
         browserName: 'Test Chrome',
         extensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
-        extensionVersion: '0.1.0.2',
+        releaseVersion: '0.1.0',
+        buildVersion: '0.1.0.2',
+        checkHostUpdate: true,
       }),
       /does not match the configured Panerelay Extension ID/,
     );
     assert.equal(registered, false);
+  } finally {
+    await relay.close();
+  }
+});
+
+test('completes browser registration before starting background release maintenance', async () => {
+  let registered = false;
+  let maintenanceStarted = false;
+  const sent: HostToExtensionMessage[] = [];
+  const relay = await BrowserRelay.listen({
+    expectedExtensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
+    onBrowserDisconnected: () => {},
+    onBrowserRegistered: () => {
+      registered = true;
+    },
+    afterBrowserRegistration: () => {
+      assert.equal(
+        sent.some(message => message.type === 'browser.registered'),
+        true,
+      );
+      maintenanceStarted = true;
+    },
+    sendToExtension: message => sent.push(message),
+  });
+  try {
+    await register(relay);
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(registered, true);
+    assert.equal(maintenanceStarted, true);
+    assert.equal(
+      sent.some(message => message.type === 'browser.registered'),
+      true,
+    );
+  } finally {
+    await relay.close();
+  }
+});
+
+test('keeps an older generation registered while updating, then registers its replacement', async () => {
+  const oldMessages: HostToExtensionMessage[] = [];
+  let restartRequested = false;
+  let oldRegistered = false;
+  const oldCoordinator = new HostReleaseCoordinator({
+    hostVersion: '0.7.0',
+    requestRestart: () => {
+      restartRequested = true;
+    },
+    runUpdate: async () => {},
+    sendToExtension: message => oldMessages.push(message),
+  });
+  const oldRelay = await BrowserRelay.listen({
+    expectedExtensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
+    hostVersion: '0.7.0',
+    onBrowserDisconnected: () => {},
+    onBrowserRegistered: () => {
+      oldRegistered = true;
+    },
+    afterBrowserRegistration: browser => oldCoordinator.evaluateRegistration(browser),
+    sendToExtension: message => oldMessages.push(message),
+  });
+  await register(oldRelay, '0.8.0', true);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(oldRegistered, true);
+  assert.equal(restartRequested, true);
+  assert.deepEqual(
+    oldMessages.map(message =>
+      message.type === 'host.update.status' ? message.state : message.type,
+    ),
+    ['browser.registered', 'control.activity.snapshot', 'restart-pending'],
+  );
+  await oldRelay.close();
+
+  const replacementMessages: HostToExtensionMessage[] = [];
+  let replacementRegistered = false;
+  const replacementCoordinator = new HostReleaseCoordinator({
+    hostVersion: '0.8.0',
+    requestRestart: () => {},
+    runUpdate: async () => {
+      throw new Error('A matching replacement must not update again');
+    },
+    sendToExtension: message => replacementMessages.push(message),
+  });
+  const replacementRelay = await BrowserRelay.listen({
+    expectedExtensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
+    hostVersion: '0.8.0',
+    onBrowserDisconnected: () => {},
+    onBrowserRegistered: () => {
+      replacementRegistered = true;
+    },
+    afterBrowserRegistration: browser => replacementCoordinator.evaluateRegistration(browser),
+    sendToExtension: message => replacementMessages.push(message),
+  });
+  try {
+    await register(replacementRelay, '0.8.0');
+    assert.equal(replacementRegistered, true);
+    assert.deepEqual(replacementMessages[0], {
+      type: 'browser.registered',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      browserId: 'browser-1',
+      hostVersion: '0.8.0',
+    });
+    assert.equal(replacementMessages[1]?.type, 'control.activity.snapshot');
+  } finally {
+    await replacementRelay.close();
+  }
+});
+
+test('keeps relay sessions available after a background Host update fails', async () => {
+  const messages: HostToExtensionMessage[] = [];
+  const coordinator = new HostReleaseCoordinator({
+    hostVersion: '0.7.0',
+    requestRestart: () => {
+      throw new Error('A failed Host update must not request restart');
+    },
+    runUpdate: async () => {
+      throw new NativeHostUpdateFailure('network', 'private npm output');
+    },
+    sendToExtension: message => messages.push(message),
+  });
+  const relay = await BrowserRelay.listen({
+    afterBrowserRegistration: browser => coordinator.evaluateRegistration(browser),
+    hostVersion: '0.7.0',
+    onBrowserDisconnected: () => {},
+    onBrowserRegistered: () => {},
+    sendToExtension: message => messages.push(message),
+  });
+  try {
+    await register(relay, '0.8.0', true);
+    await waitForCondition(() => coordinator.state === 'failed');
+
+    const session = await createRelaySession(relay, 'failed-update-still-connected');
+    assert.equal(typeof session.sessionId, 'string');
+    assert.equal(
+      messages.some(message => message.type === 'host.update.status' && message.state === 'failed'),
+      true,
+    );
   } finally {
     await relay.close();
   }
@@ -247,7 +393,9 @@ test('preserves Edge registration metadata', async () => {
       browserFamily: 'edge',
       capabilities: { cdpRelay: true },
       extensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
-      extensionVersion: '0.2.0',
+      releaseVersion: '0.2.0',
+      buildVersion: '0.2.0.0',
+      checkHostUpdate: false,
     });
     assert.deepEqual(registered?.browserFamily, 'edge');
     assert.deepEqual(registered?.capabilities, { cdpRelay: true });
@@ -272,7 +420,9 @@ test('rejects relay allocation when the registered browser lacks CDP support', a
       browserFamily: 'unknown',
       capabilities: { cdpRelay: false },
       extensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
-      extensionVersion: '0.2.0',
+      releaseVersion: '0.2.0',
+      buildVersion: '0.2.0.0',
+      checkHostUpdate: false,
     });
     const response = await fetch(`http://127.0.0.1:${relay.port}/sessions`, {
       method: 'POST',

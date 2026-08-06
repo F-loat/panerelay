@@ -15,6 +15,27 @@ export const EMPTY_SETUP_INTEGRATION_SELECTION: Readonly<SetupIntegrationSelecti
   'browser-use': false,
 };
 
+export function NativeHostUpdateGuide({ controller }: { controller: SidepanelController }) {
+  const { state } = controller;
+  const { t } = useCopy(state);
+  const update = state.extensionStatus?.hostRelease;
+  if (!update || update.state !== 'restart-pending') return null;
+
+  return (
+    <section
+      aria-label={t('hostUpdateRestartTitle')}
+      className="setup-guidance"
+      data-host-update={update.state}
+      role="status"
+    >
+      <article className="setup-guide-card setup-action-card">
+        <strong className="setup-guidance-status">{t('hostUpdateRestartTitle')}</strong>
+        <span>{t('hostUpdateRestartBody')}</span>
+      </article>
+    </section>
+  );
+}
+
 export function PanerelaySetupGuide({
   controller,
   nativeHost = false,

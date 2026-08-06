@@ -93,7 +93,9 @@ test('creates and releases a browser-level relay session through live Bridge sta
     generation: 'generation-test',
     browserId: 'browser-1',
     browserName: 'Test Chrome',
-    extensionVersion: '0.0.1',
+    extensionReleaseVersion: '0.0.1',
+    extensionBuildVersion: '0.0.1.0',
+    hostVersion: '0.0.1',
     extensionId: 'extension-1',
     updatedAt: new Date().toISOString(),
   };
@@ -227,7 +229,9 @@ test('binds a reserved conversation session to its exact browser and target hint
     generation: 'generation-target',
     browserId: target.browserId,
     browserName: 'Target Chrome',
-    extensionVersion: '0.0.1',
+    extensionReleaseVersion: '0.0.1',
+    extensionBuildVersion: '0.0.1.0',
+    hostVersion: '0.0.1',
     extensionId: 'extension-1',
     updatedAt: new Date().toISOString(),
   };
@@ -315,7 +319,9 @@ test('fails before contacting the Bridge when the browser explicitly lacks CDP s
     browserName: 'Unsupported browser',
     browserFamily: 'unknown',
     capabilities: { cdpRelay: false },
-    extensionVersion: '0.2.0',
+    extensionReleaseVersion: '0.2.0',
+    extensionBuildVersion: '0.2.0.0',
+    hostVersion: '0.2.0',
     extensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
     updatedAt: new Date().toISOString(),
   };

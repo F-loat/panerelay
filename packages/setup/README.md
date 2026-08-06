@@ -177,6 +177,17 @@ npx --yes @panerelay/setup --extension-id <32-character-id>
 npx --yes @panerelay/setup update --agent-browser --browser-use --global-default
 ```
 
+On the first Native Host registration after an Extension background starts, the Host compares its embedded semantic release with the Extension's manifest `version_name`. Ordinary registration completes first, so a pending or failed update does not block the connection. When the Host is older, it makes one automatic attempt to run the exact base update for that Extension release. Reconnects from the same Extension background do not trigger another attempt, and a newer Host is never automatically downgraded.
+
+The update stages and self-checks a versioned bundle, commits a protected version pointer, then closes the old Host so Chrome or Edge reconnects through the stable launcher. Only verified success restarts the Host. An unavailable exact npm package fails quietly; every failure keeps the existing Host connection usable and leaves optional integration selections and tab authorization unchanged. To replace it manually, run:
+
+```bash
+npx --yes @panerelay/setup@<extension-version> update --yes
+npx --yes @panerelay/setup doctor
+```
+
+`doctor` checks the stable launcher, protected current-version pointer, selected bundle and embedded release, update lock, Native Messaging manifests, and Windows Chrome/Edge registrations without triggering an update. Pre-`panerelay.relay.v2` installations are intentionally not migrated; replace them with a clean setup.
+
 To roll back, run an earlier setup package and reload the matching unpacked Extension. Do not mix Extension and package versions. Native Messaging installation supports Chrome and Edge on macOS, Linux, and current-user Windows without administrator privileges. Windows doctor reports each browser's registration independently. agent-browser 0.33.0 or newer is required only with `--agent-browser`, and its detected version appears only in `doctor --agent-browser`.
 
 Claude Code, Qoder, and OpenCode are optional. Setup discovers `claude`, a compatible `qodercli --acp`, and `opencode acp`, then exposes available providers alongside Codex. A missing optional runtime is reported as a warning and does not make the core installation unhealthy. OpenCode authentication and permission policy remain user-owned; run `opencode auth login` and configure OpenCode actions as `ask` when Side Panel approvals are required.

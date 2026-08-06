@@ -13,6 +13,7 @@ import {
   resolveInstalledPlaywrightAdapter,
   validateExtensionEntries,
   validatePackedPackage,
+  validateNativeHostSelfCheck,
   validateReleaseIdentity,
   validateReleaseMetadata,
 } from './release-lib.mjs';
@@ -422,6 +423,40 @@ test('accepts one lockstep release identity and rejects version drift', () => {
   assert.doesNotThrow(() => validateReleaseMetadata(fixture));
   fixture.packageManifests[2].version = '0.1.1';
   assert.throws(() => validateReleaseMetadata(fixture), /not lockstep/);
+});
+
+test('accepts only the exact embedded Native Host release/protocol identity', () => {
+  assert.equal(
+    validateNativeHostSelfCheck(
+      { protocol: 'panerelay.relay.v2', release: '0.8.0-beta.42' },
+      '0.8.0-beta.42',
+    ),
+    '0.8.0-beta.42',
+  );
+  assert.throws(
+    () =>
+      validateNativeHostSelfCheck(
+        { protocol: 'panerelay.relay.v2', release: '0.8.0-beta.41' },
+        '0.8.0-beta.42',
+      ),
+    /not lockstep/,
+  );
+  assert.throws(
+    () =>
+      validateNativeHostSelfCheck(
+        { protocol: 'panerelay.relay.v1', release: '0.8.0-beta.42' },
+        '0.8.0-beta.42',
+      ),
+    /not lockstep/,
+  );
+  assert.throws(
+    () =>
+      validateNativeHostSelfCheck(
+        { command: 'npx evil', protocol: 'panerelay.relay.v2', release: '0.8.0-beta.42' },
+        '0.8.0-beta.42',
+      ),
+    /not lockstep/,
+  );
 });
 
 test('validates stable and beta release identities', () => {

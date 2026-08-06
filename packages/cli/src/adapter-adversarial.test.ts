@@ -17,7 +17,7 @@ type AdapterBehavior =
 const selection = {
   source: 'single' as const,
   state: {
-    protocol: 'panerelay.relay.v1' as const,
+    protocol: 'panerelay.relay.v2' as const,
     pid: 123,
     port: 41_234,
     token: 'bridge-bearer-must-not-cross-stdio',
@@ -26,7 +26,9 @@ const selection = {
     browserName: 'Chrome',
     browserFamily: 'chrome' as const,
     capabilities: { cdpRelay: true },
-    extensionVersion: '0.2.0',
+    extensionReleaseVersion: '0.2.0',
+    extensionBuildVersion: '0.2.0.0',
+    hostVersion: '0.2.0',
     extensionId: 'extension-id',
     updatedAt: '2026-08-01T01:02:03.000Z',
   },

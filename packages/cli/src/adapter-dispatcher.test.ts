@@ -28,7 +28,7 @@ const registration: CliAdapterRegistration = {
 const selection: BrowserSelection = {
   source: 'explicit',
   state: {
-    protocol: 'panerelay.relay.v1',
+    protocol: 'panerelay.relay.v2',
     pid: 123,
     port: 41_234,
     token: 'bridge-token-never-forwarded',
@@ -37,7 +37,9 @@ const selection: BrowserSelection = {
     browserName: 'Chrome',
     browserFamily: 'chrome',
     capabilities: { cdpRelay: true },
-    extensionVersion: '0.2.0',
+    extensionReleaseVersion: '0.2.0',
+    extensionBuildVersion: '0.2.0.0',
+    hostVersion: '0.2.0',
     extensionId: 'extension-id',
     updatedAt: '2026-08-01T01:02:03.000Z',
   },

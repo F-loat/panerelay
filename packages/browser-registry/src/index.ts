@@ -4,6 +4,8 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import {
   PANERELAY_PROTOCOL_VERSION,
+  isPanerelayChromiumBuildVersion,
+  isPanerelayReleaseVersion,
   type BridgeState,
   type BrowserFamily,
 } from '@panerelay/protocol';
@@ -102,8 +104,9 @@ function isBridgeState(value: unknown): value is BridgeState {
     state.browserId.length > 0 &&
     typeof state.browserName === 'string' &&
     state.browserName.length > 0 &&
-    typeof state.extensionVersion === 'string' &&
-    state.extensionVersion.length > 0 &&
+    isPanerelayReleaseVersion(state.extensionReleaseVersion) &&
+    isPanerelayChromiumBuildVersion(state.extensionBuildVersion) &&
+    isPanerelayReleaseVersion(state.hostVersion) &&
     typeof state.extensionId === 'string' &&
     state.extensionId.length > 0 &&
     (state.browserFamily === undefined || isBrowserFamily(state.browserFamily)) &&

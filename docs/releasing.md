@@ -22,7 +22,7 @@ The Prepare Release job itself does not publish packages, create a tag or GitHub
 ## Candidate prerequisites
 
 - [ ] Work from the intended release commit with a clean working tree.
-- [ ] Confirm `release.config.json`, root/package versions, packed dependencies, Extension `version_name`, and inventory identify the intended plain semantic version.
+- [ ] Confirm `release.config.json`, root/package versions, packed dependencies, Extension `version_name`, embedded Native Host self-check release, and inventory identify the intended plain semantic version. Keep Chromium's four-part numeric `version` separate.
 - [ ] Confirm the four-component Chrome numeric version matches `release.config.json` and sorts after the prior stable Store version.
 - [ ] Confirm the retained public manifest key derives official Extension ID `panplnkjlkoceaonlmpdekjphgmbggmi` and no private signing material exists in source or artifacts.
 - [ ] Confirm agent-browser 0.33.0 is the minimum and each version in the verified list has a version-specific compatibility record.
@@ -52,7 +52,7 @@ release_version="$(node -p 'require("./release.config.json").version')"
 candidate_directory=".artifacts/panerelay-$release_version"
 ```
 
-- [ ] Confirm `$candidate_directory/inventory.json` records channel `stable`, the intended version and commit, `"dirty": false`, official Extension ID, minimum agent-browser, Playwright CLI, and Claude Code versions, and both verified automation-version lists.
+- [ ] Confirm `$candidate_directory/inventory.json` records channel `stable`, the intended version and commit, `"dirty": false`, `nativeHostReleaseVersion` equal to the Extension semantic release, official Extension ID, minimum agent-browser, Playwright CLI, and Claude Code versions, and both verified automation-version lists.
 - [ ] Confirm the directory contains eight `@panerelay` npm tarballs, one shared Chrome/Edge Extension zip, `inventory.json`, and `SHA256SUMS`.
 - [ ] Verify checksums from inside the candidate directory:
 

@@ -153,7 +153,10 @@ class TargetHintUnavailableError extends Error {
 
 export interface BrowserRelayOptions {
   expectedExtensionId?: string;
+  hostVersion?: string;
   sendToExtension: (message: HostToExtensionMessage) => void;
+  afterBrowserRegistration?: (browser: BrowserRegistration) => void | Promise<void>;
+  onHostUpdateRetry?: () => void | Promise<void>;
   onBrowserRegistered: (browser: BrowserRegistration) => void | Promise<void>;
   onBrowserDisconnected: () => void | Promise<void>;
   extensionRequestTimeoutMs?: number;
@@ -270,7 +273,7 @@ export class BrowserRelay {
 
   async handleExtensionMessage(message: ExtensionToHostMessage): Promise<void> {
     switch (message.type) {
-      case 'browser.register':
+      case 'browser.register': {
         if (
           this.options.expectedExtensionId &&
           message.extensionId !== this.options.expectedExtensionId
@@ -279,21 +282,32 @@ export class BrowserRelay {
             `Extension ID ${message.extensionId} does not match the configured Panerelay Extension ID`,
           );
         }
-        this.browser = {
+        const browser: BrowserRegistration = {
           browserId: message.browserId,
           browserName: message.browserName,
           extensionId: message.extensionId,
-          extensionVersion: message.extensionVersion,
+          releaseVersion: message.releaseVersion,
+          buildVersion: message.buildVersion,
+          checkHostUpdate: message.checkHostUpdate,
           ...(message.browserFamily ? { browserFamily: message.browserFamily } : {}),
           ...(message.capabilities ? { capabilities: message.capabilities } : {}),
         };
+        this.browser = browser;
         await this.options.onBrowserRegistered(this.browser);
         this.options.sendToExtension({
           type: 'browser.registered',
           protocol: PANERELAY_PROTOCOL_VERSION,
           browserId: message.browserId,
+          hostVersion: this.options.hostVersion ?? '0.0.0',
         });
         this.activityJournal.emitSnapshot();
+        void Promise.resolve()
+          .then(() => this.options.afterBrowserRegistration?.(browser))
+          .catch(() => undefined);
+        return;
+      }
+      case 'host.update.retry':
+        await this.options.onHostUpdateRetry?.();
         return;
       case 'cdp.target.result':
         this.resolveTargetRequest(message);
@@ -515,7 +529,7 @@ export class BrowserRelay {
         };
       });
       const result: CdpBootstrapVersionMetadata = {
-        Browser: `Panerelay/${this.browser.extensionVersion}`,
+        Browser: `Panerelay/${this.browser.releaseVersion}`,
         'Protocol-Version': CDP_PROTOCOL_VERSION,
         'User-Agent': this.browser.browserName,
         'V8-Version': '0.0',

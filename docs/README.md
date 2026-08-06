@@ -28,6 +28,7 @@ Install the unified Agent workflow with `npx skills add F-loat/panerelay --skill
 Compatibility records describe tested versions and capability classifications. A supported minimum is not automatically an exact verified baseline.
 
 - [Browser platforms](compatibility/browser-platforms.md): Chrome and Microsoft Edge classifications.
+- [Native Host self-update](compatibility/native-host-self-update.md): non-blocking release comparison, stable launcher, recovery, and retained platform evidence.
 - [agent-browser 0.33.0](compatibility/agent-browser-0.33.0.md): Provider behavior and command coverage.
 - [browser-use 0.13.7](compatibility/browser-use-0.13.7.md): Browser Harness 0.1.8 baseline, supported surfaces, lifecycle, and limits.
 - [Playwright CLI 0.1.17](compatibility/playwright-cli-0.1.17.md): explicit CDP attach, command groups, lifecycle, and browser-owned limits.

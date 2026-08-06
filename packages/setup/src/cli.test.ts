@@ -17,6 +17,13 @@ import { installPlaywrightIntegration } from './playwright-integration.js';
 
 const chromeWebStoreUrl =
   'https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi';
+const versionedHostFixture = {
+  currentVersionPath: '/tmp/host-current.json',
+  hostsDirectory: '/tmp/hosts',
+  releaseVersion: '0.7.0',
+  selectedHostPath: '/tmp/hosts/0.7.0/native-host.bundle.cjs',
+  updateLockPath: '/tmp/update.lock',
+};
 
 test('parses setup aliases and global default flags', () => {
   assert.deepEqual(parseSetupArgs([]), {
@@ -138,6 +145,7 @@ test('passes independent engine selections without changing the base setup call'
       ...(options?.browserUse ? { browserUseReady: true } : {}),
       globalDefault: false,
       host: {
+        ...versionedHostFixture,
         extensionId: PANERELAY_EXTENSION_ID,
         hostPath: '/tmp/host.mjs',
         launchPath: '/tmp/host',
@@ -227,6 +235,7 @@ test('offers interactive integration and default selections only for the unflagg
           browserUseReady: true,
           globalDefault: options?.globalDefault === true,
           host: {
+            ...versionedHostFixture,
             extensionId: PANERELAY_EXTENSION_ID,
             hostPath: '/tmp/host.mjs',
             launchPath: '/tmp/host',
@@ -266,6 +275,7 @@ test('offers interactive integration and default selections only for the unflagg
         return {
           globalDefault: false,
           host: {
+            ...versionedHostFixture,
             extensionId: PANERELAY_EXTENSION_ID,
             hostPath: '/tmp/host.mjs',
             launchPath: '/tmp/host',
@@ -387,6 +397,7 @@ test('reads protected setup state again on each interactive run instead of cachi
             },
             globalDefault: false,
             host: {
+              ...versionedHostFixture,
               extensionId: PANERELAY_EXTENSION_ID,
               hostPath: '/tmp/host.mjs',
               launchPath: '/tmp/host',
@@ -474,6 +485,7 @@ test('reconciles an isolated interactive selection while preserving upstream exe
             { ...options, homeDirectory },
             {
               installHost: async () => ({
+                ...versionedHostFixture,
                 extensionId: PANERELAY_EXTENSION_ID,
                 hostPath: '/tmp/host.mjs',
                 launchPath: '/tmp/host',
@@ -524,6 +536,7 @@ test('does not ask for a default when only Playwright is selected interactively'
         return {
           globalDefault: false,
           host: {
+            ...versionedHostFixture,
             extensionId: PANERELAY_EXTENSION_ID,
             hostPath: '/tmp/host.mjs',
             launchPath: '/tmp/host',
@@ -570,6 +583,7 @@ test('allows an empty interactive selection without printing redundant integrati
         return {
           globalDefault: false,
           host: {
+            ...versionedHostFixture,
             extensionId: PANERELAY_EXTENSION_ID,
             hostPath: '/tmp/host.mjs',
             launchPath: '/tmp/host',
@@ -669,6 +683,7 @@ test('reports an incompatible selected Browser Use integration without installin
         browserUseVersions: { browserHarness: '0.1.7', browserUse: '0.13.6' },
         globalDefault: false,
         host: {
+          ...versionedHostFixture,
           extensionId: PANERELAY_EXTENSION_ID,
           hostPath: '/tmp/host.mjs',
           launchPath: '/tmp/host',
@@ -703,6 +718,7 @@ test('reports an incompatible selected agent-browser version before failing setu
         },
         globalDefault: false,
         host: {
+          ...versionedHostFixture,
           extensionId: PANERELAY_EXTENSION_ID,
           hostPath: '/tmp/host.mjs',
           launchPath: '/tmp/host',
@@ -732,6 +748,7 @@ test('reports a missing selected Playwright CLI without rendering integration ar
       setup: async () => ({
         globalDefault: false,
         host: {
+          ...versionedHostFixture,
           extensionId: PANERELAY_EXTENSION_ID,
           hostPath: '/tmp/host.mjs',
           launchPath: '/tmp/host',
@@ -773,6 +790,7 @@ test('runs setup when the action is omitted', async () => {
           agentBrowserConfigPath: '/tmp/agent-browser.json',
           globalDefault: true,
           host: {
+            ...versionedHostFixture,
             extensionId: PANERELAY_EXTENSION_ID,
             hostPath: '/tmp/host.mjs',
             launchPath: '/tmp/host',
@@ -805,6 +823,7 @@ test('does not print missing optional-tool guidance after setup', async () => {
         setup: async () => ({
           globalDefault: false,
           host: {
+            ...versionedHostFixture,
             codexPath: '/tmp/codex',
             extensionId: PANERELAY_EXTENSION_ID,
             hostPath: '/tmp/host.mjs',
@@ -838,6 +857,7 @@ test('does not print detected optional tools after setup', async () => {
         setup: async () => ({
           globalDefault: false,
           host: {
+            ...versionedHostFixture,
             codexPath: '/tmp/codex',
             extensionId: PANERELAY_EXTENSION_ID,
             hostPath: '/tmp/host.mjs',
@@ -881,6 +901,7 @@ test('uses the Browser Use default selection as the global default', async () =>
           browserUseReady: true,
           globalDefault: true,
           host: {
+            ...versionedHostFixture,
             extensionId: PANERELAY_EXTENSION_ID,
             hostPath: '/tmp/host.mjs',
             launchPath: '/tmp/host',
@@ -955,6 +976,7 @@ test('renders explicit commands only for selected integrations', async () => {
       },
       globalDefault: false,
       host: {
+        ...versionedHostFixture,
         extensionId: PANERELAY_EXTENSION_ID,
         hostPath: '/tmp/host.mjs',
         launchPath: '/tmp/host',
@@ -1072,6 +1094,7 @@ test('directs custom Extension IDs to their matching build instead of the Store'
       setup: async () => ({
         globalDefault: false,
         host: {
+          ...versionedHostFixture,
           extensionId,
           hostPath: '/tmp/host.mjs',
           launchPath: '/tmp/host',

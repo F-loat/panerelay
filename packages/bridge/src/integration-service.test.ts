@@ -30,7 +30,9 @@ const currentBrowser: BridgeState = {
   browserName: 'Microsoft Edge',
   browserFamily: 'edge',
   capabilities: { cdpRelay: true },
-  extensionVersion: '0.2.0',
+  extensionReleaseVersion: '0.2.0',
+  extensionBuildVersion: '0.2.0.0',
+  hostVersion: '0.2.0',
   extensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
   updatedAt: '2026-07-31T08:00:00.000Z',
 };

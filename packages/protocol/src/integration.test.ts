@@ -115,7 +115,9 @@ test('accepts Edge capability registration and rejects malformed capability valu
       browserFamily: 'edge',
       capabilities: { cdpRelay: true },
       extensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
-      extensionVersion: '0.2.0',
+      releaseVersion: '0.2.0',
+      buildVersion: '0.2.0.0',
+      checkHostUpdate: true,
     }),
     true,
   );
@@ -128,7 +130,9 @@ test('accepts Edge capability registration and rejects malformed capability valu
       browserFamily: 'unknown',
       capabilities: { cdpRelay: 'no' },
       extensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
-      extensionVersion: '0.2.0',
+      releaseVersion: '0.2.0',
+      buildVersion: '0.2.0.0',
+      checkHostUpdate: false,
     }),
     false,
   );
@@ -231,7 +235,7 @@ test('rejects integration messages from another protocol version', () => {
   assert.equal(
     isExtensionToHostMessage({
       type: 'integration.request',
-      protocol: 'panerelay.relay.v2',
+      protocol: 'panerelay.relay.v1',
       requestId: 'integration-1',
       request: { method: 'default-provider.get' },
     }),

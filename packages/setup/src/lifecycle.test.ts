@@ -5,12 +5,17 @@ import { setupPanerelay, uninstallPanerelay } from './lifecycle.js';
 
 const host: NativeHostInstallationResult = {
   codexPath: '/bin/codex',
+  currentVersionPath: '/home/.panerelay/host-current.json',
   extensionId: 'extension-test',
   hostPath: '/home/.panerelay/bin/panerelay-native-host.cjs',
+  hostsDirectory: '/home/.panerelay/hosts',
   launchPath: '/home/.panerelay/bin/panerelay-native-host.cjs',
   legacyHostPath: '/home/.panerelay/bin/panerelay-native-host.mjs',
   manifestPaths: ['/home/native-manifest.json'],
+  releaseVersion: '0.7.0',
   runtimeConfigPath: '/home/.panerelay/runtime.json',
+  selectedHostPath: '/home/.panerelay/hosts/0.7.0/native-host.bundle.cjs',
+  updateLockPath: '/home/.panerelay/update.lock',
 };
 
 test('setup can opt into global and project default providers', async () => {

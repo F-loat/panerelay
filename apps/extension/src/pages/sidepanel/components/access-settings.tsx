@@ -21,6 +21,7 @@ import {
   serializeConversationDiagnostics,
 } from '../conversation-diagnostics.js';
 import { useCopy } from './presentation.js';
+import { extensionManifestIdentity } from '../../../shared/manifest-identity.js';
 
 export function authorizationDetails(state: SidepanelState) {
   const status = state.extensionStatus;
@@ -468,6 +469,7 @@ export function SettingsPopover({
 }) {
   const { state } = controller;
   const { t } = useCopy(state);
+  const { releaseVersion } = extensionManifestIdentity();
   const diagnosticCopyTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [diagnosticCopyStatus, setDiagnosticCopyStatus] = useState<'idle' | 'copied' | 'failed'>(
     'idle',
@@ -509,7 +511,16 @@ export function SettingsPopover({
   return (
     <aside className="settings-popover" id="settings-popover" ref={popoverRef}>
       <div className="settings-heading">
-        <strong>{t('settings')}</strong>
+        <span className="settings-heading-title">
+          <strong>{t('settings')}</strong>
+          <span
+            aria-label={`Panerelay v${releaseVersion}`}
+            className="settings-version"
+            title={`v${releaseVersion}`}
+          >
+            v{releaseVersion}
+          </span>
+        </span>
         <div className="settings-heading-actions">
           {hasConversationDiagnostics(state) && (
             <>

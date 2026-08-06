@@ -725,7 +725,7 @@ const result = {
   },
   browser: {
     family: bridge.browserFamily || 'unknown',
-    extensionVersion: bridge.extensionVersion,
+    extensionVersion: bridge.extensionReleaseVersion,
     selectionSource: selection.source,
   },
   bootstrap: {

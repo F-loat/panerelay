@@ -188,7 +188,7 @@ export async function handlePluginRequest(input: PluginRequest): Promise<PluginR
         metadata: {
           browserId: state.browserId,
           browserName: state.browserName,
-          extensionVersion: state.extensionVersion,
+          extensionVersion: state.extensionReleaseVersion,
           relaySessionId: session.sessionId,
           connectExpiresAt: session.connectExpiresAt,
         },

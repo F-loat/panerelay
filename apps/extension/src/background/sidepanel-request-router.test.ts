@@ -11,6 +11,12 @@ import {
 const extensionStatus = {
   bridgeConnected: true,
   nativeHostState: 'connected',
+  hostRelease: {
+    state: 'ready',
+    hostVersion: '0.7.0',
+    targetVersion: '0.7.0',
+    retryAvailable: false,
+  },
   defaultProvider: null,
   browserUseDefault: null,
   browserDefault: null,
@@ -72,6 +78,7 @@ function router(overrides: Partial<SidePanelRequestRouterOptions> = {}) {
       return undefined;
     },
     retryNativeHost: async () => extensionStatus,
+    retryHostUpdate: async () => extensionStatus,
     selectWorkspaceDirectory: async () => '/workspace',
     setAuthorization: async () => extensionStatus,
     setBrowserDefault: async () => extensionStatus,

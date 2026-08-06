@@ -33,7 +33,9 @@ test('CLI and adapter resolve the stable Browser Use gateway without allocating 
       browserFamily: 'chrome',
       capabilities: { cdpRelay: true },
       extensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
-      extensionVersion: '0.2.0',
+      releaseVersion: '0.2.0',
+      buildVersion: '0.2.0.0',
+      checkHostUpdate: false,
     });
     const state: BridgeState = {
       protocol: PANERELAY_PROTOCOL_VERSION,
@@ -45,7 +47,9 @@ test('CLI and adapter resolve the stable Browser Use gateway without allocating 
       browserName: 'Contract Chrome',
       browserFamily: 'chrome',
       capabilities: { cdpRelay: true },
-      extensionVersion: '0.2.0',
+      extensionReleaseVersion: '0.2.0',
+      extensionBuildVersion: '0.2.0.0',
+      hostVersion: '0.2.0',
       extensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
       updatedAt: new Date().toISOString(),
     };

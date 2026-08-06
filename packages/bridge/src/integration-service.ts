@@ -172,7 +172,7 @@ export class IntegrationService {
           }
           this.#installing.add(integration);
           try {
-            await this.#installIntegration(integration, current.extensionVersion);
+            await this.#installIntegration(integration, current.extensionReleaseVersion);
             if (integration === 'agent-browser') {
               if (!(await this.#readAgentBrowserProvider())) {
                 throw new Error('The agent-browser integration was not registered by setup');

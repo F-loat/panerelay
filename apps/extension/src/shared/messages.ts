@@ -33,6 +33,18 @@ export interface TabSummary {
 
 export type AuthorizationMode = 'none' | 'single-tab' | 'all-tabs';
 export type NativeHostState = 'connecting' | 'connected' | 'missing' | 'disconnected';
+export type HostReleaseState =
+  'checking' | 'required' | 'updating' | 'restart-pending' | 'failed' | 'incompatible' | 'ready';
+
+export interface HostReleaseStatus {
+  state: HostReleaseState;
+  hostVersion?: string;
+  targetVersion?: string;
+  retryAvailable: boolean;
+  error?: string;
+  detail?: string;
+  manualCommand?: string;
+}
 export type AuthorizationRequest = 'all-tabs';
 
 export type DefaultProviderState = IntegrationDefaultProviderResult;
@@ -43,6 +55,7 @@ export type BrowserUseDefaultState = IntegrationBrowserUseDefaultResult;
 export interface ExtensionStatus {
   bridgeConnected: boolean;
   nativeHostState: NativeHostState;
+  hostRelease: HostReleaseStatus;
   defaultProvider: DefaultProviderState | null;
   browserUseDefault: BrowserUseDefaultState | null;
   browserDefault: BrowserDefaultState | null;
@@ -67,6 +80,7 @@ export type SidePanelRequest =
     }
   | { type: 'panerelay.control.release' }
   | { type: 'panerelay.native.retry' }
+  | { type: 'panerelay.host-update.retry' }
   | { type: 'panerelay.integration.install'; integration: AutomationIntegrationId }
   | { type: 'panerelay.default-provider.set'; enabled: boolean }
   | { type: 'panerelay.browser-use-default.set'; enabled: boolean }

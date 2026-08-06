@@ -47,3 +47,14 @@ Updated: YYYY-MM-DD
 12. Open questions
 
 RFCs should distinguish decisions from open questions, describe rejected alternatives fairly, and include enough detail for an independent implementation.
+
+## Index
+
+- [RFC-0001: Extension Connection and Bidirectional Agent Interoperability](./0001-extension-connection-and-agent-interoperability.md)
+- [RFC-0002: Browser-level CDP and agent-browser compatibility](./0002-browser-level-cdp-and-agent-browser-compatibility.md)
+- [RFC-0003: Control session lifecycle and external-agent activity](./0003-control-session-lifecycle-and-activity.md)
+- [RFC-0004: Read observation and active browser control](./0004-read-observation-and-active-browser-control.md)
+- [RFC-0005: Edge browser capabilities and hosting](./0005-edge-browser-capabilities-and-hosting.md)
+- [RFC-0006: Multi-browser registration and routing](./0006-multi-browser-registration-and-routing.md)
+- [RFC-0007: Browser Use connection adapter and CDP HTTP bootstrap](./0007-browser-use-connection-adapter-and-cdp-bootstrap.md)
+- [RFC-0008: Native Host release negotiation and self-update](./0008-native-host-release-negotiation-and-self-update.md)

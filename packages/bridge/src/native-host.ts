@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+import { lstat, readFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import {
   PANERELAY_BROWSER_ID_ENV,
   removeOwnedBrowserRegistration,
@@ -14,6 +17,7 @@ import {
   encodeNativeTransfer,
   isExtensionToHostMessage,
   isNativeTransferEnvelope,
+  isPanerelayReleaseVersion,
   type AgentRequestMessage,
   type BridgeState,
   type HostToExtensionMessage,
@@ -27,6 +31,9 @@ import { readRuntimeConfig } from './runtime-config.js';
 import { environmentWithExecutablePath } from './platform.js';
 import { IntegrationService } from './integration-service.js';
 import { ensureBrowserUseGateway, runBrowserUseGateway } from './browser-use-gateway.js';
+import { PANERELAY_HOST_RELEASE_VERSION } from './host-release.js';
+import { HostReleaseCoordinator } from './host-release-coordinator.js';
+import { runNativeHostUpdate } from './host-updater.js';
 
 function log(message: string): void {
   process.stderr.write(`[Panerelay] ${message}\n`);
@@ -40,6 +47,28 @@ function sendNativeEnvelope(message: unknown): void {
 
 function sendToExtension(message: HostToExtensionMessage): void {
   sendNativeEnvelope(message);
+}
+
+async function flushNativeOutput(): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    process.stdout.write(Buffer.alloc(0), error => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
+}
+
+async function isInstalledHostTarget(targetVersion: string): Promise<boolean> {
+  const pointerPath = join(homedir(), '.panerelay', 'host-current.json');
+  const info = await lstat(pointerPath);
+  if (!info.isFile() || info.isSymbolicLink() || info.size > 512) return false;
+  if (process.platform !== 'win32' && (info.mode & 0o022) !== 0) return false;
+  const value = JSON.parse(await readFile(pointerPath, 'utf8')) as Record<string, unknown>;
+  return (
+    Object.keys(value).length === 1 &&
+    isPanerelayReleaseVersion(value.version) &&
+    value.version === targetVersion
+  );
 }
 
 async function runAgentBrowserPlugin(): Promise<void> {
@@ -58,18 +87,47 @@ async function runAgentBrowserPlugin(): Promise<void> {
   process.stdout.write(JSON.stringify(response));
 }
 
+function runSelfCheck(): void {
+  process.stdout.write(
+    `${JSON.stringify({
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      release: PANERELAY_HOST_RELEASE_VERSION,
+    })}\n`,
+  );
+}
+
 async function main(): Promise<void> {
   const runtimeConfig = await readRuntimeConfig();
   const expectedExtensionId = runtimeConfig.extensionId ?? PANERELAY_EXTENSION_ID;
+  const hostEnvironment = environmentWithExecutablePath(
+    process.env,
+    runtimeConfig.agentPathEntries ?? [],
+  );
   let currentBrowser: BridgeState | null = null;
+  let restartHost: () => Promise<void> = async () => {};
+  const releaseCoordinator = new HostReleaseCoordinator({
+    hostVersion: PANERELAY_HOST_RELEASE_VERSION,
+    isTargetInstalled: async targetVersion =>
+      isInstalledHostTarget(targetVersion).catch(() => false),
+    requestRestart: () => restartHost(),
+    runUpdate: targetVersion =>
+      runNativeHostUpdate(targetVersion, {
+        environment: hostEnvironment,
+        nodePath: process.execPath,
+      }),
+    sendToExtension,
+  });
   const agents = new AgentService(sendToExtension, {
-    environment: environmentWithExecutablePath(process.env, runtimeConfig.agentPathEntries ?? []),
+    environment: hostEnvironment,
   });
   const integrations = new IntegrationService(sendToExtension, {
     currentBrowser: () => currentBrowser,
   });
   const relay = await BrowserRelay.listen({
     expectedExtensionId,
+    hostVersion: PANERELAY_HOST_RELEASE_VERSION,
+    afterBrowserRegistration: browser => releaseCoordinator.evaluateRegistration(browser),
+    onHostUpdateRetry: () => releaseCoordinator.retry(),
     sendToExtension,
     onBrowserRegistered: async browser => {
       const state: BridgeState = {
@@ -80,7 +138,9 @@ async function main(): Promise<void> {
         generation: relay.generation,
         browserId: browser.browserId,
         browserName: browser.browserName,
-        extensionVersion: browser.extensionVersion,
+        extensionReleaseVersion: browser.releaseVersion,
+        extensionBuildVersion: browser.buildVersion,
+        hostVersion: PANERELAY_HOST_RELEASE_VERSION,
         extensionId: browser.extensionId,
         ...(browser.browserFamily ? { browserFamily: browser.browserFamily } : {}),
         ...(browser.capabilities ? { capabilities: browser.capabilities } : {}),
@@ -138,6 +198,14 @@ async function main(): Promise<void> {
     delete process.env[PANERELAY_BROWSER_ID_ENV];
   }
 
+  restartHost = async () => {
+    await flushNativeOutput().catch(error =>
+      log(`Native Host restart status could not be flushed: ${String(error)}`),
+    );
+    await shutdown('Native Host update installed; reconnect required');
+    process.exit(0);
+  };
+
   process.stdin.on('data', (chunk: Buffer) => {
     try {
       for (const frame of decoder.push(chunk)) {
@@ -189,11 +257,13 @@ async function main(): Promise<void> {
   });
 }
 
-const operation = process.argv.includes('--browser-use-gateway')
-  ? runBrowserUseGateway()
-  : process.argv.includes('--agent-browser-plugin')
-    ? runAgentBrowserPlugin()
-    : main();
+const operation = process.argv.includes('--self-check')
+  ? Promise.resolve(runSelfCheck())
+  : process.argv.includes('--browser-use-gateway')
+    ? runBrowserUseGateway()
+    : process.argv.includes('--agent-browser-plugin')
+      ? runAgentBrowserPlugin()
+      : main();
 
 void operation.catch(error => {
   log(`Bridge failed to start: ${error instanceof Error ? error.message : String(error)}`);

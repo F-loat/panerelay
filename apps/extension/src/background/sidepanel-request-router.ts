@@ -36,6 +36,7 @@ export interface SidePanelRequestRouterOptions {
   setDefaultProvider: (enabled: boolean) => Promise<ExtensionStatus>;
   status: () => Promise<ExtensionStatus>;
   retryNativeHost: () => Promise<ExtensionStatus>;
+  retryHostUpdate: () => Promise<ExtensionStatus>;
   workspace: WorkspaceRequests;
 }
 
@@ -52,6 +53,8 @@ export function createSidePanelRequestRouter(options: SidePanelRequestRouterOpti
         return { success: true, status: await options.releaseControl() };
       case 'panerelay.native.retry':
         return { success: true, status: await options.retryNativeHost() };
+      case 'panerelay.host-update.retry':
+        return { success: true, status: await options.retryHostUpdate() };
       case 'panerelay.integration.install':
         return { success: true, status: await options.installIntegration(message.integration) };
       case 'panerelay.default-provider.set':

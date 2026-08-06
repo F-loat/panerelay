@@ -32,6 +32,12 @@ import {
 const baseStatus: ExtensionStatus = {
   bridgeConnected: true,
   nativeHostState: 'connected',
+  hostRelease: {
+    state: 'ready',
+    hostVersion: '0.7.0',
+    targetVersion: '0.7.0',
+    retryAvailable: false,
+  },
   defaultProvider: { available: true, provider: null, isPanerelay: false },
   browserUseDefault: { available: true, mode: 'direct', isPanerelay: false },
   browserDefault: {

@@ -4,7 +4,7 @@
 - Extension target: shared Chromium Manifest V3
 - agent-browser baseline: 0.33.0
 - Playwright CLI baseline: 0.1.17
-- Last verified: 2026-07-31
+- Last verified: 2026-08-05
 
 ## Status meanings
 
@@ -48,7 +48,8 @@ The optional `@panerelay/cli` package uses the same engine-neutral registry for 
 | Linux Edge discovery | Verified | Installer tests cover Edge stable, Beta, and Dev per-user Native Messaging paths. |
 | Windows current-user registration | Verified | Lifecycle and doctor tests cover distinct Google Chrome and Microsoft Edge HKCU keys pointing to one managed manifest. |
 | Identity validation and persistence | Verified | Chrome and Edge use the same configured Chromium Extension ID and exact `allowed_origins` entry. |
-| Update and uninstall | Verified | Tests cover replacing and removing both browser registrations without touching unrelated hosts. |
+| Native Host self-update | Partial | The stable launcher, exact package selection, lock, failure recovery, and packed consumers are covered deterministically; retained daily Chrome and real Windows Chrome/Edge evidence is still pending. See [Native Host self-update compatibility](native-host-self-update.md). |
+| Uninstall | Verified | Tests cover removing both browser registrations and the managed versioned Host layout without touching unrelated hosts. |
 | Shared Chromium Extension archive | Verified | Candidate validation retains one manifest, public key, Extension ID, and complete asset graph for Chrome and Edge. |
 | Standalone administration CLI | Verified | Candidate validation packs and installs `@panerelay/cli` with its registry dependency, then invokes browser-list and default-clear commands in an isolated consumer. |
 | Chrome Web Store installation in Edge | Forwarded | Microsoft documents installing Chrome Web Store extensions in Edge; dedicated Panerelay installation evidence remains pending. |

@@ -4,16 +4,24 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import {
   readWindowsNativeHostRegistryValue,
+  nativeHostBundlePath,
+  readNativeHostUpdateLockRecord,
+  readNativeHostVersionPointer,
   resolveEffectiveExtensionId,
   resolveNativeHostInstallationPaths,
 } from '@panerelay/bridge/install';
-import { isExecutableFile, type CommandRunner } from '@panerelay/bridge/platform';
+import { isExecutableFile, runCommand, type CommandRunner } from '@panerelay/bridge/platform';
 import {
   AGENT_BROWSER_MINIMUM_VERSION,
   CLAUDE_CODE_MINIMUM_VERSION,
   isClaudeCodeSupported,
 } from '@panerelay/bridge/compatibility';
-import { PANERELAY_EXTENSION_ID, PANERELAY_NATIVE_HOST_NAME } from '@panerelay/protocol';
+import {
+  PANERELAY_EXTENSION_ID,
+  PANERELAY_NATIVE_HOST_NAME,
+  PANERELAY_PROTOCOL_VERSION,
+  isPanerelayReleaseVersion,
+} from '@panerelay/protocol';
 import {
   listBrowserRegistrations,
   readLiveLegacyBrowserRegistration,
@@ -338,6 +346,91 @@ export async function doctorPanerelay(options: DoctorOptions = {}): Promise<Doct
         platform,
       ),
     );
+  }
+  let selectedRelease: string | undefined;
+  try {
+    const pointer = await readNativeHostVersionPointer(paths.currentVersionPath, platform);
+    selectedRelease = pointer.version;
+    checks.push({
+      id: 'native-version-pointer',
+      label: 'Panerelay Native Host version pointer',
+      status: 'pass',
+      detail: pointer.version,
+    });
+  } catch (error) {
+    checks.push({
+      id: 'native-version-pointer',
+      label: 'Panerelay Native Host version pointer',
+      status: 'fail',
+      detail: error instanceof Error ? error.message : String(error),
+      hint: `Run: ${SETUP_COMMAND}`,
+    });
+  }
+  if (selectedRelease) {
+    const selectedBundlePath = nativeHostBundlePath(paths.hostsDirectory, selectedRelease);
+    checks.push(
+      await executableCheck(
+        'native-selected-bundle',
+        'Selected Panerelay Native Host bundle',
+        selectedBundlePath,
+        `Run: ${SETUP_COMMAND}`,
+        platform,
+      ),
+    );
+    try {
+      const result = await (options.commandRunner ?? runCommand)(
+        process.execPath,
+        [selectedBundlePath, '--self-check'],
+        { environment: options.environment, timeoutMs: 5_000 },
+      );
+      const identity = JSON.parse(result.stdout) as Record<string, unknown>;
+      const ready =
+        result.code === 0 &&
+        identity.protocol === PANERELAY_PROTOCOL_VERSION &&
+        isPanerelayReleaseVersion(identity.release) &&
+        identity.release === selectedRelease;
+      checks.push({
+        id: 'native-embedded-release',
+        label: 'Embedded Panerelay Native Host release',
+        status: ready ? 'pass' : 'fail',
+        detail: ready ? selectedRelease : 'Selected bundle identity does not match its pointer',
+        ...(ready ? {} : { hint: `Run: ${SETUP_COMMAND}` }),
+      });
+    } catch (error) {
+      checks.push({
+        id: 'native-embedded-release',
+        label: 'Embedded Panerelay Native Host release',
+        status: 'fail',
+        detail: error instanceof Error ? error.message : String(error),
+        hint: `Run: ${SETUP_COMMAND}`,
+      });
+    }
+  }
+  try {
+    const lock = await readNativeHostUpdateLockRecord(paths.updateLockPath, platform);
+    checks.push({
+      id: 'native-update-lock',
+      label: 'Panerelay Native Host update lock',
+      status: 'warn',
+      detail: `PID ${lock.pid} is updating to ${lock.targetVersion}`,
+    });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      checks.push({
+        id: 'native-update-lock',
+        label: 'Panerelay Native Host update lock',
+        status: 'pass',
+        detail: 'No active update',
+      });
+    } else {
+      checks.push({
+        id: 'native-update-lock',
+        label: 'Panerelay Native Host update lock',
+        status: 'fail',
+        detail: error instanceof Error ? error.message : String(error),
+        hint: `Run: ${SETUP_COMMAND}`,
+      });
+    }
   }
   checks.push(await nativeManifestCheck(paths.manifestPaths, paths.launchPath, extensionId));
   if (platform === 'win32') {

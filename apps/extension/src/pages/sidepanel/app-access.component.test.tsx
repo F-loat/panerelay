@@ -54,6 +54,7 @@ describe('React Side Panel browser access and settings', () => {
 
     await user.click(screen.getByRole('button', { name: /Browser access:/ }));
     expect(screen.getByText('Settings')).toBeVisible();
+    expect(screen.getByLabelText('Panerelay v0.7.0')).toHaveTextContent('v0.7.0');
     const github = screen.getByRole('link', { name: 'GitHub' });
     expect(
       screen.queryByRole('button', { name: 'Copy conversation diagnostics' }),
@@ -67,6 +68,111 @@ describe('React Side Panel browser access and settings', () => {
     await user.click(screen.getByRole('option', { name: '中文' }));
     expect(await screen.findByText('设置')).toBeVisible();
     expect(client.stored['panerelay.locale']).toBe('zh-CN');
+  });
+
+  it('keeps the full manifest release visible in settings without a Host connection', async () => {
+    const client = new AppClient();
+    client.status = {
+      ...readyStatus,
+      bridgeConnected: false,
+      nativeHostState: 'disconnected',
+      hostRelease: { state: 'checking', retryAvailable: false },
+    };
+    const user = userEvent.setup();
+    render(<SidepanelApp client={client} />);
+
+    await user.click(await screen.findByRole('button', { name: /Browser access:/ }));
+    const version = screen.getByLabelText('Panerelay v0.7.0');
+    expect(version).toBeVisible();
+    expect(version).toHaveAttribute('title', 'v0.7.0');
+  });
+
+  it('keeps the full beta manifest release accessible in the narrow Settings title', async () => {
+    const originalGetManifest = chrome.runtime.getManifest;
+    chrome.runtime.getManifest = () =>
+      ({ version: '0.8.42.3', version_name: '0.8.0-beta.42' }) as chrome.runtime.Manifest;
+    try {
+      const { user } = await renderReady();
+      await user.click(screen.getByRole('button', { name: /Browser access:/ }));
+      const version = screen.getByLabelText('Panerelay v0.8.0-beta.42');
+      expect(version).toHaveTextContent('v0.8.0-beta.42');
+      expect(version).toHaveAttribute('title', 'v0.8.0-beta.42');
+    } finally {
+      chrome.runtime.getManifest = originalGetManifest;
+    }
+  });
+
+  it('keeps maintenance non-blocking and only presents successful restart recovery', async () => {
+    const client = new AppClient();
+    client.status = {
+      ...readyStatus,
+      bridgeConnected: true,
+      hostRelease: {
+        state: 'updating',
+        hostVersion: '0.6.0',
+        targetVersion: '0.7.0',
+        retryAvailable: false,
+      },
+    };
+    render(<SidepanelApp client={client} />);
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('heading', { name: 'Updating the local Host…' }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByText('Install the local integration')).not.toBeInTheDocument();
+
+    const manualCommand = 'npx --yes @panerelay/setup@0.7.0 update --yes';
+    client.status = {
+      ...client.status,
+      hostRelease: {
+        state: 'failed',
+        hostVersion: '0.6.0',
+        targetVersion: '0.7.0',
+        retryAvailable: true,
+        error: 'network',
+        detail: 'The exact package could not be downloaded.',
+        manualCommand,
+      },
+    };
+    client.emit({ type: 'panerelay.status.changed', status: client.status });
+    await waitFor(() =>
+      expect(
+        screen.queryByRole('heading', { name: 'Native Host update failed' }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByText(manualCommand)).not.toBeInTheDocument();
+
+    client.status = {
+      ...client.status,
+      hostRelease: {
+        state: 'ready',
+        hostVersion: '0.8.0',
+        targetVersion: '0.7.0',
+        retryAvailable: false,
+      },
+    };
+    client.emit({ type: 'panerelay.status.changed', status: client.status });
+    expect(
+      screen.queryByRole('heading', { name: 'Native Host is newer than this Extension' }),
+    ).not.toBeInTheDocument();
+
+    client.status = { ...client.status, bridgeConnected: false };
+    client.emit({
+      type: 'panerelay.status.changed',
+      status: {
+        ...client.status,
+        hostRelease: {
+          state: 'restart-pending',
+          hostVersion: '0.6.0',
+          targetVersion: '0.7.0',
+          retryAvailable: false,
+        },
+      },
+    });
+    expect(
+      await screen.findByRole('heading', { name: 'Reconnecting to the updated Host…' }),
+    ).toBeVisible();
   });
 
   it('toggles selected authorization scopes off and releases control without clearing scope', async () => {

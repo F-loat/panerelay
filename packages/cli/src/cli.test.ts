@@ -14,7 +14,7 @@ import { main, parseCliArgs } from './cli.js';
 import type { RunCliConnectionInput } from './command-runner.js';
 
 const state = {
-  protocol: 'panerelay.relay.v1' as const,
+  protocol: 'panerelay.relay.v2' as const,
   pid: 123,
   port: 41_234,
   token: 'secret-token-must-not-print',
@@ -23,7 +23,9 @@ const state = {
   browserName: 'Microsoft Edge',
   browserFamily: 'edge' as const,
   capabilities: { cdpRelay: true },
-  extensionVersion: '0.2.0',
+  extensionReleaseVersion: '0.2.0',
+  extensionBuildVersion: '0.2.0.0',
+  hostVersion: '0.2.0',
   extensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
   updatedAt: '2026-07-31T08:00:00.000Z',
 };
@@ -187,7 +189,7 @@ test('lists bounded browser metadata and manages the saved default', async () =>
         environment: {},
         listBrowserRegistrations: async () => [{ state, ready: true }],
         readBrowserDefault: async () => ({
-          protocol: 'panerelay.relay.v1',
+          protocol: 'panerelay.relay.v2',
           browserId: state.browserId,
           updatedAt: state.updatedAt,
         }),
@@ -204,7 +206,7 @@ test('lists bounded browser metadata and manages the saved default', async () =>
         environment: {},
         listBrowserRegistrations: async () => [],
         readBrowserDefault: async () => ({
-          protocol: 'panerelay.relay.v1',
+          protocol: 'panerelay.relay.v2',
           browserId: 'offline-browser-id',
           updatedAt: state.updatedAt,
         }),
@@ -224,7 +226,7 @@ test('lists bounded browser metadata and manages the saved default', async () =>
         setBrowserDefault: async browserId => {
           savedBrowserId = browserId;
           return {
-            protocol: 'panerelay.relay.v1',
+            protocol: 'panerelay.relay.v2',
             browserId,
             updatedAt: state.updatedAt,
           };
