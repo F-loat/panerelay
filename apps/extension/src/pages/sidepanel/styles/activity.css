@@ -67,7 +67,7 @@
 }
 
 .reasoning-card[data-active='true'] .reasoning-content {
-  max-height: 7.5em;
+  max-height: 7.2em;
   overflow: hidden;
 }
 

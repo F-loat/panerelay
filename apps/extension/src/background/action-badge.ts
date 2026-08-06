@@ -6,10 +6,6 @@ export function controlBadgeText(controlledTabCount: number): string {
   return String(controlledTabCount);
 }
 
-export function controlBadgeColors(accentColor: unknown): {
-  background: string;
-  text: string;
-} {
-  const palette = accentPalette(accentColor, 'dark');
-  return { background: palette.color, text: palette.contrast };
+export function controlBadgeBackground(accentColor: unknown): string {
+  return accentPalette(accentColor, 'dark').color;
 }

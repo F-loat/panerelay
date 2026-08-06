@@ -24,7 +24,7 @@ import {
   type IntegrationResult,
   type IntegrationWorkspaceDirectoryResult,
 } from '@panerelay/protocol';
-import { controlBadgeColors, controlBadgeText } from './action-badge.js';
+import { controlBadgeBackground, controlBadgeText } from './action-badge.js';
 import { createControlActivityState, reduceControlActivity } from './control-activity-state.js';
 import type {
   AuthorizationMode,
@@ -179,9 +179,10 @@ const handleSidePanelRequest = createSidePanelRequestRouter({
 
 async function updateActionBadge(): Promise<void> {
   const stored = await chrome.storage.local.get(ACCENT_COLOR_KEY);
-  const colors = controlBadgeColors(stored[ACCENT_COLOR_KEY]);
-  await chrome.action.setBadgeBackgroundColor({ color: colors.background });
-  await chrome.action.setBadgeTextColor({ color: colors.text });
+  // Leave the text color unset so Chrome chooses black or white to contrast with this background.
+  await chrome.action.setBadgeBackgroundColor({
+    color: controlBadgeBackground(stored[ACCENT_COLOR_KEY]),
+  });
   await chrome.action.setBadgeText({ text: controlBadgeText(controlledTabs.size) });
 }
 
