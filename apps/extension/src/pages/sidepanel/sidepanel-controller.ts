@@ -370,7 +370,11 @@ export function useSidepanelController(
   );
 
   const activateWorkspace = useCallback(
-    async (workspace: ConversationWorkspaceSnapshot, generation: number) => {
+    async (
+      workspace: ConversationWorkspaceSnapshot,
+      generation: number,
+      resumedConversation?: ConversationDetail,
+    ) => {
       if (generation !== activationGenerationRef.current) return;
       pastedImageGenerationRef.current += 1;
       const provider = stateRef.current.providers.find(item => item.id === workspace.providerId);
@@ -426,6 +430,7 @@ export function useSidepanelController(
             cached.conversation.id,
           ),
         });
+        if (resumedConversation) loadConversation(resumedConversation, workspace);
         return;
       }
 
@@ -514,17 +519,19 @@ export function useSidepanelController(
         // Timeline retention is a session-local enhancement; provider resume remains the fallback.
       }
 
-      if (provider?.status !== 'ready') {
+      if (provider?.status !== 'ready' && !resumedConversation) {
         patch({ loadingConversation: false });
         return;
       }
       try {
-        const response = await client.request({
-          type: 'panerelay.conversation.resume',
-          providerId: workspace.providerId,
-          conversationId: workspace.conversationId,
-          expectedRevision: workspace.revision,
-        });
+        const response = resumedConversation
+          ? { conversation: resumedConversation, workspace }
+          : await client.request({
+              type: 'panerelay.conversation.resume',
+              providerId: workspace.providerId,
+              conversationId: workspace.conversationId,
+              expectedRevision: workspace.revision,
+            });
         if (generation !== activationGenerationRef.current) return;
         if (!response.conversation) throw new Error('Panerelay did not load the conversation');
         loadConversation(response.conversation, response.workspace ?? workspace);
@@ -741,15 +748,17 @@ export function useSidepanelController(
         if (!response.conversation || !response.workspace) {
           throw new Error('Panerelay did not load the conversation');
         }
-        loadConversation(response.conversation, response.workspace);
-        patch({ historyOpen: false, historyQuery: '' });
+        await activateWorkspace(response.workspace, generation, response.conversation);
+        if (generation === activationGenerationRef.current) {
+          patch({ historyOpen: false, historyQuery: '' });
+        }
       } catch (error) {
         if (generation === activationGenerationRef.current) {
           patch({ loadingConversation: false, historyError: errorText(error) });
         }
       }
     },
-    [client, loadConversation, patch],
+    [activateWorkspace, client, patch],
   );
 
   const newConversation = useCallback(async () => {

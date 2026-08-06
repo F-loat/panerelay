@@ -233,22 +233,71 @@ test('commits a delayed resume to its captured tab instead of the newly active t
   assert.deepEqual(await store.get(22), {
     kind: 'draft',
     providerId: 'qoder',
-    revision: 'id-5',
+    revision: 'id-4',
   });
 });
 
-test('rolls back a reservation after resume failure and rejects an older revision', async () => {
-  const { service, setResponder } = harness();
+test('joins a resumed conversation group without changing old sibling tabs', async () => {
+  const { service, setActiveTabId, store } = harness();
   const draft = await service.get('codex');
+  await store.inherit(11, 12);
+  setActiveTabId(22);
+  const destinationDraft = await service.get('qoder');
+  const destination = await store.bindConversation(
+    22,
+    destinationDraft.revision,
+    'qoder',
+    'thread-1',
+  );
+  setActiveTabId(11);
+
+  const resumed = await service.resume('qoder', 'thread-1', draft.revision);
+  assert.deepEqual(resumed.workspace, destination);
+  assert.deepEqual(await store.get(11), destination);
+  assert.deepEqual(await store.get(12), draft);
+  assert.deepEqual(await store.get(22), destination);
+});
+
+test('preserves both workspace groups after resume failure', async () => {
+  const { service, setActiveTabId, setResponder, store } = harness();
+  const draft = await service.get('codex');
+  setActiveTabId(22);
+  const destinationDraft = await service.get('codex');
+  const destination = await store.bindConversation(
+    22,
+    destinationDraft.revision,
+    'codex',
+    'thread-1',
+  );
+  setActiveTabId(11);
   setResponder(async () => {
     throw new Error('resume failed');
   });
 
   await assert.rejects(service.resume('codex', 'thread-1', draft.revision), /resume failed/);
-  const restored = await service.get('codex');
-  assert.equal(restored.kind, 'draft');
-  assert.notEqual(restored.revision, draft.revision);
-  await assert.rejects(service.reset('qoder', draft.revision), WorkspaceRevisionConflictError);
+  assert.deepEqual(await store.get(11), draft);
+  assert.deepEqual(await store.get(22), destination);
+  await service.reset('qoder', draft.revision);
+});
+
+test('rejects a group join when the captured workspace changes during resume', async () => {
+  const { service, setResponder, store } = harness();
+  const draft = await service.get('codex');
+  let resolveResume!: (value: ConversationDetail) => void;
+  setResponder(
+    () =>
+      new Promise(resolve => {
+        resolveResume = resolve;
+      }),
+  );
+
+  const pending = service.resume('qoder', 'thread-1', draft.revision);
+  await new Promise<void>(resolve => setImmediate(resolve));
+  const newer = await store.reset(11, draft.revision, 'codex');
+  resolveResume(detail('thread-1', 'qoder'));
+
+  await assert.rejects(pending, WorkspaceRevisionConflictError);
+  assert.deepEqual(await store.get(11), newer);
 });
 
 test('rolls a failed first send back to a retryable draft with its project', async () => {

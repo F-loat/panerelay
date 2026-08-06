@@ -1,4 +1,4 @@
-import type { ConversationEvent } from '@panerelay/protocol';
+import type { ConversationEvent, ConversationSummary } from '@panerelay/protocol';
 import {
   CONVERSATION_TIMELINE_SCHEMA,
   CONVERSATION_TIMELINE_VERSION,
@@ -147,6 +147,27 @@ export class ConversationTimelineStore {
           : { snapshot: null, events: [] },
       };
     });
+  }
+
+  async list(providerId: string): Promise<ConversationSummary[]> {
+    if (!providerId) throw new Error('providerId is required');
+    return this.transact(async envelope => ({
+      changed: false,
+      result: Object.values(envelope.records)
+        .filter(record => record.providerId === providerId)
+        .sort(
+          (left, right) =>
+            right.updatedAt.localeCompare(left.updatedAt) ||
+            right.conversationId.localeCompare(left.conversationId),
+        )
+        .map(record => ({
+          ...structuredClone(record.snapshot.conversation),
+          updatedAt:
+            record.updatedAt > record.snapshot.conversation.updatedAt
+              ? record.updatedAt
+              : record.snapshot.conversation.updatedAt,
+        })),
+    }));
   }
 
   async save(snapshotValue: ConversationTimelineSnapshot): Promise<ConversationTimelineSnapshot> {

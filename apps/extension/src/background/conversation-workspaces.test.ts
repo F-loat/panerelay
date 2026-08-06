@@ -101,6 +101,53 @@ test('rejects stale revisions and preserves the newer workspace', async () => {
   assert.deepEqual(await store.get(11), newer);
 });
 
+test('joins only the active tab to the deterministic existing conversation group', async () => {
+  const { store } = harness();
+  const active = await store.getOrCreate(11, 'codex');
+  await store.inherit(11, 12);
+
+  let low = await store.getOrCreate(20, 'qoder');
+  low = await store.setDirectory(20, low.revision, '/workspace/low');
+  low = await store.bindConversation(20, low.revision, 'qoder', 'thread-selected');
+
+  let high = await store.getOrCreate(22, 'qoder');
+  high = await store.setDirectory(22, high.revision, '/workspace/high');
+  high = await store.bindConversation(22, high.revision, 'qoder', 'thread-selected');
+
+  const joined = await store.joinConversation(11, active.revision, 'qoder', 'thread-selected');
+  assert.deepEqual(joined, low);
+  assert.deepEqual(await store.get(12), active);
+  assert.deepEqual(await store.get(20), low);
+  assert.deepEqual(await store.get(22), high);
+
+  const reservation = await store.reserve(11, joined.revision);
+  assert.equal((await store.get(20))?.revision, reservation.revision);
+  assert.deepEqual(await store.get(22), high);
+});
+
+test('creates a new conversation group only when no live matching group remains', async () => {
+  const { store } = harness();
+  const draft = await store.getOrCreate(11, 'codex');
+  await store.inherit(11, 12);
+
+  const joined = await store.joinConversation(11, draft.revision, 'qoder', 'thread-retained');
+  assert.deepEqual(joined, {
+    kind: 'conversation',
+    providerId: 'qoder',
+    revision: 'id-4',
+    conversationId: 'thread-retained',
+  });
+  assert.deepEqual(await store.get(12), draft);
+  assert.deepEqual(
+    await store.joinConversation(11, joined.revision, 'qoder', 'thread-retained'),
+    joined,
+  );
+  await assert.rejects(
+    store.joinConversation(11, draft.revision, 'qoder', 'thread-stale'),
+    WorkspaceRevisionConflictError,
+  );
+});
+
 test('reserves, commits, and rolls back serialized provider work', async () => {
   const { store } = harness();
   const draft = await store.getOrCreate(11, 'codex');

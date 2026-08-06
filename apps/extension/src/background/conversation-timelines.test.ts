@@ -226,6 +226,34 @@ test('ignores unknown store versions and malformed records', async () => {
     },
   });
   assert.deepEqual(await store.load('qoder', 'conversation-1'), { snapshot: null, events: [] });
+  assert.deepEqual(await store.list('qoder'), []);
+});
+
+test('lists only validated provider summaries in recent store activity order', async () => {
+  const { store, readStored, replaceStored } = harness();
+  await store.save(snapshot('qoder-older'));
+  await store.save(snapshot('opencode-only', 0, 'opencode'));
+  await store.save(snapshot('qoder-newer'));
+
+  const stored = readStored();
+  const envelope = stored['panerelay.conversationTimelines.v1'] as {
+    records: Record<string, unknown>;
+  };
+  envelope.records.unsafe = { providerId: 'qoder', prompt: 'do not list' };
+  replaceStored(stored);
+
+  const conversations = await store.list('qoder');
+  assert.deepEqual(
+    conversations.map(item => item.id),
+    ['qoder-newer', 'qoder-older'],
+  );
+  assert.equal(conversations[0]?.updatedAt, '2026-08-05T00:00:05.000Z');
+  assert.equal(conversations[1]?.updatedAt, '2026-08-05T00:00:01.000Z');
+  assert.equal(
+    conversations.some(item => item.id === 'opencode-only'),
+    false,
+  );
+  await assert.rejects(store.list(''), /providerId is required/);
 });
 
 test('compacts least-recent records and oversized oldest content', async () => {

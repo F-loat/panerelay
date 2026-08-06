@@ -622,6 +622,70 @@ describe('Side Panel controller', () => {
       conversationId: 'codex-conversation',
       expectedRevision: 'workspace-1',
     });
+    expect(
+      client.requests.filter(request => request.type === 'panerelay.conversation.resume'),
+    ).toHaveLength(1);
+    expect(client.requests).toContainEqual({
+      type: 'panerelay.conversation-timeline.load',
+      providerId: 'codex',
+      conversationId: 'codex-conversation',
+    });
+  });
+
+  it('restores a retained timeline when explicitly selecting cached history', async () => {
+    const { client, hook } = await readyController();
+    const retained = conversation('codex');
+    const snapshot = createConversationTimelineSnapshot({
+      providerId: 'codex',
+      conversation: retained.conversation,
+      timeline: [
+        {
+          type: 'message',
+          message: {
+            id: 'cached-user',
+            role: 'user',
+            text: 'Cached question',
+            createdAt: '2026-08-05T06:00:00.000Z',
+          },
+        },
+        { type: 'reasoning', id: 'cached-reasoning', text: 'Cached reasoning' },
+      ],
+      runningTurnId: null,
+      throughSequence: 0,
+    });
+    expect(snapshot).not.toBeNull();
+    client.timelineReplay = { snapshot: snapshot!, events: [] };
+
+    await act(() => hook.result.current.setHistoryOpen(true));
+    await act(() => hook.result.current.selectConversation('codex-conversation'));
+
+    expect(
+      hook.result.current.state.timeline.map(item =>
+        item.type === 'message' ? `message:${item.message.id}` : item.type,
+      ),
+    ).toEqual(['message:cached-user', 'reasoning']);
+    expect(hook.result.current.state.diagnostics.load.source).toBe('session-snapshot');
+    expect(
+      client.requests.filter(request => request.type === 'panerelay.conversation.resume'),
+    ).toHaveLength(1);
+  });
+
+  it('keeps the current workspace when explicit history resume fails', async () => {
+    const { client, hook } = await readyController();
+    const previousWorkspace = hook.result.current.state.workspace;
+    client.resumeHandler = async () => {
+      throw new Error('Cached Qoder conversation is no longer resumable');
+    };
+
+    await act(() => hook.result.current.setHistoryOpen(true));
+    await act(() => hook.result.current.selectConversation('codex-conversation'));
+
+    expect(hook.result.current.state.workspace).toEqual(previousWorkspace);
+    expect(hook.result.current.state.currentConversation).toBeNull();
+    expect(hook.result.current.state.historyOpen).toBe(true);
+    expect(hook.result.current.state.historyError).toBe(
+      'Cached Qoder conversation is no longer resumable',
+    );
   });
 
   it('keeps authorization, activity, approval, interruption, and settings explicit', async () => {

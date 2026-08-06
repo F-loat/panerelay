@@ -5,7 +5,7 @@
 - Status: Accepted
 - Authors: F-loat
 - Created: 2026-07-29
-- Updated: 2026-08-04
+- Updated: 2026-08-06
 - Amendment: `openspec/changes/archive/2026-08-02-make-adapter-installation-explicit`
 - Amendment: `openspec/changes/archive/2026-08-01-add-browser-use-default-setting`
 - Amendment: `openspec/changes/archive/2026-08-01-improve-browser-authorization-controls`
@@ -14,6 +14,7 @@
 - Amendment: `openspec/changes/archive/2026-08-04-fix-acp-prompt-lifecycle-privacy`
 - Amendment: `openspec/changes/archive/2026-08-04-restore-agent-runtime-path`
 - Amendment: `openspec/changes/add-native-host-self-update`
+- Amendment: `openspec/changes/resume-cached-conversation-workspaces`
 
 RFC-0008 extends this RFC's Native Messaging registration and fixed setup-operation boundaries with semantic release reporting, a stable user-scoped launcher, and bounded best-effort Native Host self-update. Version mismatch remains separate from connection readiness and does not change this RFC's authorization, control, or Agent-provider boundaries.
 
@@ -382,7 +383,9 @@ Codex maps validated images to `turn/start` data URLs. Qoder maps them to ACP im
 
 The Extension background service worker owns the current Chrome session's relationship between a side-panel conversation and its related tabs. It stores only an opaque group identifier, an opaque revision, the provider identifier, an optional draft project directory, and either a local draft state or provider conversation identifier in `chrome.storage.session`. Raw Chrome tab IDs and workspace group identifiers do not cross the shared protocol or provider boundary.
 
-Side-panel mutations include the revision they were rendered from. The background captures the active tab before asynchronous provider work, serializes workspace mutations, and rejects stale revisions. Selecting “new conversation” detaches only the active tab into a new opaque group and creates an Extension-local draft; sibling tabs keep their prior group and conversation. The first text, pasted-image set, or reviewed page-comment batch performs one provider start, binds only the detached draft group, and sends once. Later mutations in either group do not replace the other. A project can be selected, replaced, or cleared only while the workspace is a draft; it is immutable after binding. Provider history remains lazy and is loaded only when the user opens it.
+Side-panel mutations include the revision they were rendered from. The background captures the active tab before asynchronous provider work, serializes workspace mutations, and rejects stale revisions. Selecting “new conversation” detaches only the active tab into a new opaque group and creates an Extension-local draft; sibling tabs keep their prior group and conversation. The first text, pasted-image set, or reviewed page-comment batch performs one provider start, binds only the detached draft group, and sends once. Later mutations in either group do not replace the other. A project can be selected, replaced, or cleared only while the workspace is a draft; it is immutable after binding.
+
+Conversation history remains lazy and is loaded only when the user opens it. The Extension merges provider-listed summaries with valid current-session timeline summaries by the exact provider/conversation pair, displays each pair once, and prefers provider metadata. A retained summary fills only a provider-list omission; when provider listing fails completely, a non-empty retained list remains usable without being described as complete provider history. Selecting either source still requires a successful provider resume or load before any workspace changes. After success, only the captured active tab moves into an existing opaque group for that provider/conversation pair, or into a new bound group when no live group remains. Siblings in the tab's prior group and tabs already in the destination group remain unchanged. Recreating the Side Panel resolves that active-tab binding and restores its retained timeline automatically during the same Chrome session. These are Extension workspaces, not Chrome visual tab groups, and cached discovery or group membership grants no browser or approval authority.
 
 A new tab inherits a workspace only when Chrome reports through `webNavigation.onCreatedNavigationTarget` that a bound source page created it as a navigation target. `tabs.onCreated` and `openerTabId` alone do not inherit a conversation because browser chrome, keyboard shortcuts, and tab-strip controls can produce opener-like metadata without expressing conversation continuity. Focus, timing, origin equality, and ordinary navigation never create a relationship. These workspaces select UI/provider context only: they grant no Chrome site permission, tab authorization, debugger attachment, or control lease.
 

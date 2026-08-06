@@ -220,6 +220,17 @@ export class ConversationWorkspaceStore {
     });
   }
 
+  async assertCurrentRevision(
+    tabId: number,
+    expectedRevision: string,
+  ): Promise<ConversationWorkspaceSnapshot> {
+    this.assertTabId(tabId);
+    return this.transact(async records => ({
+      result: snapshot(this.assertRevision(records, tabId, expectedRevision)),
+      changed: false,
+    }));
+  }
+
   async bindConversation(
     tabId: number,
     expectedRevision: string,
@@ -237,6 +248,51 @@ export class ConversationWorkspaceStore {
       },
       true,
     );
+  }
+
+  async joinConversation(
+    tabId: number,
+    expectedRevision: string,
+    providerId: string,
+    conversationId: string,
+  ): Promise<ConversationWorkspaceSnapshot> {
+    this.assertTabId(tabId);
+    if (!providerId) throw new Error('providerId is required');
+    if (!conversationId) throw new Error('conversationId is required');
+    return this.transact(async records => {
+      const existing = this.assertRevision(records, tabId, expectedRevision);
+      if (
+        existing.kind === 'conversation' &&
+        existing.providerId === providerId &&
+        existing.conversationId === conversationId
+      ) {
+        return { result: snapshot(existing), changed: false };
+      }
+
+      const destination = Object.entries(records)
+        .filter(
+          ([candidateTabId, candidate]) =>
+            candidateTabId !== String(tabId) &&
+            candidate.kind === 'conversation' &&
+            candidate.providerId === providerId &&
+            candidate.conversationId === conversationId,
+        )
+        .sort(([left], [right]) => Number(left) - Number(right))[0]?.[1];
+      if (destination) {
+        records[String(tabId)] = { ...destination };
+        return { result: snapshot(destination), changed: true };
+      }
+
+      const record: ConversationWorkspaceRecord = {
+        groupId: this.createId(),
+        kind: 'conversation',
+        providerId,
+        revision: this.createId(),
+        conversationId,
+      };
+      records[String(tabId)] = record;
+      return { result: snapshot(record), changed: true };
+    });
   }
 
   async inherit(sourceTabId: number, tabId: number): Promise<ConversationWorkspaceSnapshot | null> {

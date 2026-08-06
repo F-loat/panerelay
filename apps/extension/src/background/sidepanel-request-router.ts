@@ -1,4 +1,8 @@
-import type { AgentRequest, AutomationIntegrationId } from '@panerelay/protocol';
+import type {
+  AgentRequest,
+  AutomationIntegrationId,
+  ConversationSummary,
+} from '@panerelay/protocol';
 import type {
   AuthorizationMode,
   ExtensionStatus,
@@ -17,7 +21,27 @@ type PageCommentRequests = Pick<
   PageCommentService,
   'clear' | 'edit' | 'remove' | 'start' | 'stop' | 'updateAppearance'
 >;
-type ConversationTimelineRequests = Pick<ConversationTimelineStore, 'load' | 'save'>;
+type ConversationTimelineRequests = Pick<ConversationTimelineStore, 'list' | 'load' | 'save'>;
+
+export function mergeConversationHistory(
+  retained: ConversationSummary[],
+  provider: ConversationSummary[],
+): ConversationSummary[] {
+  const merged = new Map<string, ConversationSummary>();
+  for (const conversation of retained) {
+    merged.set(JSON.stringify([conversation.providerId, conversation.id]), conversation);
+  }
+  for (const conversation of provider) {
+    merged.set(JSON.stringify([conversation.providerId, conversation.id]), conversation);
+  }
+  return [...merged.values()].sort(
+    (left, right) =>
+      right.updatedAt.localeCompare(left.updatedAt) ||
+      right.createdAt.localeCompare(left.createdAt) ||
+      left.providerId.localeCompare(right.providerId) ||
+      left.id.localeCompare(right.id),
+  );
+}
 
 export interface SidePanelRequestRouterOptions {
   activateControlledTab: (tabId: number) => Promise<void>;
@@ -131,14 +155,22 @@ export function createSidePanelRequestRouter(options: SidePanelRequestRouterOpti
       case 'panerelay.page-comments.clear':
         await options.pageComments.clear();
         return { success: true };
-      case 'panerelay.conversation.list':
-        return {
-          success: true,
-          conversations: (await options.requestAgent({
+      case 'panerelay.conversation.list': {
+        const retained = await options.timelines.list(message.providerId).catch(() => []);
+        try {
+          const provider = (await options.requestAgent({
             method: 'conversation.list',
             providerId: message.providerId,
-          })) as Awaited<Extract<SidePanelResponse, { conversations: unknown }>['conversations']>,
-        };
+          })) as ConversationSummary[];
+          return {
+            success: true,
+            conversations: mergeConversationHistory(retained, provider),
+          };
+        } catch (error) {
+          if (retained.length === 0) throw error;
+          return { success: true, conversations: retained };
+        }
+      }
       case 'panerelay.conversation-timeline.load':
         return {
           success: true,

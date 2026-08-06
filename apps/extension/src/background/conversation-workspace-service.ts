@@ -63,24 +63,20 @@ export class ConversationWorkspaceService {
     expectedRevision: string,
   ): Promise<WorkspaceConversationResult> {
     const tabId = await this.requireActiveTabId();
-    const reservation = await this.options.store.reserve(tabId, expectedRevision);
-    try {
-      const conversation = (await this.options.requestAgent({
-        method: 'conversation.resume',
-        providerId,
-        conversationId,
-      })) as ConversationDetail;
-      const workspace = await this.options.store.commit(reservation, {
-        kind: 'conversation',
-        providerId,
-        conversationId,
-      });
-      await this.changed(tabId, workspace);
-      return { conversation, workspace };
-    } catch (error) {
-      await this.rollback(reservation);
-      throw error;
-    }
+    await this.options.store.assertCurrentRevision(tabId, expectedRevision);
+    const conversation = (await this.options.requestAgent({
+      method: 'conversation.resume',
+      providerId,
+      conversationId,
+    })) as ConversationDetail;
+    const workspace = await this.options.store.joinConversation(
+      tabId,
+      expectedRevision,
+      providerId,
+      conversationId,
+    );
+    await this.changed(tabId, workspace);
+    return { conversation, workspace };
   }
 
   async send(

@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { AgentRequest } from '@panerelay/protocol';
+import type { AgentRequest, ConversationSummary } from '@panerelay/protocol';
 import type { ExtensionStatus } from '../shared/messages.js';
 import { createConversationTimelineSnapshot } from '../shared/conversation-timeline.js';
 import {
   createSidePanelRequestRouter,
+  mergeConversationHistory,
   type SidePanelRequestRouterOptions,
 } from './sidepanel-request-router.js';
 
@@ -89,6 +90,7 @@ function router(overrides: Partial<SidePanelRequestRouterOptions> = {}) {
     setDefaultProvider: async () => extensionStatus,
     status: async () => extensionStatus,
     timelines: {
+      list: async () => [],
       load: async () => ({ snapshot: null, events: [] }),
       save: async value => value,
     },
@@ -102,6 +104,23 @@ function router(overrides: Partial<SidePanelRequestRouterOptions> = {}) {
     ...overrides,
   } as unknown as SidePanelRequestRouterOptions;
   return { calls, handle: createSidePanelRequestRouter(options), requests };
+}
+
+function conversation(
+  id: string,
+  updatedAt: string,
+  title = id,
+  providerId = 'qoder',
+): ConversationSummary {
+  return {
+    id,
+    providerId,
+    title,
+    preview: '',
+    status: 'idle',
+    createdAt: '2026-08-05T00:00:00.000Z',
+    updatedAt,
+  };
 }
 
 test('routes status, browser settings, and controlled-tab requests', async () => {
@@ -164,6 +183,80 @@ test('routes provider, workspace, and conversation requests without changing pay
   });
 });
 
+test('merges retained and provider conversation history with provider metadata precedence', async () => {
+  const retained = [
+    conversation('cached-only', '2026-08-05T00:00:03.000Z'),
+    conversation('shared', '2026-08-05T00:00:04.000Z', 'Cached title'),
+  ];
+  const provider = [
+    conversation('provider-only', '2026-08-05T00:00:05.000Z'),
+    conversation('shared', '2026-08-05T00:00:02.000Z', 'Provider title'),
+  ];
+  const { handle } = router({
+    requestAgent: async request => {
+      if (request.method === 'conversation.list') return provider;
+      return [];
+    },
+    timelines: {
+      list: async () => retained,
+      load: async () => ({ snapshot: null, events: [] }),
+      save: async value => value,
+    },
+  });
+
+  const response = await handle({ type: 'panerelay.conversation.list', providerId: 'qoder' });
+  assert.deepEqual(
+    response.conversations?.map(item => [item.id, item.title]),
+    [
+      ['provider-only', 'provider-only'],
+      ['cached-only', 'cached-only'],
+      ['shared', 'Provider title'],
+    ],
+  );
+});
+
+test('deduplicates only exact provider and conversation identifier pairs', () => {
+  const retained = {
+    ...conversation('b:c', '2026-08-05T00:00:03.000Z'),
+    providerId: 'a',
+  };
+  const provider = {
+    ...conversation('c', '2026-08-05T00:00:02.000Z'),
+    providerId: 'a:b',
+  };
+
+  assert.deepEqual(mergeConversationHistory([retained], [provider]), [retained, provider]);
+});
+
+test('uses retained history when provider listing fails and preserves empty-cache failures', async () => {
+  const failure = new Error('Qoder does not advertise ACP session listing');
+  const retained = [conversation('cached-only', '2026-08-05T00:00:03.000Z')];
+  const retainedRouter = router({
+    requestAgent: async () => {
+      throw failure;
+    },
+    timelines: {
+      list: async () => retained,
+      load: async () => ({ snapshot: null, events: [] }),
+      save: async value => value,
+    },
+  });
+  assert.deepEqual(
+    await retainedRouter.handle({ type: 'panerelay.conversation.list', providerId: 'qoder' }),
+    { success: true, conversations: retained },
+  );
+
+  const emptyRouter = router({
+    requestAgent: async () => {
+      throw failure;
+    },
+  });
+  await assert.rejects(
+    emptyRouter.handle({ type: 'panerelay.conversation.list', providerId: 'qoder' }),
+    failure,
+  );
+});
+
 test('routes page-comment commands to the existing service boundary', async () => {
   const { calls, handle } = router();
   await handle({
@@ -215,6 +308,7 @@ test('routes timeline loads and saves only through the session store boundary', 
   assert.ok(snapshot);
   const { handle } = router({
     timelines: {
+      list: async () => [],
       load: async (providerId, conversationId) => {
         calls.push(`load:${providerId}:${conversationId}`);
         return { snapshot, events: [] };
