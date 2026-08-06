@@ -433,9 +433,16 @@ async function readNativeHostUpdateLock(
       throw new Error('The Native Host update lock owner is unsafe');
     }
   }
+  let content: string;
+  try {
+    content = await readFile(path, 'utf8');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') throw error;
+    throw new Error('The Native Host update lock is malformed', { cause: error });
+  }
   let value: unknown;
   try {
-    value = JSON.parse(await readFile(path, 'utf8')) as unknown;
+    value = JSON.parse(content) as unknown;
   } catch {
     throw new Error('The Native Host update lock is malformed');
   }
@@ -548,7 +555,13 @@ export async function acquireNativeHostUpdateLock(
       };
     }
 
-    const existing = await readNativeHostUpdateLock(path, platform);
+    let existing: Awaited<ReturnType<typeof readNativeHostUpdateLock>>;
+    try {
+      existing = await readNativeHostUpdateLock(path, platform);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue;
+      throw error;
+    }
     if (now() - existing.record.startedAt > staleMs && !isProcessAlive(existing.record.pid)) {
       await removeMatchingNativeHostUpdateLock(path, existing, platform);
       continue;
