@@ -55,16 +55,33 @@ Fetch adapters are independent from base setup and automation-engine integration
 
 ```bash
 npx --yes @panerelay/setup add bilibili
-npx --yes @panerelay/setup add bilibili /absolute/path/to/local-adapter
+npx --yes @panerelay/setup add bilibili /absolute/path/to/local-adapter /absolute/path/to/source-site
+npx --yes @panerelay/setup add owner/repository
+npx --yes @panerelay/setup add github:owner/repository@v1.0.0#sites/example
+npx --yes @panerelay/setup add 'https://github.com/owner/repository?ref=v1.0.0&path=sites/example'
 npx --yes @panerelay/setup add --all
 npx --yes @panerelay/setup adapters
 npx --yes @panerelay/setup remove bilibili
 npx --yes @panerelay/setup remove --all
 ```
 
-`add` validates every source before making a batch visible. Built-in names resolve only within the lockstep `@panerelay/sites` catalog dependency; setup does not embed site bundles, resolve one npm package per site, or perform network discovery. A local source must be an explicit directory. Active files and the atomic registry are stored under `~/.panerelay/fetch-adapters` with user-only permissions. `remove` changes only the selected fetch-adapter records and owned version directories; it does not uninstall the Native Host, automation integrations, browser defaults, or conversations.
+`add` validates every source before making a batch visible. Built-in names resolve only within the lockstep `@panerelay/sites` catalog dependency. Existing local paths win over GitHub shorthand, and an unknown bare ID fails without network access. Only an explicit `owner/repository`, `github:` shorthand, or canonical `https://github.com/owner/repository` URL enables public GitHub access. Setup resolves the selected/default ref once to a full commit through the unauthenticated GitHub API, downloads its bounded HTTPS codeload archive, and records credential-free provenance. Private repositories, tokens, Git credential helpers, `git clone`, submodules, dependency installation, and repository scripts are unsupported.
 
-A local source contains exactly the metadata file `panerelay-fetch-adapter.json` and the self-contained `.mjs` entry named by its `entry` field. The manifest protocol is `panerelay.fetch-adapter.v1` and declares a bounded ID, name, version, description, commands, typed arguments, output fields, and examples. Installed code runs as a one-shot Node child with a minimal environment and a short-lived fetch-only Bridge credential. Installation is therefore an explicit trust decision: process isolation and digest verification do not sandbox code from the user's filesystem.
+A local source may be either the strict installed two-file form or an editable site-kit directory containing `panerelay.site.ts` and direct `commands/*.ts` files. Source-form adapters are built in protected temporary storage through `@panerelay/site-kit`; setup never writes generated files into the author directory and never runs colocated tests. Active files and the atomic registry are stored under `~/.panerelay/fetch-adapters` with user-only permissions. `adapters` shows recorded built-in, absolute local, or GitHub commit provenance. Re-running `add` explicitly replaces that site; `remove` changes only selected fetch-adapter records and owned version directories, not the Native Host, automation integrations, browser defaults, or conversations.
+
+The installed form contains exactly `panerelay-fetch-adapter.json` and the self-contained `.mjs` entry named by its `entry` field. The manifest protocol is `panerelay.fetch-adapter.v1` and declares a bounded ID, name, version, description, commands, typed arguments, output fields, and examples. Installed code runs as a one-shot Node child with a minimal environment and a short-lived fetch-only Bridge credential. Local and GitHub installation are explicit trust decisions: static build, process isolation, and digest verification do not sandbox later command execution from the user's filesystem.
+
+Create, check, test, and build a source adapter without a nested npm package:
+
+```bash
+npx --yes @panerelay/site-kit init ./example-site --id example
+npx --yes @panerelay/site-kit check ./example-site
+npx --yes @panerelay/site-kit test ./example-site
+npx --yes @panerelay/site-kit build ./example-site --out ./example-adapter
+npx --yes @panerelay/setup add ./example-site
+```
+
+Each command file exports one `defineCommand(...)` definition with literal help metadata and its handler. Relative TypeScript helpers and `node:` built-ins are supported; arbitrary package imports are rejected. Existing strict two-file adapters remain installable. When GitHub is unavailable or rate-limited, build locally and pass either source form or the two-file output as the offline fallback.
 
 The built-in Bilibili source lives directly under `packages/sites/src/bilibili`, and `@panerelay/sites` generates and packages its two-file install artifact. It exposes 16 reads (`whoami`, `me`, `video`, `search`, `hot`, `ranking`, `dynamic`, `feed`, `feed-detail`, `favorite`, `history`, `following`, `user-videos`, `comments`, `subtitle`, and `summary`) and three writes (`comment`, `follow`, and `unfollow`). Each public command and its help metadata live in one matching file under `commands`; shared WBI/API, profile, video, dynamic, and relation helpers remain separate.
 

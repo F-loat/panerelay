@@ -6,7 +6,7 @@
 - Authors: F-loat
 - Created: 2026-08-06
 - Updated: 2026-08-07
-- OpenSpec: `openspec/changes/add-browser-fetch-adapters`
+- OpenSpec: `openspec/changes/archive/2026-08-07-add-browser-fetch-adapters`, `openspec/changes/add-site-adapter-tooling`
 
 ## Summary
 
@@ -14,7 +14,7 @@ Panerelay will expose a bounded fetch-shaped request path through one selected l
 
 Fetch is not a CDP operation. It does not attach, observe, navigate, focus, or control a tab, and it never creates a relay participant or browser-control lease. This first version deliberately adds no Panerelay-owned domain ACL or permission prompt. Chrome Host Permission remains mandatory and is never granted by the fetch path.
 
-The standalone CLI also supports setup-managed site adapters. Each adapter has a strict metadata manifest and one self-contained executable. Setup installs built-in or explicit local adapters into protected user storage; CLI help reads only their manifests, and command execution occurs out of process with a short-lived fetch-only credential. The first built-in adapter implements the fetch-compatible Bilibili command set.
+The standalone CLI also supports setup-managed site adapters. Each installed adapter has a strict metadata manifest and one self-contained executable. A public source toolkit generates that form from a lightweight command-per-file TypeScript directory without a nested npm package, handwritten manifest, or site-specific protocol entrypoint. Setup installs built-in, explicit local, or explicit public GitHub adapters into protected user storage; CLI help reads only generated manifests, and command execution occurs out of process with a short-lived fetch-only credential. The first built-in adapter implements the fetch-compatible Bilibili command set.
 
 ## Relationship to existing RFCs
 
@@ -43,7 +43,7 @@ This RFC extends RFC-0001's protocol families and RFC-0006's CLI scope. It does 
 
 1. A Panerelay domain allowlist, domain approval, per-request approval, request activity UI, or permission-grant flow.
 2. File upload, multipart construction, streaming bodies, streaming responses, WebSocket, EventSource, or download management.
-3. Remote Git, GitHub, npm, or marketplace resolution for adapter sources.
+3. An adapter marketplace, registry search, npm package-per-site resolution, automatic adapter updates, private GitHub authentication, arbitrary Git hosts, or repository dependency installation.
 4. An operating-system sandbox for explicitly installed local adapter code.
 5. Proxy selection, isolated profiles, top-level request containment, incognito routing, or browser-process ownership.
 6. Importing or depending on Mearl or OpenCLI runtime code.
@@ -52,9 +52,11 @@ This RFC extends RFC-0001's protocol families and RFC-0006's CLI scope. It does 
 
 - **Browser fetch**: an HTTP(S) request executed by the Panerelay Extension service worker for an authenticated local caller.
 - **Fetch session**: a bounded, short-lived Bridge credential that permits only browser-fetch requests for one browser ID and generation.
-- **Fetch adapter**: a manifest plus one self-contained executable implementing named site commands through a provided fetch session.
+- **Installed fetch adapter**: a manifest plus one self-contained executable implementing named site commands through a provided fetch session.
+- **Source fetch adapter**: a conventional `panerelay.site.ts` plus command-per-file TypeScript tree that the public site toolkit statically validates and converts to installed form.
 - **Built-in adapter**: a lockstep adapter artifact carried by the aggregate `@panerelay/sites` package but installed only by explicit user request through setup.
-- **Local adapter source**: an explicit filesystem directory containing the public two-file adapter format.
+- **Local adapter source**: an explicit filesystem directory containing either the installed two-file format or the public source format.
+- **GitHub adapter source**: an explicitly supplied public owner/repository or canonical GitHub URL resolved once to a concrete commit before source selection and installation.
 - **Chrome Host Permission**: Chrome or Edge's own grant allowing the Extension to contact and access cookies for an origin. It is separate from the deferred Panerelay domain policy.
 
 ## Architecture
@@ -144,30 +146,43 @@ Any other first operand must match an installed adapter ID, followed by a comman
 
 The raw command prints the complete response JSON. It never prints the registration token, fetch token, generated Cookie header, or hidden child request.
 
-## Adapter format and installation
+## Source and installed adapter formats
 
-A source directory contains only:
+An installed source directory contains only:
 
 ```text
 panerelay-fetch-adapter.json
 <self-contained-entry>.mjs
 ```
 
-The strict `panerelay.fetch-adapter.v1` manifest declares bounded ID, name, version, description, safe entry filename, and command metadata. Command metadata includes a read/write access label, arguments, output fields, and examples. The access label is descriptive in this first version and does not implement domain or request authorization.
+The strict `panerelay.fetch-adapter.v1` manifest declares bounded ID, name, version, description, safe entry filename, and command metadata. Command metadata includes a read/write access label, arguments, output fields, and examples. The access label is descriptive and does not implement domain or request authorization.
+
+An editable source adapter instead uses:
+
+```text
+panerelay.site.ts
+commands/<command>.ts
+commands/**/*.test.ts       # optional and test-only
+<relative shared modules>   # optional
+```
+
+The lockstep public `@panerelay/site-kit` package supplies `defineSite`, `defineCommand`, author types, `init`, `check`, `test`, and `build`, plus the programmatic builder used by setup and the aggregate sites catalog. Site and command help metadata must be statically evaluable. The toolkit parses and typechecks source without importing adapter modules, generates the generic one-shot entry, bundles only relative source, allowed Node built-ins, and its own runtime, then validates the same strict two-file output setup installs. Repository package manifests, lifecycle scripts, custom build configuration, compiler plugins, arbitrary package imports, and dependency installation are ignored or rejected. Explicit `test` is the only tooling operation that runs author test code; setup never runs it.
 
 Setup exposes:
 
 ```text
-npx --yes @panerelay/setup add <built-in-id|local-directory>...
+npx --yes @panerelay/setup add <built-in-id|local-directory|github-source>...
 npx --yes @panerelay/setup add --all
 npx --yes @panerelay/setup remove <adapter-id>...
 npx --yes @panerelay/setup remove --all
 npx --yes @panerelay/setup adapters
 ```
 
-Named values resolve only against a fixed built-in catalog. Built-in sites are plain source directories under `packages/sites/src/<site>` in the single public `@panerelay/sites` npm package rather than nested workspace or npm packages. That package owns their build and test lifecycle through one source root and carries all built-in bundles. `@panerelay/setup` depends on the same lockstep version and copies only explicitly selected catalog entries, so neither publishing nor installing requires one npm package per site. `--all` means every built-in in that exact catalog package. Explicit local directories are parsed as local sources; setup performs no network discovery and does not resolve ambient packages or executables.
+Named values resolve only against a fixed built-in catalog. Built-in sites are plain source directories under `packages/sites/src/<site>` in the single public `@panerelay/sites` npm package rather than nested workspace or npm packages. That package builds them through site-kit and carries all built-in bundles. `@panerelay/setup` depends on matching lockstep site-kit and catalog versions and copies only explicitly selected catalog entries, so neither publishing nor installing requires one npm package per site. `--all` means every built-in in that exact catalog package.
 
-Setup validates every requested source before staging the batch. It copies artifacts to `~/.panerelay/fetch-adapters/<id>/<version>/` with user-only permissions and atomically replaces `registry.json`, which records normalized manifest metadata, absolute installed entry path, and SHA-256 digest. CLI discovery validates protected file shape and containment. Execution additionally checks entry identity, permissions, and digest before reading Bridge state.
+An existing local directory wins over remote shorthand parsing. Exact two-file contents select installed form; `panerelay.site.ts` selects source form and is built in an owned temporary directory. Explicit `github:<owner>/<repo>`, `<owner>/<repo>`, and canonical HTTPS GitHub repository URLs select public remote resolution and may include a documented ref and subdirectory. Setup uses unauthenticated GitHub HTTPS APIs to resolve the default branch or requested ref to one full commit, downloads a bounded codeload archive, rejects unsafe entries and ambiguous source roots, and records normalized public provenance. It does not invoke Git, use credential helpers, prompt for tokens, recurse through a repository looking for sites, install dependencies, or run repository code during source resolution and build. Unknown bare IDs still fail locally without network activity.
+
+Setup resolves, downloads, builds, and validates every requested source before staging the batch. It copies artifacts to `~/.panerelay/fetch-adapters/<id>/<version>/` with user-only permissions and atomically replaces `registry.json`, which records normalized manifest metadata, absolute installed entry path, SHA-256 digest, and optional built-in/local/GitHub provenance. Existing registrations without provenance remain valid. CLI discovery validates protected file shape and containment. Execution additionally checks entry identity, permissions, and digest before reading Bridge state; it never fetches or rebuilds an adapter.
 
 Removal changes only fetch-adapter registry entries and Panerelay-owned adapter version directories. It preserves the Native Host, Extension registration, automation adapters, defaults, conversations, and unrelated files.
 
@@ -175,7 +190,7 @@ Removal changes only fetch-adapter registry entries and Panerelay-owned adapter 
 
 The CLI spawns a verified entry with Node.js as a one-shot child and a minimal environment. One bounded JSON request on stdin contains the adapter protocol, correlation ID, command, validated arguments, and fetch-session endpoint/token/expiry. One bounded JSON response on stdout contains the same correlation and either the result or a sanitized error. Timeout and stdout/stderr limits terminate misbehaving children.
 
-This is process isolation, not a security sandbox. A local adapter is code the user explicitly chose to install and can exercise ordinary user-process authority. Panerelay protects its own protocol and credentials from accidental mixing, verifies installed artifacts against setup's registry, and documents the trust decision; it does not claim to protect the filesystem from malicious local adapter code.
+This is process isolation, not a security sandbox. A local or GitHub adapter is code the user explicitly chose to install and can exercise ordinary user-process authority when invoked. Static source inspection and build-time non-execution reduce installation side effects but do not make later command execution safe. Panerelay protects its own protocol and credentials from accidental mixing, verifies installed artifacts against setup's registry, and documents the trust decision; it does not claim to protect the filesystem from malicious adapter code.
 
 ## Initial Bilibili adapter
 
@@ -188,7 +203,7 @@ favorite, history, following, user-videos, comments, subtitle, summary
 
 It also declares the guarded write commands `comment`, `follow`, and `unfollow`. The writes bind `bili_jct` to the `csrf` form field inside the Extension. Comment requires explicit `--execute`; relation writes pre-check and verify state. `login` is excluded because it requires foreground tab navigation and interaction. `download` is excluded because it requires Cookie export, a media downloader, streaming, and filesystem behavior outside this RFC.
 
-Each public command has one source file under `commands`, with the explicit registry at `commands/index.ts`. Command files also own their typed help metadata, and the aggregate catalog build generates the static installed manifest from those definitions. Reused command logic is limited to `commands/_shared`; the site API client remains optional for future site sources rather than part of the adapter format. `index.ts` retains the small Node stdin/stdout protocol entrypoint for this first site. A reusable adapter runtime should be extracted only after a second site demonstrates the same entrypoint requirements.
+Each public command has one `defineCommand` source file under `commands` and owns its typed help metadata and handler. `panerelay.site.ts` owns only site identity. Reused command logic remains under `commands/_shared`, and `client.ts` remains Bilibili-specific rather than part of the adapter format. Site-kit discovery replaces the private `commands/index.ts` registry and `manifest.ts` generator; its generic runtime replaces Bilibili's former protocol `index.ts`. The aggregate catalog and external authors now use the same source contract and generated entry.
 
 The implementation is informed by the local OpenCLI Bilibili reference but imports no OpenCLI runtime and copies no general adapter framework. Bilibili's endpoints, CSRF behavior, and WBI shape are not supported public Panerelay dependencies; malformed, unauthenticated, or nonzero responses fail explicitly.
 
@@ -203,6 +218,7 @@ The implementation is informed by the local OpenCLI Bilibili reference but impor
 7. Adapter help never executes code or reads browser credentials.
 8. Adapter execution is out of process, bounded, protected-storage verified, and given only fetch-scoped connection material.
 9. HTTP remains supported because the raw API permits it, but documentation recommends HTTPS and makes network transport visible in the supplied URL.
+10. Setup reaches the network only for an explicit public GitHub source, accepts no URL credentials or tokens, resolves one commit, bounds archive download/extraction, and never runs repository setup code.
 
 ## Compatibility and migration
 
@@ -212,7 +228,7 @@ Browser fetch is `Partial` for Chrome and Edge until a real daily-browser run ve
 
 This RFC changes no agent-browser 0.33.0, Browser Use 0.13.7 with Browser Harness 0.1.8, Playwright CLI 0.1.17, Qoder, OpenCode, Claude Code, or Codex capability claim. Their regression suites must pass because the shared protocol and Extension changed, but browser fetch does not broaden their browser-process capabilities.
 
-Rollback removes adapters with `setup remove --all` and reinstalls matching older lockstep components. Older versions ignore the standalone `fetch-adapters` directory; no migration of existing registration or automation adapter state is required.
+Rollback removes adapters with `setup remove --all` and reinstalls matching older lockstep components. Source- and GitHub-installed adapters are ordinary two-file installations; provenance is optional for current readers. Before rolling back to a strict older registry reader, setup removes or reinstalls provenance-bearing entries. No browser registration or automation adapter migration is required.
 
 ## Alternatives considered
 
@@ -238,7 +254,11 @@ Rejected because common site flows require signing, conditional validation, and 
 
 ### Resolve arbitrary remote sources in setup
 
-Deferred. Built-in IDs and explicit local directories establish the format and security checks without introducing mutable remote source resolution, lockfiles, or provenance policy.
+Rejected. The accepted resolver is limited to explicit public GitHub repositories, resolves a ref to an immutable commit, records bounded provenance, and never treats unknown adapter names as remote packages. Arbitrary Git hosts, npm package names, registries, and ambient executables would broaden trust and credential behavior without a stable distribution contract.
+
+### Install editable source directly like OpenCLI
+
+Rejected for the runtime boundary. OpenCLI's source-file override layer is useful authoring precedent, but directly loading a mutable source tree would replace one protected executable digest with a multi-file runtime and force help discovery to execute or duplicate source metadata. Site-kit keeps command-per-file authoring while generating the already accepted installed form.
 
 ## Delivery and acceptance
 
@@ -248,11 +268,13 @@ The linked OpenSpec change owns implementation details. Acceptance requires:
 2. Bridge session authentication, expiry, generation, correlation, disconnect, and no-control-state tests;
 3. Extension Host Permission, cookie redaction, source-header precedence, DNR cleanup, response decoding, and size tests;
 4. CLI raw parsing, localization, selection, help-without-browser, credential redaction, and structured-output tests;
-5. setup local/built-in, batch validation, atomic registry, update, list, targeted removal, remove-all, permission, digest, and packed-artifact tests;
+5. setup local/built-in/GitHub, source classification, commit resolution, archive bounds, batch validation, atomic registry/provenance, update, list, targeted removal, remove-all, permission, digest, and packed-artifact tests;
 6. Bilibili WBI and envelope fixtures with no retained credentials;
 7. form, JSON, and header Cookie-binding tests covering missing Cookies, URL decoding, redirect rejection, body bounds, reserved destinations, and value redaction;
 8. unchanged agent-browser, Browser Use, and Playwright regression suites;
 9. daily Chrome evidence for raw fetch and Bilibili when available, with conservative classification otherwise; and
-10. full workspace check, OpenSpec strict validation, diff hygiene, and no generated browser or credential artifacts in source.
+10. site-kit scaffold, static metadata, typecheck, no-execution, deterministic build, explicit-test, and isolated packed-consumer coverage;
+11. a daily-Chrome Bilibili reinstall and representative command regression without retained credentials; and
+12. full workspace check, release check, OpenSpec strict validation, diff hygiene, and no generated browser, source archive, temporary checkout, or credential artifacts in source.
 
 This RFC remains Accepted until the governed release and applicable compatibility evidence are published. Local implementation or tests alone do not make it Implemented.

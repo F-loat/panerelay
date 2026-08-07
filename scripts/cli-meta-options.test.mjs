@@ -66,7 +66,7 @@ test('every published executable supports the standard help and version aliases'
   try {
     const executables = publishedExecutables();
     const executableNames = executables.map(executable => executable.name);
-    assert.deepEqual(executableNames, ['panerelay', 'panerelay-setup']);
+    assert.deepEqual(executableNames, ['panerelay', 'panerelay-setup', 'panerelay-site']);
 
     for (const executable of executables) {
       const shortVersion = invoke(executable, '-v', environment);

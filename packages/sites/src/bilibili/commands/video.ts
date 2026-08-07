@@ -1,4 +1,4 @@
-import type { FetchAdapterCommand } from '@panerelay/protocol';
+import { defineCommand } from '@panerelay/site-kit';
 import {
   type AdapterArgs,
   BilibiliClient,
@@ -10,7 +10,7 @@ import {
 } from '../client.js';
 import { selectedPart, viewData } from './_shared/video.js';
 
-export const commandMetadata = {
+export default defineCommand({
   name: 'video',
   description: 'Get Bilibili video metadata, statistics, payment flags, and optional part details.',
   access: 'read',
@@ -33,7 +33,10 @@ export const commandMetadata = {
     'panerelay fetch bilibili video BV1xx411c7mD',
     'panerelay fetch bilibili video BV1xx411c7mD --page 2',
   ],
-} satisfies FetchAdapterCommand;
+  async run(context, args) {
+    return commandVideo(new BilibiliClient(context), args);
+  },
+});
 
 export async function commandVideo(client: BilibiliClient, args: AdapterArgs): Promise<unknown> {
   const bvid = await client.resolveBvid(requiredString(args, 'bvid'));

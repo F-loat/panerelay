@@ -1,4 +1,4 @@
-import type { FetchAdapterCommand } from '@panerelay/protocol';
+import { defineCommand } from '@panerelay/site-kit';
 import {
   MAX_LIMIT,
   SITE_ORIGIN,
@@ -12,7 +12,7 @@ import {
   stringValue,
 } from '../client.js';
 
-export const commandMetadata = {
+export default defineCommand({
   name: 'ranking',
   description: 'Get the Bilibili video ranking board.',
   access: 'read',
@@ -26,7 +26,10 @@ export const commandMetadata = {
   ],
   output: ['rank', 'title', 'author', 'score', 'url'],
   examples: ['panerelay fetch bilibili ranking --limit 20'],
-} satisfies FetchAdapterCommand;
+  async run(context, args) {
+    return commandRanking(new BilibiliClient(context), args);
+  },
+});
 
 export async function commandRanking(client: BilibiliClient, args: AdapterArgs): Promise<unknown> {
   const limit = positiveInteger(args.limit, 'Bilibili ranking limit', 20, MAX_LIMIT);

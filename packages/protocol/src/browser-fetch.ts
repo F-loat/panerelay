@@ -19,6 +19,8 @@ export const PANERELAY_FETCH_MAX_SESSIONS = 16;
 export const PANERELAY_FETCH_ADAPTER_MAX_ARTIFACT_BYTES = 8 * 1024 * 1024;
 export const PANERELAY_FETCH_ADAPTER_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
 export const PANERELAY_FETCH_ADAPTER_MAX_STDERR_BYTES = 64 * 1024;
+export const PANERELAY_FETCH_ADAPTER_MAX_SOURCE_PATH_BYTES = 4 * 1024;
+export const PANERELAY_FETCH_ADAPTER_MAX_SOURCE_REF_BYTES = 256;
 
 export const PANERELAY_FETCH_METHODS = [
   'GET',
@@ -147,10 +149,29 @@ export interface FetchAdapterManifest {
   commands: FetchAdapterCommand[];
 }
 
+export type FetchAdapterSourceProvenance =
+  | {
+      kind: 'builtin';
+      id: string;
+      version: string;
+    }
+  | {
+      kind: 'local';
+      path: string;
+    }
+  | {
+      kind: 'github';
+      repository: string;
+      commit: string;
+      ref?: string;
+      subdirectory?: string;
+    };
+
 export interface FetchAdapterRegistration {
   manifest: FetchAdapterManifest;
   executablePath: string;
   sha256: string;
+  source?: FetchAdapterSourceProvenance;
 }
 
 export interface FetchAdapterRegistry {
@@ -671,15 +692,91 @@ export function isFetchAdapterManifest(value: unknown): value is FetchAdapterMan
   );
 }
 
+function isAbsoluteSourcePath(value: unknown): value is string {
+  if (!isBoundedString(value, 1, PANERELAY_FETCH_ADAPTER_MAX_SOURCE_PATH_BYTES)) return false;
+  if (/\p{Cc}/u.test(value)) return false;
+  return value.startsWith('/') || /^[A-Za-z]:[\\/]/.test(value) || /^\\\\[^\\]/.test(value);
+}
+
+function isSafeSourceSubdirectory(value: unknown): value is string {
+  if (!isBoundedString(value, 1, PANERELAY_FETCH_ADAPTER_MAX_SOURCE_PATH_BYTES)) return false;
+  if (value.startsWith('/') || value.endsWith('/') || value.includes('\\')) return false;
+  const segments = value.split('/');
+  return (
+    segments.length <= 32 &&
+    segments.every(
+      segment =>
+        segment !== '' &&
+        segment !== '.' &&
+        segment !== '..' &&
+        !/\p{Cc}/u.test(segment) &&
+        bytes(segment) <= 255,
+    )
+  );
+}
+
+function isGitHubRepository(value: unknown): value is string {
+  if (!isBoundedString(value, 3, 256)) return false;
+  const match = /^([0-9A-Za-z](?:[0-9A-Za-z-]{0,37}[0-9A-Za-z])?)\/([0-9A-Za-z._-]{1,100})$/.exec(
+    value,
+  );
+  return !!match && !match[2]?.endsWith('.git') && match[2] !== '.' && match[2] !== '..';
+}
+
+function isGitHubRef(value: unknown): value is string {
+  return (
+    isBoundedString(value, 1, PANERELAY_FETCH_ADAPTER_MAX_SOURCE_REF_BYTES) &&
+    /^[0-9A-Za-z][0-9A-Za-z._/-]*$/.test(value) &&
+    !value.includes('..') &&
+    !value.includes('//') &&
+    !value.endsWith('/') &&
+    !value.endsWith('.') &&
+    value.split('/').every(segment => segment !== '.' && segment !== '..')
+  );
+}
+
+export function isFetchAdapterSourceProvenance(
+  value: unknown,
+): value is FetchAdapterSourceProvenance {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  if (candidate.kind === 'builtin') {
+    return (
+      hasExactKeys(candidate, ['kind', 'id', 'version']) &&
+      isIdentifier(candidate.id) &&
+      isBoundedString(candidate.version, 1, 64) &&
+      /^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$/.test(candidate.version)
+    );
+  }
+  if (candidate.kind === 'local') {
+    return hasExactKeys(candidate, ['kind', 'path']) && isAbsoluteSourcePath(candidate.path);
+  }
+  if (candidate.kind !== 'github') return false;
+  return (
+    hasAllowedKeys(candidate, ['kind', 'repository', 'commit', 'ref', 'subdirectory']) &&
+    Object.hasOwn(candidate, 'repository') &&
+    Object.hasOwn(candidate, 'commit') &&
+    isGitHubRepository(candidate.repository) &&
+    typeof candidate.commit === 'string' &&
+    /^[0-9a-f]{40}$/.test(candidate.commit) &&
+    (candidate.ref === undefined || isGitHubRef(candidate.ref)) &&
+    (candidate.subdirectory === undefined || isSafeSourceSubdirectory(candidate.subdirectory))
+  );
+}
+
 export function isFetchAdapterRegistration(value: unknown): value is FetchAdapterRegistration {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const candidate = value as Record<string, unknown>;
   return (
-    hasExactKeys(candidate, ['manifest', 'executablePath', 'sha256']) &&
+    hasAllowedKeys(candidate, ['manifest', 'executablePath', 'sha256', 'source']) &&
+    Object.hasOwn(candidate, 'manifest') &&
+    Object.hasOwn(candidate, 'executablePath') &&
+    Object.hasOwn(candidate, 'sha256') &&
     isFetchAdapterManifest(candidate.manifest) &&
     typeof candidate.executablePath === 'string' &&
     candidate.executablePath.length > 0 &&
-    /^[0-9a-f]{64}$/.test(String(candidate.sha256))
+    /^[0-9a-f]{64}$/.test(String(candidate.sha256)) &&
+    (candidate.source === undefined || isFetchAdapterSourceProvenance(candidate.source))
   );
 }
 

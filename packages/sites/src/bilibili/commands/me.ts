@@ -1,15 +1,18 @@
-import type { FetchAdapterCommand } from '@panerelay/protocol';
+import { defineCommand } from '@panerelay/site-kit';
 import { BilibiliClient, finiteNumber, stringValue } from '../client.js';
 import { loadProfile } from './_shared/profile.js';
 
-export const commandMetadata = {
+export default defineCommand({
   name: 'me',
   description: 'Show the current Bilibili profile.',
   access: 'read',
   args: [],
   output: ['name', 'uid', 'level', 'coins', 'followers', 'following'],
   examples: ['panerelay fetch bilibili me'],
-} satisfies FetchAdapterCommand;
+  async run(context) {
+    return commandMe(new BilibiliClient(context));
+  },
+});
 
 export async function commandMe(client: BilibiliClient): Promise<unknown> {
   const { data, uid } = await loadProfile(client);

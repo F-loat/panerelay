@@ -1,4 +1,4 @@
-import type { FetchAdapterCommand } from '@panerelay/protocol';
+import { defineCommand } from '@panerelay/site-kit';
 import {
   type AdapterArgs,
   BilibiliClient,
@@ -10,7 +10,7 @@ import {
 } from '../client.js';
 import { viewData } from './_shared/video.js';
 
-export const commandMetadata = {
+export default defineCommand({
   name: 'summary',
   description: "Get Bilibili's official AI-generated video summary and outline.",
   access: 'read',
@@ -25,7 +25,10 @@ export const commandMetadata = {
   ],
   output: ['time', 'content'],
   examples: ['panerelay fetch bilibili summary BV1xx411c7mD'],
-} satisfies FetchAdapterCommand;
+  async run(context, args) {
+    return commandSummary(new BilibiliClient(context), args);
+  },
+});
 
 function summaryTime(value: unknown): string {
   const seconds = Math.max(0, Math.floor(Number(value) || 0));

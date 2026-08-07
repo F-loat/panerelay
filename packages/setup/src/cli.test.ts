@@ -147,7 +147,16 @@ test('runs fetch adapter lifecycle commands without invoking base setup', async 
         },
       ],
     };
-    const registration = { manifest, executablePath: '/tmp/adapter.mjs', sha256: 'a'.repeat(64) };
+    const registration = {
+      manifest,
+      executablePath: '/tmp/adapter.mjs',
+      sha256: 'a'.repeat(64),
+      source: {
+        kind: 'github' as const,
+        repository: 'owner/repository',
+        commit: '0123456789abcdef0123456789abcdef01234567',
+      },
+    };
     const dependencies = {
       environment: {},
       setup: async () => {
@@ -162,10 +171,44 @@ test('runs fetch adapter lifecycle commands without invoking base setup', async 
     assert.equal(await main(['adapters', '--lang', 'en'], dependencies), 0);
     assert.equal(await main(['remove', 'bilibili', '--lang', 'zh-CN'], dependencies), 0);
     assert.equal(setupCalls, 0);
-    assert.match(output.join('\n'), /Installed fetch adapters: bilibili@0\.8\.0/);
+    assert.match(output.join('\n'), /Installed fetch adapters\n {2}bilibili@0\.8\.0/);
+    assert.match(output.join('\n'), /GitHub owner\/repository at 0123456789ab/);
     assert.match(output.join('\n'), /已移除 Fetch 适配器：bilibili/);
   } finally {
     console.log = originalLog;
+  }
+});
+
+test('localizes source and GitHub help, trust guidance, and adapter failures', async () => {
+  const output: string[] = [];
+  const errors: string[] = [];
+  const originalLog = console.log;
+  const originalError = console.error;
+  console.log = (...values: unknown[]) => output.push(values.join(' '));
+  console.error = (...values: unknown[]) => errors.push(values.join(' '));
+  try {
+    assert.equal(await main(['add', '--help', '--lang', 'en'], { environment: {} }), 0);
+    assert.match(output.join('\n'), /owner\/repository/);
+    assert.match(output.join('\n'), /local two-file\/source-form/);
+    output.length = 0;
+    assert.equal(await main(['add', '--help', '--lang', 'zh-CN'], { environment: {} }), 0);
+    assert.match(output.join('\n'), /公开 GitHub/);
+    assert.match(output.join('\n'), /源码格式/);
+    output.length = 0;
+    assert.equal(
+      await main(['add', 'unknown', '--lang', 'zh-CN'], {
+        environment: {},
+        installFetchAdapters: async () => {
+          throw new Error('Unknown fetch adapter source: unknown');
+        },
+      }),
+      1,
+    );
+    assert.match(output.join('\n'), /第三方代码/);
+    assert.match(errors.join('\n'), /未知 Fetch 适配器来源： unknown/);
+  } finally {
+    console.log = originalLog;
+    console.error = originalError;
   }
 });
 

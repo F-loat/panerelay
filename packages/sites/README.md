@@ -13,10 +13,9 @@ The package is not a command-line installer. Its public API exposes built-in IDs
 
 Built-in sites are plain source directories under this package's single TypeScript source root, not nested npm packages or workspaces. Bilibili is laid out directly under `packages/sites/src/bilibili`:
 
-- `index.ts` is the bounded stdin/stdout adapter entrypoint.
-- `commands/index.ts` explicitly registers every command.
+- `panerelay.site.ts` contains literal site identity and version metadata.
 - Each public command and its typed help metadata live in one matching file under `commands/`.
 - `commands/_shared/` contains only logic reused by multiple commands.
 - `client.ts` contains the optional Bilibili-specific API client and validation helpers.
 
-The package build derives `dist/adapters/bilibili/panerelay-fetch-adapter.json` from those typed command definitions and bundles `adapter.mjs`; the source tree does not maintain a handwritten manifest. New built-in sites use the same flat directory shape and must update the catalog, aggregate build, artifact tests, and lockstep release inventory.
+The package build uses the public `@panerelay/site-kit` contract to derive `dist/adapters/bilibili/panerelay-fetch-adapter.json` and bundle `adapter.mjs`; the source tree has no handwritten manifest, command registry, protocol entrypoint, nested package, or build configuration. External authors use the same layout and toolkit. New built-in sites use this flat directory shape and update only the catalog, artifact tests, and lockstep release inventory.

@@ -38,7 +38,7 @@
     "release:channel": "node scripts/release-channel.mjs",
     "release:publish": "node scripts/publish-release.mjs",
     "prepare": "husky",
-    "publish": "pnpm --filter @panerelay/protocol --filter @panerelay/browser-registry --filter @panerelay/cli --filter @panerelay/agent-browser --filter @panerelay/browser-use --filter @panerelay/playwright --filter @panerelay/bridge --filter @panerelay/sites --filter @panerelay/setup publish --access public",
+    "publish": "pnpm --filter @panerelay/protocol --filter @panerelay/browser-registry --filter @panerelay/cli --filter @panerelay/site-kit --filter @panerelay/sites --filter @panerelay/agent-browser --filter @panerelay/browser-use --filter @panerelay/playwright --filter @panerelay/bridge --filter @panerelay/setup publish --access public",
     "install:host": "pnpm --filter @panerelay/bridge install:host",
     "uninstall:host": "pnpm --filter @panerelay/bridge uninstall:host"
   },

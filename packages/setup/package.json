@@ -48,6 +48,7 @@
     "@panerelay/playwright": "workspace:*",
     "@panerelay/cli": "workspace:*",
     "@panerelay/protocol": "workspace:*",
+    "@panerelay/site-kit": "workspace:*",
     "@panerelay/sites": "workspace:*"
   },
   "devDependencies": {

@@ -3,6 +3,18 @@ import { execFileSync } from 'node:child_process';
 export type SupportedLocale = 'en' | 'zh-CN';
 
 const englishMessages = {
+  adapterAddProgress: 'Resolving, validating, and installing fetch adapters...',
+  adapterError: 'Fetch adapter operation failed: {message}',
+  adapterInstalledTitle: 'Installed fetch adapters',
+  adapterListTitle: 'Installed fetch adapters',
+  adapterNone: '  (none)',
+  adapterRemoved: 'Removed fetch adapters: {adapters}',
+  adapterSourceBuiltin: 'built-in {id}@{version}',
+  adapterSourceGitHub: 'GitHub {repository} at {commit}{selection}',
+  adapterSourceLocal: 'local {path}',
+  adapterSourceUnknown: 'legacy installation (source not recorded)',
+  adapterTrust:
+    'Trust: local and GitHub adapters run as third-party code when invoked. Inspect their source before installing.',
   agentBrowserMissing: 'Warning: agent-browser was not found.',
   agentBrowserUnsupported:
     'Warning: agent-browser {version} is unsupported. Panerelay requires 0.33.0 or newer.',
@@ -82,14 +94,14 @@ Usage:
   npx --yes @panerelay/setup [--agent-browser] [--browser-use] [--playwright] [--global-default] [--extension-id <id>] [--lang <language>]
   npx --yes @panerelay/setup doctor [--agent-browser] [--browser-use] [--playwright] [--global-default] [--extension-id <id>] [--json] [--lang <language>]
   npx --yes @panerelay/setup uninstall [--yes] [--lang <language>]
-  npx --yes @panerelay/setup add <adapter|path>... | --all
+  npx --yes @panerelay/setup add <adapter|path|github-source>... | --all
   npx --yes @panerelay/setup remove <adapter>... | --all
   npx --yes @panerelay/setup adapters
 
 Commands:
   doctor      Diagnose the local Panerelay integration
   uninstall   Remove Panerelay-managed local integration files
-  add         Install one or more built-in or local fetch adapters
+  add         Install built-in, local two-file/source-form, or public GitHub fetch adapters
   remove      Remove one or more installed fetch adapters
   adapters    List installed fetch adapters
 
@@ -115,6 +127,10 @@ Optional automation integrations:
 
 Optional fetch adapters:
   npx --yes @panerelay/setup add bilibili
+  npx --yes @panerelay/setup add ./my-site
+  npx --yes @panerelay/setup add owner/repository
+  npx --yes @panerelay/setup add github:owner/repository@v1.0.0#sites/example
+  npx --yes @panerelay/setup add 'https://github.com/owner/repository?ref=v1.0.0&path=sites/example'
   npx --yes @panerelay/setup remove bilibili`,
   nativeHost: 'Native Host: {path}',
   nonInteractiveUninstall: 'Non-interactive input detected. Re-run with --yes.',
@@ -128,6 +144,17 @@ Optional fetch adapters:
 type MessageKey = keyof typeof englishMessages;
 
 const chineseMessages: Record<MessageKey, string> = {
+  adapterAddProgress: '正在解析、验证并安装 Fetch 适配器……',
+  adapterError: 'Fetch 适配器操作失败：{message}',
+  adapterInstalledTitle: '已安装 Fetch 适配器',
+  adapterListTitle: '已安装的 Fetch 适配器',
+  adapterNone: '  （无）',
+  adapterRemoved: '已移除 Fetch 适配器：{adapters}',
+  adapterSourceBuiltin: '内置 {id}@{version}',
+  adapterSourceGitHub: 'GitHub {repository}，提交 {commit}{selection}',
+  adapterSourceLocal: '本地 {path}',
+  adapterSourceUnknown: '旧版安装（未记录来源）',
+  adapterTrust: '信任提示：本地和 GitHub 适配器在调用时会作为第三方代码运行，请在安装前检查源码。',
   agentBrowserMissing: '警告：未找到 agent-browser。',
   agentBrowserUnsupported:
     '警告：agent-browser {version} 不受支持。Panerelay 需要 0.33.0 或更高版本。',
@@ -206,14 +233,14 @@ const chineseMessages: Record<MessageKey, string> = {
   npx --yes @panerelay/setup [--agent-browser] [--browser-use] [--playwright] [--global-default] [--extension-id <id>] [--lang <语言>]
   npx --yes @panerelay/setup doctor [--agent-browser] [--browser-use] [--playwright] [--global-default] [--extension-id <id>] [--json] [--lang <语言>]
   npx --yes @panerelay/setup uninstall [--yes] [--lang <语言>]
-  npx --yes @panerelay/setup add <适配器|路径>... | --all
+  npx --yes @panerelay/setup add <适配器|路径|GitHub 来源>... | --all
   npx --yes @panerelay/setup remove <适配器>... | --all
   npx --yes @panerelay/setup adapters
 
 命令：
   doctor      诊断本地 Panerelay 集成
   uninstall   移除由 Panerelay 管理的本地集成文件
-  add         安装一个或多个内置或本地 Fetch 适配器
+  add         安装内置、本地两文件/源码格式或公开 GitHub Fetch 适配器
   remove      移除一个或多个已安装的 Fetch 适配器
   adapters    列出已安装的 Fetch 适配器
 
@@ -239,6 +266,10 @@ const chineseMessages: Record<MessageKey, string> = {
 
 可选 Fetch 适配器：
   npx --yes @panerelay/setup add bilibili
+  npx --yes @panerelay/setup add ./my-site
+  npx --yes @panerelay/setup add owner/repository
+  npx --yes @panerelay/setup add github:owner/repository@v1.0.0#sites/example
+  npx --yes @panerelay/setup add 'https://github.com/owner/repository?ref=v1.0.0&path=sites/example'
   npx --yes @panerelay/setup remove bilibili`,
   nativeHost: 'Native Host：{path}',
   nonInteractiveUninstall: '检测到非交互式输入，请添加 --yes 后重试。',

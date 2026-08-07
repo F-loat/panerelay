@@ -4,6 +4,7 @@ import {
   copyFile,
   lstat,
   mkdir,
+  mkdtemp,
   readFile,
   readdir,
   rename,
@@ -11,6 +12,7 @@ import {
   stat,
   writeFile,
 } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, resolve, sep } from 'node:path';
 import {
   PANERELAY_FETCH_ADAPTER_MAX_ARTIFACT_BYTES,
@@ -19,6 +21,7 @@ import {
   type FetchAdapterManifest,
   type FetchAdapterRegistration,
   type FetchAdapterRegistry,
+  type FetchAdapterSourceProvenance,
 } from '@panerelay/protocol';
 import {
   fetchAdapterDataDirectory,
@@ -27,8 +30,15 @@ import {
   type FetchAdapterRegistryOptions,
 } from '@panerelay/cli';
 import { builtinSiteSources } from '@panerelay/sites';
+import { buildSite } from '@panerelay/site-kit';
+import {
+  parseGitHubSource,
+  resolveGitHubSource,
+  type GitHubResolutionOptions,
+} from './github-source.js';
 
-export interface FetchAdapterInstallOptions extends FetchAdapterRegistryOptions {
+export interface FetchAdapterInstallOptions
+  extends FetchAdapterRegistryOptions, GitHubResolutionOptions {
   builtinSources?: Record<string, string>;
 }
 
@@ -37,6 +47,20 @@ export type FetchAdapterRemoveOptions = FetchAdapterRegistryOptions;
 interface ValidatedSource {
   entryPath: string;
   manifest: FetchAdapterManifest;
+  provenance: FetchAdapterSourceProvenance;
+}
+
+interface SourceCandidate {
+  directory: string;
+  provenance:
+    | { kind: 'builtin'; id: string }
+    | { kind: 'local'; path: string }
+    | (FetchAdapterSourceProvenance & { kind: 'github' });
+}
+
+interface PreparedBatch {
+  cleanup(): Promise<void>;
+  validated: ValidatedSource[];
 }
 
 function packagedBuiltinSources(): Record<string, string> {
@@ -69,15 +93,52 @@ async function regularSourceFile(path: string, label: string): Promise<void> {
   }
 }
 
-async function resolveSource(value: string, builtins: Record<string, string>): Promise<string[]> {
-  if (value === 'all') return Object.values(builtins);
-  if (builtins[value]) return [builtins[value]];
-  const pathLike = value.includes('/') || value.includes('\\') || isAbsolute(value);
-  if (pathLike) return [resolve(value)];
+async function existingDirectory(value: string): Promise<string | undefined> {
+  const path = resolve(value);
   try {
-    if ((await stat(resolve(value))).isDirectory()) return [resolve(value)];
+    if ((await stat(path)).isDirectory()) return path;
   } catch {
-    // Fall through to the bounded catalog error.
+    return undefined;
+  }
+  return undefined;
+}
+
+async function resolveSource(
+  value: string,
+  builtins: Record<string, string>,
+  options: GitHubResolutionOptions,
+  cleanups: Array<() => Promise<void>>,
+): Promise<SourceCandidate[]> {
+  if (value === 'all') {
+    return Object.entries(builtins).map(([id, directory]) => ({
+      directory,
+      provenance: { kind: 'builtin', id },
+    }));
+  }
+  if (builtins[value]) {
+    return [{ directory: builtins[value], provenance: { kind: 'builtin', id: value } }];
+  }
+  const local = await existingDirectory(value);
+  if (local) return [{ directory: local, provenance: { kind: 'local', path: local } }];
+  if (
+    isAbsolute(value) ||
+    value.startsWith('./') ||
+    value.startsWith('../') ||
+    value.includes('\\')
+  ) {
+    const path = resolve(value);
+    return [{ directory: path, provenance: { kind: 'local', path } }];
+  }
+  const github = parseGitHubSource(value);
+  if (github) {
+    const resolvedSource = await resolveGitHubSource(github, options);
+    cleanups.push(resolvedSource.cleanup);
+    return [{ directory: resolvedSource.directory, provenance: resolvedSource.provenance }];
+  }
+  const pathLike = value.includes('/') || value.includes('\\') || isAbsolute(value);
+  if (pathLike) {
+    const path = resolve(value);
+    return [{ directory: path, provenance: { kind: 'local', path } }];
   }
   throw new Error(`Unknown fetch adapter source: ${value}`);
 }
@@ -115,7 +176,79 @@ async function validateSource(sourceDirectory: string): Promise<ValidatedSource>
     );
   }
   await regularSourceFile(entryPath, `Fetch adapter ${manifest.id} entry`);
-  return { entryPath, manifest };
+  return {
+    entryPath,
+    manifest,
+    provenance: { kind: 'local', path: resolve(sourceDirectory) },
+  };
+}
+
+async function prepareSource(
+  candidate: SourceCandidate,
+  cleanups: Array<() => Promise<void>>,
+): Promise<ValidatedSource> {
+  let entries: string[];
+  try {
+    entries = await readdir(candidate.directory);
+  } catch {
+    throw new Error(`Fetch adapter source directory is unavailable: ${candidate.directory}`);
+  }
+  let directory = candidate.directory;
+  const strictTwoFile = entries.includes('panerelay-fetch-adapter.json');
+  if (!strictTwoFile) {
+    if (!entries.includes('panerelay.site.ts')) {
+      throw new Error(
+        `Fetch adapter source must contain panerelay.site.ts or a strict two-file adapter: ${candidate.directory}`,
+      );
+    }
+    const temporaryRoot = await mkdtemp(join(tmpdir(), 'panerelay-site-build-'));
+    cleanups.push(() => rm(temporaryRoot, { force: true, recursive: true }));
+    directory = join(temporaryRoot, 'output');
+    await buildSite(candidate.directory, { outDirectory: directory });
+  }
+  const validated = await validateSource(directory);
+  const provenance: FetchAdapterSourceProvenance =
+    candidate.provenance.kind === 'builtin'
+      ? {
+          kind: 'builtin',
+          id: candidate.provenance.id,
+          version: validated.manifest.version,
+        }
+      : candidate.provenance;
+  return { ...validated, provenance };
+}
+
+async function prepareBatch(
+  sources: string[],
+  options: FetchAdapterInstallOptions,
+): Promise<PreparedBatch> {
+  const cleanups: Array<() => Promise<void>> = [];
+  try {
+    const builtins = options.builtinSources ?? packagedBuiltinSources();
+    const candidates: SourceCandidate[] = [];
+    for (const source of sources) {
+      candidates.push(...(await resolveSource(source, builtins, options, cleanups)));
+    }
+    const unique = candidates.filter(
+      (candidate, index) =>
+        candidates.findIndex(
+          value =>
+            value.directory === candidate.directory &&
+            JSON.stringify(value.provenance) === JSON.stringify(candidate.provenance),
+        ) === index,
+    );
+    const validated: ValidatedSource[] = [];
+    for (const candidate of unique) validated.push(await prepareSource(candidate, cleanups));
+    return {
+      validated,
+      cleanup: async () => {
+        for (const cleanup of cleanups.reverse()) await cleanup();
+      },
+    };
+  } catch (error) {
+    for (const cleanup of cleanups.reverse()) await cleanup().catch(() => undefined);
+    throw error;
+  }
 }
 
 async function writeProtectedRegistry(
@@ -159,17 +292,10 @@ async function removeOtherVersions(
   }
 }
 
-export async function installFetchAdapters(
-  sources: string[],
+async function installValidatedFetchAdapters(
+  validated: ValidatedSource[],
   options: FetchAdapterInstallOptions = {},
 ): Promise<FetchAdapterRegistration[]> {
-  if (sources.length === 0) throw new Error('At least one fetch adapter source is required');
-  const builtins = options.builtinSources ?? packagedBuiltinSources();
-  const resolved = (
-    await Promise.all(sources.map(source => resolveSource(source, builtins)))
-  ).flat();
-  const uniqueSources = [...new Set(resolved)];
-  const validated = await Promise.all(uniqueSources.map(validateSource));
   const ids = validated.map(source => source.manifest.id);
   if (new Set(ids).size !== ids.length)
     throw new Error('A fetch adapter batch contains duplicate IDs');
@@ -209,6 +335,7 @@ export async function installFetchAdapters(
             source.manifest.entry,
           ),
           sha256,
+          source: source.provenance,
         },
       });
     }
@@ -259,6 +386,19 @@ export async function installFetchAdapters(
     }
   } finally {
     await rm(stagingRoot, { recursive: true, force: true });
+  }
+}
+
+export async function installFetchAdapters(
+  sources: string[],
+  options: FetchAdapterInstallOptions = {},
+): Promise<FetchAdapterRegistration[]> {
+  if (sources.length === 0) throw new Error('At least one fetch adapter source is required');
+  const prepared = await prepareBatch(sources, options);
+  try {
+    return await installValidatedFetchAdapters(prepared.validated, options);
+  } finally {
+    await prepared.cleanup();
   }
 }
 

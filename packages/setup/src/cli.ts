@@ -6,7 +6,7 @@ import {
   multiselect,
   spinner as createSpinner,
 } from '@clack/prompts';
-import { PANERELAY_EXTENSION_ID } from '@panerelay/protocol';
+import { PANERELAY_EXTENSION_ID, type FetchAdapterRegistration } from '@panerelay/protocol';
 import {
   PANERELAY_BROWSER_USE_GATEWAY_URL,
   browserUseEnvironmentPath,
@@ -649,6 +649,62 @@ function localizeArgumentError(error: unknown, locale: SupportedLocale): string 
   return message;
 }
 
+function describeAdapterSource(
+  registration: FetchAdapterRegistration,
+  locale: SupportedLocale,
+): string {
+  const source = registration.source;
+  if (!source) return translate(locale, 'adapterSourceUnknown');
+  if (source.kind === 'builtin') {
+    return translate(locale, 'adapterSourceBuiltin', { id: source.id, version: source.version });
+  }
+  if (source.kind === 'local') {
+    return translate(locale, 'adapterSourceLocal', { path: source.path });
+  }
+  const selection = [
+    source.ref ? `ref=${source.ref}` : '',
+    source.subdirectory ? `path=${source.subdirectory}` : '',
+  ]
+    .filter(Boolean)
+    .join(', ');
+  return translate(locale, 'adapterSourceGitHub', {
+    repository: source.repository,
+    commit: source.commit.slice(0, 12),
+    selection: selection ? ` (${selection})` : '',
+  });
+}
+
+function localizedAdapterError(error: unknown, locale: SupportedLocale): string {
+  const message = error instanceof Error ? error.message : String(error);
+  if (locale === 'en') return translate(locale, 'adapterError', { message });
+  const replacements: Array<[RegExp, string]> = [
+    [/^Unknown fetch adapter source:/, '未知 Fetch 适配器来源：'],
+    [/^Fetch adapter source directory is unavailable:/, 'Fetch 适配器来源目录不可用：'],
+    [/^Fetch adapter source must contain /, 'Fetch 适配器来源必须包含 '],
+    [
+      /^GitHub repository or ref is unavailable; private repositories are unsupported:/,
+      'GitHub 仓库或引用不可用；当前不支持私有仓库：',
+    ],
+    [/^GitHub repository is invalid/, 'GitHub 仓库标识无效'],
+    [/^GitHub ref is invalid/, 'GitHub 引用无效'],
+    [/^GitHub source subdirectory is invalid/, 'GitHub 来源子目录无效'],
+    [/^GitHub source URL is unsafe/, 'GitHub 来源 URL 不安全'],
+    [/^GitHub archive contains an unsafe path/, 'GitHub 压缩包包含不安全路径'],
+    [
+      /^GitHub archive contains a link or unsupported file type/,
+      'GitHub 压缩包包含链接或不支持的文件类型',
+    ],
+    [/^GitHub archive contains an oversized file/, 'GitHub 压缩包包含超大文件'],
+    [/^GitHub archive /, 'GitHub 压缩包'],
+    [/^GitHub request /, 'GitHub 请求'],
+  ];
+  const localized = replacements.reduce(
+    (value, [pattern, replacement]) => value.replace(pattern, replacement),
+    message,
+  );
+  return translate(locale, 'adapterError', { message: localized });
+}
+
 export async function main(
   argv: string[] = process.argv.slice(2),
   dependencies: CliDependencies = {},
@@ -682,12 +738,12 @@ export async function main(
       const adapters = await (dependencies.listFetchAdapters ?? listFetchAdapters)({
         environment: dependencies.environment,
       });
-      console.log(locale === 'zh-CN' ? '已安装的 Fetch 适配器' : 'Installed fetch adapters');
-      if (adapters.length === 0) console.log(locale === 'zh-CN' ? '  （无）' : '  (none)');
+      console.log(translate(locale, 'adapterListTitle'));
+      if (adapters.length === 0) console.log(translate(locale, 'adapterNone'));
       else {
         for (const adapter of adapters) {
           console.log(
-            `  ${adapter.manifest.id}@${adapter.manifest.version} — ${adapter.manifest.description}`,
+            `  ${adapter.manifest.id}@${adapter.manifest.version} — ${adapter.manifest.description} — ${describeAdapterSource(adapter, locale)}`,
           );
         }
       }
@@ -695,14 +751,17 @@ export async function main(
     }
     if (parsed.operation === 'add') {
       const sources = parsed.adapterAll ? ['all'] : (parsed.adapterItems ?? []);
+      console.log(translate(locale, 'adapterTrust'));
+      console.log(translate(locale, 'adapterAddProgress'));
       const installed = await (dependencies.installFetchAdapters ?? installFetchAdapters)(sources, {
         environment: dependencies.environment,
       });
-      console.log(
-        `${locale === 'zh-CN' ? '已安装 Fetch 适配器：' : 'Installed fetch adapters: '}${installed
-          .map(adapter => `${adapter.manifest.id}@${adapter.manifest.version}`)
-          .join(', ')}`,
-      );
+      console.log(translate(locale, 'adapterInstalledTitle'));
+      for (const adapter of installed) {
+        console.log(
+          `  ${adapter.manifest.id}@${adapter.manifest.version} — ${describeAdapterSource(adapter, locale)}`,
+        );
+      }
       return 0;
     }
     if (parsed.operation === 'remove') {
@@ -710,9 +769,7 @@ export async function main(
         parsed.adapterAll ? 'all' : (parsed.adapterItems ?? []),
         { environment: dependencies.environment },
       );
-      console.log(
-        `${locale === 'zh-CN' ? '已移除 Fetch 适配器：' : 'Removed fetch adapters: '}${removed.join(', ')}`,
-      );
+      console.log(translate(locale, 'adapterRemoved', { adapters: removed.join(', ') }));
       return 0;
     }
     if (parsed.operation === 'doctor') {
@@ -918,7 +975,13 @@ export async function main(
     return setupReady ? 0 : 1;
   } catch (error) {
     setupProgress?.error(translate(locale, 'setupProgressFailed'));
-    console.error(error instanceof Error ? error.message : String(error));
+    console.error(
+      parsed.operation === 'add' || parsed.operation === 'remove' || parsed.operation === 'adapters'
+        ? localizedAdapterError(error, locale)
+        : error instanceof Error
+          ? error.message
+          : String(error),
+    );
     return 1;
   }
 }

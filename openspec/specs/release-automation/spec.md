@@ -97,7 +97,7 @@ Panerelay SHALL publish every validated candidate tarball in dependency order, u
 
 - **GIVEN** all candidate versions are absent from npm
 - **WHEN** publication runs for a selected channel
-- **THEN** it publishes the exact retained tarballs in protocol, browser registry, CLI, agent-browser adapter, Bridge, and setup order with the channel's distribution tag
+- **THEN** it publishes the exact retained tarballs in protocol, browser registry, CLI, site kit, sites catalog, automation adapters, Bridge, and setup dependency order with the channel's distribution tag
 
 #### Scenario: Publication resumes after a partial failure
 

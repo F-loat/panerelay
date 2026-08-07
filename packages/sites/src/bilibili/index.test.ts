@@ -1,13 +1,66 @@
 import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import {
-  isFetchAdapterManifest,
   type BrowserFetchRequest,
   type BrowserFetchResponse,
   type FetchAdapterInvocationRequest,
-} from '@panerelay/protocol';
-import { BILIBILI_COMMAND_NAMES, executeBilibiliCommand, signWbiQuery } from './index.js';
-import { createBilibiliManifest } from './manifest.js';
+  inspectSite,
+  type SiteCommandDefinition,
+} from '@panerelay/site-kit';
+import { createBilibiliTestContext, type BilibiliAdapterDependencies } from './client.js';
+import comment from './commands/comment.js';
+import comments from './commands/comments.js';
+import dynamic from './commands/dynamic.js';
+import favorite from './commands/favorite.js';
+import feedDetail from './commands/feed-detail.js';
+import feed from './commands/feed.js';
+import follow from './commands/follow.js';
+import following from './commands/following.js';
+import history from './commands/history.js';
+import hot from './commands/hot.js';
+import me from './commands/me.js';
+import ranking from './commands/ranking.js';
+import search from './commands/search.js';
+import subtitle from './commands/subtitle.js';
+import summary from './commands/summary.js';
+import unfollow from './commands/unfollow.js';
+import userVideos from './commands/user-videos.js';
+import video from './commands/video.js';
+import whoami from './commands/whoami.js';
+import { signWbiQuery } from './commands/_shared/wbi.js';
+
+const COMMANDS: SiteCommandDefinition[] = [
+  comment,
+  comments,
+  dynamic,
+  favorite,
+  feedDetail,
+  feed,
+  follow,
+  following,
+  history,
+  hot,
+  me,
+  ranking,
+  search,
+  subtitle,
+  summary,
+  unfollow,
+  userVideos,
+  video,
+  whoami,
+];
+const BILIBILI_COMMAND_NAMES = COMMANDS.map(command => command.name).sort();
+
+async function executeBilibiliCommand(
+  request: FetchAdapterInvocationRequest,
+  dependencies: BilibiliAdapterDependencies,
+): Promise<unknown> {
+  const command = COMMANDS.find(candidate => candidate.name === request.command);
+  if (!command) throw new Error(`Unknown Bilibili command: ${request.command}`);
+  return command.run(createBilibiliTestContext(request, dependencies), request.args);
+}
 
 const IMG_KEY = 'abcdefghijklmnopqrstuvwxyz123456';
 const SUB_KEY = '654321zyxwvutsrqponmlkjihgfedcba';
@@ -276,10 +329,9 @@ function fixtureFetch(
 }
 
 test('manifest and executable command registry expose the same 19 OpenCLI-compatible commands', async () => {
-  const value: unknown = createBilibiliManifest('0.0.0-test');
-  assert.equal(isFetchAdapterManifest(value), true);
-  assert.ok(value && typeof value === 'object' && 'commands' in value);
-  const commands = (value as { commands: Array<{ name: string; access: string }> }).commands;
+  const sourceDirectory = fileURLToPath(new URL('../../src/bilibili', import.meta.url));
+  const value = await inspectSite(sourceDirectory);
+  const commands = value.manifest.commands;
   const names = commands.map(command => command.name).sort();
 
   assert.deepEqual(names, BILIBILI_COMMAND_NAMES);

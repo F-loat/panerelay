@@ -1,9 +1,9 @@
 import {
-  isBrowserFetchResponse,
   type BrowserFetchRequest,
   type BrowserFetchResponse,
   type FetchAdapterInvocationRequest,
-} from '@panerelay/protocol';
+  type SiteCommandContext,
+} from '@panerelay/site-kit';
 import { imageKey, signWbiQuery } from './commands/_shared/wbi.js';
 
 export const API_ORIGIN = 'https://api.bilibili.com';
@@ -120,39 +120,23 @@ function responseJson(response: BrowserFetchResponse, label: string): unknown {
   return response.body;
 }
 
-async function relayFetch(
-  request: BrowserFetchRequest,
+const BILIBILI_TEST_DEPENDENCIES = Symbol('bilibili-test-dependencies');
+
+type BilibiliCommandContext = SiteCommandContext & {
+  [BILIBILI_TEST_DEPENDENCIES]?: BilibiliAdapterDependencies;
+};
+
+export function createBilibiliTestContext(
   invocation: FetchAdapterInvocationRequest,
-): Promise<BrowserFetchResponse> {
-  const response = await fetch(invocation.fetch.endpoint, {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${invocation.fetch.token}`,
-      'content-type': 'application/json',
-    },
-    body: JSON.stringify(request),
-  });
-  const text = await response.text();
-  if (!response.ok) {
-    let detail = `Bridge HTTP ${response.status}`;
-    try {
-      const value = JSON.parse(text) as unknown;
-      if (isObject(value) && typeof value.error === 'string') detail = value.error;
-    } catch {
-      // Keep the bounded status-only error.
-    }
-    throw new Error(detail.replaceAll(invocation.fetch.token, '[redacted]').slice(0, 2_048));
-  }
-  let value: unknown;
-  try {
-    value = JSON.parse(text) as unknown;
-  } catch {
-    throw new Error('Panerelay Bridge returned invalid JSON');
-  }
-  if (!isBrowserFetchResponse(value)) {
-    throw new Error('Panerelay Bridge returned an invalid fetch response');
-  }
-  return value;
+  dependencies: BilibiliAdapterDependencies,
+): SiteCommandContext {
+  const browserFetch = dependencies.browserFetch;
+  if (!browserFetch) throw new Error('Bilibili test context requires browserFetch');
+  return {
+    invocation,
+    fetch: request => browserFetch(request, invocation),
+    [BILIBILI_TEST_DEPENDENCIES]: dependencies,
+  } as BilibiliCommandContext;
 }
 
 export class BilibiliClient {
@@ -162,12 +146,11 @@ export class BilibiliClient {
   readonly #sleep: (milliseconds: number) => Promise<void>;
   #nav?: JsonObject;
 
-  constructor(
-    invocation: FetchAdapterInvocationRequest,
-    dependencies: BilibiliAdapterDependencies,
-  ) {
-    this.#invocation = invocation;
-    this.#fetch = dependencies.browserFetch ?? relayFetch;
+  constructor(context: SiteCommandContext) {
+    const dependencies = (context as BilibiliCommandContext)[BILIBILI_TEST_DEPENDENCIES] ?? {};
+    this.#invocation = context.invocation;
+    this.#fetch =
+      dependencies.browserFetch ?? ((request: BrowserFetchRequest) => context.fetch(request));
     this.#now = dependencies.now ?? Date.now;
     this.#sleep =
       dependencies.sleep ??

@@ -208,6 +208,9 @@ importers:
       '@panerelay/protocol':
         specifier: workspace:*
         version: link:../protocol
+      '@panerelay/site-kit':
+        specifier: workspace:*
+        version: link:../site-kit
       '@panerelay/sites':
         specifier: workspace:*
         version: link:../sites
@@ -216,8 +219,8 @@ importers:
         specifier: ^0.28.1
         version: 0.28.1
 
-  packages/sites:
-    devDependencies:
+  packages/site-kit:
+    dependencies:
       '@panerelay/protocol':
         specifier: workspace:*
         version: link:../protocol
@@ -227,6 +230,22 @@ importers:
       esbuild:
         specifier: ^0.28.1
         version: 0.28.1
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+
+  packages/sites:
+    dependencies:
+      '@panerelay/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@panerelay/site-kit':
+        specifier: workspace:*
+        version: link:../site-kit
+    devDependencies:
+      '@types/node':
+        specifier: ^20.19.43
+        version: 20.19.43
 
 packages:
 

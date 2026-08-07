@@ -1,4 +1,4 @@
-import type { FetchAdapterCommand } from '@panerelay/protocol';
+import { defineCommand } from '@panerelay/site-kit';
 import {
   MAX_LIMIT,
   SITE_ORIGIN,
@@ -12,7 +12,7 @@ import {
   stringValue,
 } from '../client.js';
 
-export const commandMetadata = {
+export default defineCommand({
   name: 'history',
   description: "List the current user's Bilibili viewing history.",
   access: 'read',
@@ -26,7 +26,10 @@ export const commandMetadata = {
   ],
   output: ['rank', 'title', 'author', 'progress', 'url'],
   examples: ['panerelay fetch bilibili history'],
-} satisfies FetchAdapterCommand;
+  async run(context, args) {
+    return commandHistory(new BilibiliClient(context), args);
+  },
+});
 
 function formatDuration(seconds: number): string {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;

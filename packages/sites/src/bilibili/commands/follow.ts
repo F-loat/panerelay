@@ -1,8 +1,8 @@
-import type { FetchAdapterCommand } from '@panerelay/protocol';
+import { defineCommand } from '@panerelay/site-kit';
 import { type AdapterArgs, BilibiliClient } from '../client.js';
 import { changeRelation } from './_shared/relation.js';
 
-export const commandMetadata = {
+export default defineCommand({
   name: 'follow',
   description: 'Follow a Bilibili user and verify the resulting relation.',
   access: 'write',
@@ -17,7 +17,10 @@ export const commandMetadata = {
   ],
   output: ['mid', 'name', 'status', 'url'],
   examples: ['panerelay fetch bilibili follow 2'],
-} satisfies FetchAdapterCommand;
+  async run(context, args) {
+    return commandFollow(new BilibiliClient(context), args);
+  },
+});
 
 export async function commandFollow(client: BilibiliClient, args: AdapterArgs): Promise<unknown> {
   return changeRelation(client, args, true);

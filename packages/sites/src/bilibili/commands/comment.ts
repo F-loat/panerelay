@@ -1,4 +1,4 @@
-import type { FetchAdapterCommand } from '@panerelay/protocol';
+import { defineCommand } from '@panerelay/site-kit';
 import {
   SITE_ORIGIN,
   type AdapterArgs,
@@ -11,7 +11,7 @@ import {
 } from '../client.js';
 import { viewData } from './_shared/video.js';
 
-export const commandMetadata = {
+export default defineCommand({
   name: 'comment',
   description: 'Post a top-level Bilibili video comment or reply after explicit confirmation.',
   access: 'write',
@@ -40,7 +40,10 @@ export const commandMetadata = {
   ],
   output: ['rpid', 'bvid', 'oid', 'message', 'url'],
   examples: ["panerelay fetch bilibili comment BV1xx411c7mD '测试评论' --execute"],
-} satisfies FetchAdapterCommand;
+  async run(context, args) {
+    return commandComment(new BilibiliClient(context), args);
+  },
+});
 
 export async function commandComment(client: BilibiliClient, args: AdapterArgs): Promise<unknown> {
   const bvid = await client.resolveBvid(requiredString(args, 'bvid'));

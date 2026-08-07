@@ -1,4 +1,4 @@
-import type { FetchAdapterCommand } from '@panerelay/protocol';
+import { defineCommand } from '@panerelay/site-kit';
 import {
   MAX_LIMIT,
   type AdapterArgs,
@@ -9,7 +9,7 @@ import {
 } from '../client.js';
 import { dynamicItem } from './_shared/dynamic.js';
 
-export const commandMetadata = {
+export default defineCommand({
   name: 'dynamic',
   description: 'Get the logged-in Bilibili dynamic feed.',
   access: 'read',
@@ -23,7 +23,10 @@ export const commandMetadata = {
   ],
   output: ['id', 'author', 'text', 'likes', 'url'],
   examples: ['panerelay fetch bilibili dynamic'],
-} satisfies FetchAdapterCommand;
+  async run(context, args) {
+    return commandDynamic(new BilibiliClient(context), args);
+  },
+});
 
 export async function commandDynamic(client: BilibiliClient, args: AdapterArgs): Promise<unknown> {
   const limit = positiveInteger(args.limit, 'Bilibili dynamic limit', 15, MAX_LIMIT);

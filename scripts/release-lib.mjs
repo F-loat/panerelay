@@ -51,6 +51,33 @@ export const PACKAGE_DEFINITIONS = [
     ],
   },
   {
+    directory: 'packages/site-kit',
+    name: '@panerelay/site-kit',
+    requiredEntries: [
+      'package/LICENSE',
+      'package/README.md',
+      'package/dist/cli.js',
+      'package/dist/index.d.ts',
+      'package/dist/index.js',
+      'package/dist/runtime.d.ts',
+      'package/dist/runtime.js',
+      'package/package.json',
+    ],
+  },
+  {
+    directory: 'packages/sites',
+    name: '@panerelay/sites',
+    requiredEntries: [
+      'package/LICENSE',
+      'package/README.md',
+      'package/dist/adapters/bilibili/adapter.mjs',
+      'package/dist/adapters/bilibili/panerelay-fetch-adapter.json',
+      'package/dist/index.d.ts',
+      'package/dist/index.js',
+      'package/package.json',
+    ],
+  },
+  {
     directory: 'packages/adapters/agent-browser',
     name: '@panerelay/agent-browser',
     requiredEntries: [
@@ -105,19 +132,6 @@ export const PACKAGE_DEFINITIONS = [
       'package/dist/platform.js',
       'package/dist/providers/qoder/executable.js',
       'package/dist/providers/qoder/provider.js',
-      'package/package.json',
-    ],
-  },
-  {
-    directory: 'packages/sites',
-    name: '@panerelay/sites',
-    requiredEntries: [
-      'package/LICENSE',
-      'package/README.md',
-      'package/dist/adapters/bilibili/adapter.mjs',
-      'package/dist/adapters/bilibili/panerelay-fetch-adapter.json',
-      'package/dist/index.d.ts',
-      'package/dist/index.js',
       'package/package.json',
     ],
   },
@@ -543,9 +557,21 @@ export function validateReleaseMetadata({
     `@panerelay/bridge must not package ${CLAUDE_AGENT_SDK_PACKAGE}`,
   );
   const setupManifest = manifests.get('@panerelay/setup');
+  const siteKitManifest = manifests.get('@panerelay/site-kit');
+  const sitesManifest = manifests.get('@panerelay/sites');
   invariant(
-    setupManifest?.dependencies?.['@panerelay/sites'] === 'workspace:*',
-    '@panerelay/setup must depend on the lockstep @panerelay/sites catalog',
+    siteKitManifest?.dependencies?.['@panerelay/protocol'] === 'workspace:*',
+    '@panerelay/site-kit must depend on the lockstep @panerelay/protocol package',
+  );
+  invariant(
+    sitesManifest?.dependencies?.['@panerelay/protocol'] === 'workspace:*' &&
+      sitesManifest?.dependencies?.['@panerelay/site-kit'] === 'workspace:*',
+    '@panerelay/sites must depend on the lockstep protocol and site-kit packages',
+  );
+  invariant(
+    setupManifest?.dependencies?.['@panerelay/sites'] === 'workspace:*' &&
+      setupManifest?.dependencies?.['@panerelay/site-kit'] === 'workspace:*',
+    '@panerelay/setup must depend on the lockstep sites catalog and site-kit package',
   );
   invariant(
     implementationSources?.bridgeCompatibility.includes(
@@ -821,14 +847,25 @@ export async function smokePackedSetup(tarballs) {
     const installedSitesManifest = JSON.parse(
       await readFile(join(consumerDirectory, 'node_modules/@panerelay/sites/package.json'), 'utf8'),
     );
+    const installedSiteKitManifest = JSON.parse(
+      await readFile(
+        join(consumerDirectory, 'node_modules/@panerelay/site-kit/package.json'),
+        'utf8',
+      ),
+    );
     invariant(
       installedSetupManifest.bin?.['panerelay-setup'] === './dist/cli.js' &&
         installedSetupManifest.bin?.panerelay === undefined,
       'Packed setup executable conflicts with the Panerelay administration CLI',
     );
     invariant(
-      installedSetupManifest.dependencies?.['@panerelay/sites'] === installedSitesManifest.version,
-      'Packed setup does not require the exact lockstep @panerelay/sites version',
+      installedSetupManifest.dependencies?.['@panerelay/sites'] ===
+        installedSitesManifest.version &&
+        installedSetupManifest.dependencies?.['@panerelay/site-kit'] ===
+          installedSiteKitManifest.version &&
+        installedSitesManifest.dependencies?.['@panerelay/site-kit'] ===
+          installedSiteKitManifest.version,
+      'Packed setup and sites do not require the exact lockstep site-kit version',
     );
     try {
       await stat(
@@ -846,6 +883,46 @@ export async function smokePackedSetup(tarballs) {
     }
     const setupCliScript = join(consumerDirectory, 'node_modules/@panerelay/setup/dist/cli.js');
     const setupCliArguments = args => [setupCliScript, ...args];
+    const siteKitCliScript = join(
+      consumerDirectory,
+      'node_modules/@panerelay/site-kit/dist/cli.js',
+    );
+    const siteSourceDirectory = join(consumerDirectory, 'packed-site-source');
+    const siteOutputDirectory = join(consumerDirectory, 'packed-site-output');
+    await run(
+      process.execPath,
+      [siteKitCliScript, 'init', siteSourceDirectory, '--id', 'packed-site'],
+      { cwd: consumerDirectory, env: environment },
+    );
+    await writeFile(
+      join(siteSourceDirectory, 'commands/me.test.ts'),
+      "import assert from 'node:assert/strict';\nimport test from 'node:test';\ntest('packed site fixture', () => assert.equal(2 + 2, 4));\n",
+    );
+    await run(process.execPath, [siteKitCliScript, 'check', siteSourceDirectory], {
+      cwd: consumerDirectory,
+      env: environment,
+    });
+    await run(process.execPath, [siteKitCliScript, 'test', siteSourceDirectory], {
+      cwd: consumerDirectory,
+      env: environment,
+    });
+    await run(
+      process.execPath,
+      [siteKitCliScript, 'build', siteSourceDirectory, '--out', siteOutputDirectory],
+      { cwd: consumerDirectory, env: environment },
+    );
+    invariant(
+      (await readdir(siteOutputDirectory)).sort().join(',') ===
+        'adapter.mjs,panerelay-fetch-adapter.json',
+      'Packed site-kit build did not emit the strict two-file output',
+    );
+    const packedSiteManifest = await readJson(
+      join(siteOutputDirectory, 'panerelay-fetch-adapter.json'),
+    );
+    invariant(
+      packedSiteManifest.id === 'packed-site' && packedSiteManifest.commands?.[0]?.name === 'me',
+      'Packed site-kit build emitted an invalid minimal adapter manifest',
+    );
     const browserCliScript = join(consumerDirectory, 'node_modules/@panerelay/cli/dist/cli.js');
     const browserCliArguments = args => [browserCliScript, ...args];
     const extensionId = 'abcdefghijklmnopabcdefghijklmnop';

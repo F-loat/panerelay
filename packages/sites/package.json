@@ -38,9 +38,11 @@
     "test": "pnpm run build && node ../../scripts/run-compiled-tests.mjs dist",
     "prepublishOnly": "pnpm build"
   },
-  "devDependencies": {
+  "dependencies": {
     "@panerelay/protocol": "workspace:*",
-    "@types/node": "^20.19.43",
-    "esbuild": "^0.28.1"
+    "@panerelay/site-kit": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.43"
   }
 }

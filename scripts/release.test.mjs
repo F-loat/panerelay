@@ -88,7 +88,13 @@ function releaseFixture() {
             [descriptor.packages[0]]: 'workspace:*',
             ...(name === '@panerelay/setup'
               ? {
+                  '@panerelay/site-kit': 'workspace:*',
                   '@panerelay/sites': 'workspace:*',
+                }
+              : {}),
+            ...(name === '@panerelay/sites'
+              ? {
+                  '@panerelay/site-kit': 'workspace:*',
                 }
               : {}),
             ...(name === '@panerelay/bridge'

@@ -1,4 +1,4 @@
-import type { FetchAdapterCommand } from '@panerelay/protocol';
+import { defineCommand } from '@panerelay/site-kit';
 import {
   SITE_ORIGIN,
   type AdapterArgs,
@@ -12,7 +12,7 @@ import {
   stringValue,
 } from '../client.js';
 
-export const commandMetadata = {
+export default defineCommand({
   name: 'favorite',
   description: "List videos in one of the current user's favorite folders.",
   access: 'read',
@@ -35,7 +35,10 @@ export const commandMetadata = {
     'panerelay fetch bilibili favorite',
     'panerelay fetch bilibili favorite --fid 123 --page 2',
   ],
-} satisfies FetchAdapterCommand;
+  async run(context, args) {
+    return commandFavorite(new BilibiliClient(context), args);
+  },
+});
 
 export async function commandFavorite(client: BilibiliClient, args: AdapterArgs): Promise<unknown> {
   const limit = positiveInteger(args.limit, 'Bilibili favorite limit', 20, 40);

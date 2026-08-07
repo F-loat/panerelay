@@ -13,11 +13,12 @@
     "@panerelay/protocol",
     "@panerelay/browser-registry",
     "@panerelay/cli",
+    "@panerelay/site-kit",
+    "@panerelay/sites",
     "@panerelay/agent-browser",
     "@panerelay/browser-use",
     "@panerelay/playwright",
     "@panerelay/bridge",
-    "@panerelay/sites",
     "@panerelay/setup"
   ]
 }

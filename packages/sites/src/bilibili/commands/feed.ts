@@ -1,4 +1,4 @@
-import type { FetchAdapterCommand } from '@panerelay/protocol';
+import { defineCommand } from '@panerelay/site-kit';
 import {
   type AdapterArgs,
   BilibiliClient,
@@ -11,7 +11,7 @@ import {
 } from '../client.js';
 import { dynamicItem } from './_shared/dynamic.js';
 
-export const commandMetadata = {
+export default defineCommand({
   name: 'feed',
   description: "Read the followed timeline or one user's dynamic feed.",
   access: 'read',
@@ -36,7 +36,10 @@ export const commandMetadata = {
     'panerelay fetch bilibili feed',
     'panerelay fetch bilibili feed 2 --type video --pages 2',
   ],
-} satisfies FetchAdapterCommand;
+  async run(context, args) {
+    return commandFeed(new BilibiliClient(context), args);
+  },
+});
 
 export async function commandFeed(client: BilibiliClient, args: AdapterArgs): Promise<unknown> {
   const uidInput = optionalString(args, 'uid');

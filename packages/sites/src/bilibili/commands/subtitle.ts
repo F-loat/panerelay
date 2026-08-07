@@ -1,4 +1,4 @@
-import type { FetchAdapterCommand } from '@panerelay/protocol';
+import { defineCommand } from '@panerelay/site-kit';
 import {
   SITE_ORIGIN,
   type AdapterArgs,
@@ -15,7 +15,7 @@ import {
 } from '../client.js';
 import { selectedPart, viewData } from './_shared/video.js';
 
-export const commandMetadata = {
+export default defineCommand({
   name: 'subtitle',
   description: 'Get Bilibili video subtitles, including multipart videos.',
   access: 'read',
@@ -43,7 +43,10 @@ export const commandMetadata = {
     'panerelay fetch bilibili subtitle BV1xx411c7mD',
     'panerelay fetch bilibili subtitle BV1xx411c7mD --lang zh-CN',
   ],
-} satisfies FetchAdapterCommand;
+  async run(context, args) {
+    return commandSubtitle(new BilibiliClient(context), args);
+  },
+});
 
 export async function commandSubtitle(client: BilibiliClient, args: AdapterArgs): Promise<unknown> {
   const bvid = await client.resolveBvid(requiredString(args, 'bvid'));

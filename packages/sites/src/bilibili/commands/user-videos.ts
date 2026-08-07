@@ -1,4 +1,4 @@
-import type { FetchAdapterCommand } from '@panerelay/protocol';
+import { defineCommand } from '@panerelay/site-kit';
 import {
   SITE_ORIGIN,
   type AdapterArgs,
@@ -12,7 +12,7 @@ import {
   stringValue,
 } from '../client.js';
 
-export const commandMetadata = {
+export default defineCommand({
   name: 'user-videos',
   description: 'List videos submitted by a Bilibili user.',
   access: 'read',
@@ -43,7 +43,10 @@ export const commandMetadata = {
     'panerelay fetch bilibili user-videos 2',
     'panerelay fetch bilibili user-videos OpenCLI --order click',
   ],
-} satisfies FetchAdapterCommand;
+  async run(context, args) {
+    return commandUserVideos(new BilibiliClient(context), args);
+  },
+});
 
 export async function commandUserVideos(
   client: BilibiliClient,

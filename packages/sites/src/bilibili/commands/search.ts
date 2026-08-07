@@ -1,4 +1,4 @@
-import type { FetchAdapterCommand } from '@panerelay/protocol';
+import { defineCommand } from '@panerelay/site-kit';
 import {
   MAX_LIMIT,
   SITE_ORIGIN,
@@ -14,7 +14,7 @@ import {
   stripHtml,
 } from '../client.js';
 
-export const commandMetadata = {
+export default defineCommand({
   name: 'search',
   description: 'Search Bilibili videos or users.',
   access: 'read',
@@ -40,7 +40,10 @@ export const commandMetadata = {
     'panerelay fetch bilibili search Panerelay',
     'panerelay fetch bilibili search OpenCLI --type user',
   ],
-} satisfies FetchAdapterCommand;
+  async run(context, args) {
+    return commandSearch(new BilibiliClient(context), args);
+  },
+});
 
 export async function commandSearch(client: BilibiliClient, args: AdapterArgs): Promise<unknown> {
   const query = requiredString(args, 'query');

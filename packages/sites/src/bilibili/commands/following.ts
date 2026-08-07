@@ -1,4 +1,4 @@
-import type { FetchAdapterCommand } from '@panerelay/protocol';
+import { defineCommand } from '@panerelay/site-kit';
 import {
   API_ORIGIN,
   type AdapterArgs,
@@ -13,7 +13,7 @@ import {
   stringValue,
 } from '../client.js';
 
-export const commandMetadata = {
+export default defineCommand({
   name: 'following',
   description: "List one Bilibili user's followed accounts.",
   access: 'read',
@@ -34,7 +34,10 @@ export const commandMetadata = {
   ],
   output: ['mid', 'name', 'sign', 'following', 'fans'],
   examples: ['panerelay fetch bilibili following', 'panerelay fetch bilibili following 2 --page 2'],
-} satisfies FetchAdapterCommand;
+  async run(context, args) {
+    return commandFollowing(new BilibiliClient(context), args);
+  },
+});
 
 export async function commandFollowing(
   client: BilibiliClient,

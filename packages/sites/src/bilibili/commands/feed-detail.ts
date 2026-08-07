@@ -1,4 +1,4 @@
-import type { FetchAdapterCommand } from '@panerelay/protocol';
+import { defineCommand } from '@panerelay/site-kit';
 import {
   type AdapterArgs,
   BilibiliClient,
@@ -11,7 +11,7 @@ import {
 } from '../client.js';
 import { dynamicItem } from './_shared/dynamic.js';
 
-export const commandMetadata = {
+export default defineCommand({
   name: 'feed-detail',
   description: 'Show one Bilibili dynamic item in detail.',
   access: 'read',
@@ -26,7 +26,10 @@ export const commandMetadata = {
   ],
   output: ['field', 'value'],
   examples: ['panerelay fetch bilibili feed-detail 123456789'],
-} satisfies FetchAdapterCommand;
+  async run(context, args) {
+    return commandFeedDetail(new BilibiliClient(context), args);
+  },
+});
 
 export async function commandFeedDetail(
   client: BilibiliClient,

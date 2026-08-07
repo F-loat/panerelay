@@ -1,8 +1,8 @@
-import type { FetchAdapterCommand } from '@panerelay/protocol';
+import { defineCommand } from '@panerelay/site-kit';
 import { type AdapterArgs, BilibiliClient } from '../client.js';
 import { changeRelation } from './_shared/relation.js';
 
-export const commandMetadata = {
+export default defineCommand({
   name: 'unfollow',
   description: 'Unfollow a Bilibili user and verify the resulting relation.',
   access: 'write',
@@ -17,7 +17,10 @@ export const commandMetadata = {
   ],
   output: ['mid', 'name', 'status', 'url'],
   examples: ['panerelay fetch bilibili unfollow 2'],
-} satisfies FetchAdapterCommand;
+  async run(context, args) {
+    return commandUnfollow(new BilibiliClient(context), args);
+  },
+});
 
 export async function commandUnfollow(client: BilibiliClient, args: AdapterArgs): Promise<unknown> {
   return changeRelation(client, args, false);

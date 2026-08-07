@@ -13,6 +13,7 @@ import {
   isFetchAdapterInvocationResponse,
   isFetchAdapterManifest,
   isFetchAdapterRegistry,
+  isFetchAdapterSourceProvenance,
   type FetchAdapterManifest,
 } from './browser-fetch.js';
 
@@ -210,11 +211,57 @@ test('validates strict fetch adapter manifests and registries', () => {
           manifest,
           executablePath: '/home/user/.panerelay/fetch-adapters/bilibili/adapter.mjs',
           sha256: 'a'.repeat(64),
+          source: {
+            kind: 'github',
+            repository: 'panerelay/sites',
+            commit: 'b'.repeat(40),
+            ref: 'v1.0.0',
+            subdirectory: 'sites/bilibili',
+          },
         },
       ],
     }),
     true,
   );
+});
+
+test('validates backward-compatible adapter source provenance', () => {
+  assert.equal(
+    isFetchAdapterSourceProvenance({ kind: 'builtin', id: 'bilibili', version: '0.8.0' }),
+    true,
+  );
+  assert.equal(
+    isFetchAdapterSourceProvenance({ kind: 'local', path: '/tmp/panerelay/bilibili' }),
+    true,
+  );
+  assert.equal(
+    isFetchAdapterSourceProvenance({
+      kind: 'github',
+      repository: 'owner/repository',
+      commit: 'c'.repeat(40),
+      ref: 'feature/site-kit',
+      subdirectory: 'sites/bilibili',
+    }),
+    true,
+  );
+  assert.equal(
+    isFetchAdapterSourceProvenance({
+      kind: 'github',
+      repository: 'https://token@github.com/owner/repository',
+      commit: 'c'.repeat(40),
+    }),
+    false,
+  );
+  assert.equal(
+    isFetchAdapterSourceProvenance({
+      kind: 'github',
+      repository: 'owner/repository',
+      commit: 'c'.repeat(40),
+      subdirectory: '../outside',
+    }),
+    false,
+  );
+  assert.equal(isFetchAdapterSourceProvenance({ kind: 'local', path: 'relative/adapter' }), false);
 });
 
 test('validates correlated one-shot adapter messages', () => {

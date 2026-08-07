@@ -77,10 +77,13 @@ panerelay fetch https://api.example.com/me \
 
 目标域名仍需具备 Chrome 站点访问权限，但 fetch 不会提前检查、主动请求或扩大权限。只有 Chrome 拒绝 Cookie 访问、临时请求头规则或网络请求时，Panerelay 才会指出对应 origin，并提示授予站点访问权限后重试。首版明确不包含 Panerelay 自己的域名 ACL，也不会获取标签页控制租约。
 
-站点适配器需要显式安装。所有内置适配器统一由同版本的 `@panerelay/sites` 目录包分发，而不是每个站点发布一个 npm 包；setup 支持单个安装、一次批量安装、安装全部内置适配器，或安装一个本地双文件适配器目录：
+站点适配器需要显式安装。所有内置适配器统一由同版本的 `@panerelay/sites` 目录包分发，而不是每个站点发布一个 npm 包；setup 可在一个原子批次中安装内置适配器、已有的本地双文件产物、轻量的 site-kit 源码目录，以及显式指定的公开 GitHub 仓库：
 
 ```bash
 npx --yes @panerelay/setup add bilibili
+npx --yes @panerelay/setup add ./my-site
+npx --yes @panerelay/setup add owner/repository
+npx --yes @panerelay/setup add github:owner/repository@v1.0.0#sites/example
 npx --yes @panerelay/setup adapters
 panerelay fetch bilibili --help
 panerelay fetch bilibili me
@@ -89,13 +92,13 @@ panerelay fetch bilibili subtitle BV1xx411c7mD --lang zh-CN
 npx --yes @panerelay/setup remove bilibili
 ```
 
-安装文件位于 `~/.panerelay/fetch-adapters`。帮助命令只读取受保护的 manifest，不连接浏览器，也不执行适配器代码。适配器命令默认输出带条目数和耗时 footer 的 OpenCLI 风格表格，也可使用 `--json` 获取结构化结果；执行时会校验 digest，在有界的一次性子进程中启动适配器，并且只传入短期 fetch 凭证。本地适配器是用户主动选择的受信任代码，不是操作系统沙箱。
+安装文件位于 `~/.panerelay/fetch-adapters`。帮助命令只读取受保护的 manifest，不连接浏览器，也不执行适配器代码。适配器命令默认输出带条目数和耗时 footer 的 OpenCLI 风格表格，也可使用 `--json` 获取结构化结果。GitHub 安装仅支持公开仓库，会固定并记录一个完整 commit，也不会运行仓库的包管理器或脚本；执行时会校验 digest，在有界的一次性子进程中启动适配器，并且只传入短期 fetch 凭证。本地与 GitHub 适配器都是用户主动选择的受信任代码，不是操作系统沙箱。
 
 内置 Bilibili 适配器提供 16 个读命令（`whoami`、`me`、`video`、`search`、`hot`、`ranking`、`dynamic`、`feed`、`feed-detail`、`favorite`、`history`、`following`、`user-videos`、`comments`、`subtitle`、`summary`）和 3 个写命令（`comment`、`follow`、`unfollow`）。参数可通过 `panerelay fetch bilibili <command> --help` 查看。`comment` 必须显式传入 `--execute`；关注关系写操作会先检查并在写入后验证状态。三个写命令都只声明 `bili_jct` 到 `csrf` 的绑定，由扩展解析并注入 Cookie 值，因此值不会进入适配器输入。`login` 和 `download` 明确不在支持范围内，因为它们分别需要交互式页面导航，以及超出 fetch 适配器边界的媒体与文件系统行为。
 
 站点命令后的 `--lang` 属于适配器参数，例如上面的字幕语言。全局界面语言应放在 `fetch` 前，例如 `panerelay --lang zh-CN fetch bilibili --help`。
 
-本地适配器目录包含 `panerelay-fetch-adapter.json`，以及该 manifest 的 `entry` 指定的自包含 `.mjs` 文件。`panerelay.fetch-adapter.v1` manifest 会声明有界的命令名、类型化参数、输出字段和示例；详见 [`@panerelay/setup` 技术参考](packages/setup/README.md#fetch-adapter-lifecycle)。
+使用 `npx --yes @panerelay/site-kit init ./my-site --id my-site` 可以创建逐命令文件的可编辑适配器，随后可运行 `check`、显式 `test` 与 `build`。setup 能直接安装这个源码目录，无需 `package.json`、`tsconfig.json`、手写 manifest 或构建脚本。已有的 `panerelay-fetch-adapter.json` 加一个自包含 `.mjs` 文件的严格双文件目录仍兼容。详见 [`@panerelay/setup` 技术参考](packages/setup/README.md#fetch-adapter-lifecycle)与 [`@panerelay/site-kit`](packages/site-kit/README.md)。
 
 ## 高级设置与安装管理
 

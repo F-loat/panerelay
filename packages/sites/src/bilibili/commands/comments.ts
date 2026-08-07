@@ -1,4 +1,4 @@
-import type { FetchAdapterCommand } from '@panerelay/protocol';
+import { defineCommand } from '@panerelay/site-kit';
 import {
   type AdapterArgs,
   BilibiliClient,
@@ -13,7 +13,7 @@ import {
 } from '../client.js';
 import { viewData } from './_shared/video.js';
 
-export const commandMetadata = {
+export default defineCommand({
   name: 'comments',
   description: 'Read top-level video comments or replies under one comment.',
   access: 'read',
@@ -42,7 +42,10 @@ export const commandMetadata = {
     'panerelay fetch bilibili comments BV1xx411c7mD',
     'panerelay fetch bilibili comments BV1xx411c7mD --parent 123',
   ],
-} satisfies FetchAdapterCommand;
+  async run(context, args) {
+    return commandComments(new BilibiliClient(context), args);
+  },
+});
 
 function replyRow(value: unknown, index: number): unknown {
   const item = objectValue(value, 'comment');

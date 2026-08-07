@@ -14,6 +14,7 @@
 | Built-in `bilibili me` | Verified | Forwarded | Daily Chrome confirms installation, manifest-only help, logged-in nav, WBI signing, profile validation, OpenCLI-style table output, explicit `--json`, and the exact six-field result. Bilibili still exposes a private, unsupported API contract that can change independently. |
 | Bilibili 19-command inventory | Partial | Automated | Manifest/registry agreement and command-focused fixtures cover all 16 reads plus guarded `comment`, verified `follow`, and verified `unfollow`. Daily Chrome additionally confirms one representative read and all three writes with cleanup; the other reads have not each been live-verified. `login` and `download` are explicitly excluded. |
 | Local adapter format | Automated | Automated | Source validation, atomic batch install, protected registry, digest checks, bounded child execution, list, and removal are deterministic filesystem behavior. |
+| Site-kit source and public GitHub installation | Automated | Automated | Static source discovery, deterministic two-file builds, commit-pinned public GitHub retrieval, bounded archive extraction, provenance, and atomic mixed batches are setup/tooling behavior. They grant no browser permission and do not change browser execution classification. |
 
 `Partial` is intentionally conservative. Daily Chrome now covers custom and removed `Origin`/`Referer`, real profile-cookie injection, no-cookie requests, JSON/text/Base64 framing, redirects, non-2xx responses, timeout failure, and Host-generation replacement. Chrome rejection after missing site access still needs retained evidence. `Forwarded` means behavior is expected to use the same Chromium implementation in Edge, but dedicated Edge evidence remains pending.
 
@@ -32,6 +33,8 @@ The 2026-08-07 daily-Chrome run used the matching development Extension and Host
 ## Unchanged automation classifications
 
 This feature does not change the protocol or ownership behavior of agent-browser 0.33.0, Browser Use 0.13.7, or Playwright CLI 0.1.17. Their existing compatibility records remain authoritative. Fetch-only sessions use separate endpoints, credentials, limits, and pending-request state; they never enter automation participant or control-lane accounting.
+
+Source-form and GitHub installation are deliberately classified separately from browser-backed execution. Setup may statically inspect and build an adapter without a browser; it does not preflight Chrome Host Permission, authorize a tab, select a browser, create an automation participant, or acquire a control lease. The installed two-file child continues through the same fetch-session and future domain-policy boundary as built-ins and existing local adapters.
 
 ## Required live follow-up
 
