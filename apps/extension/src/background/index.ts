@@ -15,6 +15,7 @@ import {
   type CdpTargetInfo,
   type CdpTargetRequestMessage,
   type BrowserFetchRequestMessage,
+  type BrowserFetchPermissionRequestMessage,
   type HostToExtensionMessage,
   type IntegrationRequest,
   type IntegrationBrowserDefaultResult,
@@ -84,6 +85,15 @@ import {
   executeBrowserFetch,
   removeAbandonedBrowserFetchRules,
 } from './browser-fetch.js';
+import {
+  assertFetchUrlAuthorized,
+  fetchPermissionPatterns,
+  grantFetchDomain,
+  readFetchAuthorization,
+  revokeFetchDomain,
+  setFetchAllDomains,
+} from '../shared/fetch-permissions.js';
+import { FetchPermissionRequestManager } from './fetch-permission-requests.js';
 
 const BROWSER_ID_KEY = 'panerelay.browserId';
 const ALL_TABS_AUTHORIZATION_KEY = 'panerelay.authorization.allTabs';
@@ -94,6 +104,7 @@ const INTEGRATION_INSTALL_REQUEST_TIMEOUT_MS = 5 * 60_000 + 10_000;
 const browserRuntime = detectBrowserRuntime();
 const browserFetchEnvironment = createChromeBrowserFetchEnvironment();
 const browserFetchStartupCleanup = removeAbandonedBrowserFetchRules().catch(() => undefined);
+const fetchPermissionRequests = new FetchPermissionRequestManager();
 
 let nativePort: chrome.runtime.Port | null = null;
 let browserRegistered = false;
@@ -181,6 +192,7 @@ const handleSidePanelRequest = createSidePanelRequestRouter({
   selectWorkspaceDirectory: async () =>
     (await requestIntegration({ method: 'workspace.pick-directory' })).path,
   setAuthorization,
+  setFetchAuthorization,
   setBrowserDefault,
   setBrowserUseDefault,
   setDefaultProvider,
@@ -225,6 +237,7 @@ async function status(): Promise<ExtensionStatus> {
     browserUseDefault,
     browserDefault,
     authorizationRequest,
+    fetchAuthorization: await readFetchAuthorization(),
     activeTab: currentActiveTab,
     authorizationMode,
     authorizedOriginPatterns: [...authorizedOriginPatterns],
@@ -411,6 +424,7 @@ function connectNativeHost(): void {
       if (!preserveAuthorization) authorizedTab = null;
       pendingAgentRequests.rejectAll(disconnectMessage);
       pendingIntegrationRequests.rejectAll(disconnectMessage);
+      fetchPermissionRequests.cancelAll(disconnectMessage);
       void releaseControl('Panerelay Bridge disconnected', false);
       void broadcastStatus();
       scheduleReconnect();
@@ -476,6 +490,9 @@ async function handleHostMessage(message: HostToExtensionMessage): Promise<void>
     case 'fetch.request':
       await handleBrowserFetch(message);
       return;
+    case 'fetch.permission.request':
+      await handleBrowserFetchPermission(message);
+      return;
     case 'cdp.attach':
       await attachTarget(message.requestId, message.targetId);
       return;
@@ -525,6 +542,7 @@ async function handleBrowserFetch(message: BrowserFetchRequestMessage): Promise<
     if (message.browserId !== (await browserId())) {
       throw new Error('Browser fetch request targets a different browser registration');
     }
+    assertFetchUrlAuthorized(message.request.url, await readFetchAuthorization());
     const response = await executeBrowserFetch(message.request, browserFetchEnvironment);
     sendNative({
       type: 'fetch.result',
@@ -541,6 +559,36 @@ async function handleBrowserFetch(message: BrowserFetchRequestMessage): Promise<
       requestId: message.requestId,
       success: false,
       error: detail || 'Browser fetch failed',
+    });
+  }
+}
+
+async function handleBrowserFetchPermission(
+  message: BrowserFetchPermissionRequestMessage,
+): Promise<void> {
+  try {
+    if (message.browserId !== (await browserId())) {
+      throw new Error('Fetch authorization request targets a different browser registration');
+    }
+    const result = await fetchPermissionRequests.request(message.domain);
+    sendNative({
+      type: 'fetch.permission.result',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      requestId: message.requestId,
+      granted: result.granted,
+      domain: result.domain,
+      ...(result.scope ? { scope: result.scope } : {}),
+    });
+    await broadcastStatus();
+  } catch (error) {
+    const detail = (error instanceof Error ? error.message : String(error)).slice(0, 2_048);
+    sendNative({
+      type: 'fetch.permission.result',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      requestId: message.requestId,
+      granted: false,
+      domain: message.domain,
+      error: detail || 'Browser fetch authorization failed',
     });
   }
 }
@@ -1100,6 +1148,31 @@ async function setAuthorization(mode: AuthorizationMode): Promise<ExtensionStatu
   return status();
 }
 
+async function setFetchAuthorization(
+  request: Extract<SidePanelRequest, { type: 'panerelay.fetch-authorization.set' }>,
+): Promise<ExtensionStatus> {
+  if (request.scope === 'all-domains') {
+    if (request.enabled) {
+      const origins = fetchPermissionPatterns('all-domains');
+      if (!(await chrome.permissions.contains({ origins }))) {
+        throw new Error('Chrome access to all web origins was not granted');
+      }
+    }
+    await setFetchAllDomains(request.enabled);
+  } else if (request.enabled) {
+    const origins = fetchPermissionPatterns('domain', request.domain);
+    if (!(await chrome.permissions.contains({ origins }))) {
+      throw new Error(`Chrome site access for ${request.domain} was not granted`);
+    }
+    await grantFetchDomain(request.domain);
+  } else {
+    await revokeFetchDomain(request.domain);
+  }
+  lastError = undefined;
+  await broadcastStatus();
+  return status();
+}
+
 async function releaseBrowserControl(): Promise<ExtensionStatus> {
   await releaseControl('User released browser control', true);
   return status();
@@ -1219,6 +1292,7 @@ chrome.runtime.onMessage.addListener((message: unknown, sender, sendResponse) =>
   }
   if (
     type === 'panerelay.status.changed' ||
+    type === 'panerelay.fetch-permission.decision' ||
     type === 'panerelay.conversation.event' ||
     type === 'panerelay.workspace.changed' ||
     type.startsWith('panerelay.page-comment.')

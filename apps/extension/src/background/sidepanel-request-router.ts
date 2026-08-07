@@ -55,6 +55,9 @@ export interface SidePanelRequestRouterOptions {
   requestAgent: (request: AgentRequest) => Promise<unknown>;
   selectWorkspaceDirectory: () => Promise<string | null>;
   setAuthorization: (mode: AuthorizationMode) => Promise<ExtensionStatus>;
+  setFetchAuthorization: (
+    request: Extract<SidePanelRequest, { type: 'panerelay.fetch-authorization.set' }>,
+  ) => Promise<ExtensionStatus>;
   setBrowserDefault: (enabled: boolean) => Promise<ExtensionStatus>;
   setBrowserUseDefault: (enabled: boolean) => Promise<ExtensionStatus>;
   setDefaultProvider: (enabled: boolean) => Promise<ExtensionStatus>;
@@ -73,6 +76,8 @@ export function createSidePanelRequestRouter(options: SidePanelRequestRouterOpti
         return { success: true, status: await options.status() };
       case 'panerelay.authorization.set':
         return { success: true, status: await options.setAuthorization(message.mode) };
+      case 'panerelay.fetch-authorization.set':
+        return { success: true, status: await options.setFetchAuthorization(message) };
       case 'panerelay.control.release':
         return { success: true, status: await options.releaseControl() };
       case 'panerelay.native.retry':

@@ -10,9 +10,9 @@
 
 ## Summary
 
-Panerelay will expose a bounded fetch-shaped request path through one selected live Chrome or Edge Extension. The Bridge creates short-lived fetch-only sessions, correlates requests over Native Messaging, and returns structured HTTP responses. The Extension uses its existing Chrome Host Permission for the target without a separate preflight check, optionally collects browser cookies, and uses temporary request-header rules so caller-provided `Origin` and `Referer` values are preserved. If Chrome rejects one of those operations, the returned error includes site-access guidance.
+Panerelay will expose a bounded fetch-shaped request path through one selected live Chrome or Edge Extension. The Bridge creates short-lived fetch-only sessions, correlates requests over Native Messaging, and returns structured HTTP responses. Before credential or network work, the Extension requires a matching exact/wildcard domain grant or an explicit all-domains grant. Domain policy ignores URL scheme and port. Chrome Host Permission remains a separate mandatory layer. The Extension then optionally collects browser cookies and uses temporary request-header rules so caller-provided `Origin` and `Referer` values are preserved.
 
-Fetch is not a CDP operation. It does not attach, observe, navigate, focus, or control a tab, and it never creates a relay participant or browser-control lease. This first version deliberately adds no Panerelay-owned domain ACL or permission prompt. Chrome Host Permission remains mandatory and is never granted by the fetch path.
+Fetch is not a CDP operation. It does not attach, observe, navigate, focus, or control a tab, and it never creates a relay participant or browser-control lease. Users can grant the active page's hostname or all domains from the side panel and can expand, review, or revoke saved exact and leading-wildcard patterns such as `*.baidu.com`. An Agent can explicitly request approval with a hostname, wildcard, or URL through a registration-authenticated command; that action opens a focused Extension confirmation window where the user's click may approve only the normalized requested pattern and request the corresponding Chrome Host Permission. All-domains approval remains a settings-only user action.
 
 The standalone CLI also supports setup-managed site adapters. Each installed adapter has a strict metadata manifest and one self-contained executable. A public source toolkit generates that form from a lightweight command-per-file TypeScript directory without a nested npm package, handwritten manifest, or site-specific protocol entrypoint. Setup installs built-in, explicit local, or explicit public GitHub adapters into protected user storage; CLI help reads only generated manifests, and command execution occurs out of process with a short-lived fetch-only credential. The first built-in adapter implements the fetch-compatible Bilibili command set.
 
@@ -41,7 +41,7 @@ This RFC extends RFC-0001's protocol families and RFC-0006's CLI scope. It does 
 
 ### Non-goals
 
-1. A Panerelay domain allowlist, domain approval, per-request approval, request activity UI, or permission-grant flow.
+1. Per-request approval after a domain is already granted, path- or method-level ACLs, nested wildcard syntax, or request activity history.
 2. File upload, multipart construction, streaming bodies, streaming responses, WebSocket, EventSource, or download management.
 3. An adapter marketplace, registry search, npm package-per-site resolution, automatic adapter updates, private GitHub authentication, arbitrary Git hosts, or repository dependency installation.
 4. An operating-system sandbox for explicitly installed local adapter code.
@@ -57,7 +57,8 @@ This RFC extends RFC-0001's protocol families and RFC-0006's CLI scope. It does 
 - **Built-in adapter**: a lockstep adapter artifact carried by the aggregate `@panerelay/sites` package but installed only by explicit user request through setup.
 - **Local adapter source**: an explicit filesystem directory containing either the installed two-file format or the public source format.
 - **GitHub adapter source**: an explicitly supplied public owner/repository or canonical GitHub URL resolved once to a concrete commit before source selection and installation.
-- **Chrome Host Permission**: Chrome or Edge's own grant allowing the Extension to contact and access cookies for an origin. It is separate from the deferred Panerelay domain policy.
+- **Fetch domain grant**: Panerelay's Extension-local approval for one exact hostname, one leading-wildcard domain pattern, or all domains. It ignores scheme and port, authorizes only browser fetch, and never grants tab authorization or control ownership.
+- **Chrome Host Permission**: Chrome or Edge's own match-pattern grant allowing the Extension to contact and access cookies for a domain. It is mandatory in addition to a fetch domain grant and can be shared with other Extension capabilities.
 
 ## Architecture
 
@@ -111,11 +112,17 @@ fetch.result
 
 `fetch.request` carries an opaque request ID, browser ID, generation, and validated request. `fetch.result` repeats the request ID and returns one bounded structured response or sanitized error. The Bridge permits only results correlated to a pending request and rejects pending work on timeout, Extension disconnect, or generation change.
 
+The registration-authenticated Agent approval path adds `fetch.permission.request` and `fetch.permission.result`. The CLI accepts a hostname, leading-wildcard pattern, or URL of any parseable scheme and sends one normalized scheme-independent domain pattern. The Bridge validates that pattern and the selected browser identity/generation, keeps a bounded 90-second pending request, and forwards no registration token to the Extension or adapter. The result reports denial or the requested-domain scope; this path cannot grant all domains. Adapter children receive only fetch-session credentials and cannot open permission UI themselves.
+
 The existing chunked Native Messaging envelope carries larger JSON bodies. Initial limits remain below the 64 MiB transfer ceiling: URL 8 KiB, at most 128 headers and 64 KiB of aggregate header material, 8 MiB decoded request body, timeout 100 through 120,000 ms, and 32 MiB decoded response body. Unsupported URL schemes, methods, encodings, sizes, and response types fail before network work.
 
 ## Extension request execution
 
-The Extension does not query the target origin with `chrome.permissions.contains` before reading cookies, installing a temporary rule, or calling `fetch`. The manifest continues to declare HTTP and HTTPS as optional host permissions. The fetch implementation does not call `chrome.permissions.request` and does not widen a grant. If Chrome rejects one of those operations, the error identifies the origin and tells the user to grant Chrome site access.
+The Extension extracts the target hostname and requires a matching exact/wildcard pattern or the all-domains grant before reading cookies, installing a temporary rule, or calling `fetch`. An exact pattern matches one hostname; a leading `*.` pattern matches its root plus every subdomain. A denial includes only the hostname and the explicit `panerelay fetch --authorize <hostname>` guidance. After Panerelay authorization, the Extension does not separately preflight Chrome Host Permission before its cookie, rule, or fetch operations; Chrome rejection still returns site-access guidance.
+
+The side panel can request the HTTP and HTTPS Chrome Host Permission match patterns for one scheme-independent domain grant, then save the current active page's hostname or all domains from a direct user click. It displays the broad grant independently and preserves exact/wildcard grants when broad access is disabled. Revoking a Panerelay fetch grant never removes Chrome Host Permission because browser automation or another Extension capability may still rely on it.
+
+`panerelay fetch --authorize <hostname|*.domain|url>` uses the selected registration rather than a fetch-session token. The Extension opens one centered popup containing only the normalized domain pattern and opaque request ID. Direct user actions can request and save only that pattern or explicitly deny and remove the identical saved Panerelay pattern; denial never removes Chrome Host Permission. All-domains approval remains available only in the side panel. Close, timeout, duplicate settlement, Extension disconnect, or generation change fails closed without modifying saved grants. Ordinary unauthorized fetch never opens a popup automatically.
 
 The Extension declares `cookies` and `declarativeNetRequestWithHostAccess`. Cookie access is limited to cookies applicable to the target URL in that Extension profile. When enabled, the Extension constructs a generated `Cookie` header internally and returns only its cookie count. Browser Cookie inventory and Cookie values never enter Native Messaging, CLI output, adapter input, or default logs. A bounded binding declaration may carry one exact Cookie name as a selector, but resolution and the selected value remain inside the Extension.
 
@@ -140,6 +147,12 @@ panerelay fetch <url> [--method <method>] [-H <name:value>]...
   [--query <name:value>]... [--data <text>|--data-base64 <base64>]
   [--response <auto|json|text|base64>] [--timeout <ms>]
   [--cookies|--no-cookies] [--browser <selector>]
+```
+
+Agent-requested authorization uses a separate explicit mode:
+
+```text
+panerelay fetch --authorize <hostname|*.domain|url> [--browser <selector>]
 ```
 
 Any other first operand must match an installed adapter ID, followed by a command. `panerelay fetch --help` combines static raw-fetch help with installed manifest summaries. Site and command help come only from the protected registry and require no browser. Raw and adapter execution use RFC-0006 selection: explicit selector, saved default, or only live ready registration; ambiguity and unavailability fail closed.
@@ -212,8 +225,8 @@ The implementation is informed by the local OpenCLI Bilibili reference but impor
 1. Fetch remains loopback-only and starts from a protected live browser registration.
 2. Fetch sessions are random, short-lived, browser/generation-bound, fetch-only, concurrency-bounded, and explicitly releasable.
 3. Registration tokens, fetch tokens, cookies, resolved Cookie bindings, source-header rules, request bodies, and response bodies are not logged by default.
-4. Chrome Host Permission is never preflighted, granted, or requested by fetch; Chrome rejection is reported after the attempted operation.
-5. No Panerelay domain ACL exists in this version. That omission is explicit and must be addressed by a later RFC before Panerelay claims its own domain-level authorization.
+4. Ordinary fetch never grants or requests Chrome Host Permission; Chrome rejection is reported after the attempted operation. Only explicit side-panel or Agent approval clicks may request it.
+5. Every fetch requires a matching exact, wildcard, or all-domains Panerelay grant before Cookie, DNR, or network work. Fetch grants remain separate from tab authorization and control ownership.
 6. Browser fetch never enters CDP, target, tab authorization, participant, activity, or control-lease state.
 7. Adapter help never executes code or reads browser credentials.
 8. Adapter execution is out of process, bounded, protected-storage verified, and given only fetch-scoped connection material.

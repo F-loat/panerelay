@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { BridgeState } from '@panerelay/protocol';
-import { runBrowserFetch } from './browser-fetch-client.js';
+import { requestBrowserFetchPermission, runBrowserFetch } from './browser-fetch-client.js';
 
 const state: BridgeState = {
   protocol: 'panerelay.relay.v2',
@@ -87,4 +87,26 @@ test('does not include bearer credentials in Bridge failures', async () => {
       return true;
     },
   );
+});
+
+test('requests one normalized domain permission with registration authority', async () => {
+  let request: { url: string; init?: RequestInit } | undefined;
+  const result = await requestBrowserFetchPermission(state, '*.example.test', {
+    fetch: async (input, init) => {
+      request = { url: String(input), init };
+      return Response.json({
+        protocol: 'panerelay.fetch-permission.v1',
+        granted: true,
+        domain: '*.example.test',
+        scope: 'domain',
+      });
+    },
+  });
+  assert.equal(request?.url, 'http://127.0.0.1:41234/fetch/permissions');
+  assert.equal(
+    (request?.init?.headers as Record<string, string>).authorization,
+    'Bearer registration-secret',
+  );
+  assert.match(String(request?.init?.body), /\*\.example\.test/);
+  assert.equal(result.scope, 'domain');
 });

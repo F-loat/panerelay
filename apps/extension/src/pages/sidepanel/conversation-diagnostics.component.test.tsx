@@ -23,6 +23,7 @@ describe('conversation diagnostics', () => {
       browserUseDefault: null,
       browserDefault: null,
       authorizationRequest: null,
+      fetchAuthorization: { allDomains: false, domains: [] },
       activeTab: { id: 21, title: 'Yuque dashboard', url: 'https://yuque.example/dashboard' },
       authorizationMode: 'single-tab',
       authorizedOriginPatterns: ['https://yuque.example/*'],

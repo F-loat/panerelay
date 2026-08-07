@@ -75,7 +75,14 @@ panerelay fetch https://api.example.com/me \
 
 默认携带浏览器 Cookie；使用 `--no-cookies` 可关闭。原始请求还支持 `--data`、`--data-base64`、可重复的 `--header/-H` 与 `--query`、`--timeout`、`--response` 和 `--browser`。运行 `panerelay fetch --help` 可查看完整中文帮助。
 
-目标域名仍需具备 Chrome 站点访问权限，但 fetch 不会提前检查、主动请求或扩大权限。只有 Chrome 拒绝 Cookie 访问、临时请求头规则或网络请求时，Panerelay 才会指出对应 origin，并提示授予站点访问权限后重试。首版明确不包含 Panerelay 自己的域名 ACL，也不会获取标签页控制租约。
+浏览器 Fetch 同时要求 Panerelay 域名授权和 Chrome 站点访问权限。未匹配 Panerelay 授权的请求会在读取 Cookie、安装临时请求头规则或发起网络请求前失败，并明确告诉 Agent 如何申请权限：
+
+```bash
+panerelay fetch --authorize api.example.com
+panerelay fetch --authorize '*.example.com'
+```
+
+授权只按域名判断：协议、端口、路径和查询参数都会被去掉，因此同一个域名授权同时适用于 HTTP 和 HTTPS。精确域名只匹配自身；`*.example.com` 匹配根域名和所有子域名。授权命令和扩展设置里展开的 Fetch 授权管理器也接受 URL，并统一归一化为主机名。Agent 申请时会打开独立扩展确认窗口，只能允许或显式拒绝当前申请的域名；显式拒绝会删除完全相同的 Panerelay 授权，关闭窗口或超时不会修改已有授权。范围更大的“所有域名”仅保留在扩展设置中。移除 Panerelay 授权会立即生效，但不会移除可能被其他能力共享的 Chrome Host Permission。Fetch 授权与标签页授权彼此独立，也不会获取标签页控制租约。
 
 站点适配器需要显式安装。所有内置适配器统一由同版本的 `@panerelay/sites` 目录包分发，而不是每个站点发布一个 npm 包；setup 可在一个原子批次中安装内置适配器、已有的本地双文件产物、轻量的 site-kit 源码目录，以及显式指定的公开 GitHub 仓库：
 
@@ -229,7 +236,7 @@ npx --yes @panerelay/cli browser use edge
 ## 安全与运行边界
 
 - 浏览器自动化会在已授权的现有标签页中复用登录态；浏览器 Fetch 则使用 Chrome 站点访问权限，并把收集到的 Cookie 留在扩展内部。Panerelay 默认不会导出或记录 Cookie、凭证、Prompt、截图、页面内容或请求体。
-- 会修改页面或浏览器状态的自动化操作需要持有当前独占控制租约；原始 Fetch 方法走独立的 fetch-only 路径，不会获取该租约。首版没有 Panerelay 域名策略，因此调用方必须根据目标 API 的实际影响审慎使用请求和已安装适配器。
+- 会修改页面或浏览器状态的自动化操作需要持有当前独占控制租约；原始 Fetch 方法走独立的 fetch-only 路径，需要精确域名、通配符域名或所有域名授权，并且不会获取该租约。调用方仍须根据目标 API 的实际影响审慎使用请求和已安装适配器。
 - Panerelay 不接管隔离 Profile、启动期代理或关闭用户浏览器进程等 browser-process 能力。
 - `webNavigation` 只用于识别浏览器报告的关联标签页，以便共享会话上下文；它不会读取浏览历史，也不会授予网站访问权限。
 - 扩展、协议、Bridge、Provider 与 adapter、setup 包、浏览器注册库和可选管理 CLI 作为同一个锁步兼容单元发布。

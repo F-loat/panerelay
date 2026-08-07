@@ -4,10 +4,13 @@ import {
   PANERELAY_FETCH_DEFAULT_TIMEOUT_MS,
   PANERELAY_FETCH_MAX_HTTP_REQUEST_BYTES,
   PANERELAY_FETCH_MAX_SESSIONS,
+  PANERELAY_FETCH_PERMISSION_PROTOCOL,
+  PANERELAY_FETCH_PERMISSION_TIMEOUT_MS,
   PANERELAY_FETCH_SESSION_PROTOCOL,
   PANERELAY_FETCH_SESSION_TTL_MS,
   PANERELAY_PROTOCOL_VERSION,
   isBrowserFetchRequest,
+  isBrowserFetchPermissionRequest,
   isBrowserFetchSessionCreateRequest,
   isCdpBootstrapRequest,
   isCanonicalUuid,
@@ -16,6 +19,8 @@ import {
   type AutomationEngineId,
   type BrowserRegistration,
   type BrowserFetchRequest,
+  type BrowserFetchPermissionResult,
+  type BrowserFetchPermissionResultMessage,
   type BrowserFetchResponse,
   type BrowserFetchResultMessage,
   type BrowserFetchSessionCreated,
@@ -65,6 +70,15 @@ interface PendingFetchRequest {
   resolve: (response: BrowserFetchResponse) => void;
   reject: (error: Error) => void;
   sessionId: string;
+  timer: NodeJS.Timeout;
+}
+
+interface PendingFetchPermissionRequest {
+  resolve: (result: BrowserFetchPermissionResult) => void;
+  reject: (error: Error) => void;
+  browserId: string;
+  generation: string;
+  domain: string;
   timer: NodeJS.Timeout;
 }
 
@@ -202,6 +216,8 @@ export interface BrowserRelayOptions {
   httpRequestTimeoutMs?: number;
 }
 
+const MAX_PENDING_FETCH_PERMISSION_REQUESTS = 4;
+
 export class BrowserRelay {
   readonly port: number;
   readonly token = randomBytes(32).toString('base64url');
@@ -233,6 +249,10 @@ export class BrowserRelay {
   >();
   private readonly pendingCommands = new Map<string, PendingCommand>();
   private readonly pendingFetchRequests = new Map<string, PendingFetchRequest>();
+  private readonly pendingFetchPermissionRequests = new Map<
+    string,
+    PendingFetchPermissionRequest
+  >();
   private readonly fetchSessions = new Map<string, BrowserFetchSession>();
   private readonly pendingSetupCommands = new Map<
     string,
@@ -330,6 +350,7 @@ export class BrowserRelay {
         };
         if (this.browser && this.browser.browserId !== browser.browserId) {
           this.clearFetchSessions('The registered browser changed');
+          this.clearFetchPermissionRequests('The registered browser changed');
         }
         this.browser = browser;
         await this.options.onBrowserRegistered(this.browser);
@@ -369,12 +390,16 @@ export class BrowserRelay {
       case 'fetch.result':
         this.resolveFetchRequest(message);
         return;
+      case 'fetch.permission.result':
+        this.resolveFetchPermissionRequest(message);
+        return;
     }
   }
 
   async close(reason = 'Bridge shutting down'): Promise<void> {
     this.revokeActiveLease(reason, 1012, true, 'failed', true);
     this.clearFetchSessions(reason);
+    this.clearFetchPermissionRequests(reason);
     this.bootstrapTickets.clear(reason);
     this.rejectExtensionRequests(new Error(reason));
     await new Promise<void>(resolve => this.server.close(() => resolve()));
@@ -528,6 +553,10 @@ export class BrowserRelay {
     }
     if (request.method === 'POST' && url.pathname === '/fetch/sessions' && url.search === '') {
       await this.handleCreateFetchSession(request, response);
+      return;
+    }
+    if (request.method === 'POST' && url.pathname === '/fetch/permissions' && url.search === '') {
+      await this.handleFetchPermissionRequest(request, response);
       return;
     }
 
@@ -879,6 +908,80 @@ export class BrowserRelay {
     }
   }
 
+  private async handleFetchPermissionRequest(
+    request: IncomingMessage,
+    response: ServerResponse,
+  ): Promise<void> {
+    if (!this.browser) {
+      this.sendJson(response, 503, {
+        protocol: PANERELAY_FETCH_PERMISSION_PROTOCOL,
+        error: 'Panerelay extension is not registered',
+      });
+      return;
+    }
+    if (this.browser.capabilities?.browserFetch !== true) {
+      this.sendJson(response, 409, {
+        protocol: PANERELAY_FETCH_PERMISSION_PROTOCOL,
+        error: `${this.browser.browserName} does not support Panerelay browser fetch`,
+      });
+      return;
+    }
+    if (!request.headers['content-type']?.toLowerCase().startsWith('application/json')) {
+      this.sendJson(response, 415, {
+        protocol: PANERELAY_FETCH_PERMISSION_PROTOCOL,
+        error: 'Panerelay fetch authorization requires JSON',
+      });
+      return;
+    }
+    let payload: unknown;
+    try {
+      payload = await this.readJsonBody(request);
+    } catch (error) {
+      if (error instanceof RelayHttpError) {
+        this.sendJson(response, error.status, {
+          protocol: PANERELAY_FETCH_PERMISSION_PROTOCOL,
+          error: error.message,
+        });
+        return;
+      }
+      throw error;
+    }
+    if (!isBrowserFetchPermissionRequest(payload)) {
+      this.sendJson(response, 400, {
+        protocol: PANERELAY_FETCH_PERMISSION_PROTOCOL,
+        error: 'Invalid Panerelay fetch authorization request',
+      });
+      return;
+    }
+    if (
+      payload.browser.browserId !== this.browser.browserId ||
+      payload.browser.generation !== this.generation
+    ) {
+      this.sendJson(response, 409, {
+        protocol: PANERELAY_FETCH_PERMISSION_PROTOCOL,
+        error: 'The selected browser connection changed; resolve it again',
+      });
+      return;
+    }
+    if (this.pendingFetchPermissionRequests.size >= MAX_PENDING_FETCH_PERMISSION_REQUESTS) {
+      this.sendJson(response, 429, {
+        protocol: PANERELAY_FETCH_PERMISSION_PROTOCOL,
+        error: 'Too many pending Panerelay fetch authorization requests',
+      });
+      return;
+    }
+    try {
+      const result = await this.requestBrowserFetchPermission(payload.domain);
+      this.sendJson(response, 200, result);
+    } catch (error) {
+      this.sendJson(response, 502, {
+        protocol: PANERELAY_FETCH_PERMISSION_PROTOCOL,
+        error:
+          error instanceof Error ? error.message : 'Panerelay browser fetch authorization failed',
+      });
+    }
+  }
+
   private requestBrowserFetch(
     session: BrowserFetchSession,
     request: BrowserFetchRequest,
@@ -935,6 +1038,70 @@ export class BrowserRelay {
     else pending.reject(new Error(message.error ?? 'Panerelay browser fetch failed'));
   }
 
+  private requestBrowserFetchPermission(domain: string): Promise<BrowserFetchPermissionResult> {
+    if (!this.browser) {
+      return Promise.reject(new Error('Panerelay extension is not registered'));
+    }
+    const requestId = randomUUID();
+    const browserId = this.browser.browserId;
+    const generation = this.generation;
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pendingFetchPermissionRequests.delete(requestId);
+        reject(new Error('Panerelay browser fetch authorization timed out'));
+      }, PANERELAY_FETCH_PERMISSION_TIMEOUT_MS + 5_000);
+      timer.unref();
+      this.pendingFetchPermissionRequests.set(requestId, {
+        resolve,
+        reject,
+        browserId,
+        generation,
+        domain,
+        timer,
+      });
+      try {
+        this.options.sendToExtension({
+          type: 'fetch.permission.request',
+          protocol: PANERELAY_PROTOCOL_VERSION,
+          requestId,
+          browserId,
+          generation,
+          domain,
+        });
+      } catch (error) {
+        clearTimeout(timer);
+        this.pendingFetchPermissionRequests.delete(requestId);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
+    });
+  }
+
+  private resolveFetchPermissionRequest(message: BrowserFetchPermissionResultMessage): void {
+    const pending = this.pendingFetchPermissionRequests.get(message.requestId);
+    if (!pending) return;
+    this.pendingFetchPermissionRequests.delete(message.requestId);
+    clearTimeout(pending.timer);
+    if (
+      !this.browser ||
+      pending.browserId !== this.browser.browserId ||
+      pending.generation !== this.generation ||
+      pending.domain !== message.domain
+    ) {
+      pending.reject(new Error('The selected browser connection changed; resolve it again'));
+      return;
+    }
+    if (message.error) {
+      pending.reject(new Error(message.error));
+      return;
+    }
+    pending.resolve({
+      protocol: PANERELAY_FETCH_PERMISSION_PROTOCOL,
+      granted: message.granted,
+      domain: message.domain,
+      ...(message.scope ? { scope: message.scope } : {}),
+    });
+  }
+
   private releaseFetchSession(sessionId: string, reason: string): void {
     const session = this.fetchSessions.get(sessionId);
     if (!session) return;
@@ -951,6 +1118,14 @@ export class BrowserRelay {
   private clearFetchSessions(reason: string): void {
     for (const sessionId of [...this.fetchSessions.keys()]) {
       this.releaseFetchSession(sessionId, reason);
+    }
+  }
+
+  private clearFetchPermissionRequests(reason: string): void {
+    for (const [requestId, pending] of this.pendingFetchPermissionRequests) {
+      this.pendingFetchPermissionRequests.delete(requestId);
+      clearTimeout(pending.timer);
+      pending.reject(new Error(reason));
     }
   }
 

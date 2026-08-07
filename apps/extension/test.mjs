@@ -16,6 +16,7 @@ const entryPoints = [
   'src/background/conversation-workspace-service.test.ts',
   'src/background/conversation-timelines.test.ts',
   'src/background/debugger-detach.test.ts',
+  'src/background/fetch-permission-requests.test.ts',
   'src/background/host-update-check.test.ts',
   'src/background/native-host-readiness.test.ts',
   'src/background/page-comments.test.ts',
@@ -31,6 +32,7 @@ const entryPoints = [
   'src/shared/authorization.test.ts',
   'src/shared/browser-runtime.test.ts',
   'src/shared/conversation-timeline.test.ts',
+  'src/shared/fetch-permissions.test.ts',
   'src/shared/identity.test.ts',
   'src/shared/manifest-identity.test.ts',
 ];

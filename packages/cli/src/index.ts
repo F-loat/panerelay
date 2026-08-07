@@ -19,6 +19,7 @@ export {
 export { runCliConnectionCommand } from './command-runner.js';
 export {
   createBrowserFetchSession,
+  requestBrowserFetchPermission,
   releaseBrowserFetchSession,
   runBrowserFetch,
   runBrowserFetchInSession,
@@ -73,9 +74,14 @@ export {
 export type { FetchAdapterRegistryOptions } from './fetch-adapter-registry.js';
 export { dispatchFetchAdapter } from './fetch-adapter-dispatcher.js';
 export type { FetchAdapterDispatchOptions } from './fetch-adapter-dispatcher.js';
-export { parseRawFetchArguments, runFetchCommand } from './fetch-command.js';
+export {
+  parseFetchAuthorizationArguments,
+  parseRawFetchArguments,
+  runFetchCommand,
+} from './fetch-command.js';
 export type {
   FetchCommandDependencies,
   FetchCommandOptions,
   ParsedRawFetch,
+  ParsedFetchAuthorization,
 } from './fetch-command.js';

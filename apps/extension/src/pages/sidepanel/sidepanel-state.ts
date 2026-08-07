@@ -92,6 +92,7 @@ export interface SidepanelState {
   submitting: boolean;
   initializing: boolean;
   authorizationPending: boolean;
+  fetchAuthorizationPending: boolean;
   nativeRetryPending: boolean;
   defaultProviderPending: boolean;
   browserUseDefaultPending: boolean;
@@ -244,6 +245,7 @@ export function createInitialSidepanelState(
     submitting: false,
     initializing: true,
     authorizationPending: false,
+    fetchAuthorizationPending: false,
     nativeRetryPending: false,
     defaultProviderPending: false,
     browserUseDefaultPending: false,

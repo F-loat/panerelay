@@ -22,6 +22,7 @@ const extensionStatus = {
   browserUseDefault: null,
   browserDefault: null,
   authorizationRequest: null,
+  fetchAuthorization: { allDomains: false, domains: [] },
   activeTab: null,
   authorizationMode: 'none',
   authorizedOriginPatterns: [],
@@ -82,6 +83,10 @@ function router(overrides: Partial<SidePanelRequestRouterOptions> = {}) {
     retryHostUpdate: async () => extensionStatus,
     selectWorkspaceDirectory: async () => '/workspace',
     setAuthorization: async () => extensionStatus,
+    setFetchAuthorization: async request => {
+      calls.push(`fetch:${request.scope}:${request.enabled}`);
+      return extensionStatus;
+    },
     setBrowserDefault: async () => extensionStatus,
     setBrowserUseDefault: async enabled => {
       calls.push(`browser-use:${enabled}`);
@@ -132,6 +137,12 @@ test('routes status, browser settings, and controlled-tab requests', async () =>
   await handle({ type: 'panerelay.browser-default.refresh' });
   await handle({ type: 'panerelay.browser-use-default.refresh' });
   await handle({ type: 'panerelay.browser-use-default.set', enabled: true });
+  await handle({
+    type: 'panerelay.fetch-authorization.set',
+    scope: 'domain',
+    domain: 'example.com',
+    enabled: true,
+  });
   await handle({ type: 'panerelay.integration.install', integration: 'agent-browser' });
   assert.deepEqual(await handle({ type: 'panerelay.control.release' }), {
     success: true,
@@ -143,6 +154,7 @@ test('routes status, browser settings, and controlled-tab requests', async () =>
     'browser:refresh',
     'browser-use:refresh',
     'browser-use:true',
+    'fetch:domain:true',
     'install:agent-browser',
     'control:release',
     'activate:7',

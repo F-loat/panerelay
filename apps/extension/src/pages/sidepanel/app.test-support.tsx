@@ -28,6 +28,7 @@ export const readyStatus: ExtensionStatus = {
     isCurrentBrowser: false,
   },
   authorizationRequest: null,
+  fetchAuthorization: { allDomains: false, domains: [] },
   activeTab: { id: 8, title: 'Fixture page', url: 'https://example.com/page' },
   authorizationMode: 'none',
   authorizedOriginPatterns: [],
@@ -81,6 +82,7 @@ export function detail(): ConversationDetail {
 
 export class AppClient implements SidepanelClient {
   readonly requests: SidePanelRequest[] = [];
+  readonly requestedOrigins: string[][] = [];
   readonly listeners = new Set<(message: SidepanelRuntimeMessage) => void>();
   stored: Record<string, unknown> = { 'panerelay.locale': 'en' };
   status = readyStatus;
@@ -122,6 +124,22 @@ export class AppClient implements SidepanelClient {
     switch (message.type) {
       case 'panerelay.status.get':
         if (this.statusError) throw new Error(this.statusError);
+        return { success: true as const, status: this.status };
+      case 'panerelay.fetch-authorization.set':
+        this.status = {
+          ...this.status,
+          fetchAuthorization:
+            message.scope === 'all-domains'
+              ? { ...this.status.fetchAuthorization, allDomains: message.enabled }
+              : {
+                  ...this.status.fetchAuthorization,
+                  domains: message.enabled
+                    ? [...new Set([...this.status.fetchAuthorization.domains, message.domain])]
+                    : this.status.fetchAuthorization.domains.filter(
+                        domain => domain !== message.domain,
+                      ),
+                },
+        };
         return { success: true as const, status: this.status };
       case 'panerelay.agent.providers':
         if (this.providerDiscoveryPromise) await this.providerDiscoveryPromise;
@@ -286,7 +304,8 @@ export class AppClient implements SidepanelClient {
     }
   }
 
-  async requestOrigins(): Promise<boolean> {
+  async requestOrigins(origins: string[]): Promise<boolean> {
+    this.requestedOrigins.push(origins);
     return true;
   }
 

@@ -5,7 +5,12 @@ import {
   isAutomationActivityUpdatedMessage,
   isControlSessionChangedMessage,
 } from './control-activity.js';
-import { isBrowserFetchRequestMessage, isBrowserFetchResultMessage } from './browser-fetch.js';
+import {
+  isBrowserFetchPermissionRequestMessage,
+  isBrowserFetchPermissionResultMessage,
+  isBrowserFetchRequestMessage,
+  isBrowserFetchResultMessage,
+} from './browser-fetch.js';
 import {
   comparePanerelayReleaseVersions,
   isPanerelayChromiumBuildVersion,
@@ -551,7 +556,8 @@ export type HostToExtensionMessage =
   | AgentResponseMessage
   | IntegrationResponseMessage
   | ConversationEventMessage
-  | import('./browser-fetch.js').BrowserFetchRequestMessage;
+  | import('./browser-fetch.js').BrowserFetchRequestMessage
+  | import('./browser-fetch.js').BrowserFetchPermissionRequestMessage;
 
 export type ExtensionToHostMessage =
   | BrowserRegisterMessage
@@ -564,7 +570,8 @@ export type ExtensionToHostMessage =
   | CdpDetachedMessage
   | AgentRequestMessage
   | IntegrationRequestMessage
-  | import('./browser-fetch.js').BrowserFetchResultMessage;
+  | import('./browser-fetch.js').BrowserFetchResultMessage
+  | import('./browser-fetch.js').BrowserFetchPermissionResultMessage;
 
 export interface BridgeState {
   protocol: typeof PANERELAY_PROTOCOL_VERSION;
@@ -738,6 +745,9 @@ export function isExtensionToHostMessage(value: unknown): value is ExtensionToHo
     return hasOnlyKeys(candidate, ['type', 'protocol']);
   }
   if (candidate.type === 'fetch.result') return isBrowserFetchResultMessage(value);
+  if (candidate.type === 'fetch.permission.result') {
+    return isBrowserFetchPermissionResultMessage(value);
+  }
   return [
     'cdp.target.result',
     'cdp.target.event',
@@ -776,6 +786,9 @@ export function isHostToExtensionMessage(value: unknown): value is HostToExtensi
     );
   }
   if (candidate.type === 'fetch.request') return isBrowserFetchRequestMessage(value);
+  if (candidate.type === 'fetch.permission.request') {
+    return isBrowserFetchPermissionRequestMessage(value);
+  }
   return (
     candidate.protocol === PANERELAY_PROTOCOL_VERSION &&
     typeof candidate.type === 'string' &&

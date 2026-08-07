@@ -13,6 +13,92 @@
   padding: 10px;
 }
 
+.fetch-access .scope-controls {
+  margin-bottom: 0;
+}
+
+.fetch-access .scope-summary svg[data-expanded='true'] {
+  transform: rotate(180deg);
+}
+
+.fetch-domain-manager {
+  display: grid;
+  gap: 6px;
+  margin-top: 7px;
+  border-top: 1px solid var(--border);
+  padding-top: 7px;
+}
+
+.fetch-domain-title {
+  color: var(--text-secondary);
+  font-size: 8px;
+  font-weight: 600;
+}
+
+.fetch-domain-add {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px;
+}
+
+.fetch-domain-add input,
+.fetch-domain-add button {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 8px;
+}
+
+.fetch-domain-add input {
+  padding: 5px 6px;
+}
+
+.fetch-domain-add input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.fetch-domain-add button {
+  padding: 4px 7px;
+}
+
+.fetch-domain-add button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.fetch-domain-error {
+  color: var(--danger);
+  font-size: 8px;
+}
+
+.fetch-domain-list {
+  display: grid;
+  gap: 3px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fetch-domain-list li {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  border-radius: 5px;
+  background: var(--surface-raised);
+  padding: 3px 4px 3px 6px;
+}
+
+.fetch-domain-list code {
+  overflow: hidden;
+  font-size: 8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .settings-heading {
   justify-content: space-between;
   gap: 8px;

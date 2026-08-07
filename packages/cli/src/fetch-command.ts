@@ -8,6 +8,7 @@ import {
 import {
   PANERELAY_FETCH_METHODS,
   isBrowserFetchRequest,
+  normalizeBrowserFetchDomain,
   type BrowserFetchMethod,
   type BrowserFetchRequest,
   type BrowserFetchResponseType,
@@ -20,6 +21,7 @@ import {
 import {
   createBrowserFetchSession,
   releaseBrowserFetchSession,
+  requestBrowserFetchPermission,
   runBrowserFetch,
   type BrowserFetchClientOptions,
 } from './browser-fetch-client.js';
@@ -36,12 +38,18 @@ export interface ParsedRawFetch {
   request: BrowserFetchRequest;
 }
 
+export interface ParsedFetchAuthorization {
+  browserSelector?: string;
+  domain: string;
+}
+
 export interface FetchCommandDependencies {
   createBrowserFetchSession?: typeof createBrowserFetchSession;
   dispatchFetchAdapter?: typeof dispatchFetchAdapter;
   readFetchAdapterRegistration?: typeof readFetchAdapterRegistration;
   readFetchAdapterRegistry?: typeof readFetchAdapterRegistry;
   releaseBrowserFetchSession?: typeof releaseBrowserFetchSession;
+  requestBrowserFetchPermission?: typeof requestBrowserFetchPermission;
   runBrowserFetch?: typeof runBrowserFetch;
   selectBrowserFetchRegistration?: (options?: BrowserRegistryOptions) => Promise<BrowserSelection>;
   now?: () => number;
@@ -69,6 +77,7 @@ function fetchHelp(locale: SupportedLocale, registry: FetchAdapterRegistry): str
 
 Usage:
   panerelay fetch <url> [options]
+  panerelay fetch --authorize <hostname|*.domain|url> [--browser <selector>]
   panerelay <site> <command> [arguments]
   panerelay <site> --help
   panerelay fetch <site> <command> [arguments]  Explicit form
@@ -85,6 +94,9 @@ Raw fetch options:
   --browser <selector>            Select one live Panerelay browser
   --help, -h                      Show help without connecting to a browser
 
+Authorization:
+  --authorize <domain>            Ask the user to allow a hostname or wildcard domain
+
 Adapter invocation options:
   --json                          Print the adapter result as JSON instead of a table
   --browser <selector>            Select one live Panerelay browser
@@ -97,6 +109,7 @@ Manage adapters with @panerelay/setup add, remove, and adapters.`,
 
 用法：
   panerelay fetch <URL> [选项]
+  panerelay fetch --authorize <主机名|*.域名|URL> [--browser <选择器>]
   panerelay <站点> <命令> [参数]
   panerelay <站点> --help
   panerelay fetch <站点> <命令> [参数]  显式形式
@@ -112,6 +125,9 @@ Manage adapters with @panerelay/setup add, remove, and adapters.`,
   --cookies | --no-cookies        携带浏览器 Cookie（默认携带）
   --browser <选择器>              选择一个在线 Panerelay 浏览器
   --help, -h                      不连接浏览器并显示帮助
+
+授权：
+  --authorize <域名>              请求用户允许主机名或通配域名
 
 适配器调用选项：
   --json                          使用 JSON 输出适配器结果，不渲染表格
@@ -351,6 +367,49 @@ export function parseRawFetchArguments(
     );
   }
   return { request, ...(browserSelector ? { browserSelector } : {}) };
+}
+
+export function parseFetchAuthorizationArguments(
+  argv: string[],
+  locale: SupportedLocale = 'en',
+): ParsedFetchAuthorization {
+  const authorization = requiredOptionValue(locale, argv, 0);
+  if (authorization.option !== '--authorize') {
+    throw new Error(
+      localized(locale, 'Fetch authorization requires --authorize', 'Fetch 授权需要 --authorize'),
+    );
+  }
+  const domain = normalizeBrowserFetchDomain(authorization.value);
+  if (!domain) {
+    throw new Error(
+      localized(
+        locale,
+        'Fetch authorization requires a hostname, *.domain wildcard, or URL',
+        'Fetch 授权需要主机名、*.域名通配符或 URL',
+      ),
+    );
+  }
+  let browserSelector: string | undefined;
+  for (let index = authorization.consumed; index < argv.length;) {
+    const parsed = requiredOptionValue(locale, argv, index);
+    index += parsed.consumed;
+    if (parsed.option !== '--browser') {
+      throw new Error(
+        localized(
+          locale,
+          `Unknown fetch authorization option: ${parsed.option}`,
+          `未知 Fetch 授权选项：${parsed.option}`,
+        ),
+      );
+    }
+    if (browserSelector) {
+      throw new Error(
+        localized(locale, '--browser can only be provided once', '--browser 只能指定一次'),
+      );
+    }
+    browserSelector = parsed.value;
+  }
+  return { domain, ...(browserSelector ? { browserSelector } : {}) };
 }
 
 function selectionEnvironment(
@@ -621,6 +680,25 @@ export async function runFetchCommand(
   const readRegistry = options.dependencies?.readFetchAdapterRegistry ?? readFetchAdapterRegistry;
   if (argv.length === 0 || argv[0] === '--help' || argv[0] === '-h') {
     console.log(fetchHelp(options.locale, await readRegistry(registryOptions(options))));
+    return 0;
+  }
+
+  if (argv[0] === '--authorize' || argv[0]?.startsWith('--authorize=')) {
+    const parsed = parseFetchAuthorizationArguments(argv, options.locale);
+    const selection = await selectBrowser(parsed.browserSelector, options);
+    const result = await (
+      options.dependencies?.requestBrowserFetchPermission ?? requestBrowserFetchPermission
+    )(selection.state, parsed.domain);
+    if (!result.granted) {
+      throw new Error(
+        localized(
+          options.locale,
+          `Fetch authorization for "${parsed.domain}" was denied. Ask the user to approve it, then retry: panerelay fetch --authorize ${parsed.domain}`,
+          `域名“${parsed.domain}”的 Fetch 授权被拒绝。请用户确认后重试：panerelay fetch --authorize ${parsed.domain}`,
+        ),
+      );
+    }
+    console.log(JSON.stringify(result, null, 2));
     return 0;
   }
 

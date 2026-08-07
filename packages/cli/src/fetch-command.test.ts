@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { parseRawFetchArguments, runFetchCommand } from './fetch-command.js';
+import {
+  parseFetchAuthorizationArguments,
+  parseRawFetchArguments,
+  runFetchCommand,
+} from './fetch-command.js';
 
 const registry = {
   protocol: 'panerelay.fetch-adapter-registry.v1' as const,
@@ -70,6 +74,27 @@ test('parses raw fetch source headers, repeated query values, body, and browser 
     () =>
       parseRawFetchArguments(['https://example.test', '--data', 'one', '--data-base64', 'dHdv']),
     /Only one request body/,
+  );
+});
+
+test('normalizes URL, hostname, and wildcard fetch authorization input to domains', () => {
+  assert.deepEqual(
+    parseFetchAuthorizationArguments([
+      '--authorize',
+      'https://API.Example.test:8443/private?q=1',
+      '--browser=edge',
+    ]),
+    { domain: 'api.example.test', browserSelector: 'edge' },
+  );
+  assert.deepEqual(parseFetchAuthorizationArguments(['--authorize=*.Baidu.com']), {
+    domain: '*.baidu.com',
+  });
+  assert.deepEqual(parseFetchAuthorizationArguments(['--authorize=ftp://Files.Example.test/a']), {
+    domain: 'files.example.test',
+  });
+  assert.throws(
+    () => parseFetchAuthorizationArguments(['--authorize', '*.127.0.0.1']),
+    /hostname|主机名/,
   );
 });
 
@@ -162,6 +187,37 @@ test('selects one fetch-capable browser and prints a structured raw result', asy
   } finally {
     console.log = originalLog;
   }
+});
+
+test('requests Agent fetch authorization and gives retry guidance after denial', async () => {
+  const state = {
+    protocol: 'panerelay.relay.v2' as const,
+    pid: 1,
+    port: 41_234,
+    token: 'secret',
+    generation: 'generation',
+    browserId: 'browser',
+    browserName: 'Chrome',
+    capabilities: { cdpRelay: true, browserFetch: true },
+    extensionReleaseVersion: '0.8.0',
+    extensionBuildVersion: '0.8.0.0',
+    hostVersion: '0.8.0',
+    extensionId: 'extension',
+    updatedAt: new Date().toISOString(),
+  };
+  const dependencies = {
+    readFetchAdapterRegistry: async () => registry,
+    selectBrowserFetchRegistration: async () => ({ source: 'single' as const, state }),
+    requestBrowserFetchPermission: async () => ({
+      protocol: 'panerelay.fetch-permission.v1' as const,
+      granted: false,
+      domain: '*.baidu.com',
+    }),
+  };
+  await assert.rejects(
+    runFetchCommand(['--authorize', '*.baidu.com'], { locale: 'en', dependencies }),
+    /denied[\s\S]*panerelay fetch --authorize \*\.baidu\.com/,
+  );
 });
 
 test('renders adapter results as an OpenCLI-style table and supports explicit JSON', async () => {

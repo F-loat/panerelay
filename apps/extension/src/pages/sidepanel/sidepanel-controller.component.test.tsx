@@ -51,6 +51,7 @@ const baseStatus: ExtensionStatus = {
     isCurrentBrowser: false,
   },
   authorizationRequest: null,
+  fetchAuthorization: { allDomains: false, domains: [] },
   activeTab: { id: 3, title: 'Fixture', url: 'https://example.com/page' },
   authorizationMode: 'none',
   authorizedOriginPatterns: [],

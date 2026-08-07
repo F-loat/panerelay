@@ -19,7 +19,8 @@ import {
   createConversationTimelineSnapshot,
   type TimelineItem,
 } from '../../shared/conversation-timeline.js';
-import type { AuthorizationMode } from '../../shared/messages.js';
+import { fetchPermissionPatterns } from '../../shared/fetch-permissions.js';
+import type { AuthorizationMode, SidePanelRequest } from '../../shared/messages.js';
 import {
   formatCopy,
   LOCALE_KEY,
@@ -131,6 +132,10 @@ export interface SidepanelController {
   retryProviderDiscovery(): Promise<void>;
   retryProviderPreparation(): Promise<void>;
   setAuthorization(mode: AuthorizationMode): Promise<void>;
+  setFetchAuthorization(
+    request: Extract<SidePanelRequest, { type: 'panerelay.fetch-authorization.set' }>,
+  ): Promise<void>;
+  selectCurrentFetchDomain(domain: string): Promise<void>;
   releaseControl(): Promise<void>;
   retryNativeHost(): Promise<void>;
   installIntegration(integration: AutomationIntegrationId): Promise<void>;
@@ -867,6 +872,74 @@ export function useSidepanelController(
     [client, patch],
   );
 
+  const applyFetchAuthorization = useCallback(
+    async (request: Extract<SidePanelRequest, { type: 'panerelay.fetch-authorization.set' }>) => {
+      if (request.enabled) {
+        const patterns =
+          request.scope === 'all-domains'
+            ? fetchPermissionPatterns('all-domains')
+            : fetchPermissionPatterns('domain', request.domain);
+        const granted = await client.requestOrigins(patterns);
+        if (!granted) {
+          throw new Error(
+            translate(
+              stateRef.current.locale,
+              request.scope === 'all-domains'
+                ? 'fetchChromeAccessDeniedAll'
+                : 'fetchChromeAccessDeniedDomain',
+            ),
+          );
+        }
+      }
+      const response = await client.request(request);
+      patch({ extensionStatus: response.status ?? stateRef.current.extensionStatus, error: '' });
+    },
+    [client, patch],
+  );
+
+  const runFetchAuthorizationChange = useCallback(
+    async (change: () => Promise<void>) => {
+      if (stateRef.current.fetchAuthorizationPending) return;
+      patch({ fetchAuthorizationPending: true });
+      try {
+        await change();
+      } catch (error) {
+        patch({ error: errorText(error) });
+      } finally {
+        patch({ fetchAuthorizationPending: false });
+      }
+    },
+    [patch],
+  );
+
+  const setFetchAuthorization = useCallback(
+    async (request: Extract<SidePanelRequest, { type: 'panerelay.fetch-authorization.set' }>) =>
+      runFetchAuthorizationChange(() => applyFetchAuthorization(request)),
+    [applyFetchAuthorization, runFetchAuthorizationChange],
+  );
+
+  const selectCurrentFetchDomain = useCallback(
+    async (domain: string) =>
+      runFetchAuthorizationChange(async () => {
+        if (!stateRef.current.extensionStatus?.fetchAuthorization.domains.includes(domain)) {
+          await applyFetchAuthorization({
+            type: 'panerelay.fetch-authorization.set',
+            scope: 'domain',
+            domain,
+            enabled: true,
+          });
+        }
+        if (stateRef.current.extensionStatus?.fetchAuthorization.allDomains) {
+          await applyFetchAuthorization({
+            type: 'panerelay.fetch-authorization.set',
+            scope: 'all-domains',
+            enabled: false,
+          });
+        }
+      }),
+    [applyFetchAuthorization, runFetchAuthorizationChange],
+  );
+
   const releaseControl = useCallback(async () => {
     if (stateRef.current.authorizationPending) return;
     patch({ authorizationPending: true });
@@ -1590,6 +1663,8 @@ export function useSidepanelController(
     retryProviderDiscovery,
     retryProviderPreparation,
     setAuthorization,
+    setFetchAuthorization,
+    selectCurrentFetchDomain,
     releaseControl,
     retryNativeHost,
     installIntegration,

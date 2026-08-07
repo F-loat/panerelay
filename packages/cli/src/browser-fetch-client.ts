@@ -1,10 +1,14 @@
 import {
   PANERELAY_FETCH_SESSION_PROTOCOL,
+  PANERELAY_FETCH_PERMISSION_PROTOCOL,
   isBrowserFetchRequest,
+  isBrowserFetchPermissionError,
+  isBrowserFetchPermissionResult,
   isBrowserFetchResponse,
   isBrowserFetchSessionCreated,
   isBrowserFetchSessionError,
   type BrowserFetchRequest,
+  type BrowserFetchPermissionResult,
   type BrowserFetchResponse,
   type BrowserFetchSessionCreated,
   type BridgeState,
@@ -42,9 +46,40 @@ function responseError(
 ): Error {
   const detail = secrets.reduce(
     (current, secret) => (secret ? current.replaceAll(secret, '[redacted]') : current),
-    isBrowserFetchSessionError(payload) ? payload.error : fallback,
+    isBrowserFetchSessionError(payload) || isBrowserFetchPermissionError(payload)
+      ? payload.error
+      : fallback,
   );
   return new Error(`${detail} (Bridge HTTP ${response.status})`);
+}
+
+export async function requestBrowserFetchPermission(
+  state: BridgeState,
+  domain: string,
+  options: BrowserFetchClientOptions = {},
+): Promise<BrowserFetchPermissionResult> {
+  const response = await httpClient(options)(`http://127.0.0.1:${state.port}/fetch/permissions`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${state.token}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      protocol: PANERELAY_FETCH_PERMISSION_PROTOCOL,
+      browser: { browserId: state.browserId, generation: state.generation },
+      domain,
+    }),
+  });
+  const payload = boundedJsonPayload(await response.text(), 4_096);
+  if (!response.ok) {
+    throw responseError(response, payload, 'Unable to request browser fetch authorization', [
+      state.token,
+    ]);
+  }
+  if (!isBrowserFetchPermissionResult(payload)) {
+    throw new Error('Panerelay Bridge returned an invalid browser fetch authorization result');
+  }
+  return payload;
 }
 
 export async function createBrowserFetchSession(

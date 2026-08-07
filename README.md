@@ -75,7 +75,14 @@ panerelay fetch https://api.example.com/me \
 
 Browser cookies are included by default; use `--no-cookies` to disable them. The raw command also supports `--data`, `--data-base64`, repeated `--header/-H` and `--query`, `--timeout`, `--response`, and `--browser`. Run `panerelay fetch --help` for the complete localized reference.
 
-Chrome site access is still required for the target origin, but fetch does not preflight, request, or widen that permission. If Chrome rejects cookie access, temporary header setup, or the request, Panerelay reports the origin and asks you to grant site access before retrying. This first version intentionally has no Panerelay-owned domain ACL and does not acquire a tab-control lease.
+Browser fetch requires both a Panerelay domain grant and Chrome site access. A request without a matching Panerelay grant fails before cookies, temporary header rules, or network work and tells the Agent exactly how to request approval:
+
+```bash
+panerelay fetch --authorize api.example.com
+panerelay fetch --authorize '*.example.com'
+```
+
+Authorization is domain-based: schemes, ports, paths, and queries are discarded, so a grant applies to both HTTP and HTTPS on that hostname. Exact hostnames match only themselves; `*.example.com` matches the root and every subdomain. The authorization command and the expanded Fetch access manager also accept URLs and normalize them to a hostname. An Agent request opens a focused Extension confirmation that can only approve or explicitly deny the requested domain; explicit denial removes that exact Panerelay grant, while close and timeout leave saved grants unchanged. The broader all-domains option remains available only from Extension settings. Removing a Panerelay grant takes effect immediately but does not remove shared Chrome Host Permission. Fetch authorization stays separate from browser-tab authorization and never acquires a tab-control lease.
 
 Site adapters are opt-in. All built-ins ship together in the lockstep `@panerelay/sites` catalog rather than one npm package per site. Setup accepts built-ins, existing local two-file artifacts, lightweight site-kit source directories, and explicit public GitHub repositories in one atomic batch:
 
@@ -229,7 +236,7 @@ An unavailable saved browser or an ambiguous choice fails closed instead of foll
 ## Safety and operating boundaries
 
 - Browser automation reuses login state inside authorized existing tabs. Browser-backed fetch instead uses Chrome site access and keeps collected cookies inside the Extension. Panerelay does not export or log cookies, credentials, prompts, screenshots, page content, or request bodies by default.
-- Mutating browser-automation actions require the current exclusive control lease. Raw fetch methods use the separate fetch-only path and do not acquire that lease; the first version has no Panerelay domain policy, so callers must treat requests and installed adapters according to the target API's effects.
+- Mutating browser-automation actions require the current exclusive control lease. Raw fetch methods use the separate fetch-only path, require an exact, wildcard, or all-domains fetch grant, and do not acquire that lease. Callers must still treat requests and installed adapters according to the target API's effects.
 - Panerelay does not own browser-process features such as isolated profiles, launch-time proxy changes, or closing the user's browser process.
 - `webNavigation` is used only to recognize tabs that a bound page creates as navigation targets for conversation context. Tabs created through browser chrome remain independent; the permission does not read browsing history or grant site access.
 - The Extension, protocol, Bridge, Providers and adapters, setup package, browser registry, and optional administration CLI are released as one lockstep compatibility unit.

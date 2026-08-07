@@ -4,7 +4,12 @@ import {
   PANERELAY_FETCH_ADAPTER_PROTOCOL,
   PANERELAY_FETCH_ADAPTER_REGISTRY_PROTOCOL,
   PANERELAY_FETCH_MAX_BODY_BYTES,
+  PANERELAY_FETCH_PERMISSION_PROTOCOL,
   PANERELAY_FETCH_SESSION_PROTOCOL,
+  isBrowserFetchPermissionRequest,
+  isBrowserFetchPermissionRequestMessage,
+  isBrowserFetchPermissionResult,
+  isBrowserFetchPermissionResultMessage,
   isBrowserFetchRequest,
   isBrowserFetchResponse,
   isBrowserFetchSessionCreateRequest,
@@ -16,6 +21,7 @@ import {
   isFetchAdapterSourceProvenance,
   type FetchAdapterManifest,
 } from './browser-fetch.js';
+import { PANERELAY_PROTOCOL_VERSION } from './constants.js';
 
 const manifest: FetchAdapterManifest = {
   protocol: PANERELAY_FETCH_ADAPTER_PROTOCOL,
@@ -164,6 +170,70 @@ test('validates generation-bound fetch session creation', () => {
       expiresAt: new Date(Date.now() + 1_000).toISOString(),
     }),
     true,
+  );
+});
+
+test('validates domain fetch permission payloads and correlated messages', () => {
+  const request = {
+    protocol: PANERELAY_FETCH_PERMISSION_PROTOCOL,
+    browser: { browserId: 'browser', generation: 'generation' },
+    domain: 'api.example.com',
+  } as const;
+  assert.equal(isBrowserFetchPermissionRequest(request), true);
+  assert.equal(isBrowserFetchPermissionRequest({ ...request, domain: '*.example.com' }), true);
+  assert.equal(
+    isBrowserFetchPermissionRequest({ ...request, domain: 'https://api.example.com' }),
+    false,
+  );
+  assert.equal(isBrowserFetchPermissionRequest({ ...request, domain: '*.127.0.0.1' }), false);
+  assert.equal(
+    isBrowserFetchPermissionRequestMessage({
+      type: 'fetch.permission.request',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      requestId: 'request',
+      browserId: 'browser',
+      generation: 'generation',
+      domain: request.domain,
+    }),
+    true,
+  );
+  assert.equal(
+    isBrowserFetchPermissionResultMessage({
+      type: 'fetch.permission.result',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      requestId: 'request',
+      granted: true,
+      domain: request.domain,
+      scope: 'domain',
+    }),
+    true,
+  );
+  assert.equal(
+    isBrowserFetchPermissionResult({
+      protocol: PANERELAY_FETCH_PERMISSION_PROTOCOL,
+      granted: true,
+      domain: request.domain,
+      scope: 'domain',
+    }),
+    true,
+  );
+  assert.equal(
+    isBrowserFetchPermissionResult({
+      protocol: PANERELAY_FETCH_PERMISSION_PROTOCOL,
+      granted: true,
+      domain: request.domain,
+      scope: 'all-domains',
+    }),
+    false,
+  );
+  assert.equal(
+    isBrowserFetchPermissionResult({
+      protocol: PANERELAY_FETCH_PERMISSION_PROTOCOL,
+      granted: false,
+      domain: request.domain,
+      scope: 'domain',
+    }),
+    false,
   );
 });
 

@@ -9,6 +9,19 @@ test('does not emit unusable cross-world module preloads into the side panel', a
   assert.doesNotMatch(html, /rel=["']modulepreload["']/);
 });
 
+test('packages the standalone fetch permission page as an Extension entry', async () => {
+  const html = await readFile(
+    join(process.cwd(), 'dist/src/pages/fetch-permission/index.html'),
+    'utf8',
+  );
+  const entry = html.match(/src=["']\/assets\/(fetchPermission-[^"']+\.js)["']/)?.[1];
+
+  assert.ok(entry, 'fetch permission HTML should reference its compiled entry');
+  assert.doesNotMatch(html, /rel=["']modulepreload["']/);
+  const script = await readFile(join(process.cwd(), 'dist/assets', entry!), 'utf8');
+  assert.match(script, /panerelay\.fetch-permission\.decision/);
+});
+
 test('packages the localized action-menu release entry and its background wiring', async () => {
   const dist = join(process.cwd(), 'dist');
   const manifest = JSON.parse(await readFile(join(dist, 'manifest.json'), 'utf8')) as {

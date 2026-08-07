@@ -3,6 +3,7 @@ import test from 'node:test';
 import { request as httpRequest } from 'node:http';
 import {
   PANERELAY_FETCH_SESSION_PROTOCOL,
+  PANERELAY_FETCH_PERMISSION_PROTOCOL,
   PANERELAY_PROTOCOL_VERSION,
   type AutomationActivitySnapshotMessage,
   type AutomationActivityUpdatedMessage,
@@ -14,6 +15,7 @@ import {
   type RelaySessionCreated,
   type CdpBootstrapCreated,
   type BrowserFetchRequestMessage,
+  type BrowserFetchPermissionRequestMessage,
   type BrowserFetchSessionCreated,
 } from '@panerelay/protocol';
 import WebSocket from 'ws';
@@ -600,6 +602,63 @@ test('rejects fetch sessions when Extension fetch support is unavailable', async
     });
     assert.equal(response.status, 409);
     assert.match(String(((await response.json()) as { error: string }).error), /does not support/);
+  } finally {
+    await relay.close();
+  }
+});
+
+test('authenticates and correlates generation-bound Agent fetch domain approval', async () => {
+  const messages: HostToExtensionMessage[] = [];
+  const relay = await BrowserRelay.listen({
+    onBrowserDisconnected: () => {},
+    onBrowserRegistered: () => {},
+    sendToExtension: message => {
+      messages.push(message);
+      if (message.type !== 'fetch.permission.request') return;
+      void relay.handleExtensionMessage({
+        type: 'fetch.permission.result',
+        protocol: PANERELAY_PROTOCOL_VERSION,
+        requestId: message.requestId,
+        granted: true,
+        domain: message.domain,
+        scope: 'domain',
+      });
+    },
+  });
+  const request = (authorization: string | undefined, generation: string = relay.generation) =>
+    fetch(`http://127.0.0.1:${relay.port}/fetch/permissions`, {
+      method: 'POST',
+      headers: {
+        ...(authorization ? { authorization } : {}),
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        protocol: PANERELAY_FETCH_PERMISSION_PROTOCOL,
+        browser: { browserId: 'browser-1', generation },
+        domain: '*.baidu.com',
+      }),
+    });
+  try {
+    await register(relay);
+    assert.equal((await request(undefined)).status, 401);
+    assert.equal((await request(`Bearer ${relay.token}`, 'stale')).status, 409);
+    const response = await request(`Bearer ${relay.token}`);
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), {
+      protocol: PANERELAY_FETCH_PERMISSION_PROTOCOL,
+      granted: true,
+      domain: '*.baidu.com',
+      scope: 'domain',
+    });
+    const nativeRequest = messages.find(
+      (message): message is BrowserFetchPermissionRequestMessage =>
+        message.type === 'fetch.permission.request',
+    );
+    assert.equal(nativeRequest?.domain, '*.baidu.com');
+    assert.equal(
+      messages.some(message => message.type === 'control.session.changed'),
+      false,
+    );
   } finally {
     await relay.close();
   }

@@ -47,6 +47,11 @@ export interface HostReleaseStatus {
 }
 export type AuthorizationRequest = 'all-tabs';
 
+export interface FetchAuthorizationStatus {
+  allDomains: boolean;
+  domains: string[];
+}
+
 export type DefaultProviderState = IntegrationDefaultProviderResult;
 
 export type BrowserDefaultState = IntegrationBrowserDefaultResult;
@@ -60,6 +65,7 @@ export interface ExtensionStatus {
   browserUseDefault: BrowserUseDefaultState | null;
   browserDefault: BrowserDefaultState | null;
   authorizationRequest: AuthorizationRequest | null;
+  fetchAuthorization: FetchAuthorizationStatus;
   activeTab: TabSummary | null;
   authorizationMode: AuthorizationMode;
   authorizedOriginPatterns: string[];
@@ -77,6 +83,17 @@ export type SidePanelRequest =
   | {
       type: 'panerelay.authorization.set';
       mode: AuthorizationMode;
+    }
+  | {
+      type: 'panerelay.fetch-authorization.set';
+      scope: 'domain';
+      domain: string;
+      enabled: boolean;
+    }
+  | {
+      type: 'panerelay.fetch-authorization.set';
+      scope: 'all-domains';
+      enabled: boolean;
     }
   | { type: 'panerelay.control.release' }
   | { type: 'panerelay.native.retry' }

@@ -4,10 +4,22 @@ import type {
   AutomationActivityStatus,
   ControlSessionState,
 } from '@panerelay/protocol';
-import { Bot, Bug, Check, ChevronDown, CircleAlert, Github, PanelTop, X } from 'lucide-react';
+import { normalizeBrowserFetchDomain } from '@panerelay/protocol';
+import {
+  Bot,
+  Bug,
+  Check,
+  ChevronDown,
+  CircleAlert,
+  Github,
+  Globe2,
+  PanelTop,
+  X,
+} from 'lucide-react';
 import { type RefObject, useEffect, useRef, useState } from 'react';
 import { DEFAULT_ACCENT_COLOR } from '../../../shared/appearance.js';
 import type { AuthorizationMode } from '../../../shared/messages.js';
+import { fetchDomainForUrl } from '../../../shared/fetch-permissions.js';
 import {
   formatForState,
   type SidepanelController,
@@ -231,6 +243,155 @@ export function AuthorizationPanel({ compact = false, controller }: Authorizatio
         </div>
         <p className="scope-help">{help}</p>
       </div>
+    </section>
+  );
+}
+
+export function FetchAuthorizationPanel({ controller }: { controller: SidepanelController }) {
+  const { state } = controller;
+  const { t, tf } = useCopy(state);
+  const [expanded, setExpanded] = useState(false);
+  const [domainInput, setDomainInput] = useState('');
+  const [domainError, setDomainError] = useState(false);
+  const authorization = state.extensionStatus?.fetchAuthorization ?? {
+    allDomains: false,
+    domains: [],
+  };
+  const currentDomain = fetchDomainForUrl(state.extensionStatus?.activeTab?.url ?? '');
+  const currentDomainAuthorized =
+    !authorization.allDomains && currentDomain
+      ? authorization.domains.includes(currentDomain)
+      : false;
+  const disabled = !state.extensionStatus || state.fetchAuthorizationPending;
+  const target = authorization.allDomains
+    ? t('fetchAccessAll')
+    : authorization.domains.length > 0
+      ? tf('fetchAccessCount', { count: authorization.domains.length })
+      : t('fetchAccessNone');
+
+  const addDomain = () => {
+    const domain = normalizeBrowserFetchDomain(domainInput);
+    if (!domain) {
+      setDomainError(true);
+      return;
+    }
+    setDomainError(false);
+    setDomainInput('');
+    void controller.setFetchAuthorization({
+      type: 'panerelay.fetch-authorization.set',
+      scope: 'domain',
+      domain,
+      enabled: true,
+    });
+  };
+
+  return (
+    <section className="browser-scope fetch-access" id="fetch-access-settings">
+      <div className="scope-summary flex items-center">
+        <span aria-hidden="true" className="scope-icon">
+          <Globe2 />
+        </span>
+        <div className="scope-copy">
+          <span className="scope-label">{t('fetchAccess')}</span>
+          <span className="scope-target">{target}</span>
+        </div>
+        <button
+          aria-expanded={expanded}
+          aria-label={t(expanded ? 'collapseAuthorizedDomains' : 'expandAuthorizedDomains')}
+          className="icon-button small"
+          onClick={() => setExpanded(value => !value)}
+          type="button"
+        >
+          <ChevronDown aria-hidden="true" data-expanded={expanded} />
+        </button>
+      </div>
+      <div className="scope-controls flex items-center">
+        <div aria-label={t('fetchAccess')} className="scope-switch" role="group">
+          <button
+            data-active={currentDomainAuthorized}
+            disabled={disabled || !currentDomain}
+            onClick={() => {
+              if (!currentDomain) return;
+              if (authorization.allDomains) {
+                void controller.selectCurrentFetchDomain(currentDomain);
+                return;
+              }
+              void controller.setFetchAuthorization({
+                type: 'panerelay.fetch-authorization.set',
+                scope: 'domain',
+                domain: currentDomain,
+                enabled: !currentDomainAuthorized,
+              });
+            }}
+            title={currentDomain ?? undefined}
+            type="button"
+          >
+            {t('currentDomain')}
+          </button>
+          <button
+            data-active={authorization.allDomains}
+            disabled={disabled}
+            onClick={() =>
+              void controller.setFetchAuthorization({
+                type: 'panerelay.fetch-authorization.set',
+                scope: 'all-domains',
+                enabled: !authorization.allDomains,
+              })
+            }
+            type="button"
+          >
+            {t('allDomains')}
+          </button>
+        </div>
+      </div>
+      {expanded && (
+        <div className="fetch-domain-manager">
+          <span className="fetch-domain-title">{t('authorizedDomains')}</span>
+          <div className="fetch-domain-add">
+            <input
+              aria-invalid={domainError}
+              aria-label={t('fetchDomainPlaceholder')}
+              disabled={disabled}
+              onChange={event => {
+                setDomainInput(event.currentTarget.value);
+                setDomainError(false);
+              }}
+              onKeyDown={event => {
+                if (event.key === 'Enter') addDomain();
+              }}
+              placeholder={t('fetchDomainPlaceholder')}
+              value={domainInput}
+            />
+            <button disabled={disabled || !domainInput.trim()} onClick={addDomain} type="button">
+              {t('addFetchDomain')}
+            </button>
+          </div>
+          {domainError && <small className="fetch-domain-error">{t('fetchDomainInvalid')}</small>}
+          <ul className="fetch-domain-list">
+            {authorization.domains.map(domain => (
+              <li key={domain}>
+                <code>{domain}</code>
+                <button
+                  aria-label={tf('removeFetchDomain', { domain })}
+                  className="icon-button small"
+                  disabled={disabled}
+                  onClick={() =>
+                    void controller.setFetchAuthorization({
+                      type: 'panerelay.fetch-authorization.set',
+                      scope: 'domain',
+                      domain,
+                      enabled: false,
+                    })
+                  }
+                  type="button"
+                >
+                  <X aria-hidden="true" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </section>
   );
 }
@@ -614,6 +775,7 @@ export function SettingsPopover({
       </div>
       <AutomationDefaultsSetting controller={controller} />
       <BrowserDefaultSetting controller={controller} />
+      <FetchAuthorizationPanel controller={controller} />
       <AuthorizationPanel controller={controller} />
       <ExternalControl controller={controller} />
     </aside>

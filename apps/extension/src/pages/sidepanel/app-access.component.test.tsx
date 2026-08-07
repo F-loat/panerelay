@@ -70,6 +70,106 @@ describe('React Side Panel browser access and settings', () => {
     expect(client.stored['panerelay.locale']).toBe('zh-CN');
   });
 
+  it('grants and expands scheme-independent fetch domain management', async () => {
+    const { client, user } = await renderReady();
+
+    await user.click(screen.getByRole('button', { name: /Browser access:/ }));
+    const currentDomainButton = screen.getByRole('button', { name: 'Current domain' });
+    const allDomainsButton = screen.getByRole('button', { name: 'All domains' });
+    await user.click(currentDomainButton);
+    await waitFor(() => expect(client.status.fetchAuthorization.domains).toContain('example.com'));
+    expect(currentDomainButton).toHaveAttribute('data-active', 'true');
+    expect(client.requestedOrigins).toContainEqual([
+      'http://example.com/*',
+      'https://example.com/*',
+    ]);
+
+    await user.click(screen.getByRole('button', { name: 'Manage authorized domains' }));
+    const input = screen.getByLabelText('example.com or *.example.com');
+    await user.type(input, '*.Baidu.com');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    await waitFor(() => expect(client.status.fetchAuthorization.domains).toContain('*.baidu.com'));
+    expect(client.requestedOrigins).toContainEqual([
+      'http://*.baidu.com/*',
+      'https://*.baidu.com/*',
+    ]);
+    expect(screen.getByText('*.baidu.com')).toBeVisible();
+
+    await user.type(input, 'ftp://Files.Example.org/private');
+    await user.click(screen.getByRole('button', { name: 'Add' }));
+    await waitFor(() =>
+      expect(client.status.fetchAuthorization.domains).toContain('files.example.org'),
+    );
+    expect(client.requestedOrigins).toContainEqual([
+      'http://files.example.org/*',
+      'https://files.example.org/*',
+    ]);
+
+    await user.click(screen.getByRole('button', { name: 'Remove *.baidu.com' }));
+    await waitFor(() =>
+      expect(client.status.fetchAuthorization.domains).not.toContain('*.baidu.com'),
+    );
+
+    await user.click(allDomainsButton);
+    await waitFor(() => expect(client.status.fetchAuthorization.allDomains).toBe(true));
+    expect(client.requestedOrigins).toContainEqual(['http://*/*', 'https://*/*']);
+    expect(screen.getByText('All domains authorized')).toBeVisible();
+    expect(allDomainsButton).toHaveAttribute('data-active', 'true');
+    expect(currentDomainButton).toHaveAttribute('data-active', 'false');
+    expect(client.status.fetchAuthorization.domains).toContain('example.com');
+
+    await user.click(currentDomainButton);
+    await waitFor(() => expect(client.status.fetchAuthorization.allDomains).toBe(false));
+    expect(allDomainsButton).toHaveAttribute('data-active', 'false');
+    expect(currentDomainButton).toHaveAttribute('data-active', 'true');
+    expect(client.status.fetchAuthorization.domains).toContain('example.com');
+  });
+
+  it('saves the current domain before switching away from all-domain fetch access', async () => {
+    const client = new AppClient();
+    client.status = {
+      ...readyStatus,
+      fetchAuthorization: { allDomains: true, domains: [] },
+    };
+    const { user } = await renderReady(client);
+
+    await user.click(screen.getByRole('button', { name: /Browser access:/ }));
+    const currentDomainButton = screen.getByRole('button', { name: 'Current domain' });
+    const allDomainsButton = screen.getByRole('button', { name: 'All domains' });
+    expect(currentDomainButton).toHaveAttribute('data-active', 'false');
+    expect(allDomainsButton).toHaveAttribute('data-active', 'true');
+
+    await user.click(currentDomainButton);
+
+    await waitFor(() => {
+      expect(client.status.fetchAuthorization).toEqual({
+        allDomains: false,
+        domains: ['example.com'],
+      });
+    });
+    expect(client.requestedOrigins).toContainEqual([
+      'http://example.com/*',
+      'https://example.com/*',
+    ]);
+    expect(
+      client.requests.filter(request => request.type === 'panerelay.fetch-authorization.set'),
+    ).toEqual([
+      {
+        type: 'panerelay.fetch-authorization.set',
+        scope: 'domain',
+        domain: 'example.com',
+        enabled: true,
+      },
+      {
+        type: 'panerelay.fetch-authorization.set',
+        scope: 'all-domains',
+        enabled: false,
+      },
+    ]);
+    expect(currentDomainButton).toHaveAttribute('data-active', 'true');
+    expect(allDomainsButton).toHaveAttribute('data-active', 'false');
+  });
+
   it('keeps the full manifest release visible in settings without a Host connection', async () => {
     const client = new AppClient();
     client.status = {

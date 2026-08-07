@@ -1,6 +1,7 @@
 import { PANERELAY_PROTOCOL_VERSION } from './constants.js';
 
 export const PANERELAY_FETCH_SESSION_PROTOCOL = 'panerelay.fetch-session.v1' as const;
+export const PANERELAY_FETCH_PERMISSION_PROTOCOL = 'panerelay.fetch-permission.v1' as const;
 export const PANERELAY_FETCH_ADAPTER_PROTOCOL = 'panerelay.fetch-adapter.v1' as const;
 export const PANERELAY_FETCH_ADAPTER_REGISTRY_PROTOCOL =
   'panerelay.fetch-adapter-registry.v1' as const;
@@ -15,6 +16,7 @@ export const PANERELAY_FETCH_MIN_TIMEOUT_MS = 100;
 export const PANERELAY_FETCH_MAX_TIMEOUT_MS = 120_000;
 export const PANERELAY_FETCH_DEFAULT_TIMEOUT_MS = 30_000;
 export const PANERELAY_FETCH_SESSION_TTL_MS = 120_000;
+export const PANERELAY_FETCH_PERMISSION_TIMEOUT_MS = 90_000;
 export const PANERELAY_FETCH_MAX_SESSIONS = 16;
 export const PANERELAY_FETCH_ADAPTER_MAX_ARTIFACT_BYTES = 8 * 1024 * 1024;
 export const PANERELAY_FETCH_ADAPTER_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
@@ -98,6 +100,27 @@ export interface BrowserFetchResultMessage {
   error?: string;
 }
 
+export type BrowserFetchPermissionScope = 'domain';
+
+export interface BrowserFetchPermissionRequestMessage {
+  type: 'fetch.permission.request';
+  protocol: typeof PANERELAY_PROTOCOL_VERSION;
+  requestId: string;
+  browserId: string;
+  generation: string;
+  domain: string;
+}
+
+export interface BrowserFetchPermissionResultMessage {
+  type: 'fetch.permission.result';
+  protocol: typeof PANERELAY_PROTOCOL_VERSION;
+  requestId: string;
+  granted: boolean;
+  domain: string;
+  scope?: BrowserFetchPermissionScope;
+  error?: string;
+}
+
 export interface BrowserFetchSessionCreateRequest {
   protocol: typeof PANERELAY_FETCH_SESSION_PROTOCOL;
   browser: {
@@ -116,6 +139,27 @@ export interface BrowserFetchSessionCreated {
 
 export interface BrowserFetchSessionError {
   protocol: typeof PANERELAY_FETCH_SESSION_PROTOCOL;
+  error: string;
+}
+
+export interface BrowserFetchPermissionRequest {
+  protocol: typeof PANERELAY_FETCH_PERMISSION_PROTOCOL;
+  browser: {
+    browserId: string;
+    generation: string;
+  };
+  domain: string;
+}
+
+export interface BrowserFetchPermissionResult {
+  protocol: typeof PANERELAY_FETCH_PERMISSION_PROTOCOL;
+  granted: boolean;
+  domain: string;
+  scope?: BrowserFetchPermissionScope;
+}
+
+export interface BrowserFetchPermissionError {
+  protocol: typeof PANERELAY_FETCH_PERMISSION_PROTOCOL;
   error: string;
 }
 
@@ -545,6 +589,74 @@ export function isBrowserFetchResultMessage(value: unknown): value is BrowserFet
   );
 }
 
+export function normalizeBrowserFetchDomain(value: unknown): string | null {
+  if (!isBoundedString(value, 1, PANERELAY_FETCH_MAX_URL_BYTES)) return null;
+  let source = value.trim().toLowerCase();
+  const wildcard = source.startsWith('*.');
+  if (wildcard) source = source.slice(2);
+  try {
+    const url = new URL(source.includes('://') ? source : `http://${source}`);
+    if (url.username || url.password) return null;
+    const hostname = url.hostname.toLowerCase().replace(/\.$/, '');
+    if (!hostname || /[\s/*]/.test(hostname)) return null;
+    if (
+      wildcard &&
+      (hostname === 'localhost' || /^\[.*\]$/.test(hostname) || /^\d+(?:\.\d+){3}$/.test(hostname))
+    ) {
+      return null;
+    }
+    return wildcard ? `*.${hostname}` : hostname;
+  } catch {
+    return null;
+  }
+}
+
+export function isBrowserFetchPermissionRequestMessage(
+  value: unknown,
+): value is BrowserFetchPermissionRequestMessage {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    hasExactKeys(candidate, [
+      'type',
+      'protocol',
+      'requestId',
+      'browserId',
+      'generation',
+      'domain',
+    ]) &&
+    candidate.type === 'fetch.permission.request' &&
+    candidate.protocol === PANERELAY_PROTOCOL_VERSION &&
+    isBoundedString(candidate.requestId, 1, 128) &&
+    isBoundedString(candidate.browserId, 1, 256) &&
+    isBoundedString(candidate.generation, 1, 128) &&
+    normalizeBrowserFetchDomain(candidate.domain) === candidate.domain
+  );
+}
+
+export function isBrowserFetchPermissionResultMessage(
+  value: unknown,
+): value is BrowserFetchPermissionResultMessage {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  const expected = candidate.granted
+    ? ['type', 'protocol', 'requestId', 'granted', 'domain', 'scope']
+    : candidate.error === undefined
+      ? ['type', 'protocol', 'requestId', 'granted', 'domain']
+      : ['type', 'protocol', 'requestId', 'granted', 'domain', 'error'];
+  return (
+    hasExactKeys(candidate, expected) &&
+    candidate.type === 'fetch.permission.result' &&
+    candidate.protocol === PANERELAY_PROTOCOL_VERSION &&
+    isBoundedString(candidate.requestId, 1, 128) &&
+    typeof candidate.granted === 'boolean' &&
+    normalizeBrowserFetchDomain(candidate.domain) === candidate.domain &&
+    (candidate.granted
+      ? candidate.scope === 'domain'
+      : candidate.error === undefined || isBoundedString(candidate.error, 1, 2_048))
+  );
+}
+
 export function isBrowserFetchSessionCreateRequest(
   value: unknown,
 ): value is BrowserFetchSessionCreateRequest {
@@ -564,6 +676,58 @@ export function isBrowserFetchSessionCreateRequest(
     hasExactKeys(browser, ['browserId', 'generation']) &&
     isBoundedString(browser.browserId, 1, 256) &&
     isBoundedString(browser.generation, 1, 128)
+  );
+}
+
+export function isBrowserFetchPermissionRequest(
+  value: unknown,
+): value is BrowserFetchPermissionRequest {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  if (
+    !hasExactKeys(candidate, ['protocol', 'browser', 'domain']) ||
+    candidate.protocol !== PANERELAY_FETCH_PERMISSION_PROTOCOL ||
+    normalizeBrowserFetchDomain(candidate.domain) !== candidate.domain ||
+    !candidate.browser ||
+    typeof candidate.browser !== 'object' ||
+    Array.isArray(candidate.browser)
+  ) {
+    return false;
+  }
+  const browser = candidate.browser as Record<string, unknown>;
+  return (
+    hasExactKeys(browser, ['browserId', 'generation']) &&
+    isBoundedString(browser.browserId, 1, 256) &&
+    isBoundedString(browser.generation, 1, 128)
+  );
+}
+
+export function isBrowserFetchPermissionResult(
+  value: unknown,
+): value is BrowserFetchPermissionResult {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  const expected = candidate.granted
+    ? ['protocol', 'granted', 'domain', 'scope']
+    : ['protocol', 'granted', 'domain'];
+  return (
+    hasExactKeys(candidate, expected) &&
+    candidate.protocol === PANERELAY_FETCH_PERMISSION_PROTOCOL &&
+    typeof candidate.granted === 'boolean' &&
+    normalizeBrowserFetchDomain(candidate.domain) === candidate.domain &&
+    (candidate.granted ? candidate.scope === 'domain' : candidate.scope === undefined)
+  );
+}
+
+export function isBrowserFetchPermissionError(
+  value: unknown,
+): value is BrowserFetchPermissionError {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    hasExactKeys(candidate, ['protocol', 'error']) &&
+    candidate.protocol === PANERELAY_FETCH_PERMISSION_PROTOCOL &&
+    isBoundedString(candidate.error, 1, 2_048)
   );
 }
 
