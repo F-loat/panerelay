@@ -32,7 +32,7 @@ async function fixture(): Promise<{ root: string; registryPath: string; entry: s
                 access: 'read',
                 args: [],
                 output: ['uid'],
-                examples: ['panerelay fetch bilibili me'],
+                examples: ['panerelay bilibili me'],
               },
             ],
           },

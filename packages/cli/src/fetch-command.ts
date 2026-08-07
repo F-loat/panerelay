@@ -69,8 +69,9 @@ function fetchHelp(locale: SupportedLocale, registry: FetchAdapterRegistry): str
 
 Usage:
   panerelay fetch <url> [options]
-  panerelay fetch <site> <command> [arguments]
-  panerelay fetch <site> --help
+  panerelay <site> <command> [arguments]
+  panerelay <site> --help
+  panerelay fetch <site> <command> [arguments]  Explicit form
 
 Raw fetch options:
   --method <method>               GET, POST, PUT, DELETE, PATCH, HEAD, or OPTIONS
@@ -96,8 +97,9 @@ Manage adapters with @panerelay/setup add, remove, and adapters.`,
 
 用法：
   panerelay fetch <URL> [选项]
-  panerelay fetch <站点> <命令> [参数]
-  panerelay fetch <站点> --help
+  panerelay <站点> <命令> [参数]
+  panerelay <站点> --help
+  panerelay fetch <站点> <命令> [参数]  显式形式
 
 原始 Fetch 选项：
   --method <方法>                 GET、POST、PUT、DELETE、PATCH、HEAD 或 OPTIONS
@@ -130,7 +132,11 @@ function siteHelp(locale: SupportedLocale, manifest: FetchAdapterManifest): stri
     locale,
     'Usage:',
     '用法：',
-  )}\n  panerelay fetch ${manifest.id} <command> [arguments] [--json]\n\n${localized(
+  )}\n  panerelay ${manifest.id} <command> [arguments] [--json]\n  panerelay fetch ${manifest.id} <command> [arguments] [--json]  ${localized(
+    locale,
+    '(explicit form)',
+    '（显式形式）',
+  )}\n\n${localized(
     locale,
     'Commands:',
     '命令：',
@@ -163,7 +169,11 @@ function commandHelp(
     locale,
     'Usage:',
     '用法：',
-  )}\n  panerelay fetch ${manifest.id} ${command.name}${usageArguments ? ` ${usageArguments}` : ''}\n\n${localized(
+  )}\n  panerelay ${manifest.id} ${command.name}${usageArguments ? ` ${usageArguments}` : ''}\n  panerelay fetch ${manifest.id} ${command.name}${usageArguments ? ` ${usageArguments}` : ''}  ${localized(
+    locale,
+    '(explicit form)',
+    '（显式形式）',
+  )}\n\n${localized(
     locale,
     'Arguments:',
     '参数：',

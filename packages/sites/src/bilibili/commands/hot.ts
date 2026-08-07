@@ -24,7 +24,7 @@ export default defineCommand({
     },
   ],
   output: ['rank', 'title', 'author', 'play', 'danmaku', 'bvid', 'url'],
-  examples: ['panerelay fetch bilibili hot --limit 10'],
+  examples: ['panerelay bilibili hot --limit 10'],
   async run(context, args) {
     return commandHot(new BilibiliClient(context), args);
   },

@@ -39,7 +39,7 @@ export default defineCommand({
     },
   ],
   output: ['rpid', 'bvid', 'oid', 'message', 'url'],
-  examples: ["panerelay fetch bilibili comment BV1xx411c7mD '测试评论' --execute"],
+  examples: ["panerelay bilibili comment BV1xx411c7mD '测试评论' --execute"],
   async run(context, args) {
     return commandComment(new BilibiliClient(context), args);
   },

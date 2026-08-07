@@ -24,7 +24,7 @@ export default defineCommand({
     },
   ],
   output: ['time', 'content'],
-  examples: ['panerelay fetch bilibili summary BV1xx411c7mD'],
+  examples: ['panerelay bilibili summary BV1xx411c7mD'],
   async run(context, args) {
     return commandSummary(new BilibiliClient(context), args);
   },

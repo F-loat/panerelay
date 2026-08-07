@@ -56,7 +56,7 @@ test('defineSite and defineCommand retain typed definitions', () => {
     access: 'read',
     args: [],
     output: ['name'],
-    examples: ['panerelay fetch example me'],
+    examples: ['panerelay example me'],
     async run() {
       return { name: 'Ada' };
     },
@@ -73,7 +73,7 @@ test('init, check, build, and generated one-shot runtime work without project bo
     await initializeSite(source, 'example');
     await writeFile(
       join(source, 'commands', 'me.ts'),
-      `import { defineCommand } from '@panerelay/site-kit';\nexport default defineCommand({ name: 'me', description: 'Profile', access: 'read', args: [{ name: 'name', description: 'Name', type: 'string' }], output: ['name'], examples: ['panerelay fetch example me'], async run(_context, args) { return { name: args.name ?? 'Ada' }; } });\n`,
+      `import { defineCommand } from '@panerelay/site-kit';\nexport default defineCommand({ name: 'me', description: 'Profile', access: 'read', args: [{ name: 'name', description: 'Name', type: 'string' }], output: ['name'], examples: ['panerelay example me'], async run(_context, args) { return { name: args.name ?? 'Ada' }; } });\n`,
     );
     const checked = await checkSite(source);
     assert.equal(checked.manifest.id, 'example');

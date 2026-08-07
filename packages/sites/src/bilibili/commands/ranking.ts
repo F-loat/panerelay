@@ -25,7 +25,7 @@ export default defineCommand({
     },
   ],
   output: ['rank', 'title', 'author', 'score', 'url'],
-  examples: ['panerelay fetch bilibili ranking --limit 20'],
+  examples: ['panerelay bilibili ranking --limit 20'],
   async run(context, args) {
     return commandRanking(new BilibiliClient(context), args);
   },

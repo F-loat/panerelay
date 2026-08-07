@@ -143,7 +143,7 @@ test('runs fetch adapter lifecycle commands without invoking base setup', async 
           access: 'read' as const,
           args: [],
           output: ['uid'],
-          examples: ['panerelay fetch bilibili me'],
+          examples: ['panerelay bilibili me'],
         },
       ],
     };

@@ -36,7 +36,7 @@ async function source(root: string, id: string, version = '1.0.0'): Promise<stri
           access: 'read',
           args: [],
           output: ['id'],
-          examples: [`panerelay fetch ${id} show`],
+          examples: [`panerelay ${id} show`],
         },
       ],
     }),
@@ -53,7 +53,7 @@ async function sourceSite(root: string, id: string): Promise<string> {
   );
   await writeFile(
     join(directory, 'commands', 'show.ts'),
-    `import { defineCommand } from '@panerelay/site-kit';\nexport default defineCommand({ name: 'show', description: 'Show data.', access: 'read', args: [], output: ['id'], examples: ['panerelay fetch ${id} show'], async run() { return { id: ${JSON.stringify(id)} }; } });\n`,
+    `import { defineCommand } from '@panerelay/site-kit';\nexport default defineCommand({ name: 'show', description: 'Show data.', access: 'read', args: [], output: ['id'], examples: ['panerelay ${id} show'], async run() { return { id: ${JSON.stringify(id)} }; } });\n`,
   );
   return directory;
 }
@@ -106,7 +106,7 @@ function sourceArchive(id: string, prefix = 'repository-commit'): Buffer {
     },
     {
       name: `${prefix}/commands/show.ts`,
-      body: `import { defineCommand } from '@panerelay/site-kit';\nexport default defineCommand({ name: 'show', description: 'Show data.', access: 'read', args: [], output: ['id'], examples: ['panerelay fetch ${id} show'], async run() { return { id: ${JSON.stringify(id)} }; } });\n`,
+      body: `import { defineCommand } from '@panerelay/site-kit';\nexport default defineCommand({ name: 'show', description: 'Show data.', access: 'read', args: [], output: ['id'], examples: ['panerelay ${id} show'], async run() { return { id: ${JSON.stringify(id)} }; } });\n`,
     },
   ]);
 }

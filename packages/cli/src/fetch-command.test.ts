@@ -20,7 +20,7 @@ const registry = {
             access: 'read' as const,
             args: [],
             output: ['name', 'uid'],
-            examples: ['panerelay fetch bilibili me'],
+            examples: ['panerelay bilibili me'],
           },
         ],
       },
@@ -87,14 +87,23 @@ test('renders global and site help without selecting a browser or spawning an ad
       },
     };
     assert.equal(await runFetchCommand(['--help'], { locale: 'en', dependencies }), 0);
-    assert.match(output.pop() ?? '', /Adapter invocation options:[\s\S]*--json/);
+    assert.match(
+      output.pop() ?? '',
+      /panerelay <site> <command>[\s\S]*panerelay fetch <site> <command>[\s\S]*Adapter invocation options:[\s\S]*--json/,
+    );
     assert.equal(await runFetchCommand(['bilibili', '--help'], { locale: 'en', dependencies }), 0);
-    assert.match(output.pop() ?? '', /Commands:[\s\S]*me[\s\S]*--json/);
+    assert.match(
+      output.pop() ?? '',
+      /panerelay bilibili <command>[\s\S]*panerelay fetch bilibili <command>[\s\S]*Commands:[\s\S]*me[\s\S]*--json/,
+    );
     assert.equal(
       await runFetchCommand(['bilibili', 'me', '--help'], { locale: 'en', dependencies }),
       0,
     );
-    assert.match(output.pop() ?? '', /Options:[\s\S]*--json[\s\S]*Output fields:[\s\S]*name, uid/);
+    assert.match(
+      output.pop() ?? '',
+      /panerelay bilibili me[\s\S]*panerelay fetch bilibili me[\s\S]*Options:[\s\S]*--json[\s\S]*Output fields:[\s\S]*name, uid/,
+    );
     assert.equal(browserSelections, 0);
   } finally {
     console.log = originalLog;

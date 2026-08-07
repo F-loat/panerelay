@@ -30,6 +30,36 @@ const state = {
   updatedAt: '2026-07-31T08:00:00.000Z',
 };
 
+function fetchRegistry(id = 'bilibili') {
+  return {
+    protocol: 'panerelay.fetch-adapter-registry.v1' as const,
+    adapters: [
+      {
+        manifest: {
+          protocol: 'panerelay.fetch-adapter.v1' as const,
+          id,
+          name: id,
+          version: '0.8.0',
+          description: `${id} commands`,
+          entry: 'adapter.mjs',
+          commands: [
+            {
+              name: 'me',
+              description: 'Show the current profile.',
+              access: 'read' as const,
+              args: [],
+              output: ['name'],
+              examples: [`panerelay ${id} me`],
+            },
+          ],
+        },
+        executablePath: `/protected/${id}/0.8.0/adapter.mjs`,
+        sha256: 'a'.repeat(64),
+      },
+    ],
+  };
+}
+
 test('parses browser administration commands and localized options', () => {
   assert.deepEqual(parseCliArgs([]), { help: true, language: undefined });
   assert.equal(parseCliArgs(['browsers']).operation, 'browsers');
@@ -120,6 +150,93 @@ test('routes fetch help through the fetch command without requiring a browser', 
     0,
   );
   assert.deepEqual(invocation, { argv: ['bilibili', '--help'], locale: 'zh-CN' });
+});
+
+test('routes exact installed site aliases while preserving top-level precedence and arguments', async () => {
+  const invocations: Array<{ argv: string[]; locale: string }> = [];
+  const output: string[] = [];
+  const errors: string[] = [];
+  const originalLog = console.log;
+  const originalError = console.error;
+  console.log = (...values: unknown[]) => output.push(values.join(' '));
+  console.error = (...values: unknown[]) => errors.push(values.join(' '));
+  try {
+    const dependencies = {
+      environment: { LANG: 'en_US.UTF-8' },
+      readFetchAdapterRegistry: async () => fetchRegistry(),
+      runFetchCommand: async (argv: string[], options: { locale: string }) => {
+        invocations.push({ argv, locale: options.locale });
+        return 0;
+      },
+      systemLocale: 'en-US',
+    };
+    assert.equal(
+      await main(['bilibili', 'subtitle', 'BV1test', '--lang', 'zh-CN'], dependencies),
+      0,
+    );
+    assert.equal(await main(['--lang', 'zh-CN', 'bilibili', 'me', '--json'], dependencies), 0);
+    assert.equal(await main(['bilibili', '--help'], dependencies), 0);
+    assert.equal(await main(['fetch', 'bilibili', 'me'], dependencies), 0);
+    assert.deepEqual(invocations, [
+      {
+        argv: ['bilibili', 'subtitle', 'BV1test', '--lang', 'zh-CN'],
+        locale: 'en',
+      },
+      { argv: ['bilibili', 'me', '--json'], locale: 'zh-CN' },
+      { argv: ['bilibili', '--help'], locale: 'en' },
+      { argv: ['bilibili', 'me'], locale: 'en' },
+    ]);
+
+    let aliasReads = 0;
+    assert.equal(
+      await main(['browsers'], {
+        environment: {},
+        listBrowserRegistrations: async () => [],
+        readBrowserDefault: async () => null,
+        readFetchAdapterRegistry: async () => {
+          aliasReads += 1;
+          return fetchRegistry('browsers');
+        },
+      }),
+      0,
+    );
+    assert.equal(aliasReads, 0);
+
+    let unexpectedFetch = false;
+    const unknownDependencies = {
+      environment: {},
+      readFetchAdapterRegistry: async () => fetchRegistry(),
+      runFetchCommand: async () => {
+        unexpectedFetch = true;
+        return 0;
+      },
+      systemLocale: 'en-US',
+    };
+    assert.equal(await main(['setup'], unknownDependencies), 2);
+    assert.equal(await main(['https://example.test'], unknownDependencies), 2);
+    assert.equal(unexpectedFetch, false);
+    assert.match(errors.join('\n'), /Unknown command: setup/);
+    assert.match(errors.join('\n'), /Unknown command: https:\/\/example\.test/);
+
+    assert.equal(
+      await main(['bilibili', 'me'], {
+        environment: {},
+        readFetchAdapterRegistry: async () => {
+          throw new Error('Fetch adapter registry permissions must be 0600');
+        },
+        runFetchCommand: async () => {
+          unexpectedFetch = true;
+          return 0;
+        },
+      }),
+      1,
+    );
+    assert.equal(unexpectedFetch, false);
+    assert.match(errors.join('\n'), /permissions must be 0600/);
+  } finally {
+    console.log = originalLog;
+    console.error = originalError;
+  }
 });
 
 test('preserves manifest command --lang while global --lang still selects the CLI locale', async () => {
@@ -342,12 +459,16 @@ test('localizes help and argument errors', async () => {
   console.error = (...values: unknown[]) => errors.push(values.join(' '));
   try {
     assert.equal(await main(['--help'], { environment: {}, systemLocale: 'zh-CN' }), 0);
-    assert.match(output.join('\n'), /用法：/);
+    assert.match(output.join('\n'), /用法：[\s\S]*panerelay <站点> <命令>/);
 
     output.length = 0;
     assert.equal(
       await main(['setup', '--lang', 'en'], {
         environment: {},
+        readFetchAdapterRegistry: async () => ({
+          protocol: 'panerelay.fetch-adapter-registry.v1',
+          adapters: [],
+        }),
         systemLocale: 'zh-CN',
       }),
       2,

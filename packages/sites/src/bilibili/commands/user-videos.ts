@@ -40,8 +40,8 @@ export default defineCommand({
   ],
   output: ['rank', 'title', 'plays', 'likes', 'date', 'url'],
   examples: [
-    'panerelay fetch bilibili user-videos 2',
-    'panerelay fetch bilibili user-videos OpenCLI --order click',
+    'panerelay bilibili user-videos 2',
+    'panerelay bilibili user-videos OpenCLI --order click',
   ],
   async run(context, args) {
     return commandUserVideos(new BilibiliClient(context), args);

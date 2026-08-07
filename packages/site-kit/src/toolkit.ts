@@ -377,7 +377,7 @@ export async function initializeSite(directory: string, id: string): Promise<voi
   );
   await writeFile(
     join(target, 'commands', 'me.ts'),
-    `import { defineCommand } from '@panerelay/site-kit';\n\nexport default defineCommand({\n  name: 'me',\n  description: 'Show the current profile.',\n  access: 'read',\n  args: [],\n  output: ['name'],\n  examples: ['panerelay fetch ${id} me'],\n  async run(context) {\n    const response = await context.fetch({\n      url: 'https://example.com/api/me',\n      responseType: 'json',\n      withCookies: true,\n    });\n    return response.body;\n  },\n});\n`,
+    `import { defineCommand } from '@panerelay/site-kit';\n\nexport default defineCommand({\n  name: 'me',\n  description: 'Show the current profile.',\n  access: 'read',\n  args: [],\n  output: ['name'],\n  examples: ['panerelay ${id} me'],\n  async run(context) {\n    const response = await context.fetch({\n      url: 'https://example.com/api/me',\n      responseType: 'json',\n      withCookies: true,\n    });\n    return response.body;\n  },\n});\n`,
     'utf8',
   );
   await writeFile(

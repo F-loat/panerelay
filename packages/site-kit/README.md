@@ -46,7 +46,7 @@ export default defineCommand({
   access: 'read',
   args: [],
   output: ['name'],
-  examples: ['panerelay fetch example me'],
+  examples: ['panerelay example me'],
   async run(context) {
     const response = await context.fetch({
       url: 'https://example.com/api/me',

@@ -85,18 +85,20 @@ npx --yes @panerelay/setup add ./my-site
 npx --yes @panerelay/setup add owner/repository
 npx --yes @panerelay/setup add github:owner/repository@v1.0.0#sites/example
 npx --yes @panerelay/setup adapters
-panerelay fetch bilibili --help
-panerelay fetch bilibili me
-panerelay fetch bilibili me --json
-panerelay fetch bilibili subtitle BV1xx411c7mD --lang zh-CN
+panerelay bilibili --help
+panerelay bilibili me
+panerelay bilibili me --json
+panerelay bilibili subtitle BV1xx411c7mD --lang zh-CN
 npx --yes @panerelay/setup remove bilibili
 ```
 
 安装文件位于 `~/.panerelay/fetch-adapters`。帮助命令只读取受保护的 manifest，不连接浏览器，也不执行适配器代码。适配器命令默认输出带条目数和耗时 footer 的 OpenCLI 风格表格，也可使用 `--json` 获取结构化结果。GitHub 安装仅支持公开仓库，会固定并记录一个完整 commit，也不会运行仓库的包管理器或脚本；执行时会校验 digest，在有界的一次性子进程中启动适配器，并且只传入短期 fetch 凭证。本地与 GitHub 适配器都是用户主动选择的受信任代码，不是操作系统沙箱。
 
-内置 Bilibili 适配器提供 16 个读命令（`whoami`、`me`、`video`、`search`、`hot`、`ranking`、`dynamic`、`feed`、`feed-detail`、`favorite`、`history`、`following`、`user-videos`、`comments`、`subtitle`、`summary`）和 3 个写命令（`comment`、`follow`、`unfollow`）。参数可通过 `panerelay fetch bilibili <command> --help` 查看。`comment` 必须显式传入 `--execute`；关注关系写操作会先检查并在写入后验证状态。三个写命令都只声明 `bili_jct` 到 `csrf` 的绑定，由扩展解析并注入 Cookie 值，因此值不会进入适配器输入。`login` 和 `download` 明确不在支持范围内，因为它们分别需要交互式页面导航，以及超出 fetch 适配器边界的媒体与文件系统行为。
+已安装站点默认使用 OpenCLI 风格的短命令 `panerelay <站点> <命令>`。为保持兼容或处理站点 ID 与 Panerelay 命令重名的情况，仍可使用显式形式 `panerelay fetch <站点> <命令>`；原始 URL 请求始终使用 `panerelay fetch <URL>`。
 
-站点命令后的 `--lang` 属于适配器参数，例如上面的字幕语言。全局界面语言应放在 `fetch` 前，例如 `panerelay --lang zh-CN fetch bilibili --help`。
+内置 Bilibili 适配器提供 16 个读命令（`whoami`、`me`、`video`、`search`、`hot`、`ranking`、`dynamic`、`feed`、`feed-detail`、`favorite`、`history`、`following`、`user-videos`、`comments`、`subtitle`、`summary`）和 3 个写命令（`comment`、`follow`、`unfollow`）。参数可通过 `panerelay bilibili <command> --help` 查看。`comment` 必须显式传入 `--execute`；关注关系写操作会先检查并在写入后验证状态。三个写命令都只声明 `bili_jct` 到 `csrf` 的绑定，由扩展解析并注入 Cookie 值，因此值不会进入适配器输入。`login` 和 `download` 明确不在支持范围内，因为它们分别需要交互式页面导航，以及超出 fetch 适配器边界的媒体与文件系统行为。
+
+站点命令后的 `--lang` 属于适配器参数，例如上面的字幕语言。全局界面语言应放在站点参数前，例如 `panerelay --lang zh-CN bilibili --help`。
 
 使用 `npx --yes @panerelay/site-kit init ./my-site --id my-site` 可以创建逐命令文件的可编辑适配器，随后可运行 `check`、显式 `test` 与 `build`。setup 能直接安装这个源码目录，无需 `package.json`、`tsconfig.json`、手写 manifest 或构建脚本。已有的 `panerelay-fetch-adapter.json` 加一个自包含 `.mjs` 文件的严格双文件目录仍兼容。详见 [`@panerelay/setup` 技术参考](packages/setup/README.md#fetch-adapter-lifecycle)与 [`@panerelay/site-kit`](packages/site-kit/README.md)。
 

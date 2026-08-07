@@ -25,7 +25,7 @@ export default defineCommand({
     },
   ],
   output: ['field', 'value'],
-  examples: ['panerelay fetch bilibili feed-detail 123456789'],
+  examples: ['panerelay bilibili feed-detail 123456789'],
   async run(context, args) {
     return commandFeedDetail(new BilibiliClient(context), args);
   },

@@ -33,7 +33,7 @@ export default defineCommand({
     },
   ],
   output: ['mid', 'name', 'sign', 'following', 'fans'],
-  examples: ['panerelay fetch bilibili following', 'panerelay fetch bilibili following 2 --page 2'],
+  examples: ['panerelay bilibili following', 'panerelay bilibili following 2 --page 2'],
   async run(context, args) {
     return commandFollowing(new BilibiliClient(context), args);
   },

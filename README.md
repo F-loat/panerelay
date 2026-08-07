@@ -85,18 +85,20 @@ npx --yes @panerelay/setup add ./my-site
 npx --yes @panerelay/setup add owner/repository
 npx --yes @panerelay/setup add github:owner/repository@v1.0.0#sites/example
 npx --yes @panerelay/setup adapters
-panerelay fetch bilibili --help
-panerelay fetch bilibili me
-panerelay fetch bilibili me --json
-panerelay fetch bilibili subtitle BV1xx411c7mD --lang zh-CN
+panerelay bilibili --help
+panerelay bilibili me
+panerelay bilibili me --json
+panerelay bilibili subtitle BV1xx411c7mD --lang zh-CN
 npx --yes @panerelay/setup remove bilibili
 ```
 
 Installed files live under `~/.panerelay/fetch-adapters`. Help reads protected manifest metadata without opening a browser or executing adapter code. Adapter commands render an OpenCLI-style table with an item-count and elapsed-time footer by default and accept `--json` for structured output. GitHub installs are public-only, resolve to one recorded commit, and never run repository package managers or scripts. Execution verifies the installed digest, starts the adapter as a bounded one-shot child, and gives it only a short-lived fetch credential. Local and GitHub adapters are trusted code selected by the user, not an OS sandbox.
 
-The built-in Bilibili adapter provides 16 read commands (`whoami`, `me`, `video`, `search`, `hot`, `ranking`, `dynamic`, `feed`, `feed-detail`, `favorite`, `history`, `following`, `user-videos`, `comments`, `subtitle`, and `summary`) and three writes (`comment`, `follow`, and `unfollow`). Use `panerelay fetch bilibili <command> --help` for arguments. `comment` requires `--execute`; relation writes pre-check and verify the resulting state. For all three writes, the adapter declares a `bili_jct`-to-`csrf` binding while the Extension resolves and injects the Cookie value, so the value never enters adapter input. `login` and `download` are intentionally not included because they require interactive navigation or media/filesystem behavior beyond fetch adapters.
+Installed sites use the direct OpenCLI-style form `panerelay <site> <command>`. The explicit `panerelay fetch <site> <command>` form remains available for compatibility or when a site ID conflicts with a Panerelay command; raw URLs always require `panerelay fetch <url>`.
 
-`--lang` after a site command is an adapter argument, as in the subtitle example. Put a global locale before `fetch`, for example `panerelay --lang zh-CN fetch bilibili --help`.
+The built-in Bilibili adapter provides 16 read commands (`whoami`, `me`, `video`, `search`, `hot`, `ranking`, `dynamic`, `feed`, `feed-detail`, `favorite`, `history`, `following`, `user-videos`, `comments`, `subtitle`, and `summary`) and three writes (`comment`, `follow`, and `unfollow`). Use `panerelay bilibili <command> --help` for arguments. `comment` requires `--execute`; relation writes pre-check and verify the resulting state. For all three writes, the adapter declares a `bili_jct`-to-`csrf` binding while the Extension resolves and injects the Cookie value, so the value never enters adapter input. `login` and `download` are intentionally not included because they require interactive navigation or media/filesystem behavior beyond fetch adapters.
+
+`--lang` after a site command is an adapter argument, as in the subtitle example. Put a global locale before the site operands, for example `panerelay --lang zh-CN bilibili --help`.
 
 Create an editable command-per-file adapter with `npx --yes @panerelay/site-kit init ./my-site --id my-site`, then use `check`, explicit `test`, and `build`. Setup can install that source directory directly without a `package.json`, `tsconfig.json`, handwritten manifest, or build script. Existing directories containing `panerelay-fetch-adapter.json` plus one self-contained `.mjs` entry remain supported. See the [`@panerelay/setup` reference](packages/setup/README.md#fetch-adapter-lifecycle) and [`@panerelay/site-kit`](packages/site-kit/README.md).
 

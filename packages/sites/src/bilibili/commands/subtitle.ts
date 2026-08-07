@@ -40,8 +40,8 @@ export default defineCommand({
   ],
   output: ['index', 'from', 'to', 'content'],
   examples: [
-    'panerelay fetch bilibili subtitle BV1xx411c7mD',
-    'panerelay fetch bilibili subtitle BV1xx411c7mD --lang zh-CN',
+    'panerelay bilibili subtitle BV1xx411c7mD',
+    'panerelay bilibili subtitle BV1xx411c7mD --lang zh-CN',
   ],
   async run(context, args) {
     return commandSubtitle(new BilibiliClient(context), args);

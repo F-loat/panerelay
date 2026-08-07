@@ -39,8 +39,8 @@ export default defineCommand({
   ],
   output: ['rank', 'rpid', 'author', 'text', 'likes', 'replies', 'time'],
   examples: [
-    'panerelay fetch bilibili comments BV1xx411c7mD',
-    'panerelay fetch bilibili comments BV1xx411c7mD --parent 123',
+    'panerelay bilibili comments BV1xx411c7mD',
+    'panerelay bilibili comments BV1xx411c7mD --parent 123',
   ],
   async run(context, args) {
     return commandComments(new BilibiliClient(context), args);

@@ -39,6 +39,7 @@ Usage:
   panerelay browser clear [--lang <language>]
   panerelay connection use <adapter-id> <direct|extension> [--lang <language>]
   panerelay connection resolve <adapter-id> [--mode <mode>] [--browser <selector>]
+  panerelay <site> <command> [site arguments]
   panerelay fetch <url|site> [request or site arguments]
   panerelay run <adapter-id> [--mode <mode>] [--browser <selector>] -- <command> [arguments...]
 
@@ -51,7 +52,7 @@ Commands:
               Save a connection mode for one installed adapter
   connection resolve
               Resolve connection material without running an automation command
-  fetch       Send a browser-backed request or run an installed site adapter
+  fetch       Send a browser-backed request or explicitly run a site adapter
   run         Run the caller's command with the selected connection
 
 Options:
@@ -61,7 +62,9 @@ Options:
   --help, -h  Show this help
 
 Occasional use without a global installation:
-  npx --yes @panerelay/cli browsers`,
+  npx --yes @panerelay/cli browsers
+
+Installed site adapters can run directly; use fetch for raw URLs or disambiguation.`,
 } as const;
 
 type MessageKey = keyof typeof englishMessages;
@@ -103,6 +106,7 @@ const chineseMessages: Record<MessageKey, string> = {
   panerelay browser clear [--lang <语言>]
   panerelay connection use <adapter ID> <direct|extension> [--lang <语言>]
   panerelay connection resolve <adapter ID> [--mode <模式>] [--browser <选择器>]
+  panerelay <站点> <命令> [站点参数]
   panerelay fetch <URL|站点> [请求或站点参数]
   panerelay run <adapter ID> [--mode <模式>] [--browser <选择器>] -- <命令> [参数...]
 
@@ -115,7 +119,7 @@ const chineseMessages: Record<MessageKey, string> = {
               保存一个已安装 adapter 的连接模式
   connection resolve
               解析连接信息，但不运行自动化命令
-  fetch       发送浏览器请求或运行已安装的站点适配器
+  fetch       发送浏览器请求或显式运行站点适配器
   run         使用所选连接运行调用者指定的命令
 
 选项：
@@ -125,7 +129,9 @@ const chineseMessages: Record<MessageKey, string> = {
   --help, -h  显示帮助
 
 无需全局安装的临时用法：
-  npx --yes @panerelay/cli browsers`,
+  npx --yes @panerelay/cli browsers
+
+已安装的站点适配器可直接运行；原始 URL 请求或命令消歧请使用 fetch。`,
 };
 
 export interface LocaleResolutionOptions {

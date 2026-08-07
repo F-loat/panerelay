@@ -32,10 +32,7 @@ export default defineCommand({
     { name: 'pages', description: 'Number of API pages', type: 'number', default: 1 },
   ],
   output: ['rank', 'time', 'author', 'title', 'type', 'likes', 'url'],
-  examples: [
-    'panerelay fetch bilibili feed',
-    'panerelay fetch bilibili feed 2 --type video --pages 2',
-  ],
+  examples: ['panerelay bilibili feed', 'panerelay bilibili feed 2 --type video --pages 2'],
   async run(context, args) {
     return commandFeed(new BilibiliClient(context), args);
   },

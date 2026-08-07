@@ -8,7 +8,7 @@ export default defineCommand({
   access: 'read',
   args: [],
   output: ['name', 'uid', 'level', 'coins', 'followers', 'following'],
-  examples: ['panerelay fetch bilibili me'],
+  examples: ['panerelay bilibili me'],
   async run(context) {
     return commandMe(new BilibiliClient(context));
   },

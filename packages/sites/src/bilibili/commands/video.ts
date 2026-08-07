@@ -30,8 +30,8 @@ export default defineCommand({
   ],
   output: ['field', 'value'],
   examples: [
-    'panerelay fetch bilibili video BV1xx411c7mD',
-    'panerelay fetch bilibili video BV1xx411c7mD --page 2',
+    'panerelay bilibili video BV1xx411c7mD',
+    'panerelay bilibili video BV1xx411c7mD --page 2',
   ],
   async run(context, args) {
     return commandVideo(new BilibiliClient(context), args);

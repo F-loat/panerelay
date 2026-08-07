@@ -25,7 +25,7 @@ export default defineCommand({
     },
   ],
   output: ['rank', 'title', 'author', 'progress', 'url'],
-  examples: ['panerelay fetch bilibili history'],
+  examples: ['panerelay bilibili history'],
   async run(context, args) {
     return commandHistory(new BilibiliClient(context), args);
   },

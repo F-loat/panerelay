@@ -37,8 +37,8 @@ export default defineCommand({
   ],
   output: ['rank', 'title', 'author', 'score', 'url'],
   examples: [
-    'panerelay fetch bilibili search Panerelay',
-    'panerelay fetch bilibili search OpenCLI --type user',
+    'panerelay bilibili search Panerelay',
+    'panerelay bilibili search OpenCLI --type user',
   ],
   async run(context, args) {
     return commandSearch(new BilibiliClient(context), args);

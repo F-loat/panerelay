@@ -31,10 +31,7 @@ export default defineCommand({
     { name: 'page', description: 'Page number', type: 'number', default: 1 },
   ],
   output: ['rank', 'title', 'author', 'plays', 'url'],
-  examples: [
-    'panerelay fetch bilibili favorite',
-    'panerelay fetch bilibili favorite --fid 123 --page 2',
-  ],
+  examples: ['panerelay bilibili favorite', 'panerelay bilibili favorite --fid 123 --page 2'],
   async run(context, args) {
     return commandFavorite(new BilibiliClient(context), args);
   },

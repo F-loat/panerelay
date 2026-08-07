@@ -22,7 +22,10 @@ import {
   saveCliConnectionMode,
 } from './adapter-dispatcher.js';
 import { runCliConnectionCommand } from './command-runner.js';
+import { readFetchAdapterRegistry } from './fetch-adapter-registry.js';
 import { runFetchCommand } from './fetch-command.js';
+
+const BUILT_IN_COMMANDS = new Set(['browsers', 'browser', 'connection', 'fetch', 'run']);
 
 export type CliOperation =
   | 'browsers'
@@ -59,6 +62,37 @@ function topLevelArguments(argv: string[]): string[] {
 function versionRequested(argv: string[]): boolean {
   const commandArguments = topLevelArguments(argv);
   return commandArguments.includes('--version') || commandArguments.includes('-v');
+}
+
+function directSiteCandidateIndex(argv: string[]): number | undefined {
+  for (let index = 0; index < argv.length; index += 1) {
+    const argument = argv[index];
+    if (!argument || argument === '--' || argument.startsWith('-')) {
+      if (argument === '--lang') {
+        index += 1;
+        continue;
+      }
+      if (argument?.startsWith('--lang=')) continue;
+      return undefined;
+    }
+    return index;
+  }
+  return undefined;
+}
+
+async function resolveDirectSiteAlias(
+  argv: string[],
+  dependencies: CliDependencies,
+): Promise<string[]> {
+  const candidateIndex = directSiteCandidateIndex(argv);
+  if (candidateIndex === undefined) return argv;
+  const candidate = argv[candidateIndex]!;
+  if (BUILT_IN_COMMANDS.has(candidate) || /^https?:\/\//i.test(candidate)) return argv;
+  const registry = await (dependencies.readFetchAdapterRegistry ?? readFetchAdapterRegistry)({
+    environment: dependencies.environment,
+  });
+  if (!registry.adapters.some(adapter => adapter.manifest.id === candidate)) return argv;
+  return [...argv.slice(0, candidateIndex), 'fetch', ...argv.slice(candidateIndex)];
 }
 
 async function packageVersion(): Promise<string> {
@@ -286,6 +320,7 @@ export interface CliDependencies {
   environment?: NodeJS.ProcessEnv;
   listBrowserRegistrations?: typeof listBrowserRegistrations;
   readBrowserDefault?: typeof readBrowserDefault;
+  readFetchAdapterRegistry?: typeof readFetchAdapterRegistry;
   selectBrowserRegistration?: typeof selectBrowserRegistration;
   setBrowserDefault?: typeof setBrowserDefault;
   resolveCliConnection?: typeof resolveCliConnection;
@@ -360,12 +395,23 @@ export async function main(
   }
   let locale = resolveLocale({
     environment: dependencies.environment,
-    requestedLocale: languageValue(argv),
+    systemLocale: dependencies.systemLocale,
+  });
+  let routedArgv: string[];
+  try {
+    routedArgv = await resolveDirectSiteAlias(argv, dependencies);
+  } catch (error) {
+    console.error(localizeRuntimeError(error, locale));
+    return 1;
+  }
+  locale = resolveLocale({
+    environment: dependencies.environment,
+    requestedLocale: languageValue(routedArgv),
     systemLocale: dependencies.systemLocale,
   });
   let parsed: ParsedCliArgs;
   try {
-    parsed = parseCliArgs(argv);
+    parsed = parseCliArgs(routedArgv);
   } catch (error) {
     console.error(localizeArgumentError(error, locale));
     printHelp(locale);

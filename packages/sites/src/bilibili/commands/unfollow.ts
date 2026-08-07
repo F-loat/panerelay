@@ -16,7 +16,7 @@ export default defineCommand({
     },
   ],
   output: ['mid', 'name', 'status', 'url'],
-  examples: ['panerelay fetch bilibili unfollow 2'],
+  examples: ['panerelay bilibili unfollow 2'],
   async run(context, args) {
     return commandUnfollow(new BilibiliClient(context), args);
   },

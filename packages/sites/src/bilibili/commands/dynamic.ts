@@ -22,7 +22,7 @@ export default defineCommand({
     },
   ],
   output: ['id', 'author', 'text', 'likes', 'url'],
-  examples: ['panerelay fetch bilibili dynamic'],
+  examples: ['panerelay bilibili dynamic'],
   async run(context, args) {
     return commandDynamic(new BilibiliClient(context), args);
   },

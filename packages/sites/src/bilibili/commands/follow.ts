@@ -16,7 +16,7 @@ export default defineCommand({
     },
   ],
   output: ['mid', 'name', 'status', 'url'],
-  examples: ['panerelay fetch bilibili follow 2'],
+  examples: ['panerelay bilibili follow 2'],
   async run(context, args) {
     return commandFollow(new BilibiliClient(context), args);
   },
