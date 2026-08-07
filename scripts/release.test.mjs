@@ -86,6 +86,11 @@ function releaseFixture() {
       : {
           dependencies: {
             [descriptor.packages[0]]: 'workspace:*',
+            ...(name === '@panerelay/setup'
+              ? {
+                  '@panerelay/sites': 'workspace:*',
+                }
+              : {}),
             ...(name === '@panerelay/bridge'
               ? {
                   '@agentclientprotocol/sdk': '^1.3.0',

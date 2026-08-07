@@ -25,6 +25,7 @@ This record distinguishes deterministic installation and artifact coverage from 
 | Project selection and page comments                         | Verified          | Forwarded      |
 | Explicit site and tab authorization                         | Verified          | Forwarded      |
 | Browser-level CDP relay                                     | Verified          | Forwarded      |
+| Browser-backed fetch                                        | Partial           | Partial        |
 | agent-browser 0.33.0 Provider                               | Verified          | Forwarded      |
 | Playwright CLI 0.1.17 explicit CDP attach                   | Verified          | Forwarded      |
 | Independent registration and deterministic browser routing  | Verified          | Forwarded      |

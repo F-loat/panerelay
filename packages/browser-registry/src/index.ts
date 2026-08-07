@@ -113,7 +113,9 @@ function isBridgeState(value: unknown): value is BridgeState {
     (state.capabilities === undefined ||
       (state.capabilities !== null &&
         typeof state.capabilities === 'object' &&
-        typeof state.capabilities.cdpRelay === 'boolean')) &&
+        typeof state.capabilities.cdpRelay === 'boolean' &&
+        (state.capabilities.browserFetch === undefined ||
+          typeof state.capabilities.browserFetch === 'boolean'))) &&
     typeof state.updatedAt === 'string' &&
     Number.isFinite(Date.parse(state.updatedAt))
   );
@@ -385,4 +387,89 @@ export async function selectBrowserRegistration(
   throw new Error(
     'Panerelay Bridge is unavailable. Build and load the extension, then authorize a tab.',
   );
+}
+
+function assertFetchReady(state: BridgeState): BridgeState {
+  if (state.capabilities?.browserFetch !== true) {
+    throw new Error(
+      `${state.browserName} does not support Panerelay fetch. Update and reload its Panerelay Extension.`,
+    );
+  }
+  return state;
+}
+
+/** Selects a live registration using RFC-0006 routing, but requires browser-fetch support. */
+export async function selectBrowserFetchRegistration(
+  options: BrowserRegistryOptions = {},
+): Promise<BrowserSelection> {
+  const currentRegistrations = await listBrowserRegistrations(options);
+  const legacy =
+    currentRegistrations.length === 0 ? await readLiveLegacyBrowserRegistration(options) : null;
+  const registrations = legacy
+    ? [{ state: legacy, ready: legacy.capabilities?.browserFetch === true }]
+    : currentRegistrations.map(registration => ({
+        state: registration.state,
+        ready: registration.state.capabilities?.browserFetch === true,
+      }));
+  const ready = registrations.filter(registration => registration.ready);
+  const selectedSource = (
+    currentSource: Exclude<BrowserSelection['source'], 'legacy'>,
+  ): BrowserSelection['source'] => (legacy ? 'legacy' : currentSource);
+  const env = environment(options);
+  const exactSelector = env[PANERELAY_BROWSER_ID_ENV]?.trim();
+  const browserSelector = env[PANERELAY_BROWSER_ENV]?.trim();
+  const selector = exactSelector || browserSelector;
+
+  if (selector) {
+    const exact = registrations.find(registration => registration.state.browserId === selector);
+    if (exact) return { source: selectedSource('explicit'), state: assertFetchReady(exact.state) };
+    if (exactSelector) {
+      throw new Error(
+        `Panerelay browser ${exactSelector} is unavailable. Reopen that browser or choose another registration.`,
+      );
+    }
+    const normalized = selector.toLowerCase();
+    if (BROWSER_FAMILIES.has(normalized as BrowserFamily)) {
+      const matches = ready.filter(
+        registration => (registration.state.browserFamily ?? 'unknown') === normalized,
+      );
+      if (matches.length === 1) {
+        return { source: selectedSource('explicit'), state: matches[0]!.state };
+      }
+      if (matches.length > 1) {
+        throw new Error(
+          `Panerelay browser selector "${selector}" is ambiguous. Use PANERELAY_BROWSER_ID with one of: ${describeRegistrations(matches)}`,
+        );
+      }
+    }
+    throw new Error(
+      `Panerelay browser selector "${selector}" cannot provide fetch. Live browsers: ${describeRegistrations(registrations) || 'none'}`,
+    );
+  }
+
+  const savedDefault = await readBrowserDefault(options);
+  if (savedDefault) {
+    const selected = registrations.find(
+      registration => registration.state.browserId === savedDefault.browserId,
+    );
+    if (!selected || !selected.ready) {
+      throw new Error(
+        `The default Panerelay browser (${savedDefault.browserId}) cannot provide fetch. Reopen it, update its Extension, choose another default, or clear the default.`,
+      );
+    }
+    return { source: selectedSource('default'), state: selected.state };
+  }
+
+  if (ready.length === 1) return { source: selectedSource('single'), state: ready[0]!.state };
+  if (ready.length > 1) {
+    throw new Error(
+      `Multiple Panerelay browsers can provide fetch. Set a default or use PANERELAY_BROWSER_ID with one of: ${describeRegistrations(ready)}`,
+    );
+  }
+  if (registrations.length > 0) {
+    throw new Error(
+      `No registered Panerelay browser can provide fetch. Update and reload the Extension. Registered browsers: ${describeRegistrations(registrations)}`,
+    );
+  }
+  throw new Error('Panerelay Bridge is unavailable. Build and load the Extension.');
 }

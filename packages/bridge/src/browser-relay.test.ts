@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { request as httpRequest } from 'node:http';
 import {
+  PANERELAY_FETCH_SESSION_PROTOCOL,
   PANERELAY_PROTOCOL_VERSION,
   type AutomationActivitySnapshotMessage,
   type AutomationActivityUpdatedMessage,
@@ -12,6 +13,8 @@ import {
   type HostToExtensionMessage,
   type RelaySessionCreated,
   type CdpBootstrapCreated,
+  type BrowserFetchRequestMessage,
+  type BrowserFetchSessionCreated,
 } from '@panerelay/protocol';
 import WebSocket from 'ws';
 import { BrowserRelay } from './browser-relay.js';
@@ -202,6 +205,7 @@ async function register(
     releaseVersion,
     buildVersion: '0.0.0.0',
     checkHostUpdate,
+    capabilities: { cdpRelay: true, browserFetch: true },
   });
 }
 
@@ -446,6 +450,156 @@ test('rejects relay allocation when the registered browser lacks CDP support', a
       controlMessages.some(message => message.type === 'control.session.changed'),
       false,
     );
+  } finally {
+    await relay.close();
+  }
+});
+
+test('creates generation-bound fetch-only sessions and correlates Extension results', async () => {
+  const messages: HostToExtensionMessage[] = [];
+  const relay = await BrowserRelay.listen({
+    onBrowserDisconnected: () => {},
+    onBrowserRegistered: () => {},
+    sendToExtension: message => {
+      messages.push(message);
+      if (message.type !== 'fetch.request') return;
+      void relay.handleExtensionMessage({
+        type: 'fetch.result',
+        protocol: PANERELAY_PROTOCOL_VERSION,
+        requestId: message.requestId,
+        success: true,
+        response: {
+          status: 404,
+          statusText: 'Not Found',
+          headers: { 'content-type': 'application/json' },
+          body: { missing: true },
+          bodyType: 'json',
+          url: message.request.url,
+          redirected: false,
+          attachedCookieCount: 2,
+        },
+      });
+    },
+  });
+  const createSession = (generation: string) =>
+    fetch(`http://127.0.0.1:${relay.port}/fetch/sessions`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${relay.token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        protocol: PANERELAY_FETCH_SESSION_PROTOCOL,
+        browser: { browserId: 'browser-1', generation },
+      }),
+    });
+  try {
+    await register(relay);
+    const stale = await createSession('stale-generation');
+    assert.equal(stale.status, 409);
+
+    const created = await createSession(relay.generation);
+    assert.equal(created.status, 201);
+    assert.equal(created.headers.get('cache-control'), 'no-store');
+    const session = (await created.json()) as BrowserFetchSessionCreated;
+    assert.equal(session.protocol, PANERELAY_FETCH_SESSION_PROTOCOL);
+    assert.equal(Number.isFinite(Date.parse(session.expiresAt)), true);
+    assert.doesNotMatch(JSON.stringify(messages), new RegExp(session.token));
+
+    const unauthorized = await fetch(session.endpoint, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ url: 'https://api.example.com/missing' }),
+    });
+    assert.equal(unauthorized.status, 401);
+
+    const fetched = await fetch(session.endpoint, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${session.token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        url: 'https://api.example.com/missing',
+        headers: { Origin: 'https://example.com', Referer: '' },
+      }),
+    });
+    assert.equal(fetched.status, 200);
+    assert.deepEqual(await fetched.json(), {
+      status: 404,
+      statusText: 'Not Found',
+      headers: { 'content-type': 'application/json' },
+      body: { missing: true },
+      bodyType: 'json',
+      url: 'https://api.example.com/missing',
+      redirected: false,
+      attachedCookieCount: 2,
+    });
+    const requestMessage = messages.find(
+      (message): message is BrowserFetchRequestMessage => message.type === 'fetch.request',
+    );
+    assert.deepEqual(requestMessage?.request.headers, {
+      Origin: 'https://example.com',
+      Referer: '',
+    });
+    assert.equal(
+      messages.some(message => message.type === 'control.session.changed'),
+      false,
+    );
+
+    const released = await fetch(
+      `http://127.0.0.1:${relay.port}/fetch/sessions/${session.sessionId}`,
+      {
+        method: 'DELETE',
+        headers: { authorization: `Bearer ${relay.token}` },
+      },
+    );
+    assert.equal(released.status, 204);
+    const afterRelease = await fetch(session.endpoint, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${session.token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ url: 'https://api.example.com/missing' }),
+    });
+    assert.equal(afterRelease.status, 401);
+  } finally {
+    await relay.close();
+  }
+});
+
+test('rejects fetch sessions when Extension fetch support is unavailable', async () => {
+  const relay = await BrowserRelay.listen({
+    onBrowserDisconnected: () => {},
+    onBrowserRegistered: () => {},
+    sendToExtension: () => {},
+  });
+  try {
+    await relay.handleExtensionMessage({
+      type: 'browser.register',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      browserId: 'browser-1',
+      browserName: 'Old Chrome',
+      extensionId: 'panplnkjlkoceaonlmpdekjphgmbggmi',
+      releaseVersion: '0.8.0',
+      buildVersion: '0.8.0.0',
+      checkHostUpdate: false,
+      capabilities: { cdpRelay: true },
+    });
+    const response = await fetch(`http://127.0.0.1:${relay.port}/fetch/sessions`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${relay.token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        protocol: PANERELAY_FETCH_SESSION_PROTOCOL,
+        browser: { browserId: 'browser-1', generation: relay.generation },
+      }),
+    });
+    assert.equal(response.status, 409);
+    assert.match(String(((await response.json()) as { error: string }).error), /does not support/);
   } finally {
     await relay.close();
   }

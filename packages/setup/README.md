@@ -49,6 +49,27 @@ npx --yes @panerelay/setup doctor
 npx --yes @panerelay/setup uninstall --yes
 ```
 
+### Fetch adapter lifecycle
+
+Fetch adapters are independent from base setup and automation-engine integrations. They are installed only by an explicit adapter command:
+
+```bash
+npx --yes @panerelay/setup add bilibili
+npx --yes @panerelay/setup add bilibili /absolute/path/to/local-adapter
+npx --yes @panerelay/setup add --all
+npx --yes @panerelay/setup adapters
+npx --yes @panerelay/setup remove bilibili
+npx --yes @panerelay/setup remove --all
+```
+
+`add` validates every source before making a batch visible. Built-in names resolve only within the lockstep `@panerelay/sites` catalog dependency; setup does not embed site bundles, resolve one npm package per site, or perform network discovery. A local source must be an explicit directory. Active files and the atomic registry are stored under `~/.panerelay/fetch-adapters` with user-only permissions. `remove` changes only the selected fetch-adapter records and owned version directories; it does not uninstall the Native Host, automation integrations, browser defaults, or conversations.
+
+A local source contains exactly the metadata file `panerelay-fetch-adapter.json` and the self-contained `.mjs` entry named by its `entry` field. The manifest protocol is `panerelay.fetch-adapter.v1` and declares a bounded ID, name, version, description, commands, typed arguments, output fields, and examples. Installed code runs as a one-shot Node child with a minimal environment and a short-lived fetch-only Bridge credential. Installation is therefore an explicit trust decision: process isolation and digest verification do not sandbox code from the user's filesystem.
+
+The built-in Bilibili source lives directly under `packages/sites/src/bilibili`, and `@panerelay/sites` generates and packages its two-file install artifact. It exposes 16 reads (`whoami`, `me`, `video`, `search`, `hot`, `ranking`, `dynamic`, `feed`, `feed-detail`, `favorite`, `history`, `following`, `user-videos`, `comments`, `subtitle`, and `summary`) and three writes (`comment`, `follow`, and `unfollow`). Each public command and its help metadata live in one matching file under `commands`; shared WBI/API, profile, video, dynamic, and relation helpers remain separate.
+
+The adapter requires a logged-in browser session and Chrome site access for Bilibili. Its write requests declare a generic binding from the `bili_jct` Cookie name to the `csrf` form field. Only the Extension resolves the value; neither setup, the registry, the adapter child, Native Messaging, nor normal errors receive it. Comment requires explicit `--execute`, while follow/unfollow are idempotent and verify the resulting relation. Interactive `login` and downloader/filesystem-oriented `download` are not shipped. The CLI renders OpenCLI-style tables by default and accepts `--json` for structured output.
+
 An unflagged interactive setup initializes its integration selector from the current protected Panerelay Provider and adapter configuration. Checked integrations are installed or updated, while unchecked integrations have only their Panerelay-owned Provider, adapter, configuration, and default artifacts removed. The upstream agent-browser, browser-use, Browser Harness, and Playwright CLI installations are never removed. The shared default answer is also initialized from current Panerelay defaults, so a later setup run reflects the state produced by the previous successful run without a separate selection cache. After the final answer, a localized timer shows that reconciliation is still running. Explicit integration flags retain additive behavior and do not remove omitted integrations.
 
 ### Explicit agent-browser integration

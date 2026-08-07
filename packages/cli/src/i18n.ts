@@ -39,6 +39,7 @@ Usage:
   panerelay browser clear [--lang <language>]
   panerelay connection use <adapter-id> <direct|extension> [--lang <language>]
   panerelay connection resolve <adapter-id> [--mode <mode>] [--browser <selector>]
+  panerelay fetch <url|site> [request or site arguments]
   panerelay run <adapter-id> [--mode <mode>] [--browser <selector>] -- <command> [arguments...]
 
 Commands:
@@ -50,6 +51,7 @@ Commands:
               Save a connection mode for one installed adapter
   connection resolve
               Resolve connection material without running an automation command
+  fetch       Send a browser-backed request or run an installed site adapter
   run         Run the caller's command with the selected connection
 
 Options:
@@ -101,6 +103,7 @@ const chineseMessages: Record<MessageKey, string> = {
   panerelay browser clear [--lang <语言>]
   panerelay connection use <adapter ID> <direct|extension> [--lang <语言>]
   panerelay connection resolve <adapter ID> [--mode <模式>] [--browser <选择器>]
+  panerelay fetch <URL|站点> [请求或站点参数]
   panerelay run <adapter ID> [--mode <模式>] [--browser <选择器>] -- <命令> [参数...]
 
 命令：
@@ -112,6 +115,7 @@ const chineseMessages: Record<MessageKey, string> = {
               保存一个已安装 adapter 的连接模式
   connection resolve
               解析连接信息，但不运行自动化命令
+  fetch       发送浏览器请求或运行已安装的站点适配器
   run         使用所选连接运行调用者指定的命令
 
 选项：

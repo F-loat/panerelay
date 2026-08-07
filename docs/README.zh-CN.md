@@ -14,6 +14,7 @@
 | 通过 agent-browser 使用现有浏览器中已授权的标签页 | [agent-browser 接入说明](../packages/adapters/agent-browser/README.md) |
 | 通过 browser-use CLI、Skill 或 CLI MCP 使用已授权的 Chrome 标签页 | [browser-use 接入说明](../packages/adapters/browser-use/README.md) |
 | 让 Playwright CLI 显式连接已授权的 Chrome 标签页 | [Playwright CLI 接入说明](../packages/adapters/playwright/README.md) |
+| 发送浏览器请求或使用站点适配器 | [浏览器 Fetch](../README.zh-CN.md#浏览器-fetch) |
 
 使用 `npx skills add F-loat/panerelay --skill panerelay-browser` 安装统一 Agent 工作流。该 Skill 是 agent-browser、Browser Use 和 Playwright CLI 设置、使用、验证与排错的版本受控指令源。
 
@@ -32,6 +33,7 @@
 - [agent-browser 0.33.0](compatibility/agent-browser-0.33.0.md)：Provider 行为和命令覆盖范围。
 - [browser-use 0.13.7](compatibility/browser-use-0.13.7.md)：Browser Harness 0.1.8 基线、支持入口、生命周期和限制。
 - [Playwright CLI 0.1.17](compatibility/playwright-cli-0.1.17.md)：显式 CDP 连接、命令组、生命周期和浏览器所有权边界。
+- [浏览器 Fetch](compatibility/browser-fetch.md)：原始 Fetch 与站点适配器的分类、证据和边界。
 - [Claude Code](compatibility/claude-code.md)：支持的本地 Agent Runtime 边界。
 - [OpenCode 1.18.12](compatibility/opencode-1.18.12.md)：ACP 侧边栏 Provider 的能力与边界。
 

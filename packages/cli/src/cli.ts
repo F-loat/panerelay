@@ -22,15 +22,23 @@ import {
   saveCliConnectionMode,
 } from './adapter-dispatcher.js';
 import { runCliConnectionCommand } from './command-runner.js';
+import { runFetchCommand } from './fetch-command.js';
 
 export type CliOperation =
-  'browsers' | 'browser-use' | 'browser-clear' | 'connection-use' | 'connection-resolve' | 'run';
+  | 'browsers'
+  | 'browser-use'
+  | 'browser-clear'
+  | 'connection-use'
+  | 'connection-resolve'
+  | 'fetch'
+  | 'run';
 
 export interface ParsedCliArgs {
   browserSelector?: string;
   adapterId?: string;
   connectionMode?: CliAdapterMode;
   childCommand?: string[];
+  fetchArguments?: string[];
   actorName?: string;
   sessionLabel?: string;
   help: boolean;
@@ -68,11 +76,33 @@ function optionAndInlineValue(argument: string): [string, string | undefined] {
     : [argument.slice(0, separator), argument.slice(separator + 1)];
 }
 
+function fetchAdapterCommandOptionStart(argv: string[]): number | undefined {
+  const fetchIndex = argv.indexOf('fetch');
+  if (fetchIndex < 0) return undefined;
+  const operands: string[] = [];
+  for (let index = fetchIndex + 1; index < argv.length; index += 1) {
+    const argument = argv[index];
+    if (!argument) continue;
+    if (argument === '--lang') {
+      index += 1;
+      continue;
+    }
+    if (argument.startsWith('--lang=')) continue;
+    if (argument.startsWith('-')) return undefined;
+    operands.push(argument);
+    if (operands.length === 1 && /^https?:\/\//i.test(argument)) return undefined;
+    if (operands.length === 2) return index + 1;
+  }
+  return undefined;
+}
+
 function languageValue(argv: string[]): string | undefined {
+  const adapterOptionsStart = fetchAdapterCommandOptionStart(argv);
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (!argument) continue;
     if (argument === '--') break;
+    if (adapterOptionsStart !== undefined && index >= adapterOptionsStart) continue;
     if (argument === '--lang') return argv[index + 1];
     if (argument.startsWith('--lang=')) return argument.slice('--lang='.length);
   }
@@ -82,12 +112,17 @@ function languageValue(argv: string[]): string | undefined {
 function extractLanguageArguments(argv: string[]): LanguageArguments {
   const remaining: string[] = [];
   let rawLanguage: string | undefined;
+  const adapterOptionsStart = fetchAdapterCommandOptionStart(argv);
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
     if (!argument) continue;
     if (argument === '--') {
       remaining.push(...argv.slice(index));
       break;
+    }
+    if (adapterOptionsStart !== undefined && index >= adapterOptionsStart) {
+      remaining.push(argument);
+      continue;
     }
     if (argument !== '--lang' && !argument.startsWith('--lang=')) {
       remaining.push(argument);
@@ -107,10 +142,11 @@ function extractLanguageArguments(argv: string[]): LanguageArguments {
 export function parseCliArgs(argv: string[]): ParsedCliArgs {
   const localized = extractLanguageArguments(argv);
   const commandArguments = topLevelArguments(localized.argv);
+  const command = localized.argv[0];
   if (
     localized.argv.length === 0 ||
-    commandArguments.includes('--help') ||
-    commandArguments.includes('-h')
+    (command !== 'fetch' &&
+      (commandArguments.includes('--help') || commandArguments.includes('-h')))
   ) {
     return {
       help: true,
@@ -118,7 +154,7 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
     };
   }
 
-  const command = localized.argv[0]!;
+  const selectedCommand = command!;
   let browserSelector: string | undefined;
   let adapterId: string | undefined;
   let connectionMode: CliAdapterMode | undefined;
@@ -127,10 +163,10 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
   let sessionLabel: string | undefined;
   let operation: CliOperation;
   let optionStart: number;
-  if (command === 'browsers') {
+  if (selectedCommand === 'browsers') {
     operation = 'browsers';
     optionStart = 1;
-  } else if (command === 'browser') {
+  } else if (selectedCommand === 'browser') {
     const action = localized.argv[1];
     if (action === 'use') {
       browserSelector = localized.argv[2];
@@ -145,7 +181,7 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
     } else {
       throw new Error(`Unknown command: browser${action ? ` ${action}` : ''}`);
     }
-  } else if (command === 'connection') {
+  } else if (selectedCommand === 'connection') {
     const action = localized.argv[1];
     if (action !== 'use' && action !== 'resolve') {
       throw new Error(`Unknown command: connection${action ? ` ${action}` : ''}`);
@@ -186,7 +222,10 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
       }
       optionStart = localized.argv.length;
     }
-  } else if (command === 'run') {
+  } else if (selectedCommand === 'fetch') {
+    operation = 'fetch';
+    optionStart = localized.argv.length;
+  } else if (selectedCommand === 'run') {
     adapterId = localized.argv[1];
     if (!adapterId || adapterId.startsWith('-')) throw new Error('ADAPTER_ID_MISSING');
     const separator = localized.argv.indexOf('--', 2);
@@ -218,7 +257,7 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
     operation = 'run';
     optionStart = localized.argv.length;
   } else {
-    throw new Error(`Unknown command: ${command}`);
+    throw new Error(`Unknown command: ${selectedCommand}`);
   }
 
   for (let index = optionStart; index < localized.argv.length; index += 1) {
@@ -229,6 +268,7 @@ export function parseCliArgs(argv: string[]): ParsedCliArgs {
     ...(adapterId ? { adapterId } : {}),
     ...(connectionMode ? { connectionMode } : {}),
     ...(childCommand ? { childCommand } : {}),
+    ...(operation === 'fetch' ? { fetchArguments: localized.argv.slice(1) } : {}),
     ...(actorName ? { actorName } : {}),
     ...(sessionLabel ? { sessionLabel } : {}),
     help: false,
@@ -252,6 +292,7 @@ export interface CliDependencies {
   saveCliConnectionMode?: typeof saveCliConnectionMode;
   setBrowserUseEnvironmentMode?: typeof setBrowserUseEnvironmentMode;
   runCliConnectionCommand?: typeof runCliConnectionCommand;
+  runFetchCommand?: typeof runFetchCommand;
   systemLocale?: string;
 }
 
@@ -338,6 +379,12 @@ export async function main(
 
   try {
     const registryOptions = { environment: dependencies.environment };
+    if (parsed.operation === 'fetch') {
+      return await (dependencies.runFetchCommand ?? runFetchCommand)(parsed.fetchArguments ?? [], {
+        environment: dependencies.environment,
+        locale,
+      });
+    }
     if (parsed.operation === 'browsers') {
       const registrations = await (
         dependencies.listBrowserRegistrations ?? listBrowserRegistrations

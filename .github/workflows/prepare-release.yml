@@ -151,6 +151,7 @@ jobs:
             @panerelay/browser-use \
             @panerelay/playwright \
             @panerelay/bridge \
+            @panerelay/sites \
             @panerelay/setup; do
             set +e
             npm_lookup="$(npm view "$package_name@$TARGET_VERSION" version --json 2>&1)"
@@ -187,6 +188,7 @@ jobs:
             echo "packages/bridge/package.json"
             echo "packages/cli/package.json"
             echo "packages/protocol/package.json"
+            echo "packages/sites/package.json"
             echo "packages/setup/package.json"
             echo "release.config.json"
           } | sort >"$expected"
@@ -213,6 +215,7 @@ jobs:
             packages/bridge/package.json \
             packages/cli/package.json \
             packages/protocol/package.json \
+            packages/sites/package.json \
             packages/setup/package.json \
             release.config.json
           git diff --cached --check

@@ -109,6 +109,19 @@ export const PACKAGE_DEFINITIONS = [
     ],
   },
   {
+    directory: 'packages/sites',
+    name: '@panerelay/sites',
+    requiredEntries: [
+      'package/LICENSE',
+      'package/README.md',
+      'package/dist/adapters/bilibili/adapter.mjs',
+      'package/dist/adapters/bilibili/panerelay-fetch-adapter.json',
+      'package/dist/index.d.ts',
+      'package/dist/index.js',
+      'package/package.json',
+    ],
+  },
+  {
     directory: 'packages/setup',
     name: '@panerelay/setup',
     requiredEntries: [
@@ -529,6 +542,11 @@ export function validateReleaseMetadata({
       !bridgeManifest?.optionalDependencies?.[CLAUDE_AGENT_SDK_PACKAGE],
     `@panerelay/bridge must not package ${CLAUDE_AGENT_SDK_PACKAGE}`,
   );
+  const setupManifest = manifests.get('@panerelay/setup');
+  invariant(
+    setupManifest?.dependencies?.['@panerelay/sites'] === 'workspace:*',
+    '@panerelay/setup must depend on the lockstep @panerelay/sites catalog',
+  );
   invariant(
     implementationSources?.bridgeCompatibility.includes(
       `CLAUDE_CODE_MINIMUM_VERSION = '${descriptor.claudeCodeMinimumVersion}'`,
@@ -800,11 +818,32 @@ export async function smokePackedSetup(tarballs) {
     const installedSetupManifest = JSON.parse(
       await readFile(join(consumerDirectory, 'node_modules/@panerelay/setup/package.json'), 'utf8'),
     );
+    const installedSitesManifest = JSON.parse(
+      await readFile(join(consumerDirectory, 'node_modules/@panerelay/sites/package.json'), 'utf8'),
+    );
     invariant(
       installedSetupManifest.bin?.['panerelay-setup'] === './dist/cli.js' &&
         installedSetupManifest.bin?.panerelay === undefined,
       'Packed setup executable conflicts with the Panerelay administration CLI',
     );
+    invariant(
+      installedSetupManifest.dependencies?.['@panerelay/sites'] === installedSitesManifest.version,
+      'Packed setup does not require the exact lockstep @panerelay/sites version',
+    );
+    try {
+      await stat(
+        join(consumerDirectory, 'node_modules/@panerelay/setup/dist/private/fetch-adapters'),
+      );
+      throw new Error('Packed setup still embeds built-in site bundles');
+    } catch (error) {
+      if (
+        (error instanceof Error ? error.message : '') ===
+        'Packed setup still embeds built-in site bundles'
+      ) {
+        throw error;
+      }
+      if (error?.code !== 'ENOENT') throw error;
+    }
     const setupCliScript = join(consumerDirectory, 'node_modules/@panerelay/setup/dist/cli.js');
     const setupCliArguments = args => [setupCliScript, ...args];
     const browserCliScript = join(consumerDirectory, 'node_modules/@panerelay/cli/dist/cli.js');
@@ -827,6 +866,23 @@ export async function smokePackedSetup(tarballs) {
       env: environment,
     });
     await run(process.execPath, setupCliArguments(['--help']), {
+      cwd: consumerDirectory,
+      env: environment,
+    });
+    await run(process.execPath, setupCliArguments(['add', 'bilibili', '--lang=en']), {
+      cwd: consumerDirectory,
+      env: environment,
+    });
+    const bilibiliHelp = await run(
+      process.execPath,
+      browserCliArguments(['fetch', 'bilibili', '--help', '--lang=en']),
+      { cwd: consumerDirectory, env: environment },
+    );
+    invariant(
+      bilibiliHelp.stdout.includes('comment') && bilibiliHelp.stdout.includes('unfollow'),
+      'Packed Bilibili adapter help did not expose its command inventory',
+    );
+    await run(process.execPath, setupCliArguments(['remove', 'bilibili', '--lang=en']), {
       cwd: consumerDirectory,
       env: environment,
     });

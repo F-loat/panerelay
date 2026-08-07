@@ -14,6 +14,7 @@ import {
   type CdpCommandMessage,
   type CdpTargetInfo,
   type CdpTargetRequestMessage,
+  type BrowserFetchRequestMessage,
   type HostToExtensionMessage,
   type IntegrationRequest,
   type IntegrationBrowserDefaultResult,
@@ -78,6 +79,11 @@ import { ACCENT_COLOR_KEY } from '../shared/appearance.js';
 import { installReleaseActionContextMenu } from './action-context-menu.js';
 import { extensionManifestIdentity } from '../shared/manifest-identity.js';
 import { createHostUpdateCheck } from './host-update-check.js';
+import {
+  createChromeBrowserFetchEnvironment,
+  executeBrowserFetch,
+  removeAbandonedBrowserFetchRules,
+} from './browser-fetch.js';
 
 const BROWSER_ID_KEY = 'panerelay.browserId';
 const ALL_TABS_AUTHORIZATION_KEY = 'panerelay.authorization.allTabs';
@@ -86,6 +92,8 @@ const AGENT_REQUEST_TIMEOUT_MS = 60_000;
 const INTEGRATION_REQUEST_TIMEOUT_MS = 5_000;
 const INTEGRATION_INSTALL_REQUEST_TIMEOUT_MS = 5 * 60_000 + 10_000;
 const browserRuntime = detectBrowserRuntime();
+const browserFetchEnvironment = createChromeBrowserFetchEnvironment();
+const browserFetchStartupCleanup = removeAbandonedBrowserFetchRules().catch(() => undefined);
 
 let nativePort: chrome.runtime.Port | null = null;
 let browserRegistered = false;
@@ -342,6 +350,7 @@ async function registerBrowser(): Promise<void> {
     browserFamily: browserRuntime.browserFamily,
     capabilities: {
       cdpRelay: browserRuntime.cdpRelay,
+      browserFetch: true,
     },
   });
 }
@@ -464,6 +473,9 @@ async function handleHostMessage(message: HostToExtensionMessage): Promise<void>
     case 'cdp.target.request':
       await handleTargetRequest(message);
       return;
+    case 'fetch.request':
+      await handleBrowserFetch(message);
+      return;
     case 'cdp.attach':
       await attachTarget(message.requestId, message.targetId);
       return;
@@ -504,6 +516,32 @@ async function handleHostMessage(message: HostToExtensionMessage): Promise<void>
       await chrome.runtime.sendMessage(eventMessage).catch(() => undefined);
       return;
     }
+  }
+}
+
+async function handleBrowserFetch(message: BrowserFetchRequestMessage): Promise<void> {
+  try {
+    await browserFetchStartupCleanup;
+    if (message.browserId !== (await browserId())) {
+      throw new Error('Browser fetch request targets a different browser registration');
+    }
+    const response = await executeBrowserFetch(message.request, browserFetchEnvironment);
+    sendNative({
+      type: 'fetch.result',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      requestId: message.requestId,
+      success: true,
+      response,
+    });
+  } catch (error) {
+    const detail = (error instanceof Error ? error.message : String(error)).slice(0, 2_048);
+    sendNative({
+      type: 'fetch.result',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      requestId: message.requestId,
+      success: false,
+      error: detail || 'Browser fetch failed',
+    });
   }
 }
 

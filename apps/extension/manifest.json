@@ -27,6 +27,8 @@
   "optional_host_permissions": ["http://*/*", "https://*/*", "file:///*"],
   "permissions": [
     "contextMenus",
+    "cookies",
+    "declarativeNetRequestWithHostAccess",
     "debugger",
     "nativeMessaging",
     "scripting",

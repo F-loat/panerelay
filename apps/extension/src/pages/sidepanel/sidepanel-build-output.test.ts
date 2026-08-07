@@ -27,6 +27,8 @@ test('packages the localized action-menu release entry and its background wiring
   const backgroundEntry = loader.match(/import\s+["']\.\/(.+?)["']/)?.[1];
 
   assert.ok(manifest.permissions?.includes('contextMenus'));
+  assert.ok(manifest.permissions?.includes('cookies'));
+  assert.ok(manifest.permissions?.includes('declarativeNetRequestWithHostAccess'));
   assert.equal(english.releaseAllControl?.message, 'Release all control');
   assert.equal(simplifiedChinese.releaseAllControl?.message, '全部释放');
   assert.ok(backgroundEntry, 'service worker loader should import the compiled background entry');

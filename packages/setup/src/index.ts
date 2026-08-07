@@ -41,6 +41,13 @@ export {
   resolvePlaywrightIntegrationPaths,
   uninstallPlaywrightIntegration,
 } from './playwright-integration.js';
+export {
+  builtinFetchAdapterIds,
+  installFetchAdapters,
+  listFetchAdapters,
+  removeFetchAdapters,
+} from './fetch-adapters.js';
+export type { FetchAdapterInstallOptions, FetchAdapterRemoveOptions } from './fetch-adapters.js';
 export type {
   PlaywrightIntegrationInstallation,
   PlaywrightIntegrationOptions,

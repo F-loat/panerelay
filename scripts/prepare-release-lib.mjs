@@ -6,7 +6,6 @@ import { PACKAGE_DEFINITIONS, readJson, validateReleaseIdentity } from './releas
 const STABLE_VERSION_PATTERN = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const CHROME_VERSION_COMPONENT_MAXIMUM = 65535;
 const RELEASE_INCREMENTS = new Set(['major', 'minor', 'patch']);
-
 export const PREPARE_RELEASE_METADATA_PATHS = [
   'package.json',
   ...PACKAGE_DEFINITIONS.map(definition => `${definition.directory}/package.json`),

@@ -82,11 +82,16 @@ Usage:
   npx --yes @panerelay/setup [--agent-browser] [--browser-use] [--playwright] [--global-default] [--extension-id <id>] [--lang <language>]
   npx --yes @panerelay/setup doctor [--agent-browser] [--browser-use] [--playwright] [--global-default] [--extension-id <id>] [--json] [--lang <language>]
   npx --yes @panerelay/setup uninstall [--yes] [--lang <language>]
+  npx --yes @panerelay/setup add <adapter|path>... | --all
+  npx --yes @panerelay/setup remove <adapter>... | --all
+  npx --yes @panerelay/setup adapters
 
 Commands:
-  setup       Install the Native Host for the Extension and side panel (default)
   doctor      Diagnose the local Panerelay integration
   uninstall   Remove Panerelay-managed local integration files
+  add         Install one or more built-in or local fetch adapters
+  remove      Remove one or more installed fetch adapters
+  adapters    List installed fetch adapters
 
 Options:
   --agent-browser      Also install or diagnose the Panerelay agent-browser integration
@@ -106,7 +111,11 @@ Options:
 Optional automation integrations:
   npx --yes @panerelay/setup --agent-browser
   npx --yes @panerelay/setup --browser-use
-  npx --yes @panerelay/setup --playwright`,
+  npx --yes @panerelay/setup --playwright
+
+Optional fetch adapters:
+  npx --yes @panerelay/setup add bilibili
+  npx --yes @panerelay/setup remove bilibili`,
   nativeHost: 'Native Host: {path}',
   nonInteractiveUninstall: 'Non-interactive input detected. Re-run with --yes.',
   setupComplete: 'Panerelay setup complete.',
@@ -197,11 +206,16 @@ const chineseMessages: Record<MessageKey, string> = {
   npx --yes @panerelay/setup [--agent-browser] [--browser-use] [--playwright] [--global-default] [--extension-id <id>] [--lang <语言>]
   npx --yes @panerelay/setup doctor [--agent-browser] [--browser-use] [--playwright] [--global-default] [--extension-id <id>] [--json] [--lang <语言>]
   npx --yes @panerelay/setup uninstall [--yes] [--lang <语言>]
+  npx --yes @panerelay/setup add <适配器|路径>... | --all
+  npx --yes @panerelay/setup remove <适配器>... | --all
+  npx --yes @panerelay/setup adapters
 
 命令：
-  setup       为 Extension 和侧边栏安装 Native Host（默认）
   doctor      诊断本地 Panerelay 集成
   uninstall   移除由 Panerelay 管理的本地集成文件
+  add         安装一个或多个内置或本地 Fetch 适配器
+  remove      移除一个或多个已安装的 Fetch 适配器
+  adapters    列出已安装的 Fetch 适配器
 
 选项：
   --agent-browser      同时安装或诊断 Panerelay agent-browser 集成
@@ -221,7 +235,11 @@ const chineseMessages: Record<MessageKey, string> = {
 可选自动化集成：
   npx --yes @panerelay/setup --agent-browser
   npx --yes @panerelay/setup --browser-use
-  npx --yes @panerelay/setup --playwright`,
+  npx --yes @panerelay/setup --playwright
+
+可选 Fetch 适配器：
+  npx --yes @panerelay/setup add bilibili
+  npx --yes @panerelay/setup remove bilibili`,
   nativeHost: 'Native Host：{path}',
   nonInteractiveUninstall: '检测到非交互式输入，请添加 --yes 后重试。',
   setupComplete: 'Panerelay 安装完成。',

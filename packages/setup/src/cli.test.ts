@@ -93,6 +93,82 @@ test('parses setup aliases and global default flags', () => {
   );
 });
 
+test('parses fetch adapter add, batch remove, all, and list commands', () => {
+  assert.deepEqual(parseSetupArgs(['add', 'bilibili', '/tmp/local-adapter']), {
+    agentBrowser: false,
+    browserUse: false,
+    playwright: false,
+    globalDefault: false,
+    help: false,
+    json: false,
+    language: undefined,
+    operation: 'add',
+    yes: false,
+    adapterItems: ['bilibili', '/tmp/local-adapter'],
+  });
+  assert.deepEqual(parseSetupArgs(['remove', '--all']), {
+    agentBrowser: false,
+    browserUse: false,
+    playwright: false,
+    globalDefault: false,
+    help: false,
+    json: false,
+    language: undefined,
+    operation: 'remove',
+    yes: false,
+    adapterAll: true,
+  });
+  assert.equal(parseSetupArgs(['adapters']).operation, 'adapters');
+  assert.throws(() => parseSetupArgs(['add']), /requires at least one adapter/);
+  assert.throws(() => parseSetupArgs(['remove', '--all', 'bilibili']), /cannot be combined/);
+});
+
+test('runs fetch adapter lifecycle commands without invoking base setup', async () => {
+  const output: string[] = [];
+  const originalLog = console.log;
+  let setupCalls = 0;
+  console.log = (...values: unknown[]) => output.push(values.join(' '));
+  try {
+    const manifest = {
+      protocol: 'panerelay.fetch-adapter.v1' as const,
+      id: 'bilibili',
+      name: 'Bilibili',
+      version: '0.8.0',
+      description: 'Bilibili commands.',
+      entry: 'adapter.mjs',
+      commands: [
+        {
+          name: 'me',
+          description: 'Profile.',
+          access: 'read' as const,
+          args: [],
+          output: ['uid'],
+          examples: ['panerelay fetch bilibili me'],
+        },
+      ],
+    };
+    const registration = { manifest, executablePath: '/tmp/adapter.mjs', sha256: 'a'.repeat(64) };
+    const dependencies = {
+      environment: {},
+      setup: async () => {
+        setupCalls += 1;
+        throw new Error('base setup must not run');
+      },
+      installFetchAdapters: async () => [registration],
+      listFetchAdapters: async () => [registration],
+      removeFetchAdapters: async () => ['bilibili'],
+    };
+    assert.equal(await main(['add', 'bilibili', '--lang', 'en'], dependencies), 0);
+    assert.equal(await main(['adapters', '--lang', 'en'], dependencies), 0);
+    assert.equal(await main(['remove', 'bilibili', '--lang', 'zh-CN'], dependencies), 0);
+    assert.equal(setupCalls, 0);
+    assert.match(output.join('\n'), /Installed fetch adapters: bilibili@0\.8\.0/);
+    assert.match(output.join('\n'), /已移除 Fetch 适配器：bilibili/);
+  } finally {
+    console.log = originalLog;
+  }
+});
+
 test('localizes the Playwright uninstall option error', async () => {
   const errors: string[] = [];
   const originalError = console.error;
@@ -1155,6 +1231,7 @@ test('prints help in the explicit or detected system language', async () => {
     const chineseHelp = output.join('\n');
     assert.match(chineseHelp, /用法：/);
     assert.match(chineseHelp, /--global-default[\s\S]*用户级默认/);
+    assert.doesNotMatch(chineseHelp, /^\s*setup\s+/m);
     assert.doesNotMatch(chineseHelp, /--project-provider|--global-provider/);
     output.length = 0;
     assert.equal(
@@ -1167,6 +1244,7 @@ test('prints help in the explicit or detected system language', async () => {
     const englishHelp = output.join('\n');
     assert.match(englishHelp, /Usage:/);
     assert.match(englishHelp, /--global-default[\s\S]*user-level defaults/);
+    assert.doesNotMatch(englishHelp, /^\s*setup\s+/m);
     assert.doesNotMatch(englishHelp, /--project-provider|--global-provider/);
   } finally {
     console.log = originalLog;

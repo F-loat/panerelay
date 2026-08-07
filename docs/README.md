@@ -14,6 +14,7 @@ Start with the path that matches what you are trying to do. Product setup and us
 | Use agent-browser with authorized existing-browser tabs | [agent-browser integration guide](../packages/adapters/agent-browser/README.md) |
 | Use browser-use CLI, Skill, or CLI MCP with authorized Chrome tabs | [browser-use integration guide](../packages/adapters/browser-use/README.md) |
 | Explicitly attach Playwright CLI to authorized Chrome tabs | [Playwright CLI integration guide](../packages/adapters/playwright/README.md) |
+| Send browser-backed requests or use site adapters | [Browser-backed fetch](../README.md#browser-backed-fetch) |
 
 Install the unified Agent workflow with `npx skills add F-loat/panerelay --skill panerelay-browser`. The Skill is the version-controlled source for agent-browser, Browser Use, and Playwright CLI setup, use, verification, and troubleshooting.
 
@@ -32,6 +33,7 @@ Compatibility records describe tested versions and capability classifications. A
 - [agent-browser 0.33.0](compatibility/agent-browser-0.33.0.md): Provider behavior and command coverage.
 - [browser-use 0.13.7](compatibility/browser-use-0.13.7.md): Browser Harness 0.1.8 baseline, supported surfaces, lifecycle, and limits.
 - [Playwright CLI 0.1.17](compatibility/playwright-cli-0.1.17.md): explicit CDP attach, command groups, lifecycle, and browser-owned limits.
+- [Browser-backed fetch](compatibility/browser-fetch.md): raw fetch and site-adapter classifications, evidence, and boundaries.
 - [Claude Code](compatibility/claude-code.md): supported local Agent runtime boundary.
 - [OpenCode 1.18.12](compatibility/opencode-1.18.12.md): ACP Side Panel provider capabilities and limits.
 

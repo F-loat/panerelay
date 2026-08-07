@@ -7,6 +7,7 @@
 - Created: 2026-07-29
 - Updated: 2026-08-06
 - OpenSpec amendments: `openspec/changes/show-control-engine-favicon`, `openspec/changes/track-participant-control-claims`
+- Related: RFC-0009 defines a fetch-only session that never enters the control-lease model.
 
 ## Summary
 

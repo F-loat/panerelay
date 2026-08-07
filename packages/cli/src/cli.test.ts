@@ -63,6 +63,12 @@ test('parses browser administration commands and localized options', () => {
     },
   );
   assert.equal(parseCliArgs(['browser', 'clear']).operation, 'browser-clear');
+  assert.deepEqual(parseCliArgs(['fetch', 'bilibili', '--help']), {
+    fetchArguments: ['bilibili', '--help'],
+    help: false,
+    language: undefined,
+    operation: 'fetch',
+  });
   assert.deepEqual(parseCliArgs(['connection', 'use', 'browser-use', 'extension']), {
     adapterId: 'browser-use',
     connectionMode: 'extension',
@@ -99,6 +105,57 @@ test('parses browser administration commands and localized options', () => {
   assert.throws(() => parseCliArgs(['browser', 'focus']), /Unknown command: browser focus/);
   assert.throws(() => parseCliArgs(['setup']), /Unknown command: setup/);
   assert.throws(() => parseCliArgs(['browsers', '--json']), /Unknown option: --json/);
+});
+
+test('routes fetch help through the fetch command without requiring a browser', async () => {
+  let invocation: { argv: string[]; locale: string } | undefined;
+  assert.equal(
+    await main(['fetch', 'bilibili', '--help', '--lang', 'zh-CN'], {
+      environment: {},
+      runFetchCommand: async (argv, options) => {
+        invocation = { argv, locale: options.locale };
+        return 0;
+      },
+    }),
+    0,
+  );
+  assert.deepEqual(invocation, { argv: ['bilibili', '--help'], locale: 'zh-CN' });
+});
+
+test('preserves manifest command --lang while global --lang still selects the CLI locale', async () => {
+  let invocation: { argv: string[]; locale: string } | undefined;
+  assert.equal(
+    await main(['fetch', 'bilibili', 'subtitle', 'BV1test', '--lang', 'zh-CN'], {
+      environment: { LANG: 'en_US.UTF-8' },
+      systemLocale: 'en-US',
+      runFetchCommand: async (argv, options) => {
+        invocation = { argv, locale: options.locale };
+        return 0;
+      },
+    }),
+    0,
+  );
+  assert.deepEqual(invocation, {
+    argv: ['bilibili', 'subtitle', 'BV1test', '--lang', 'zh-CN'],
+    locale: 'en',
+  });
+
+  invocation = undefined;
+  assert.equal(
+    await main(['--lang', 'zh-CN', 'fetch', 'bilibili', 'subtitle', 'BV1test', '--lang', 'en-US'], {
+      environment: { LANG: 'en_US.UTF-8' },
+      systemLocale: 'en-US',
+      runFetchCommand: async (argv, options) => {
+        invocation = { argv, locale: options.locale };
+        return 0;
+      },
+    }),
+    0,
+  );
+  assert.deepEqual(invocation, {
+    argv: ['bilibili', 'subtitle', 'BV1test', '--lang', 'en-US'],
+    locale: 'zh-CN',
+  });
 });
 
 test('passes the exact child command through the run surface', async () => {

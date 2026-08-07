@@ -35,7 +35,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "node clean.mjs && tsc -p tsconfig.json && node build-private.mjs",
+    "build": "pnpm --filter @panerelay/sites build && node clean.mjs && tsc -p tsconfig.json && node build-private.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "pnpm run build && node ../../scripts/run-compiled-tests.mjs dist",
     "prepublishOnly": "pnpm build"
@@ -47,7 +47,8 @@
     "@panerelay/browser-use": "workspace:*",
     "@panerelay/playwright": "workspace:*",
     "@panerelay/cli": "workspace:*",
-    "@panerelay/protocol": "workspace:*"
+    "@panerelay/protocol": "workspace:*",
+    "@panerelay/sites": "workspace:*"
   },
   "devDependencies": {
     "esbuild": "^0.28.1"

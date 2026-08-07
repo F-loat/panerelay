@@ -5,6 +5,7 @@ import {
   isAutomationActivityUpdatedMessage,
   isControlSessionChangedMessage,
 } from './control-activity.js';
+import { isBrowserFetchRequestMessage, isBrowserFetchResultMessage } from './browser-fetch.js';
 import {
   comparePanerelayReleaseVersions,
   isPanerelayChromiumBuildVersion,
@@ -12,6 +13,7 @@ import {
 } from './release-version.js';
 
 export * from './constants.js';
+export * from './browser-fetch.js';
 export * from './cli-adapter.js';
 export * from './cdp-bootstrap.js';
 export * from './conversation-target.js';
@@ -23,6 +25,7 @@ export type BrowserFamily = 'chrome' | 'chromium' | 'edge' | 'unknown';
 
 export interface BrowserCapabilities {
   cdpRelay: boolean;
+  browserFetch?: boolean;
 }
 
 export interface BrowserRegistration {
@@ -547,7 +550,8 @@ export type HostToExtensionMessage =
   | import('./control-activity.js').AutomationActivityUpdatedMessage
   | AgentResponseMessage
   | IntegrationResponseMessage
-  | ConversationEventMessage;
+  | ConversationEventMessage
+  | import('./browser-fetch.js').BrowserFetchRequestMessage;
 
 export type ExtensionToHostMessage =
   | BrowserRegisterMessage
@@ -559,7 +563,8 @@ export type ExtensionToHostMessage =
   | CdpEventMessage
   | CdpDetachedMessage
   | AgentRequestMessage
-  | IntegrationRequestMessage;
+  | IntegrationRequestMessage
+  | import('./browser-fetch.js').BrowserFetchResultMessage;
 
 export interface BridgeState {
   protocol: typeof PANERELAY_PROTOCOL_VERSION;
@@ -720,13 +725,19 @@ export function isExtensionToHostMessage(value: unknown): value is ExtensionToHo
       (candidate.capabilities === undefined ||
         (typeof candidate.capabilities === 'object' &&
           candidate.capabilities !== null &&
-          hasOnlyKeys(candidate.capabilities as Record<string, unknown>, ['cdpRelay']) &&
-          typeof (candidate.capabilities as Record<string, unknown>).cdpRelay === 'boolean'))
+          hasOnlyKeys(candidate.capabilities as Record<string, unknown>, [
+            'cdpRelay',
+            'browserFetch',
+          ]) &&
+          typeof (candidate.capabilities as Record<string, unknown>).cdpRelay === 'boolean' &&
+          ((candidate.capabilities as Record<string, unknown>).browserFetch === undefined ||
+            typeof (candidate.capabilities as Record<string, unknown>).browserFetch === 'boolean')))
     );
   }
   if (candidate.type === 'host.update.retry') {
     return hasOnlyKeys(candidate, ['type', 'protocol']);
   }
+  if (candidate.type === 'fetch.result') return isBrowserFetchResultMessage(value);
   return [
     'cdp.target.result',
     'cdp.target.event',
@@ -764,6 +775,7 @@ export function isHostToExtensionMessage(value: unknown): value is HostToExtensi
       isPanerelayReleaseVersion(candidate.hostVersion)
     );
   }
+  if (candidate.type === 'fetch.request') return isBrowserFetchRequestMessage(value);
   return (
     candidate.protocol === PANERELAY_PROTOCOL_VERSION &&
     typeof candidate.type === 'string' &&

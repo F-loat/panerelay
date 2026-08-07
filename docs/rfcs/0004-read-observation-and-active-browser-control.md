@@ -8,6 +8,7 @@
 - Updated: 2026-08-06
 - OpenSpec amendment: `openspec/changes/track-participant-control-claims`
 - Supersedes: RFC-0001 and RFC-0002 attachment-as-control and control-visibility semantics
+- Related: RFC-0009 browser fetch does not attach, observe, or control a tab.
 
 ## Summary
 

@@ -7,6 +7,7 @@
 - Created: 2026-07-31
 - Updated: 2026-08-01
 - Amendment: `openspec/changes/archive/2026-08-01-add-browser-use-default-setting`
+- Amendment: RFC-0009, `openspec/changes/add-browser-fetch-adapters`
 
 This RFC supersedes RFC-0001's unspecified recent-focus fallback for browser selection. Focus remains presentation state and never selects an automation authority.
 

@@ -60,6 +60,43 @@ npx skills add F-loat/panerelay --skill panerelay-browser
 - 本地 Bridge 在自动化工具、本地 Agent Runtime 与扩展之间负责路由并执行策略。
 - 扩展负责用户授权、受控状态展示和释放，不保存模型凭证，也不启动本地 Agent 进程。
 
+## 浏览器 Fetch
+
+`panerelay fetch` 会通过选中的在线 Panerelay 扩展发送有明确边界的 Fetch 风格请求，因此可以复用该 Chrome 或 Edge Profile 中的 Cookie，而无需导出 Cookie：
+
+```bash
+panerelay fetch https://api.example.com/me \
+  --method GET \
+  -H 'Origin: https://www.example.com' \
+  -H 'Referer: https://www.example.com/' \
+  --query 'view:full' \
+  --response json
+```
+
+默认携带浏览器 Cookie；使用 `--no-cookies` 可关闭。原始请求还支持 `--data`、`--data-base64`、可重复的 `--header/-H` 与 `--query`、`--timeout`、`--response` 和 `--browser`。运行 `panerelay fetch --help` 可查看完整中文帮助。
+
+目标域名仍需具备 Chrome 站点访问权限，但 fetch 不会提前检查、主动请求或扩大权限。只有 Chrome 拒绝 Cookie 访问、临时请求头规则或网络请求时，Panerelay 才会指出对应 origin，并提示授予站点访问权限后重试。首版明确不包含 Panerelay 自己的域名 ACL，也不会获取标签页控制租约。
+
+站点适配器需要显式安装。所有内置适配器统一由同版本的 `@panerelay/sites` 目录包分发，而不是每个站点发布一个 npm 包；setup 支持单个安装、一次批量安装、安装全部内置适配器，或安装一个本地双文件适配器目录：
+
+```bash
+npx --yes @panerelay/setup add bilibili
+npx --yes @panerelay/setup adapters
+panerelay fetch bilibili --help
+panerelay fetch bilibili me
+panerelay fetch bilibili me --json
+panerelay fetch bilibili subtitle BV1xx411c7mD --lang zh-CN
+npx --yes @panerelay/setup remove bilibili
+```
+
+安装文件位于 `~/.panerelay/fetch-adapters`。帮助命令只读取受保护的 manifest，不连接浏览器，也不执行适配器代码。适配器命令默认输出带条目数和耗时 footer 的 OpenCLI 风格表格，也可使用 `--json` 获取结构化结果；执行时会校验 digest，在有界的一次性子进程中启动适配器，并且只传入短期 fetch 凭证。本地适配器是用户主动选择的受信任代码，不是操作系统沙箱。
+
+内置 Bilibili 适配器提供 16 个读命令（`whoami`、`me`、`video`、`search`、`hot`、`ranking`、`dynamic`、`feed`、`feed-detail`、`favorite`、`history`、`following`、`user-videos`、`comments`、`subtitle`、`summary`）和 3 个写命令（`comment`、`follow`、`unfollow`）。参数可通过 `panerelay fetch bilibili <command> --help` 查看。`comment` 必须显式传入 `--execute`；关注关系写操作会先检查并在写入后验证状态。三个写命令都只声明 `bili_jct` 到 `csrf` 的绑定，由扩展解析并注入 Cookie 值，因此值不会进入适配器输入。`login` 和 `download` 明确不在支持范围内，因为它们分别需要交互式页面导航，以及超出 fetch 适配器边界的媒体与文件系统行为。
+
+站点命令后的 `--lang` 属于适配器参数，例如上面的字幕语言。全局界面语言应放在 `fetch` 前，例如 `panerelay --lang zh-CN fetch bilibili --help`。
+
+本地适配器目录包含 `panerelay-fetch-adapter.json`，以及该 manifest 的 `entry` 指定的自包含 `.mjs` 文件。`panerelay.fetch-adapter.v1` manifest 会声明有界的命令名、类型化参数、输出字段和示例；详见 [`@panerelay/setup` 技术参考](packages/setup/README.md#fetch-adapter-lifecycle)。
+
 ## 高级设置与安装管理
 
 <details>
@@ -186,8 +223,8 @@ npx --yes @panerelay/cli browser use edge
 
 ## 安全与运行边界
 
-- 复用登录态是指在已授权的现有标签页中工作。Panerelay 默认不会导出或记录 Cookie、凭证、Prompt、截图、页面内容或请求体。
-- 修改操作需要持有当前独占控制租约。释放控制不会暗中扩大或移除你选择的授权范围。
+- 浏览器自动化会在已授权的现有标签页中复用登录态；浏览器 Fetch 则使用 Chrome 站点访问权限，并把收集到的 Cookie 留在扩展内部。Panerelay 默认不会导出或记录 Cookie、凭证、Prompt、截图、页面内容或请求体。
+- 会修改页面或浏览器状态的自动化操作需要持有当前独占控制租约；原始 Fetch 方法走独立的 fetch-only 路径，不会获取该租约。首版没有 Panerelay 域名策略，因此调用方必须根据目标 API 的实际影响审慎使用请求和已安装适配器。
 - Panerelay 不接管隔离 Profile、启动期代理或关闭用户浏览器进程等 browser-process 能力。
 - `webNavigation` 只用于识别浏览器报告的关联标签页，以便共享会话上下文；它不会读取浏览历史，也不会授予网站访问权限。
 - 扩展、协议、Bridge、Provider 与 adapter、setup 包、浏览器注册库和可选管理 CLI 作为同一个锁步兼容单元发布。

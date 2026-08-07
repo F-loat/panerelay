@@ -15,6 +15,7 @@ import {
   readLiveBrowserRegistration,
   removeOwnedBrowserRegistration,
   selectBrowserRegistration,
+  selectBrowserFetchRegistration,
   setBrowserDefault,
   writeBrowserRegistration,
   type BrowserRegistryOptions,
@@ -207,6 +208,36 @@ test('uses the only ready registration and never selects an explicitly incapable
         environment: { [PANERELAY_BROWSER_ID_ENV]: 'chrome-id' },
       }),
       /cannot provide a CDP relay/,
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('selects fetch capability independently from CDP readiness', async () => {
+  const { directory, options } = await fixture();
+  try {
+    await writeBrowserRegistration(
+      { ...state('cdp-only', 101, 'chrome'), capabilities: { cdpRelay: true } },
+      options,
+    );
+    await writeBrowserRegistration(
+      {
+        ...state('fetch-only', 102, 'edge', false),
+        capabilities: { cdpRelay: false, browserFetch: true },
+      },
+      options,
+    );
+
+    const automatic = await selectBrowserFetchRegistration(options);
+    assert.equal(automatic.source, 'single');
+    assert.equal(automatic.state.browserId, 'fetch-only');
+    await assert.rejects(
+      selectBrowserFetchRegistration({
+        ...options,
+        environment: { [PANERELAY_BROWSER_ID_ENV]: 'cdp-only' },
+      }),
+      /does not support Panerelay fetch/,
     );
   } finally {
     await rm(directory, { recursive: true, force: true });

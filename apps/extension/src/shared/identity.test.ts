@@ -28,6 +28,8 @@ test('does not request the redundant activeTab permission', async () => {
   };
   assert.ok(!manifest.permissions?.includes('activeTab'));
   assert.ok(manifest.permissions?.includes('contextMenus'));
+  assert.ok(manifest.permissions?.includes('cookies'));
+  assert.ok(manifest.permissions?.includes('declarativeNetRequestWithHostAccess'));
   assert.ok(manifest.permissions?.includes('webNavigation'));
 });
 

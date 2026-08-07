@@ -17,6 +17,17 @@ export {
   saveCliConnectionMode,
 } from './adapter-dispatcher.js';
 export { runCliConnectionCommand } from './command-runner.js';
+export {
+  createBrowserFetchSession,
+  releaseBrowserFetchSession,
+  runBrowserFetch,
+  runBrowserFetchInSession,
+} from './browser-fetch-client.js';
+export type {
+  ActiveBrowserFetchSession,
+  BrowserFetchClientOptions,
+  BrowserFetchHttpClient,
+} from './browser-fetch-client.js';
 export type {
   CliCommandRunnerDependencies,
   CliCommandRunnerOptions,
@@ -52,3 +63,19 @@ export type {
 } from './adapter-registry.js';
 export { normalizeLocale, resolveLocale, translate } from './i18n.js';
 export type { LocaleResolutionOptions, SupportedLocale } from './i18n.js';
+export {
+  PANERELAY_FETCH_ADAPTER_REGISTRY_PATH_ENV,
+  fetchAdapterDataDirectory,
+  fetchAdapterRegistryPath,
+  readFetchAdapterRegistration,
+  readFetchAdapterRegistry,
+} from './fetch-adapter-registry.js';
+export type { FetchAdapterRegistryOptions } from './fetch-adapter-registry.js';
+export { dispatchFetchAdapter } from './fetch-adapter-dispatcher.js';
+export type { FetchAdapterDispatchOptions } from './fetch-adapter-dispatcher.js';
+export { parseRawFetchArguments, runFetchCommand } from './fetch-command.js';
+export type {
+  FetchCommandDependencies,
+  FetchCommandOptions,
+  ParsedRawFetch,
+} from './fetch-command.js';

@@ -15,6 +15,7 @@
 - Amendment: `openspec/changes/archive/2026-08-04-restore-agent-runtime-path`
 - Amendment: `openspec/changes/add-native-host-self-update`
 - Amendment: `openspec/changes/resume-cached-conversation-workspaces`
+- Amendment: RFC-0009, `openspec/changes/add-browser-fetch-adapters`
 
 RFC-0008 extends this RFC's Native Messaging registration and fixed setup-operation boundaries with semantic release reporting, a stable user-scoped launcher, and bounded best-effort Native Host self-update. Version mismatch remains separate from connection readiness and does not change this RFC's authorization, control, or Agent-provider boundaries.
 

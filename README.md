@@ -60,6 +60,43 @@ Local Agent ← browser side panel ← Panerelay Extension ↔ Authorized tabs
 - The local Bridge routes requests and enforces policy between tools, local Agent runtimes, and the Extension.
 - The Extension owns user authorization, controlled-state visibility, and release. It does not store model credentials or start native Agent processes.
 
+## Browser-backed fetch
+
+`panerelay fetch` sends a bounded Fetch-shaped request through one selected live Panerelay Extension, so the request can reuse cookies from that Chrome or Edge profile without exporting them:
+
+```bash
+panerelay fetch https://api.example.com/me \
+  --method GET \
+  -H 'Origin: https://www.example.com' \
+  -H 'Referer: https://www.example.com/' \
+  --query 'view:full' \
+  --response json
+```
+
+Browser cookies are included by default; use `--no-cookies` to disable them. The raw command also supports `--data`, `--data-base64`, repeated `--header/-H` and `--query`, `--timeout`, `--response`, and `--browser`. Run `panerelay fetch --help` for the complete localized reference.
+
+Chrome site access is still required for the target origin, but fetch does not preflight, request, or widen that permission. If Chrome rejects cookie access, temporary header setup, or the request, Panerelay reports the origin and asks you to grant site access before retrying. This first version intentionally has no Panerelay-owned domain ACL and does not acquire a tab-control lease.
+
+Site adapters are opt-in. All built-ins ship together in the lockstep `@panerelay/sites` catalog rather than one npm package per site; setup can install one adapter, several adapters in one validated batch, all built-ins, or an explicit local two-file adapter directory:
+
+```bash
+npx --yes @panerelay/setup add bilibili
+npx --yes @panerelay/setup adapters
+panerelay fetch bilibili --help
+panerelay fetch bilibili me
+panerelay fetch bilibili me --json
+panerelay fetch bilibili subtitle BV1xx411c7mD --lang zh-CN
+npx --yes @panerelay/setup remove bilibili
+```
+
+Installed files live under `~/.panerelay/fetch-adapters`. Help reads protected manifest metadata without opening a browser or executing adapter code. Adapter commands render an OpenCLI-style table with an item-count and elapsed-time footer by default and accept `--json` for structured output. Execution verifies the installed digest, starts the adapter as a bounded one-shot child, and gives it only a short-lived fetch credential. A local adapter is trusted code selected by the user, not an OS sandbox.
+
+The built-in Bilibili adapter provides 16 read commands (`whoami`, `me`, `video`, `search`, `hot`, `ranking`, `dynamic`, `feed`, `feed-detail`, `favorite`, `history`, `following`, `user-videos`, `comments`, `subtitle`, and `summary`) and three writes (`comment`, `follow`, and `unfollow`). Use `panerelay fetch bilibili <command> --help` for arguments. `comment` requires `--execute`; relation writes pre-check and verify the resulting state. For all three writes, the adapter declares a `bili_jct`-to-`csrf` binding while the Extension resolves and injects the Cookie value, so the value never enters adapter input. `login` and `download` are intentionally not included because they require interactive navigation or media/filesystem behavior beyond fetch adapters.
+
+`--lang` after a site command is an adapter argument, as in the subtitle example. Put a global locale before `fetch`, for example `panerelay --lang zh-CN fetch bilibili --help`.
+
+A local adapter directory contains `panerelay-fetch-adapter.json` plus the self-contained `.mjs` entry named by that manifest. The `panerelay.fetch-adapter.v1` manifest declares bounded command names, typed arguments, output fields, and examples; see the [`@panerelay/setup` reference](packages/setup/README.md#fetch-adapter-lifecycle).
+
 ## Advanced setup and installation management
 
 <details>
@@ -186,8 +223,8 @@ An unavailable saved browser or an ambiguous choice fails closed instead of foll
 
 ## Safety and operating boundaries
 
-- Reusing login state means operating inside an authorized existing tab. Panerelay does not export or log cookies, credentials, prompts, screenshots, page content, or request bodies by default.
-- Mutating actions require the current exclusive control lease. Releasing control does not silently widen or remove the selected authorization scope.
+- Browser automation reuses login state inside authorized existing tabs. Browser-backed fetch instead uses Chrome site access and keeps collected cookies inside the Extension. Panerelay does not export or log cookies, credentials, prompts, screenshots, page content, or request bodies by default.
+- Mutating browser-automation actions require the current exclusive control lease. Raw fetch methods use the separate fetch-only path and do not acquire that lease; the first version has no Panerelay domain policy, so callers must treat requests and installed adapters according to the target API's effects.
 - Panerelay does not own browser-process features such as isolated profiles, launch-time proxy changes, or closing the user's browser process.
 - `webNavigation` is used only to recognize tabs that a bound page creates as navigation targets for conversation context. Tabs created through browser chrome remain independent; the permission does not read browsing history or grant site access.
 - The Extension, protocol, Bridge, Providers and adapters, setup package, browser registry, and optional administration CLI are released as one lockstep compatibility unit.

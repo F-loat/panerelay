@@ -8,6 +8,7 @@ const outdir = await mkdtemp(join(tmpdir(), 'panerelay-extension-test-'));
 const entryPoints = [
   'src/background/action-context-menu.test.ts',
   'src/background/action-badge.test.ts',
+  'src/background/browser-fetch.test.ts',
   'src/background/control-activity-state.test.ts',
   'src/background/controlled-favicon.test.ts',
   'src/background/conversation-workspaces.test.ts',

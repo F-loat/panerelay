@@ -25,11 +25,12 @@ import {
   type SetupIntegration,
 } from './interactive-setup-state.js';
 import { setupPanerelay, uninstallPanerelay, type PanerelaySetupOptions } from './lifecycle.js';
+import { installFetchAdapters, listFetchAdapters, removeFetchAdapters } from './fetch-adapters.js';
 
 const PANERELAY_CHROME_WEB_STORE_URL =
   'https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi';
 
-export type SetupOperation = 'setup' | 'doctor' | 'uninstall';
+export type SetupOperation = 'setup' | 'doctor' | 'uninstall' | 'add' | 'remove' | 'adapters';
 
 export interface ParsedSetupArgs {
   agentBrowser: boolean;
@@ -42,6 +43,8 @@ export interface ParsedSetupArgs {
   language?: SupportedLocale;
   operation: SetupOperation;
   yes: boolean;
+  adapterItems?: string[];
+  adapterAll?: boolean;
 }
 
 interface LanguageArguments {
@@ -144,9 +147,53 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
         ? 'doctor'
         : command === 'uninstall'
           ? 'uninstall'
-          : undefined;
+          : command === 'add' || command === 'remove' || command === 'adapters'
+            ? command
+            : undefined;
   if (!operation) throw new Error(`Unknown command: ${command}`);
   const optionStart = command === localized.argv[0] ? 1 : 0;
+
+  if (operation === 'add' || operation === 'remove' || operation === 'adapters') {
+    const adapterItems: string[] = [];
+    let adapterAll = false;
+    for (let index = optionStart; index < localized.argv.length; index += 1) {
+      const argument = localized.argv[index]!;
+      if (argument === '--all') {
+        if (adapterAll) throw new Error('--all can only be provided once');
+        adapterAll = true;
+      } else if (argument.startsWith('-')) {
+        throw new Error(`Unknown option: ${argument}`);
+      } else {
+        adapterItems.push(argument);
+      }
+    }
+    if (operation === 'adapters' && (adapterItems.length > 0 || adapterAll)) {
+      throw new Error('adapters does not accept arguments');
+    }
+    if (
+      (operation === 'add' || operation === 'remove') &&
+      adapterItems.length === 0 &&
+      !adapterAll
+    ) {
+      throw new Error(`${operation} requires at least one adapter or --all`);
+    }
+    if (adapterAll && adapterItems.length > 0) {
+      throw new Error('--all cannot be combined with adapter names or paths');
+    }
+    return {
+      agentBrowser: false,
+      browserUse: false,
+      playwright: false,
+      globalDefault: false,
+      help: false,
+      json: false,
+      language: localized.language,
+      operation,
+      yes: false,
+      ...(adapterItems.length > 0 ? { adapterItems } : {}),
+      ...(adapterAll ? { adapterAll: true } : {}),
+    };
+  }
 
   let globalDefault = false;
   let agentBrowser = false;
@@ -462,8 +509,11 @@ export interface CliDependencies {
   doctor?: typeof doctorPanerelay;
   environment?: NodeJS.ProcessEnv;
   interactive?: () => boolean;
+  installFetchAdapters?: typeof installFetchAdapters;
+  listFetchAdapters?: typeof listFetchAdapters;
   readInteractiveState?: typeof readInteractiveSetupState;
   selectIntegrations?: SetupSelectIntegrations;
+  removeFetchAdapters?: typeof removeFetchAdapters;
   setup?: typeof setupPanerelay;
   systemLocale?: string;
   uninstall?: typeof uninstallPanerelay;
@@ -628,6 +678,43 @@ export async function main(
 
   let setupProgress: SetupProgress | undefined;
   try {
+    if (parsed.operation === 'adapters') {
+      const adapters = await (dependencies.listFetchAdapters ?? listFetchAdapters)({
+        environment: dependencies.environment,
+      });
+      console.log(locale === 'zh-CN' ? '已安装的 Fetch 适配器' : 'Installed fetch adapters');
+      if (adapters.length === 0) console.log(locale === 'zh-CN' ? '  （无）' : '  (none)');
+      else {
+        for (const adapter of adapters) {
+          console.log(
+            `  ${adapter.manifest.id}@${adapter.manifest.version} — ${adapter.manifest.description}`,
+          );
+        }
+      }
+      return 0;
+    }
+    if (parsed.operation === 'add') {
+      const sources = parsed.adapterAll ? ['all'] : (parsed.adapterItems ?? []);
+      const installed = await (dependencies.installFetchAdapters ?? installFetchAdapters)(sources, {
+        environment: dependencies.environment,
+      });
+      console.log(
+        `${locale === 'zh-CN' ? '已安装 Fetch 适配器：' : 'Installed fetch adapters: '}${installed
+          .map(adapter => `${adapter.manifest.id}@${adapter.manifest.version}`)
+          .join(', ')}`,
+      );
+      return 0;
+    }
+    if (parsed.operation === 'remove') {
+      const removed = await (dependencies.removeFetchAdapters ?? removeFetchAdapters)(
+        parsed.adapterAll ? 'all' : (parsed.adapterItems ?? []),
+        { environment: dependencies.environment },
+      );
+      console.log(
+        `${locale === 'zh-CN' ? '已移除 Fetch 适配器：' : 'Removed fetch adapters: '}${removed.join(', ')}`,
+      );
+      return 0;
+    }
     if (parsed.operation === 'doctor') {
       const report = await (dependencies.doctor ?? doctorPanerelay)({
         agentBrowser: parsed.agentBrowser,

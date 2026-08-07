@@ -208,7 +208,22 @@ importers:
       '@panerelay/protocol':
         specifier: workspace:*
         version: link:../protocol
+      '@panerelay/sites':
+        specifier: workspace:*
+        version: link:../sites
     devDependencies:
+      esbuild:
+        specifier: ^0.28.1
+        version: 0.28.1
+
+  packages/sites:
+    devDependencies:
+      '@panerelay/protocol':
+        specifier: workspace:*
+        version: link:../protocol
+      '@types/node':
+        specifier: ^20.19.43
+        version: 20.19.43
       esbuild:
         specifier: ^0.28.1
         version: 0.28.1

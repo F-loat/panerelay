@@ -1,13 +1,24 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import {
+  PANERELAY_FETCH_DEFAULT_TIMEOUT_MS,
+  PANERELAY_FETCH_MAX_HTTP_REQUEST_BYTES,
+  PANERELAY_FETCH_MAX_SESSIONS,
+  PANERELAY_FETCH_SESSION_PROTOCOL,
+  PANERELAY_FETCH_SESSION_TTL_MS,
   PANERELAY_PROTOCOL_VERSION,
+  isBrowserFetchRequest,
+  isBrowserFetchSessionCreateRequest,
   isCdpBootstrapRequest,
   isCanonicalUuid,
   classifyCdpTargetAccess,
   type AutomationActivityFailure,
   type AutomationEngineId,
   type BrowserRegistration,
+  type BrowserFetchRequest,
+  type BrowserFetchResponse,
+  type BrowserFetchResultMessage,
+  type BrowserFetchSessionCreated,
   type CdpAttachedMessage,
   type CdpDetachedMessage,
   type CdpEventMessage,
@@ -21,7 +32,6 @@ import {
   type RelaySessionActor,
   type RelaySessionCreateRequest,
   type RelaySessionCreated,
-  type RelaySessionError,
   type CdpBootstrapCreated,
   type CdpBootstrapError,
   type CdpBootstrapVersionMetadata,
@@ -49,6 +59,23 @@ interface PendingCommand {
   releaseTarget: () => void;
   timer: NodeJS.Timeout;
   onResult?: (message: CdpResultMessage) => void;
+}
+
+interface PendingFetchRequest {
+  resolve: (response: BrowserFetchResponse) => void;
+  reject: (error: Error) => void;
+  sessionId: string;
+  timer: NodeJS.Timeout;
+}
+
+interface BrowserFetchSession {
+  id: string;
+  token: string;
+  browserId: string;
+  generation: string;
+  expiresAt: number;
+  timer: NodeJS.Timeout;
+  activeRequests: number;
 }
 
 interface RelayParticipant {
@@ -133,6 +160,7 @@ const DEFAULT_HEARTBEAT_TIMEOUT_MS = 35_000;
 const EXTENSION_REQUEST_TIMEOUT_MS = 10_000;
 const DEFAULT_HTTP_REQUEST_TIMEOUT_MS = 5_000;
 const MAX_SESSION_REQUEST_BYTES = 16 * 1024;
+const MAX_FETCH_SESSION_REQUESTS = 4;
 const TARGET_LIFECYCLE_QUEUE = 'panerelay:target-lifecycle';
 const CHILD_AUTO_ATTACH_PARAMS = {
   autoAttach: true,
@@ -204,6 +232,8 @@ export class BrowserRelay {
     PendingExtensionResult<CdpTargetResultMessage>
   >();
   private readonly pendingCommands = new Map<string, PendingCommand>();
+  private readonly pendingFetchRequests = new Map<string, PendingFetchRequest>();
+  private readonly fetchSessions = new Map<string, BrowserFetchSession>();
   private readonly pendingSetupCommands = new Map<
     string,
     PendingExtensionResult<CdpResultMessage>
@@ -298,6 +328,9 @@ export class BrowserRelay {
           ...(message.browserFamily ? { browserFamily: message.browserFamily } : {}),
           ...(message.capabilities ? { capabilities: message.capabilities } : {}),
         };
+        if (this.browser && this.browser.browserId !== browser.browserId) {
+          this.clearFetchSessions('The registered browser changed');
+        }
         this.browser = browser;
         await this.options.onBrowserRegistered(this.browser);
         this.options.sendToExtension({
@@ -333,11 +366,15 @@ export class BrowserRelay {
       case 'cdp.detached':
         this.handleDetached(message);
         return;
+      case 'fetch.result':
+        this.resolveFetchRequest(message);
+        return;
     }
   }
 
   async close(reason = 'Bridge shutting down'): Promise<void> {
     this.revokeActiveLease(reason, 1012, true, 'failed', true);
+    this.clearFetchSessions(reason);
     this.bootstrapTickets.clear(reason);
     this.rejectExtensionRequests(new Error(reason));
     await new Promise<void>(resolve => this.server.close(() => resolve()));
@@ -457,6 +494,18 @@ export class BrowserRelay {
       await this.handleBootstrapVersion(versionMatch[1], response);
       return;
     }
+    if (request.method === 'POST' && url.pathname === '/fetch' && url.search === '') {
+      const session = this.authorizedFetchSession(request);
+      if (!session) {
+        this.sendJson(response, 401, {
+          protocol: PANERELAY_FETCH_SESSION_PROTOCOL,
+          error: 'Invalid or expired Panerelay fetch session token',
+        });
+        return;
+      }
+      await this.handleFetchRequest(session, request, response);
+      return;
+    }
     if (!this.isAuthorizedBootstrapRequest(request)) {
       if (url.pathname.startsWith('/cdp/bootstrap')) {
         this.sendBootstrapError(response, 401, 'unauthorized', 'Invalid Panerelay Bridge token');
@@ -475,6 +524,21 @@ export class BrowserRelay {
     }
     if (request.method === 'POST' && url.pathname === '/sessions') {
       await this.handleCreateSession(request, response);
+      return;
+    }
+    if (request.method === 'POST' && url.pathname === '/fetch/sessions' && url.search === '') {
+      await this.handleCreateFetchSession(request, response);
+      return;
+    }
+
+    const fetchSessionMatch = /^\/fetch\/sessions\/([^/]+)$/.exec(url.pathname);
+    if (request.method === 'DELETE' && fetchSessionMatch?.[1] && url.search === '') {
+      this.releaseFetchSession(
+        decodeURIComponent(fetchSessionMatch[1]),
+        'Panerelay fetch caller released the session',
+      );
+      response.writeHead(204, { 'cache-control': 'no-store' });
+      response.end();
       return;
     }
 
@@ -652,6 +716,244 @@ export class BrowserRelay {
     return request.headers.authorization === `Bearer ${this.token}`;
   }
 
+  private authorizedFetchSession(request: IncomingMessage): BrowserFetchSession | null {
+    const authorization = request.headers.authorization;
+    if (!authorization?.startsWith('Bearer ')) return null;
+    const token = authorization.slice('Bearer '.length);
+    const now = Date.now();
+    for (const session of this.fetchSessions.values()) {
+      if (session.token !== token) continue;
+      if (
+        now >= session.expiresAt ||
+        !this.browser ||
+        session.browserId !== this.browser.browserId ||
+        session.generation !== this.generation
+      ) {
+        this.releaseFetchSession(session.id, 'Panerelay fetch session expired or changed');
+        return null;
+      }
+      return session;
+    }
+    return null;
+  }
+
+  private async handleCreateFetchSession(
+    request: IncomingMessage,
+    response: ServerResponse,
+  ): Promise<void> {
+    if (!this.browser) {
+      this.sendJson(response, 503, {
+        protocol: PANERELAY_FETCH_SESSION_PROTOCOL,
+        error: 'Panerelay extension is not registered',
+      });
+      return;
+    }
+    if (this.browser.capabilities?.browserFetch !== true) {
+      this.sendJson(response, 409, {
+        protocol: PANERELAY_FETCH_SESSION_PROTOCOL,
+        error: `${this.browser.browserName} does not support Panerelay browser fetch`,
+      });
+      return;
+    }
+    if (this.fetchSessions.size >= PANERELAY_FETCH_MAX_SESSIONS) {
+      this.sendJson(response, 429, {
+        protocol: PANERELAY_FETCH_SESSION_PROTOCOL,
+        error: 'The selected browser has too many active fetch sessions',
+      });
+      return;
+    }
+    if (!request.headers['content-type']?.toLowerCase().startsWith('application/json')) {
+      this.sendJson(response, 415, {
+        protocol: PANERELAY_FETCH_SESSION_PROTOCOL,
+        error: 'Panerelay fetch session creation requires JSON',
+      });
+      return;
+    }
+    let payload: unknown;
+    try {
+      payload = await this.readJsonBody(request);
+    } catch (error) {
+      if (error instanceof RelayHttpError) {
+        this.sendJson(response, error.status, {
+          protocol: PANERELAY_FETCH_SESSION_PROTOCOL,
+          error: error.message,
+        });
+        return;
+      }
+      throw error;
+    }
+    if (!isBrowserFetchSessionCreateRequest(payload)) {
+      this.sendJson(response, 400, {
+        protocol: PANERELAY_FETCH_SESSION_PROTOCOL,
+        error: 'Invalid Panerelay fetch session request',
+      });
+      return;
+    }
+    if (
+      payload.browser.browserId !== this.browser.browserId ||
+      payload.browser.generation !== this.generation
+    ) {
+      this.sendJson(response, 409, {
+        protocol: PANERELAY_FETCH_SESSION_PROTOCOL,
+        error: 'The selected browser connection changed; resolve it again',
+      });
+      return;
+    }
+
+    const id = randomUUID();
+    const expiresAt = Date.now() + PANERELAY_FETCH_SESSION_TTL_MS;
+    const session: BrowserFetchSession = {
+      id,
+      token: randomBytes(32).toString('base64url'),
+      browserId: this.browser.browserId,
+      generation: this.generation,
+      expiresAt,
+      activeRequests: 0,
+      timer: setTimeout(
+        () => this.releaseFetchSession(id, 'Panerelay fetch session expired'),
+        PANERELAY_FETCH_SESSION_TTL_MS,
+      ),
+    };
+    session.timer.unref();
+    this.fetchSessions.set(id, session);
+    const result: BrowserFetchSessionCreated = {
+      protocol: PANERELAY_FETCH_SESSION_PROTOCOL,
+      sessionId: id,
+      endpoint: `http://127.0.0.1:${this.port}/fetch`,
+      token: session.token,
+      expiresAt: new Date(expiresAt).toISOString(),
+    };
+    this.sendJson(response, 201, result);
+  }
+
+  private async handleFetchRequest(
+    session: BrowserFetchSession,
+    request: IncomingMessage,
+    response: ServerResponse,
+  ): Promise<void> {
+    if (session.activeRequests >= MAX_FETCH_SESSION_REQUESTS) {
+      this.sendJson(response, 429, {
+        protocol: PANERELAY_FETCH_SESSION_PROTOCOL,
+        error: 'Panerelay fetch session has too many active requests',
+      });
+      return;
+    }
+    if (!request.headers['content-type']?.toLowerCase().startsWith('application/json')) {
+      this.sendJson(response, 415, {
+        protocol: PANERELAY_FETCH_SESSION_PROTOCOL,
+        error: 'Panerelay browser fetch requires JSON',
+      });
+      return;
+    }
+    let payload: unknown;
+    try {
+      payload = await this.readJsonBody(request, PANERELAY_FETCH_MAX_HTTP_REQUEST_BYTES);
+    } catch (error) {
+      if (error instanceof RelayHttpError) {
+        this.sendJson(response, error.status, {
+          protocol: PANERELAY_FETCH_SESSION_PROTOCOL,
+          error: error.message,
+        });
+        return;
+      }
+      throw error;
+    }
+    if (!isBrowserFetchRequest(payload)) {
+      this.sendJson(response, 400, {
+        protocol: PANERELAY_FETCH_SESSION_PROTOCOL,
+        error: 'Invalid Panerelay browser fetch request',
+      });
+      return;
+    }
+    session.activeRequests += 1;
+    try {
+      const result = await this.requestBrowserFetch(session, payload);
+      this.sendJson(response, 200, result);
+    } catch (error) {
+      this.sendJson(response, 502, {
+        protocol: PANERELAY_FETCH_SESSION_PROTOCOL,
+        error: error instanceof Error ? error.message : 'Panerelay browser fetch failed',
+      });
+    } finally {
+      session.activeRequests = Math.max(0, session.activeRequests - 1);
+    }
+  }
+
+  private requestBrowserFetch(
+    session: BrowserFetchSession,
+    request: BrowserFetchRequest,
+  ): Promise<BrowserFetchResponse> {
+    if (
+      !this.browser ||
+      session.browserId !== this.browser.browserId ||
+      session.generation !== this.generation
+    ) {
+      return Promise.reject(new Error('The selected browser connection changed; resolve it again'));
+    }
+    const requestId = randomUUID();
+    return new Promise((resolve, reject) => {
+      const timeoutMs = (request.timeoutMs ?? PANERELAY_FETCH_DEFAULT_TIMEOUT_MS) + 5_000;
+      const timer = setTimeout(() => {
+        this.pendingFetchRequests.delete(requestId);
+        reject(new Error('Panerelay browser fetch timed out'));
+      }, timeoutMs);
+      timer.unref();
+      this.pendingFetchRequests.set(requestId, { resolve, reject, sessionId: session.id, timer });
+      try {
+        this.options.sendToExtension({
+          type: 'fetch.request',
+          protocol: PANERELAY_PROTOCOL_VERSION,
+          requestId,
+          browserId: session.browserId,
+          generation: session.generation,
+          request,
+        });
+      } catch (error) {
+        clearTimeout(timer);
+        this.pendingFetchRequests.delete(requestId);
+        reject(error instanceof Error ? error : new Error(String(error)));
+      }
+    });
+  }
+
+  private resolveFetchRequest(message: BrowserFetchResultMessage): void {
+    const pending = this.pendingFetchRequests.get(message.requestId);
+    if (!pending) return;
+    this.pendingFetchRequests.delete(message.requestId);
+    clearTimeout(pending.timer);
+    const session = this.fetchSessions.get(pending.sessionId);
+    if (
+      !session ||
+      !this.browser ||
+      session.browserId !== this.browser.browserId ||
+      session.generation !== this.generation
+    ) {
+      pending.reject(new Error('The selected browser connection changed; resolve it again'));
+      return;
+    }
+    if (message.success && message.response) pending.resolve(message.response);
+    else pending.reject(new Error(message.error ?? 'Panerelay browser fetch failed'));
+  }
+
+  private releaseFetchSession(sessionId: string, reason: string): void {
+    const session = this.fetchSessions.get(sessionId);
+    if (!session) return;
+    this.fetchSessions.delete(sessionId);
+    clearTimeout(session.timer);
+    for (const [requestId, pending] of this.pendingFetchRequests) {
+      if (pending.sessionId !== sessionId) continue;
+      this.pendingFetchRequests.delete(requestId);
+      clearTimeout(pending.timer);
+      pending.reject(new Error(reason));
+    }
+  }
+
+  private clearFetchSessions(reason: string): void {
+    for (const sessionId of [...this.fetchSessions.keys()]) {
+      this.releaseFetchSession(sessionId, reason);
+    }
+  }
+
   private async handleCreateSession(
     request: IncomingMessage,
     response: ServerResponse,
@@ -769,7 +1071,10 @@ export class BrowserRelay {
     return `ws://127.0.0.1:${this.port}/cdp?session=${encodeURIComponent(participant.id)}&token=${encodeURIComponent(participant.token)}`;
   }
 
-  private readJsonBody(request: IncomingMessage): Promise<unknown> {
+  private readJsonBody(
+    request: IncomingMessage,
+    maxBytes = MAX_SESSION_REQUEST_BYTES,
+  ): Promise<unknown> {
     return new Promise((resolve, reject) => {
       const chunks: Buffer[] = [];
       let size = 0;
@@ -788,12 +1093,12 @@ export class BrowserRelay {
       request.on('data', (chunk: Buffer) => {
         if (settled) return;
         size += chunk.length;
-        if (size <= MAX_SESSION_REQUEST_BYTES) chunks.push(chunk);
+        if (size <= maxBytes) chunks.push(chunk);
       });
       request.on('end', () => {
         if (settled) return;
-        if (size > MAX_SESSION_REQUEST_BYTES) {
-          finish(() => reject(new RelayHttpError(413, 'Relay session request is too large')));
+        if (size > maxBytes) {
+          finish(() => reject(new RelayHttpError(413, 'Relay request is too large')));
           return;
         }
         try {
@@ -844,16 +1149,7 @@ export class BrowserRelay {
     );
   }
 
-  private sendJson(
-    response: ServerResponse,
-    status: number,
-    body:
-      | RelaySessionCreated
-      | RelaySessionError
-      | CdpBootstrapCreated
-      | CdpBootstrapError
-      | CdpBootstrapVersionMetadata,
-  ): void {
+  private sendJson(response: ServerResponse, status: number, body: unknown): void {
     if (response.headersSent || response.destroyed) return;
     response.writeHead(status, {
       'content-type': 'application/json',

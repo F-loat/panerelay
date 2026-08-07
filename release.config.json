@@ -17,6 +17,7 @@
     "@panerelay/browser-use",
     "@panerelay/playwright",
     "@panerelay/bridge",
+    "@panerelay/sites",
     "@panerelay/setup"
   ]
 }
