@@ -82,7 +82,7 @@ function siteKitAliasPlugin() {
       buildApi.onResolve({ filter: /^@panerelay\/protocol$/ }, () => ({ path: protocol }));
       buildApi.onResolve({ filter: /.*/ }, args => {
         if (args.path.startsWith('node:')) return { external: true, path: args.path };
-        if (args.path.startsWith('.') || args.path.startsWith('/')) return undefined;
+        if (args.path.startsWith('.') || isAbsolute(args.path)) return undefined;
         return { errors: [{ text: `Unsupported package import: ${args.path}` }] };
       });
     },
