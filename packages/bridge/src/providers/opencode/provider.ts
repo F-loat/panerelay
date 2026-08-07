@@ -9,12 +9,19 @@ const OPENCODE_PROFILE = {
   installCommand: openCodeInstallCommand,
   launchArgs: ['acp'],
   loginCommand: 'opencode auth login',
-  resolveExecutable: ({ config, environment, platform }) =>
-    resolveOpenCodeExecutable({
-      configuredPath: config.opencodePath,
+  resolveExecutable: ({ config, environment, platform }) => {
+    const configuredPath =
+      environment?.PANERELAY_OPENCODE_PATH ||
+      (config.opencodePathSource === 'override' ? config.opencodePath : undefined);
+    return resolveOpenCodeExecutable({
+      configuredPath,
       environment,
+      ...(config.opencodePath && config.opencodePath !== configuredPath
+        ? { persistedPath: config.opencodePath }
+        : {}),
       platform,
-    }),
+    });
+  },
 } satisfies ConstructorParameters<typeof AcpProvider>[0];
 
 export type OpenCodeRuntime = AcpRuntime;

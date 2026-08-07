@@ -18,6 +18,7 @@ export interface OpenCodeExecutableOptions {
   configuredPath?: string;
   environment?: NodeJS.ProcessEnv;
   homeDirectory?: string;
+  persistedPath?: string;
   platform?: NodeJS.Platform;
   processExecPath?: string;
   runner?: CommandRunner;
@@ -51,6 +52,7 @@ export function openCodeExecutableCandidatePaths(
     ...(options.configuredPath ? [options.configuredPath] : []),
     ...executableCandidatePaths('opencode', { environment, platform }),
     ...localDirectories.flatMap(directory => names.map(name => pathApi.join(directory, name))),
+    ...(options.persistedPath ? [options.persistedPath] : []),
   ];
   return candidates.filter(
     (candidate, index, all) => candidate.length > 0 && all.indexOf(candidate) === index,

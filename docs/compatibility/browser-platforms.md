@@ -4,7 +4,7 @@
 - Extension target: shared Chromium Manifest V3
 - agent-browser baseline: 0.33.0
 - Playwright CLI baseline: 0.1.17
-- Last verified: 2026-08-05
+- Last verified: 2026-08-07
 
 ## Status meanings
 
@@ -38,6 +38,8 @@ This record distinguishes deterministic installation and artifact coverage from 
 Edge uses the same Chromium Manifest V3 artifact, side-panel graph, debugger relay, permission flow, opaque target model, control lease, and revocation implementation as Chrome. It registers `browserFamily: "edge"` and declares CDP relay support only from feature detection.
 
 Chrome and Edge Native Hosts persist independent protected registrations. Provider contract tests verify explicit selection, saved defaults, single-ready selection, ambiguity failures, unavailable-default failures, browser-pinned cleanup, and legacy-singleton migration. These deterministic routing claims do not upgrade Edge's runtime classification: representative Edge Provider evidence is still pending.
+
+OpenCode discovery tests additionally cover explicit-override precedence, legacy runtime migration, live reconstructed-PATH precedence, and an all-provider query that leaves a stale persisted fallback untouched after a live candidate succeeds. A local macOS setup refresh and all-provider discovery check selected OpenCode 1.18.12 without producing a new execution-policy event. Dedicated daily-profile Side Panel acceptance remains pending, so OpenCode conversations stay `Forwarded` for both Chrome and Edge.
 
 The optional `@panerelay/cli` package uses the same engine-neutral registry for bounded listing and saved-default changes. Unit and packed-consumer tests cover its executable entry, English and Chinese output, explicit selector precedence, credential omission, and setup-command separation. These package-level checks also do not upgrade Edge runtime capabilities beyond `Forwarded`.
 

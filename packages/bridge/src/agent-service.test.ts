@@ -1,4 +1,7 @@
 import assert from 'node:assert/strict';
+import { access, chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 import {
   PANERELAY_PROTOCOL_VERSION,
@@ -14,6 +17,7 @@ import {
 } from '@panerelay/protocol';
 import { AgentService } from './agent-service.js';
 import type { AgentProvider } from './providers/contract.js';
+import { OpenCodeProvider } from './providers/opencode/provider.js';
 
 class FakeProvider implements AgentProvider {
   readonly calls: string[] = [];
@@ -137,6 +141,55 @@ test('aggregates descriptors while containing an unavailable provider failure', 
     },
   ]);
 });
+
+test(
+  'all-provider discovery with Codex available does not touch a stale OpenCode fallback',
+  { skip: process.platform === 'win32' },
+  async () => {
+    const root = await mkdtemp(path.join(tmpdir(), 'panerelay-agent-discovery-'));
+    const liveDirectory = path.join(root, 'live');
+    const staleDirectory = path.join(root, 'stale');
+    const livePath = path.join(liveDirectory, 'opencode');
+    const stalePath = path.join(staleDirectory, 'opencode');
+    const staleMarker = path.join(root, 'stale-probed');
+    await Promise.all(
+      [liveDirectory, staleDirectory].map(directory => mkdir(directory, { recursive: true })),
+    );
+    await writeFile(livePath, '#!/bin/sh\necho "1.18.12"\n');
+    await writeFile(stalePath, `#!/bin/sh\ntouch ${JSON.stringify(staleMarker)}\necho "1.2.27"\n`);
+    await Promise.all([livePath, stalePath].map(filePath => chmod(filePath, 0o755)));
+
+    try {
+      const messages: HostToExtensionMessage[] = [];
+      const codex = new FakeProvider('codex', 'codex-1');
+      const opencode = new OpenCodeProvider({
+        environment: { PATH: liveDirectory },
+        runtimeConfig: async () => ({
+          opencodePath: stalePath,
+          opencodePathSource: 'discovered',
+          opencodeVersion: '1.2.27',
+        }),
+      });
+      const service = new AgentService(message => messages.push(message), {
+        providers: [codex, opencode],
+      });
+
+      await service.handle(request('providers-live-opencode', { method: 'agent.providers' }));
+      const response = messages[0];
+      assert.equal(response?.type, 'agent.response');
+      const providers =
+        response?.type === 'agent.response' && response.success
+          ? (response.result as AgentProviderSummary[])
+          : [];
+      assert.equal(providers.find(provider => provider.id === 'opencode')?.version, '1.18.12');
+      assert.deepEqual(codex.calls, ['descriptor']);
+      await assert.rejects(access(staleMarker), { code: 'ENOENT' });
+      await service.close();
+    } finally {
+      await rm(root, { force: true, recursive: true });
+    }
+  },
+);
 
 test('passes one explicit reconstructed environment to the default provider factory', async () => {
   const environment = { HOME: '/home/example', PATH: '/home/example/bin:/usr/bin' };

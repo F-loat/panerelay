@@ -30,6 +30,7 @@ import {
 } from './platform.js';
 import { resolveOpenCodeExecutable } from './providers/opencode/executable.js';
 import { resolveQoderExecutable } from './providers/qoder/executable.js';
+import { normalizeOpenCodePathSource, type OpenCodePathSource } from './runtime-config.js';
 
 export const CHROME_EXTENSION_ID_PATTERN = /^[a-p]{32}$/;
 
@@ -82,6 +83,7 @@ export interface NativeHostInstallationResult extends NativeHostInstallationPath
   qoderPath?: string;
   qoderVersion?: string;
   opencodePath?: string;
+  opencodePathSource?: OpenCodePathSource;
   opencodeVersion?: string;
 }
 
@@ -92,6 +94,7 @@ interface StoredRuntimeConfig {
   codexPath?: unknown;
   extensionId?: unknown;
   opencodePath?: unknown;
+  opencodePathSource?: unknown;
   qoderPath?: unknown;
 }
 
@@ -773,16 +776,32 @@ async function installNativeHostUnlocked(
     processExecPath: options.nodePath ?? process.execPath,
     runner: options.probeRunner,
   });
+  const storedOpenCodePath =
+    typeof stored.opencodePath === 'string' ? stored.opencodePath : undefined;
+  const storedOpenCodePathSource = normalizeOpenCodePathSource(stored.opencodePathSource);
+  const environmentOpenCodePath =
+    typeof environment.PANERELAY_OPENCODE_PATH === 'string' &&
+    environment.PANERELAY_OPENCODE_PATH.length > 0
+      ? environment.PANERELAY_OPENCODE_PATH
+      : undefined;
+  const configuredOpenCodePath =
+    environmentOpenCodePath ??
+    (storedOpenCodePathSource === 'override' ? storedOpenCodePath : undefined);
   const opencode = await resolveOpenCodeExecutable({
-    configuredPath:
-      environment.PANERELAY_OPENCODE_PATH ??
-      (typeof stored.opencodePath === 'string' ? stored.opencodePath : undefined),
+    configuredPath: configuredOpenCodePath,
     environment,
     homeDirectory: options.homeDirectory,
+    ...(storedOpenCodePath && storedOpenCodePath !== configuredOpenCodePath
+      ? { persistedPath: storedOpenCodePath }
+      : {}),
     platform,
     processExecPath: options.nodePath ?? process.execPath,
     runner: options.probeRunner,
   });
+  const opencodePathSource: OpenCodePathSource =
+    opencode.executable && opencode.executable === configuredOpenCodePath
+      ? 'override'
+      : 'discovered';
   await writeProtectedFile(
     paths.runtimeConfigPath,
     `${JSON.stringify(
@@ -795,6 +814,7 @@ async function installNativeHostUnlocked(
         ...(qoder.executable ? { qoderPath: qoder.executable } : {}),
         ...(qoder.version ? { qoderVersion: qoder.version } : {}),
         ...(opencode.executable ? { opencodePath: opencode.executable } : {}),
+        ...(opencode.executable ? { opencodePathSource } : {}),
         ...(opencode.version ? { opencodeVersion: opencode.version } : {}),
       },
       null,
@@ -846,6 +866,7 @@ async function installNativeHostUnlocked(
     ...(qoder.executable ? { qoderPath: qoder.executable } : {}),
     ...(qoder.version ? { qoderVersion: qoder.version } : {}),
     ...(opencode.executable ? { opencodePath: opencode.executable } : {}),
+    ...(opencode.executable ? { opencodePathSource } : {}),
     ...(opencode.version ? { opencodeVersion: opencode.version } : {}),
   };
 }

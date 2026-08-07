@@ -217,6 +217,7 @@ test('installs and removes an isolated Native Messaging host', async () => {
     assert.equal(result.claudePath, join(binDirectory, 'claude'));
     assert.equal(result.claudeVersion, '2.1.0');
     assert.equal(result.opencodePath, configuredOpenCodePath);
+    assert.equal(result.opencodePathSource, 'override');
     assert.equal(result.opencodeVersion, '1.18.12');
     assert.equal(result.launchPath, result.hostPath);
     assert.equal(result.releaseVersion, currentReleaseVersion);
@@ -242,6 +243,7 @@ test('installs and removes an isolated Native Messaging host', async () => {
       extensionId: string;
       agentPathEntries: string[];
       opencodePath: string;
+      opencodePathSource: string;
       opencodeVersion: string;
     };
     assert.deepEqual(runtime, {
@@ -251,8 +253,19 @@ test('installs and removes an isolated Native Messaging host', async () => {
       claudePath: result.claudePath,
       claudeVersion: '2.1.0',
       opencodePath: result.opencodePath,
+      opencodePathSource: 'override',
       opencodeVersion: '1.18.12',
     });
+
+    const updated = await installNativeHost({
+      bundledHostPath,
+      environment: { PATH: binDirectory },
+      homeDirectory,
+      nodePath: '/test/node',
+      platform: 'linux',
+    });
+    assert.equal(updated.opencodePath, configuredOpenCodePath);
+    assert.equal(updated.opencodePathSource, 'override');
     assert.ok(
       result.manifestPaths.some(path =>
         path.includes(join('.config', 'microsoft-edge', 'NativeMessagingHosts')),
@@ -277,6 +290,56 @@ test('installs and removes an isolated Native Messaging host', async () => {
     for (const manifestPath of paths.manifestPaths) {
       await assert.rejects(readFile(manifestPath), { code: 'ENOENT' });
     }
+  } finally {
+    await rm(root, { force: true, recursive: true });
+  }
+});
+
+test('refreshes a legacy persisted OpenCode path from the live setup path', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'panerelay-opencode-migration-'));
+  const homeDirectory = join(root, 'home');
+  const binDirectory = join(root, 'bin');
+  const bundledHostPath = join(root, 'native-host.bundle.cjs');
+  const liveOpenCodePath = join(binDirectory, 'opencode');
+  const staleOpenCodePath = join(root, 'stale', 'opencode');
+  const paths = resolveNativeHostInstallationPaths({ homeDirectory, platform: 'linux' });
+  await mkdir(binDirectory, { recursive: true });
+  await mkdir(dirname(staleOpenCodePath), { recursive: true });
+  await mkdir(dirname(paths.runtimeConfigPath), { recursive: true });
+  await writeFile(bundledHostPath, nativeHostFixture(currentReleaseVersion, 'ready'));
+  await writeFile(liveOpenCodePath, '#!/bin/sh\necho "1.18.12"\n');
+  await writeFile(staleOpenCodePath, '#!/bin/sh\necho "1.2.27"\n');
+  await Promise.all([liveOpenCodePath, staleOpenCodePath].map(filePath => chmod(filePath, 0o755)));
+  await writeFile(
+    paths.runtimeConfigPath,
+    `${JSON.stringify({
+      opencodePath: staleOpenCodePath,
+      opencodeVersion: '1.2.27',
+    })}\n`,
+  );
+  const probed: string[] = [];
+
+  try {
+    const result = await installNativeHost({
+      bundledHostPath,
+      environment: { PATH: binDirectory },
+      homeDirectory,
+      platform: 'linux',
+      probeRunner: async command => {
+        probed.push(command);
+        return { code: 0, stderr: '', stdout: '1.18.12' };
+      },
+    });
+    assert.equal(result.opencodePath, liveOpenCodePath);
+    assert.equal(result.opencodePathSource, 'discovered');
+    assert.deepEqual(probed, [liveOpenCodePath]);
+    const runtime = JSON.parse(await readFile(result.runtimeConfigPath, 'utf8')) as Record<
+      string,
+      unknown
+    >;
+    assert.equal(runtime.opencodePath, liveOpenCodePath);
+    assert.equal(runtime.opencodePathSource, 'discovered');
+    assert.equal(runtime.opencodeVersion, '1.18.12');
   } finally {
     await rm(root, { force: true, recursive: true });
   }
