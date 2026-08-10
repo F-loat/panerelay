@@ -282,6 +282,26 @@ test('keeps official installation guidance Store-first and version-neutral', () 
   assert.match(rootReadmeZhCn, /\| \*\*Fetch\*\*[\s\S]+\| \*\*Connect\*\*/);
   assert.match(rootReadme, /## Advanced management[\s\S]+?<details>[\s\S]+?<\/details>/);
   assert.match(rootReadmeZhCn, /## 高级管理[\s\S]+?<details>[\s\S]+?<\/details>/);
+  assert.match(
+    rootReadme,
+    /## FAQ[\s\S]+How is Panerelay different from OpenCLI\?[\s\S]+How is Panerelay different from connecting directly through CDP\?[\s\S]+What are Panerelay's main advantages\?/,
+  );
+  assert.match(
+    rootReadmeZhCn,
+    /## 常见问题[\s\S]+Panerelay 和 OpenCLI 有什么区别？[\s\S]+Panerelay 和直接使用 CDP 有什么区别？[\s\S]+Panerelay 的主要优势是什么？/,
+  );
+  assert.match(
+    rootReadme,
+    /Fetch does not use CDP[\s\S]+do not depend on an open target tab[\s\S]+debugging banner[\s\S]+bounded concurrency is more stable/,
+  );
+  assert.match(
+    rootReadmeZhCn,
+    /Fetch 完全不使用 CDP[\s\S]+不依赖目标站点页面保持打开[\s\S]+不会显示 Chrome 调试横幅[\s\S]+受限并发也更稳定/,
+  );
+  assert.match(rootReadme, /without a fresh CDP confirmation click for every connection/);
+  assert.match(rootReadmeZhCn, /无需每次连接都重新点击 CDP 确认弹窗/);
+  assert.match(rootReadme, /Agent's current tab-control state visible/);
+  assert.match(rootReadmeZhCn, /Agent 当前的标签页控制状态/);
   for (const readme of [rootReadme, rootReadmeZhCn]) {
     assert.match(readme, /```mermaid\nflowchart LR/);
     assert.match(readme, /npx --yes @panerelay\/setup add --all/);

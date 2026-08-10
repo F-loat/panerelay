@@ -133,6 +133,30 @@ flowchart LR
 - Mutating automation requires a current visible control lease; Fetch never creates one.
 - Panerelay does not own or close the browser process, create isolated profiles, or change launch-time proxy settings.
 
+## FAQ
+
+### How is Panerelay different from OpenCLI?
+
+[OpenCLI](https://github.com/jackwener/OpenCLI) is a broader CLI and automation platform with built-in site commands, its own browser primitives, desktop-app adapters, and local-tool routing. Panerelay is a focused local permission and routing boundary for two capabilities: browser-authenticated HTTP Fetch and connecting existing automation engines to explicitly authorized tabs.
+
+Panerelay migrated only OpenCLI adapters that fit its Fetch boundary. DOM extraction, page navigation, interactive OAuth, user-managed API keys, model streaming, and desktop or local-tool automation are not treated as Fetch adapters. When a task needs page interaction, Panerelay Connect keeps agent-browser, Browser Use, or Playwright CLI in charge of the automation semantics.
+
+### How is Panerelay different from connecting directly through CDP?
+
+Panerelay Fetch does not use CDP. Requests run in the Extension background, so they do not depend on an open target tab, navigate or attach to a page, or show Chrome's debugging banner. Compared with making requests through page automation, this removes page and DOM/CDP scheduling overhead: requests are typically faster, and bounded concurrency is more stable.
+
+Panerelay Connect still carries each automation engine's native CDP traffic, but changes the connection and permission boundary. After the user authorizes the current tab or all supported tabs, Agents can create later automation sessions within that scope without a fresh CDP confirmation click for every connection. Panerelay needs no remote-debugging port and uses scoped local credentials and opaque target IDs. The Extension keeps the Agent's current tab-control state visible and lets the user release control at any time. Browser-process ownership and whole-profile operations remain unavailable.
+
+Direct or managed CDP is a better fit when you need isolated browser contexts, launch arguments, proxies, whole-browser ownership, or remote browser infrastructure.
+
+### What are Panerelay's main advantages?
+
+- Fetch reuses browser login state without requiring a target page, showing a debugging banner, or returning Cookie values to the Agent; its direct request path is faster and handles bounded concurrency more reliably than page-driven requests.
+- Connect reuses existing tabs without a remote-debugging port or a new CDP confirmation for every automation session; the Agent's current control state stays visible and can be released at any time.
+- Separates Fetch domain grants, current-tab or all-supported-tabs Connect authorization, and active page control, with each scope independently visible and revocable.
+- Keeps automation-engine choice open: agent-browser, Browser Use, and Playwright CLI retain their normal commands.
+- Routes both HTTP requests and engine-native page automation through one local Bridge, stores no model credentials in the Extension, and fails closed when scope or capability is unavailable.
+
 ## Advanced management
 
 <details>

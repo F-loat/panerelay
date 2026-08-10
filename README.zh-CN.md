@@ -133,6 +133,30 @@ flowchart LR
 - 自动化写操作需要当前可见控制租约；Fetch 不会创建控制租约。
 - Panerelay 不接管或关闭浏览器进程，也不创建隔离 Profile 或修改启动代理。
 
+## 常见问题
+
+### Panerelay 和 OpenCLI 有什么区别？
+
+[OpenCLI](https://github.com/jackwener/OpenCLI) 是覆盖面更广的 CLI 与自动化平台，包含内置站点命令、自有浏览器操作原语、桌面应用适配器和本地工具路由。Panerelay 则专注作为本地权限与路由边界，提供两项能力：携带浏览器登录态的 HTTP Fetch，以及把现有自动化引擎接入用户明确授权的标签页。
+
+Panerelay 只迁移了符合 Fetch 边界的 OpenCLI 适配器。DOM 提取、页面导航、交互式 OAuth、用户自行管理的 API Key、模型流式调用、桌面应用和本地工具自动化都不会被包装成 Fetch 适配器。需要操作页面时，Panerelay Connect 会继续由 agent-browser、Browser Use 或 Playwright CLI 负责自动化语义。
+
+### Panerelay 和直接使用 CDP 有什么区别？
+
+Panerelay Fetch 完全不使用 CDP。请求由扩展后台发出，不依赖目标站点页面保持打开，也不会导航或附加标签页，更不会显示 Chrome 调试横幅。相比通过页面自动化发请求，它省去了页面和 DOM/CDP 调度开销，因此请求通常更快，受限并发也更稳定。
+
+Panerelay Connect 仍然传递各自动化引擎原生的 CDP 流量，但改变了连接和权限边界。用户授权“当前标签页”或“所有受支持标签页”后，Agent 可以在该范围内建立后续自动化会话，无需每次连接都重新点击 CDP 确认弹窗。Panerelay 不需要开启 remote debugging port，并使用有作用域的本地凭证和不透明目标 ID。扩展会持续展示 Agent 当前的标签页控制状态，用户可以随时释放控制；浏览器进程所有权和整个 Profile 范围的操作仍不可用。
+
+如果需要隔离 BrowserContext、浏览器启动参数、代理、完整浏览器所有权或远程浏览器基础设施，直接 CDP 或托管浏览器会更合适。
+
+### Panerelay 的主要优势是什么？
+
+- Fetch 复用浏览器登录态，不要求目标页面保持打开，不显示调试横幅，也不会把 Cookie 值返回给 Agent；直接请求链路更快，并能比页面驱动请求更稳定地处理受限并发。
+- Connect 直接复用现有标签页，不需要开启远程调试端口，也不需要为每个自动化会话重新确认 CDP 弹窗；Agent 当前的控制状态始终可见，并可随时释放。
+- 将 Fetch 域名授权、Connect 的当前标签页或所有受支持标签页授权，以及当前页面控制相互分离；每一层权限都可独立查看和撤销。
+- 不绑定自动化引擎：agent-browser、Browser Use 和 Playwright CLI 保留各自原有命令。
+- 通过同一个本地 Bridge 路由 HTTP 请求和自动化引擎原生的页面操作；扩展不保存模型凭证，授权范围或能力不可用时会失败关闭。
+
 ## 高级管理
 
 <details>
