@@ -90,18 +90,19 @@ test('source contains the complete product and installation journey', async () =
   const i18n = await read('src/i18n.ts');
 
   for (const requiredText of [
-    'Let Agents work with',
-    'the browser you already use.',
-    'One tab or all supported tabs',
-    'Flexible tab scope',
+    'Give Agents browser login state.',
+    'Connect them to the browser you use.',
+    'Fetch with browser login state',
+    'Cookies stay in the browser',
     'Install the Agent Skill',
-    'Work with an Agent beside the page.',
-    'Connect your automation tools.',
+    'Two browser capabilities.',
+    'One local boundary.',
     'npx --yes @panerelay/setup',
-    'Two installation steps.',
+    'Install once.',
     'Install one Skill for every Panerelay workflow.',
     'npx skills add F-loat/panerelay --skill panerelay',
-    'Browser access',
+    'Fetch domain',
+    'Connect tabs',
     'This tab',
     'All tabs',
     'EXTERNAL CONTROL',
@@ -111,7 +112,8 @@ test('source contains the complete product and installation journey', async () =
     'Connect browser-use',
     'Connect Playwright CLI',
     'playwright-cli',
-    'Work with local Agents',
+    'Request known URLs',
+    'Browser-authenticated Fetch example',
     'Chrome Web Store',
     'agent-browser 0.33.0',
     'browser-use 0.13.7',
@@ -149,19 +151,20 @@ test('source contains the complete product and installation journey', async () =
   assert.match(html, /data-handoff-select="all"/);
   assert.doesNotMatch(html, /waiting for your approval|You authorize this tab/);
   assert.doesNotMatch(html, /agent-setup\.md|curl -fsSL/);
+  assert.doesNotMatch(html, /AGENT SIDE PANEL|Work with local Agents beside the page/);
   assert.doesNotMatch(i18n, /agent-setup\.md|curl -fsSL/);
   assert.match(
     html,
-    /data-i18n="demo\.local\.body">\s*Work with local Agents beside this browser and choose current-tab or\s+all-supported-tabs access\./,
+    /data-i18n="demo\.local\.body">\s*One Skill gives the Agent both Fetch and Connect workflows\./,
   );
   assert.match(
     html,
     /data-i18n="demo\.tool\.prompt">\s*Use the panerelay Skill\. Set up agent-browser, run doctor, and stop\s+when I\s+need to authorize a tab\./,
   );
   assert.doesNotMatch(html, /retry-action|demo\.local\.retry/);
-  assert.match(i18n, /'setup\.authorization\.link': 'Read advanced setup and manual use'/);
-  assert.match(i18n, /'setup\.authorization\.link': '查看高级设置与手动使用'/);
-  assert.match(html, /F-loat\/panerelay#advanced-setup-and-installation-management/);
+  assert.match(i18n, /'setup\.authorization\.link': 'Read advanced management'/);
+  assert.match(i18n, /'setup\.authorization\.link': '查看高级管理'/);
+  assert.match(html, /F-loat\/panerelay#advanced-management/);
   assert.equal((i18n.match(/npx skills add F-loat\/panerelay --skill panerelay/g) ?? []).length, 2);
 
   const englishCatalog = i18n.slice(
@@ -311,8 +314,8 @@ test('hero presents all three peer tools with stable motion fallbacks', async ()
     /class="hero-tool-track"[\s\S]+agent-browser[\s\S]+Browser Use[\s\S]+Playwright CLI/,
   );
   assert.match(html, /class="hero-tool-static"[\s\S]*agent-browser · Browser Use · Playwright CLI/);
-  assert.match(i18n, /'hero\.lede\.before': 'Connect'/);
-  assert.match(i18n, /'hero\.lede\.before': '把'/);
+  assert.match(i18n, /'hero\.lede\.before': 'Fetch with browser login state, or connect'/);
+  assert.match(i18n, /'hero\.lede\.before': '携带登录态 Fetch，或把'/);
   assert.match(styles, /@keyframes hero-tool-reel/);
   assert.match(styles, /\.js \.hero-tool-reel \{[\s\S]+?width: 17ch;[\s\S]+?height: 1\.76em;/);
   assert.match(
@@ -351,27 +354,27 @@ test('source provides complete English and Simplified Chinese language contracts
   assert.match(script, /document\.documentElement\.lang = locale/);
   assert.doesNotMatch(script, /navigator\.languages|localStorage/);
   assert.match(script, /initializeLocalePreference\(\)/);
-  assert.match(i18n, /让 Agent 在<span>你的日常浏览器里工作。<\/span>/);
-  assert.match(i18n, /复用 Chrome \/ Edge 的现有登录态/);
-  assert.match(i18n, /可授权当前标签页或全部受支持网页/);
-  assert.match(i18n, /授权当前页还是全部受支持网页，由你决定/);
-  assert.match(i18n, /授权范围由你选择/);
+  assert.match(i18n, /把浏览器登录态交给 Agent。<span>把 Agent 接入你正在使用的浏览器。<\/span>/);
+  assert.match(i18n, /携带浏览器登录态请求已知 URL/);
+  assert.match(i18n, /域名或标签页明确授权/);
+  assert.match(i18n, /Fetch 请求域名授权；Connect 请求当前标签页或全部受支持网页/);
+  assert.match(i18n, /只批准当前任务需要的范围/);
   assert.match(i18n, /释放控制不会暗中改变授权范围/);
-  assert.match(i18n, /后台工作，不抢焦点/);
+  assert.match(i18n, /控制可见、可随时释放/);
   assert.match(i18n, /已找出 2 个影响发布的问题/);
   assert.match(i18n, /使用 panerelay Skill，完成 agent-browser 接入并运行 doctor/);
   assert.match(i18n, /一个 Skill 覆盖所有 Panerelay 工作流/);
   assert.match(i18n, /统一 Skill 中的 Browser Harness CLI/);
-  assert.match(i18n, /控制权始终看得见/);
+  assert.match(i18n, /权限始终明确/);
   assert.match(i18n, /当前标签页仍保持授权；再次点击已选范围，才会取消授权/);
   assert.match(i18n, /获得访问，<br>不等于获得控制。<br><em>控制权始终可见。<\/em>/);
   assert.match(i18n, /把 agent-browser<br>接入日常标签页。/);
   assert.match(i18n, /把 browser-use<br>接入已登录的 Chrome。/);
   assert.match(i18n, /把 Playwright CLI<br>接入日常标签页。/);
-  assert.match(i18n, /AGENT 侧边栏 · 自动化工具接入/);
-  assert.match(i18n, /在页面旁使用 Agent，<br><em>也能接入现有自动化工具。<\/em>/);
+  assert.match(i18n, /浏览器 FETCH · 现有浏览器 CONNECT/);
+  assert.match(i18n, /两项浏览器能力。<br><em>一条本地安全边界。<\/em>/);
   assert.match(i18n, /browser-use 0\.13\.7 \+ Browser Harness 0\.1\.8/);
-  assert.match(i18n, /在页面旁<br>和本地 Agent 协作。/);
+  assert.match(i18n, /携带浏览器登录态<br>请求已知 URL。/);
   assert.match(styles, /html\[lang='zh-CN'\] \.workflow-copy h3/);
   assert.match(styles, /html\[lang='zh-CN'\] \.step-content h3/);
   assert.match(styles, /html\[lang='zh-CN'\] \.trust-copy h2/);
@@ -472,17 +475,20 @@ test('public copy keeps flexible authorization and active control distinct', asy
   const extensionEnglish = await read('../extension/public/_locales/en/messages.json');
   const extensionChinese = await read('../extension/public/_locales/zh_CN/messages.json');
 
-  assert.match(html, /authorize one tab or all supported tabs/);
-  assert.match(html, /Release ends active control without silently changing that\s+scope/);
+  assert.match(
+    html,
+    /Fetch asks for a domain\. Connect asks for the current tab or all supported tabs/,
+  );
+  assert.match(html, /Release ends active control[\s\S]+silently\s+changing that\s+scope/);
   assert.match(i18n, /One current tab or all supported web tabs/);
   assert.match(i18n, /当前标签页或全部受支持网页/);
   assert.match(i18n, /释放控制时保留已选授权范围/);
-  assert.match(rootReadme, /one tab or all supported tabs, your choice/);
+  assert.match(rootReadme, /Fetch approval is domain-based\. Connect authorization is tab-based/);
   assert.match(
     rootReadme,
     /Release ends active control without clearing the selected authorization scope/,
   );
-  assert.match(chineseReadme, /授权当前页还是全部受支持网页，由你决定/);
+  assert.match(chineseReadme, /Fetch 按域名授权，Connect 按标签页授权/);
   assert.match(chineseReadme, /释放会结束当前控制，但保留已选授权范围/);
   assert.match(extensionI18n, /Choose the current tab or all supported tabs/);
   assert.match(extensionI18n, /授权当前标签页或全部受支持网页/);
@@ -659,17 +665,20 @@ test('localized homepage is statically rendered, canonical, and cross-linked', a
   }
 
   // Chinese metadata and body copy must be present before any script runs.
-  assert.match(chinese, /<title[^>]*>Panerelay — 浏览器不用换，Agent 直接上手<\/title>/);
+  assert.match(chinese, /<title[^>]*>Panerelay — Agent 的浏览器 Fetch 与 Connect<\/title>/);
+  assert.match(chinese, /name="description"[^>]*content="携带浏览器登录态请求已知 URL/);
   assert.match(
     chinese,
-    /name="description"[^>]*content="Panerelay 让 AI Agent 复用 Chrome \/ Edge/,
+    /property="og:title"[^>]*content="Panerelay — Agent 的浏览器 Fetch 与 Connect/,
   );
-  assert.match(chinese, /property="og:title"[^>]*content="Panerelay — 浏览器不用换/);
-  assert.match(chinese, /name="twitter:description"[^>]*content="复用已登录的浏览器会话。/);
-  assert.match(chinese, /让 Agent 在<span>你的日常浏览器里工作。<\/span>/);
+  assert.match(chinese, /name="twitter:description"[^>]*content="一条本地链路/);
+  assert.match(
+    chinese,
+    /把浏览器登录态交给 Agent。<span>把 Agent 接入你正在使用的浏览器。<\/span>/,
+  );
   assert.match(chinese, /授权当前标签页或全部受支持网页/);
   assert.match(chinese, /获得访问，<br>不等于获得控制。/);
-  assert.doesNotMatch(chinese, /Let Agents work with/);
+  assert.doesNotMatch(chinese, /Give Agents browser login state/);
 
   // The switcher must navigate between stable locale URLs and keep the matching comparison page.
   assert.match(english, /href="\.\/zh-CN\/"[^>]*?data-language-option="zh-CN"/s);

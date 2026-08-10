@@ -237,11 +237,11 @@ test('keeps release publication manual, protected, and channel-scoped', () => {
 test('keeps official installation guidance Store-first and version-neutral', () => {
   const englishQuickstart = rootReadme.slice(
     rootReadme.indexOf('## Quickstart'),
-    rootReadme.indexOf('## How it works'),
+    rootReadme.indexOf('## Fetch with browser login state'),
   );
   const chineseQuickstart = rootReadmeZhCn.slice(
     rootReadmeZhCn.indexOf('## 快速开始'),
-    rootReadmeZhCn.indexOf('## 工作方式'),
+    rootReadmeZhCn.indexOf('## 使用浏览器登录态 Fetch'),
   );
 
   for (const guidance of [englishQuickstart, chineseQuickstart]) {
@@ -260,20 +260,12 @@ test('keeps official installation guidance Store-first and version-neutral', () 
     /load `apps\/extension\/dist` as an unpacked Extension in Chrome or Edge/,
   );
   assert.match(rootReadmeZhCn, /在 Chrome 或 Edge 中将 `apps\/extension\/dist` 加载为未打包扩展/);
-  assert.match(
-    rootReadme,
-    /Let Agents use your everyday browser—one tab or all supported tabs, your choice/,
-  );
-  assert.match(rootReadmeZhCn, /授权当前页还是全部受支持网页，由你决定/);
-  assert.match(rootReadme, /presents one keyboard multiselect/);
-  assert.match(rootReadme, /asks at most once whether/);
-  assert.match(rootReadmeZhCn, /只会先用一次多选/);
-  assert.match(rootReadmeZhCn, /最多再询问一次/);
-  assert.match(
-    rootReadme,
-    /## Advanced setup and installation management[\s\S]+?<details>[\s\S]+?<\/details>/,
-  );
-  assert.match(rootReadmeZhCn, /## 高级设置与安装管理[\s\S]+?<details>[\s\S]+?<\/details>/);
+  assert.match(rootReadme, /Browser-authenticated Fetch and existing-browser Connect/);
+  assert.match(rootReadmeZhCn, /浏览器登录态 Fetch 和现有浏览器 Connect/);
+  assert.match(rootReadme, /\| \*\*Fetch\*\*[\s\S]+\| \*\*Connect\*\*/);
+  assert.match(rootReadmeZhCn, /\| \*\*Fetch\*\*[\s\S]+\| \*\*Connect\*\*/);
+  assert.match(rootReadme, /## Advanced management[\s\S]+?<details>[\s\S]+?<\/details>/);
+  assert.match(rootReadmeZhCn, /## 高级管理[\s\S]+?<details>[\s\S]+?<\/details>/);
   assert.doesNotMatch(rootReadme, /^## (?:Supported workflows|Documentation)$/m);
   assert.doesNotMatch(rootReadmeZhCn, /^## (?:支持的工作流|文档)$/m);
   const sharedImage =

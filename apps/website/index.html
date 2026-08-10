@@ -6,7 +6,7 @@
     <meta
       name="description"
       data-i18n-content="meta.description"
-      content="Panerelay connects AI agents to your existing Chrome or Edge. Choose one tab or all supported tabs, stay signed in, and release visible control anytime."
+      content="Fetch known URLs with browser login state, or connect AI Agents to authorized tabs in your existing Chrome or Edge."
     />
     <meta name="theme-color" content="#080b0a" />
     <meta name="color-scheme" content="dark" />
@@ -15,12 +15,12 @@
     <meta
       property="og:title"
       data-i18n-content="meta.social.title"
-      content="Panerelay — Your browser. Agent-ready."
+      content="Panerelay — Browser Fetch and Connect for Agents"
     />
     <meta
       property="og:description"
       data-i18n-content="meta.social.description"
-      content="Reuse your signed-in browser. Authorize one tab or all supported tabs, with visible control you can release anytime."
+      content="One local bridge for browser-authenticated Fetch and existing-browser automation connections."
     />
     <meta property="og:locale" content="en_US" />
     <meta property="og:url" content="https://f-loat.github.io/panerelay/" />
@@ -32,12 +32,12 @@
     <meta
       name="twitter:title"
       data-i18n-content="meta.social.title"
-      content="Panerelay — Your browser. Agent-ready."
+      content="Panerelay — Browser Fetch and Connect for Agents"
     />
     <meta
       name="twitter:description"
       data-i18n-content="meta.social.description"
-      content="Reuse your signed-in browser. Authorize one tab or all supported tabs, with visible control you can release anytime."
+      content="One local bridge for browser-authenticated Fetch and existing-browser automation connections."
     />
     <meta name="twitter:image" content="https://f-loat.github.io/panerelay/social-card.png" />
     <link rel="canonical" href="https://f-loat.github.io/panerelay/" />
@@ -48,7 +48,7 @@
     <link rel="manifest" href="./site.webmanifest" />
     <link rel="preconnect" href="https://fontsapi.zeoseven.com" crossorigin />
     <link rel="stylesheet" href="https://fontsapi.zeoseven.com/292/main/result.css" />
-    <title data-i18n="meta.title">Panerelay — Your browser. Agent-ready.</title>
+    <title data-i18n="meta.title">Panerelay — Browser Fetch and Connect for Agents</title>
   </head>
   <body>
     <a class="skip-link" href="#main-content" data-i18n="nav.skip">Skip to content</a>
@@ -81,7 +81,7 @@
           data-navigation
           data-open="false"
         >
-          <a href="#workflows" data-i18n="nav.workflows">Workflows</a>
+          <a href="#workflows" data-i18n="nav.workflows">Fetch &amp; Connect</a>
           <a href="#setup" data-i18n="nav.setup">Setup</a>
           <a href="#trust" data-i18n="nav.trust">Trust</a>
           <a href="./compare/" data-compare-link data-i18n="nav.compare">Compare</a>
@@ -150,19 +150,19 @@
           <div class="hero-copy">
             <div class="eyebrow">
               <span class="status-dot"></span>
-              <span data-i18n="hero.eyebrow">Agent side panel · Automation integrations</span>
+              <span data-i18n="hero.eyebrow">BROWSER FETCH · EXISTING-BROWSER CONNECT</span>
             </div>
             <h1 data-i18n-html="hero.title">
-              Let Agents work with
-              <span>the browser you already use.</span>
+              Give Agents browser login state.
+              <span>Connect them to the browser you use.</span>
             </h1>
             <div class="hero-lede">
               <p class="sr-only" data-i18n="hero.lede">
-                Connect agent-browser, Browser Use, or Playwright CLI to Chrome or Edge. Stay signed
-                in, authorize one tab or all supported tabs, and keep browsing uninterrupted.
+                Fetch known URLs with browser login state, or connect agent-browser, Browser Use, or
+                Playwright CLI to existing Chrome or Edge tabs.
               </p>
               <p class="hero-lede-display" aria-hidden="true">
-                <span data-i18n="hero.lede.before">Connect</span>
+                <span data-i18n="hero.lede.before">Fetch with browser login state, or connect</span>
                 <span class="hero-tool-reel">
                   <span class="hero-tool-viewport">
                     <span class="hero-tool-track">
@@ -174,10 +174,7 @@
                   </span>
                   <span class="hero-tool-static">agent-browser · Browser Use · Playwright CLI</span>
                 </span>
-                <span data-i18n="hero.lede.after"
-                  >to Chrome or Edge. Stay signed in, authorize one tab or all supported tabs, and
-                  keep browsing uninterrupted.</span
-                >
+                <span data-i18n="hero.lede.after">to your existing Chrome or Edge.</span>
               </p>
             </div>
 
@@ -232,9 +229,9 @@
               aria-label="Key properties"
               data-i18n-aria-label="hero.properties"
             >
-              <li data-i18n="hero.explicitTabs">One tab or all supported tabs</li>
-              <li data-i18n="hero.visibleControl">No focus stealing</li>
-              <li data-i18n="hero.instantRelease">Release anytime</li>
+              <li data-i18n="hero.explicitTabs">Cookies stay in the browser</li>
+              <li data-i18n="hero.visibleControl">Domain or tab approval</li>
+              <li data-i18n="hero.instantRelease">Visible, releasable control</li>
             </ul>
           </div>
 
@@ -353,21 +350,20 @@
                           >Install the Panerelay Agent Skill</strong
                         >
                         <p data-i18n="demo.local.body">
-                          Work with local Agents beside this browser and choose current-tab or
-                          all-supported-tabs access.
+                          One Skill gives the Agent both Fetch and Connect workflows.
                         </p>
                       </div>
                       <div class="setup-benefits">
                         <span
                           ><i class="benefit-window"></i
                           ><b data-i18n="demo.local.session"
-                            >Reuse your signed-in browser session</b
+                            >Fetch known URLs with browser login state</b
                           ></span
                         >
                         <span
                           ><i class="benefit-shield"></i
                           ><b data-i18n="demo.local.authorization"
-                            >Choose one tab or all supported tabs</b
+                            >Connect automation to authorized tabs</b
                           ></span
                         >
                       </div>
@@ -699,11 +695,11 @@
         data-i18n-aria-label="signal.label"
       >
         <div class="shell signal-row">
-          <span data-i18n="signal.browser">One browser</span>
+          <span data-i18n="signal.browser">Your signed-in browser</span>
           <i></i>
-          <span data-i18n="signal.agent">Any shell-capable Agent</span>
+          <span data-i18n="signal.agent">Fetch or Connect</span>
           <i></i>
-          <span data-i18n="signal.boundary">Flexible tab scope</span>
+          <span data-i18n="signal.boundary">Explicit authorization</span>
         </div>
       </section>
 
@@ -711,10 +707,12 @@
         <div class="shell">
           <div class="section-heading centered" data-reveal>
             <span class="section-index" data-i18n="why.index">01 · WHY PANERELAY</span>
-            <h2 data-i18n-html="why.title">Stop rebuilding<br /><em>browser context.</em></h2>
+            <h2 data-i18n-html="why.title">
+              Use the browser state<br /><em>you already have.</em>
+            </h2>
             <p data-i18n="why.lede">
-              Your authenticated state, open tabs, and real work already live in your daily browser.
-              Panerelay keeps them there.
+              Fetch authenticated endpoints or connect automation tools without exporting cookies,
+              creating another profile, or turning on remote debugging.
             </p>
           </div>
 
@@ -724,9 +722,9 @@
               <div class="value-icon session-icon" aria-hidden="true">
                 <span></span><span></span><span></span>
               </div>
-              <h3 data-i18n="why.session.title">Keep the session</h3>
+              <h3 data-i18n="why.session.title">Fetch as the signed-in browser</h3>
               <p data-i18n="why.session.body">
-                Use the Chrome or Edge profile where you are already signed in. No cookie export.
+                Send bounded requests to known URLs while cookies remain inside the Extension.
               </p>
             </article>
             <article class="value-card" data-reveal>
@@ -734,10 +732,9 @@
               <div class="value-icon target-icon" aria-hidden="true">
                 <span></span>
               </div>
-              <h3 data-i18n="why.target.title">Choose the scope</h3>
+              <h3 data-i18n="why.target.title">Connect existing tabs</h3>
               <p data-i18n="why.target.body">
-                Authorize the current tab for focused work or all supported tabs for cross-page
-                workflows. Focus never grants access.
+                Use agent-browser, Browser Use, or Playwright CLI on only the tabs you authorize.
               </p>
             </article>
             <article class="value-card" data-reveal>
@@ -745,9 +742,9 @@
               <div class="value-icon visible-icon" aria-hidden="true">
                 <span></span>
               </div>
-              <h3 data-i18n="why.control.title">See who controls</h3>
+              <h3 data-i18n="why.control.title">Keep authority explicit</h3>
               <p data-i18n="why.control.body">
-                Active control stays visible in the Extension, with release always within reach.
+                Fetch domains, tab scope, and active control stay separate and user-controlled.
               </p>
             </article>
           </div>
@@ -758,30 +755,27 @@
         <div class="shell">
           <div class="section-heading split-heading" data-reveal>
             <div>
-              <span class="section-index" data-i18n="workflows.index"> 02 · AGENT × BROWSER </span>
+              <span class="section-index" data-i18n="workflows.index"> 02 · FETCH × CONNECT </span>
               <h2 data-i18n-html="workflows.title">
-                Work with an Agent beside the page.<br /><em>Connect your automation tools.</em>
+                Two browser capabilities.<br /><em>One local boundary.</em>
               </h2>
             </div>
             <p data-i18n="workflows.lede">
-              Three tools, one local relay, and the same choice between focused and cross-page
-              access.
+              Use Fetch for known HTTP(S) requests. Use Connect for rendered pages and interaction.
             </p>
           </div>
 
           <article class="workflow workflow-engines" data-engine-workflow data-reveal>
             <div class="engine-intro">
               <div>
-                <span class="workflow-label" data-i18n="workflow.cli.label"
-                  >AUTOMATION INTEGRATIONS</span
-                >
+                <span class="workflow-label" data-i18n="workflow.cli.label">CONNECT</span>
                 <h3 data-i18n-html="workflow.external.title">
-                  Keep your automation engine.<br />Connect it to daily tabs.
+                  Keep your automation engine.<br />Connect it to existing tabs.
                 </h3>
               </div>
               <p data-i18n="workflow.external.body">
                 agent-browser, Browser Use, and Playwright CLI keep their own automation semantics.
-                Panerelay gives each one the same user-selected scope in your existing browser.
+                Panerelay supplies the authorized connection to your existing browser.
               </p>
               <div
                 class="engine-tabs"
@@ -1073,33 +1067,32 @@ PY
 
           <article class="workflow workflow-panel" data-reveal>
             <div class="workflow-copy">
-              <span class="workflow-label" data-i18n="workflow.panel.label">AGENT SIDE PANEL</span>
-              <h3 data-i18n-html="workflow.panel.title">
-                Work with local Agents<br />beside the page.
+              <span class="workflow-label" data-i18n="workflow.fetch.label">FETCH</span>
+              <h3 data-i18n-html="workflow.fetch.title">
+                Request known URLs<br />with browser login state.
               </h3>
-              <p data-i18n="workflow.panel.body">
-                Open Panerelay beside the page and talk to installed local Agents without leaving
-                Chrome or Edge. Conversations, approvals, activity, interruption, and release live
-                next to the tab they concern.
+              <p data-i18n="workflow.fetch.body">
+                Use one bounded Fetch tool from CLI, MCP, or a site adapter. Cookies stay inside the
+                Extension, redirects fail closed, and each new domain needs your approval.
               </p>
               <ul
                 class="agent-list"
-                aria-label="Supported local Agents"
-                data-i18n-aria-label="workflow.panel.agents"
+                aria-label="Fetch entry points"
+                data-i18n-aria-label="workflow.fetch.entries"
               >
-                <li><span>C</span>Codex</li>
-                <li><span>Cl</span>Claude Code</li>
-                <li><span>Q</span>Qoder</li>
+                <li><span>C</span>CLI</li>
+                <li><span>M</span>MCP</li>
+                <li><span>S</span>Site adapters</li>
               </ul>
-              <p class="workflow-note" data-i18n="workflow.panel.note">
-                Agent CLIs stay local and must already be installed and signed in.
+              <p class="workflow-note" data-i18n="workflow.fetch.note">
+                Fetch handles exact URLs. Use Connect for DOM, navigation, screenshots, or clicks.
               </p>
             </div>
             <div
               class="workflow-demo panel-demo"
               role="img"
-              aria-label="Side panel conversation example"
-              data-i18n-aria-label="workflow.panel.demo"
+              aria-label="Browser-authenticated Fetch example"
+              data-i18n-aria-label="workflow.fetch.demo"
             >
               <div class="demo-page">
                 <div class="demo-page-top"><span></span><span></span><span></span></div>
@@ -1111,21 +1104,21 @@ PY
                   <strong>Panerelay</strong>
                   <span>•••</span>
                 </div>
-                <div class="demo-context" data-i18n="workflow.panel.context">
-                  Context · this tab
+                <div class="demo-context" data-i18n="workflow.fetch.context">
+                  GET · api.example.com
                 </div>
-                <div class="demo-bubble user-bubble" data-i18n="workflow.panel.prompt">
-                  Summarize the decision on this page.
+                <div class="demo-bubble user-bubble" data-i18n="workflow.fetch.prompt">
+                  panerelay fetch /api/me --response json
                 </div>
                 <div class="demo-bubble agent-bubble">
-                  <span>C</span>
-                  <p data-i18n="workflow.panel.response">
-                    I found three decisions. The key boundary is explicit authorization…
+                  <span>F</span>
+                  <p data-i18n="workflow.fetch.response">
+                    200 OK · browser session attached · credentials not exposed
                   </p>
                 </div>
                 <div class="demo-composer">
-                  <span data-i18n="workflow.panel.composer">Ask Codex…</span>
-                  <span>↗</span>
+                  <span data-i18n="workflow.fetch.footer">Exact-origin request completed</span>
+                  <span>✓</span>
                 </div>
               </div>
             </div>
@@ -1138,7 +1131,7 @@ PY
           <div class="section-heading" data-reveal>
             <span class="section-index" data-i18n="setup.index">03 · SETUP</span>
             <h2 data-i18n-html="setup.title">
-              Two installation steps.<br /><em>Then choose the tab scope.</em>
+              Install once.<br /><em>Then ask for Fetch or Connect.</em>
             </h2>
           </div>
 
@@ -1530,25 +1523,19 @@ PY
             <li data-reveal>
               <span class="step-index">✓</span>
               <div class="step-content">
-                <span class="step-kicker" data-i18n="setup.authorization.label">
-                  AUTHORIZATION
-                </span>
-                <h3 data-i18n="setup.authorization.title">
-                  One tab or all supported tabs. Your choice.
-                </h3>
+                <span class="step-kicker" data-i18n="setup.authorization.label"> APPROVAL </span>
+                <h3 data-i18n="setup.authorization.title">Approve only what the task needs.</h3>
                 <p data-i18n="setup.authorization.body">
-                  Choose the current page for focused work or all supported web tabs for cross-page
-                  workflows. Release active control whenever you want without clearing that scope.
+                  Fetch asks for a domain. Connect asks for the current tab or all supported tabs.
+                  Active control remains visible and releasable.
                 </p>
                 <a
                   class="text-link"
-                  href="https://github.com/F-loat/panerelay#advanced-setup-and-installation-management"
+                  href="https://github.com/F-loat/panerelay#advanced-management"
                   target="_blank"
                   rel="noreferrer"
                 >
-                  <span data-i18n="setup.authorization.link">
-                    Read advanced setup and manual use
-                  </span>
+                  <span data-i18n="setup.authorization.link"> Read advanced management </span>
                   <span aria-hidden="true">↗</span>
                 </a>
               </div>
@@ -1556,16 +1543,16 @@ PY
                 <div class="authorize-row">
                   <span class="authorize-favicon"></span>
                   <div>
-                    <b data-i18n="setup.authorization.currentTab">Current tab</b
-                    ><small data-i18n="setup.authorization.ready">Ready to authorize</small>
+                    <b data-i18n="setup.authorization.currentTab">Fetch domain</b
+                    ><small data-i18n="setup.authorization.ready">Approve on demand</small>
                   </div>
                   <i class="toggle"><b></b></i>
                 </div>
                 <div class="authorize-row active">
                   <span class="authorize-favicon second"></span>
                   <div>
-                    <b data-i18n="setup.authorization.otherTab">All supported tabs</b
-                    ><small data-i18n="setup.authorization.authorized">Authorized</small>
+                    <b data-i18n="setup.authorization.otherTab">Connect tabs</b
+                    ><small data-i18n="setup.authorization.authorized">Choose the scope</small>
                   </div>
                   <i class="toggle"><b></b></i>
                 </div>
@@ -1586,9 +1573,9 @@ PY
                 Access is not focus.<br /><em>Control is never invisible.</em>
               </h2>
               <p data-i18n="trust.lede">
-                Panerelay separates site permission, your selected tab scope, and the live lease
-                required for mutation. Release ends active control without silently changing that
-                scope.
+                Panerelay separates Fetch domain approval, Connect tab authorization, and the live
+                lease required for page mutation. Release ends active control without silently
+                changing that scope.
               </p>
               <a
                 class="button button-light"
@@ -1605,8 +1592,10 @@ PY
               <div class="boundary-item">
                 <span>01</span>
                 <div>
-                  <strong data-i18n="trust.site.title">Site permission</strong>
-                  <p data-i18n="trust.site.body">Which origins the Extension may observe.</p>
+                  <strong data-i18n="trust.site.title">Fetch domain</strong>
+                  <p data-i18n="trust.site.body">
+                    Which origins may receive browser-backed requests.
+                  </p>
                 </div>
                 <i data-i18n="trust.site.status">Separate</i>
               </div>
@@ -1614,7 +1603,7 @@ PY
               <div class="boundary-item">
                 <span>02</span>
                 <div>
-                  <strong data-i18n="trust.tab.title">Tab authorization</strong>
+                  <strong data-i18n="trust.tab.title">Connect tabs</strong>
                   <p data-i18n="trust.tab.body">One current tab or all supported web tabs.</p>
                 </div>
                 <i data-i18n="trust.tab.status">Flexible</i>
@@ -1707,12 +1696,10 @@ PY
         <div class="shell final-content" data-reveal>
           <img src="./panerelay-icon.svg" width="64" height="64" alt="" />
           <span class="section-index" data-i18n="final.index">OPEN SOURCE · MIT LICENSE</span>
-          <h2 data-i18n-html="final.title">
-            Keep your browser.<br /><em>Invite better tools.</em>
-          </h2>
+          <h2 data-i18n-html="final.title">Keep your browser.<br /><em>Fetch and Connect.</em></h2>
           <p data-i18n="final.body">
-            Install the Extension, connect the local Bridge, and choose one tab or all supported
-            tabs. Active control stays visible and releasable.
+            Install the Extension and one Skill. Use Fetch for known URLs or Connect for browser
+            automation.
           </p>
           <div class="final-actions">
             <a
@@ -1744,7 +1731,9 @@ PY
             <img src="./panerelay-icon.svg" width="28" height="28" alt="" />
             <span>Panerelay</span>
           </a>
-          <p data-i18n="footer.tagline">Open browser relay for people, browsers, and AI Agents.</p>
+          <p data-i18n="footer.tagline">
+            Browser-authenticated Fetch and existing-browser Connect for AI Agents.
+          </p>
         </div>
         <div class="footer-column">
           <strong data-i18n="footer.project">Project</strong>
