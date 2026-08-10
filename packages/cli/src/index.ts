@@ -72,8 +72,10 @@ export {
   readFetchAdapterRegistry,
 } from './fetch-adapter-registry.js';
 export type { FetchAdapterRegistryOptions } from './fetch-adapter-registry.js';
-export { dispatchFetchAdapter } from './fetch-adapter-dispatcher.js';
+export { dispatchFetchAdapter, FetchAdapterCommandError } from './fetch-adapter-dispatcher.js';
 export type { FetchAdapterDispatchOptions } from './fetch-adapter-dispatcher.js';
+export { prepareFetchAdapterArtifacts } from './fetch-adapter-artifact.js';
+export type { PreparedFetchAdapterArtifacts } from './fetch-adapter-artifact.js';
 export {
   parseFetchAuthorizationArguments,
   parseRawFetchArguments,

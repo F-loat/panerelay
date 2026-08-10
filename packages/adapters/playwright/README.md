@@ -20,7 +20,7 @@ Choose the intended authorized tab ID from the first `tab-list` result. After `t
 
 New Side Panel conversations may instead inject a reserved 56-character `-s=panerelay-v2-...` session and a target-scoped `/cdp/playwright/target/...` attach URL. Use both exact values, then run `tab-list`, `tab-select 0`, and `tab-list` again. Panerelay validates the compact reversible browser/target pair against the current authorized inventory and exposes that page first without changing Playwright CLI. A malformed, legacy, stale, or unauthorized target fails closed; do not shorten the session, retry through the unscoped URL, or match URL/title.
 
-The setup package verifies the upstream executable and installs only Panerelay-owned adapter metadata. It does not install a shim, modify `PATH` or shell startup files, write `.playwright/cli.config.json`, set Playwright as a default, or manage an Agent Skill. The independently installed `panerelay-browser` Skill contains the Playwright workflow.
+The setup package verifies the upstream executable and installs only Panerelay-owned adapter metadata. It does not install a shim, modify `PATH` or shell startup files, write `.playwright/cli.config.json`, set Playwright as a default, or manage an Agent Skill. The independently installed `panerelay` Skill contains the Playwright workflow.
 
 For explicit user-managed configuration, set `PLAYWRIGHT_MCP_CDP_ENDPOINT=http://127.0.0.1:43827/cdp/playwright` or configure `browser.cdpEndpoint` in `.playwright/cli.config.json`.
 

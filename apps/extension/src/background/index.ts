@@ -7,6 +7,7 @@ import {
   encodeNativeTransfer,
   isHostToExtensionMessage,
   isNativeTransferEnvelope,
+  doesBrowserFetchOriginMatch,
   type AgentRequest,
   type AgentResponseMessage,
   type AutomationEngineId,
@@ -15,6 +16,8 @@ import {
   type CdpTargetInfo,
   type CdpTargetRequestMessage,
   type BrowserFetchRequestMessage,
+  type BrowserFetchCancelMessage,
+  type BrowserFetchPermissionCancelMessage,
   type BrowserFetchPermissionRequestMessage,
   type HostToExtensionMessage,
   type IntegrationRequest,
@@ -105,6 +108,14 @@ const browserRuntime = detectBrowserRuntime();
 const browserFetchEnvironment = createChromeBrowserFetchEnvironment();
 const browserFetchStartupCleanup = removeAbandonedBrowserFetchRules().catch(() => undefined);
 const fetchPermissionRequests = new FetchPermissionRequestManager();
+const pendingBrowserFetchControllers = new Map<
+  string,
+  { browserId: string; controller: AbortController; generation: string }
+>();
+const pendingBrowserFetchPermissionControllers = new Map<
+  string,
+  { browserId: string; controller: AbortController; generation: string }
+>();
 
 let nativePort: chrome.runtime.Port | null = null;
 let browserRegistered = false;
@@ -425,6 +436,14 @@ function connectNativeHost(): void {
       pendingAgentRequests.rejectAll(disconnectMessage);
       pendingIntegrationRequests.rejectAll(disconnectMessage);
       fetchPermissionRequests.cancelAll(disconnectMessage);
+      for (const pending of pendingBrowserFetchControllers.values()) {
+        pending.controller.abort(disconnectMessage);
+      }
+      pendingBrowserFetchControllers.clear();
+      for (const pending of pendingBrowserFetchPermissionControllers.values()) {
+        pending.controller.abort(disconnectMessage);
+      }
+      pendingBrowserFetchPermissionControllers.clear();
       void releaseControl('Panerelay Bridge disconnected', false);
       void broadcastStatus();
       scheduleReconnect();
@@ -490,8 +509,14 @@ async function handleHostMessage(message: HostToExtensionMessage): Promise<void>
     case 'fetch.request':
       await handleBrowserFetch(message);
       return;
+    case 'fetch.cancel':
+      handleBrowserFetchCancel(message);
+      return;
     case 'fetch.permission.request':
       await handleBrowserFetchPermission(message);
+      return;
+    case 'fetch.permission.cancel':
+      handleBrowserFetchPermissionCancel(message);
       return;
     case 'cdp.attach':
       await attachTarget(message.requestId, message.targetId);
@@ -537,13 +562,53 @@ async function handleHostMessage(message: HostToExtensionMessage): Promise<void>
 }
 
 async function handleBrowserFetch(message: BrowserFetchRequestMessage): Promise<void> {
+  if (pendingBrowserFetchControllers.has(message.requestId)) {
+    sendNative({
+      type: 'fetch.result',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      requestId: message.requestId,
+      success: false,
+      error: 'Duplicate browser fetch request',
+    });
+    return;
+  }
+  const controller = new AbortController();
+  pendingBrowserFetchControllers.set(message.requestId, {
+    browserId: message.browserId,
+    controller,
+    generation: message.generation,
+  });
   try {
     await browserFetchStartupCleanup;
     if (message.browserId !== (await browserId())) {
       throw new Error('Browser fetch request targets a different browser registration');
     }
-    assertFetchUrlAuthorized(message.request.url, await readFetchAuthorization());
-    const response = await executeBrowserFetch(message.request, browserFetchEnvironment);
+    if (
+      !message.allowedOrigins.some(origin =>
+        doesBrowserFetchOriginMatch(origin, message.request.url),
+      )
+    ) {
+      throw new Error('Browser fetch target is outside this session origin scope');
+    }
+    const authorization = await readFetchAuthorization();
+    assertFetchUrlAuthorized(message.request.url, authorization);
+    for (const policy of message.bindingPolicies) {
+      const source = policy.source;
+      if (source.kind === 'local-storage') {
+        if (
+          !message.allowedOrigins.some(origin => doesBrowserFetchOriginMatch(origin, source.origin))
+        ) {
+          throw new Error('Browser fetch storage source is outside this session origin scope');
+        }
+        assertFetchUrlAuthorized(source.origin, authorization);
+      }
+    }
+    const response = await executeBrowserFetch(
+      message.request,
+      message.bindingPolicies,
+      browserFetchEnvironment,
+      controller.signal,
+    );
     sendNative({
       type: 'fetch.result',
       protocol: PANERELAY_PROTOCOL_VERSION,
@@ -560,17 +625,53 @@ async function handleBrowserFetch(message: BrowserFetchRequestMessage): Promise<
       success: false,
       error: detail || 'Browser fetch failed',
     });
+  } finally {
+    const pending = pendingBrowserFetchControllers.get(message.requestId);
+    if (pending?.controller === controller)
+      pendingBrowserFetchControllers.delete(message.requestId);
   }
+}
+
+function handleBrowserFetchCancel(message: BrowserFetchCancelMessage): void {
+  const pending = pendingBrowserFetchControllers.get(message.requestId);
+  if (
+    !pending ||
+    pending.browserId !== message.browserId ||
+    pending.generation !== message.generation
+  ) {
+    return;
+  }
+  pending.controller.abort('Panerelay browser fetch was cancelled');
 }
 
 async function handleBrowserFetchPermission(
   message: BrowserFetchPermissionRequestMessage,
 ): Promise<void> {
+  if (pendingBrowserFetchPermissionControllers.has(message.requestId)) {
+    sendNative({
+      type: 'fetch.permission.result',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      requestId: message.requestId,
+      granted: false,
+      domain: message.domain,
+      error: 'Duplicate browser fetch authorization request',
+    });
+    return;
+  }
+  const controller = new AbortController();
+  pendingBrowserFetchPermissionControllers.set(message.requestId, {
+    browserId: message.browserId,
+    controller,
+    generation: message.generation,
+  });
   try {
     if (message.browserId !== (await browserId())) {
       throw new Error('Fetch authorization request targets a different browser registration');
     }
-    const result = await fetchPermissionRequests.request(message.domain);
+    const result = await fetchPermissionRequests.request(message.domain, {
+      requestId: message.requestId,
+      signal: controller.signal,
+    });
     sendNative({
       type: 'fetch.permission.result',
       protocol: PANERELAY_PROTOCOL_VERSION,
@@ -590,7 +691,24 @@ async function handleBrowserFetchPermission(
       domain: message.domain,
       error: detail || 'Browser fetch authorization failed',
     });
+  } finally {
+    const pending = pendingBrowserFetchPermissionControllers.get(message.requestId);
+    if (pending?.controller === controller) {
+      pendingBrowserFetchPermissionControllers.delete(message.requestId);
+    }
   }
+}
+
+function handleBrowserFetchPermissionCancel(message: BrowserFetchPermissionCancelMessage): void {
+  const pending = pendingBrowserFetchPermissionControllers.get(message.requestId);
+  if (
+    !pending ||
+    pending.browserId !== message.browserId ||
+    pending.generation !== message.generation
+  ) {
+    return;
+  }
+  pending.controller.abort('Panerelay browser fetch authorization was cancelled');
 }
 
 function handleAgentResponse(message: AgentResponseMessage): void {

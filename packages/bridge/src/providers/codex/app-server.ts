@@ -22,6 +22,7 @@ export interface CodexRpcMessage {
 
 export interface CodexAppServerOptions {
   codexPath: string;
+  configOverrides?: string[];
   environment?: NodeJS.ProcessEnv;
   pathEntries?: string[];
   onNotification: (message: CodexRpcMessage) => void;
@@ -100,7 +101,11 @@ export class CodexAppServer {
     ]);
     const launch = resolveSpawnCommand(
       this.options.codexPath,
-      ['app-server', '--stdio'],
+      [
+        ...(this.options.configOverrides ?? []).flatMap(value => ['-c', value]),
+        'app-server',
+        '--stdio',
+      ],
       process.platform,
       environment.ComSpec,
     );

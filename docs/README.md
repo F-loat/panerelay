@@ -9,14 +9,14 @@ Start with the path that matches what you are trying to do. Product setup and us
 | Goal | Start here |
 | --- | --- |
 | Understand Panerelay and install it | [English quickstart](../README.md#quickstart) |
-| Let an Agent configure Panerelay and an automation tool | [`panerelay-browser` Skill](../skills/panerelay-browser/SKILL.md) |
+| Let an Agent use Panerelay Fetch or configure an automation tool | [`panerelay` Skill](../skills/panerelay/SKILL.md) |
 | Install only Panerelay for the browser side panel | [`@panerelay/setup` start guide](../packages/setup/README.md#start-here) |
 | Use agent-browser with authorized existing-browser tabs | [agent-browser integration guide](../packages/adapters/agent-browser/README.md) |
 | Use browser-use CLI, Skill, or CLI MCP with authorized Chrome tabs | [browser-use integration guide](../packages/adapters/browser-use/README.md) |
 | Explicitly attach Playwright CLI to authorized Chrome tabs | [Playwright CLI integration guide](../packages/adapters/playwright/README.md) |
 | Send browser-backed requests or use site adapters | [Browser-backed fetch](../README.md#browser-backed-fetch) |
 
-Install the unified Agent workflow with `npx skills add F-loat/panerelay --skill panerelay-browser`. The Skill is the version-controlled source for agent-browser, Browser Use, and Playwright CLI setup, use, verification, and troubleshooting.
+Install the unified Agent workflow with `npx skills add F-loat/panerelay --skill panerelay`. The Skill is the version-controlled source for browser-authenticated Fetch, Agent routing, and agent-browser, Browser Use, and Playwright CLI setup, use, verification, and troubleshooting.
 
 ## Operate and troubleshoot
 

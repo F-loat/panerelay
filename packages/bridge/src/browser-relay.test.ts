@@ -465,6 +465,7 @@ test('creates generation-bound fetch-only sessions and correlates Extension resu
     sendToExtension: message => {
       messages.push(message);
       if (message.type !== 'fetch.request') return;
+      if (message.request.url.endsWith('/pending')) return;
       void relay.handleExtensionMessage({
         type: 'fetch.result',
         protocol: PANERELAY_PROTOCOL_VERSION,
@@ -493,6 +494,7 @@ test('creates generation-bound fetch-only sessions and correlates Extension resu
       body: JSON.stringify({
         protocol: PANERELAY_FETCH_SESSION_PROTOCOL,
         browser: { browserId: 'browser-1', generation },
+        allowedOrigins: ['https://api.example.com'],
       }),
     });
   try {
@@ -549,6 +551,22 @@ test('creates generation-bound fetch-only sessions and correlates Extension resu
       false,
     );
 
+    const pendingResponse = fetch(session.endpoint, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${session.token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ url: 'https://api.example.com/pending' }),
+    });
+    while (
+      !messages.some(
+        message => message.type === 'fetch.request' && message.request.url.endsWith('/pending'),
+      )
+    ) {
+      await new Promise(resolve => setImmediate(resolve));
+    }
+
     const released = await fetch(
       `http://127.0.0.1:${relay.port}/fetch/sessions/${session.sessionId}`,
       {
@@ -557,6 +575,18 @@ test('creates generation-bound fetch-only sessions and correlates Extension resu
       },
     );
     assert.equal(released.status, 204);
+    assert.equal((await pendingResponse).status, 502);
+    const pendingRequest = messages.find(
+      (message): message is BrowserFetchRequestMessage =>
+        message.type === 'fetch.request' && message.request.url.endsWith('/pending'),
+    );
+    assert.equal(
+      messages.some(
+        message =>
+          message.type === 'fetch.cancel' && message.requestId === pendingRequest?.requestId,
+      ),
+      true,
+    );
     const afterRelease = await fetch(session.endpoint, {
       method: 'POST',
       headers: {
@@ -566,6 +596,72 @@ test('creates generation-bound fetch-only sessions and correlates Extension resu
       body: JSON.stringify({ url: 'https://api.example.com/missing' }),
     });
     assert.equal(afterRelease.status, 401);
+  } finally {
+    await relay.close();
+  }
+});
+
+test('rejects removed profile and credential metadata at the Bridge boundary', async () => {
+  const relay = await BrowserRelay.listen({
+    onBrowserDisconnected: () => {},
+    onBrowserRegistered: () => {},
+    sendToExtension: () => {},
+  });
+  try {
+    await register(relay);
+    const staleSession = await fetch(`http://127.0.0.1:${relay.port}/fetch/sessions`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${relay.token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        protocol: PANERELAY_FETCH_SESSION_PROTOCOL,
+        browser: { browserId: 'browser-1', generation: relay.generation },
+        allowedOrigins: ['https://api.example.com'],
+        adapterProfile: {
+          adapterId: 'example',
+          profileName: 'default',
+          secrets: [],
+        },
+      }),
+    });
+    assert.equal(staleSession.status, 400);
+
+    const created = await fetch(`http://127.0.0.1:${relay.port}/fetch/sessions`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${relay.token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        protocol: PANERELAY_FETCH_SESSION_PROTOCOL,
+        browser: { browserId: 'browser-1', generation: relay.generation },
+        allowedOrigins: ['https://api.example.com'],
+      }),
+    });
+    assert.equal(created.status, 201);
+    const session = (await created.json()) as BrowserFetchSessionCreated;
+    const staleFetch = await fetch(session.endpoint, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${session.token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        url: 'https://api.example.com/private',
+        credentialBindings: [
+          {
+            secretName: 'api-token',
+            destination: { kind: 'header', name: 'Authorization' },
+            transform: 'bearer',
+          },
+        ],
+        redirectMode: 'error',
+        responseType: 'json',
+      }),
+    });
+    assert.equal(staleFetch.status, 400);
   } finally {
     await relay.close();
   }
@@ -659,6 +755,47 @@ test('authenticates and correlates generation-bound Agent fetch domain approval'
       messages.some(message => message.type === 'control.session.changed'),
       false,
     );
+  } finally {
+    await relay.close();
+  }
+});
+
+test('cancels the Extension authorization popup when the HTTP caller disconnects', async () => {
+  const messages: HostToExtensionMessage[] = [];
+  const relay = await BrowserRelay.listen({
+    onBrowserDisconnected: () => {},
+    onBrowserRegistered: () => {},
+    sendToExtension: message => messages.push(message),
+  });
+  const controller = new AbortController();
+  try {
+    await register(relay);
+    const pending = fetch(`http://127.0.0.1:${relay.port}/fetch/permissions`, {
+      method: 'POST',
+      headers: {
+        authorization: `Bearer ${relay.token}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        protocol: PANERELAY_FETCH_PERMISSION_PROTOCOL,
+        browser: { browserId: 'browser-1', generation: relay.generation },
+        domain: 'api.example.com',
+      }),
+      signal: controller.signal,
+    });
+    while (!messages.some(message => message.type === 'fetch.permission.request')) {
+      await new Promise(resolve => setImmediate(resolve));
+    }
+    const request = messages.find(message => message.type === 'fetch.permission.request');
+    controller.abort();
+    await assert.rejects(pending, /abort/i);
+    while (!messages.some(message => message.type === 'fetch.permission.cancel')) {
+      await new Promise(resolve => setImmediate(resolve));
+    }
+    const cancellation = messages.find(message => message.type === 'fetch.permission.cancel');
+    assert.equal(cancellation?.requestId, request?.requestId);
+    assert.equal(cancellation?.browserId, 'browser-1');
+    assert.equal(cancellation?.generation, relay.generation);
   } finally {
     await relay.close();
   }

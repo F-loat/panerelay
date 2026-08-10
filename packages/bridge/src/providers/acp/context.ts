@@ -4,12 +4,12 @@ export const PANERELAY_CONTEXT_START = '<panerelay-context version="1">';
 export const PANERELAY_CONTEXT_END = '</panerelay-context>';
 
 const LEGACY_BASE_CONTEXT = [
-  'For work in the user’s existing authorized browser tabs, first load and follow the $panerelay-browser Skill.',
-  'Do not switch to another browser automation Skill or tool while $panerelay-browser is available.',
-  'If $panerelay-browser is unavailable after the user explicitly requests browser work, treat that browser-work request as authorization to attempt one canonical Skill installation with:',
-  'npx skills add F-loat/panerelay --skill panerelay-browser',
+  'For browser-authenticated Fetch, Panerelay setup, or work in the user’s existing authorized browser tabs, first load and follow the $panerelay Skill.',
+  'Do not switch to another browser automation Skill or tool while $panerelay is available.',
+  'If $panerelay is unavailable after the user explicitly requests Panerelay work, treat that request as authorization to attempt one canonical Skill installation with:',
+  'npx skills add F-loat/panerelay --skill panerelay',
   'Still follow the provider’s normal command-approval flow, and do not retry the installation after the user denies it.',
-  'After a successful installation, load $panerelay-browser and follow its workflow.',
+  'After a successful installation, load $panerelay and follow its workflow.',
   'Only if installation cannot complete, explain why and then fall back to another available browser automation tool, clearly identifying the fallback.',
   'Do not claim Panerelay browser access before the Skill is available and its authorization workflow succeeds.',
 ].join('\n');
@@ -28,7 +28,7 @@ const LEGACY_SETUP_SUFFIX = [
   'Before the first direct attempt, do not repeat generic operating-system, shell, Node.js, executable-version, Panerelay setup, or doctor checks.',
   'For an ordinary task, this fast-path rule takes precedence over the Skill’s generic readiness workflow.',
   'A registration does not prove that its executable is still present, the Extension is connected, any tab is authorized, or a control lease exists.',
-  'If the first direct invocation or attach fails, treat the hint as stale and follow only the smallest targeted diagnostic or repair from $panerelay-browser.',
+  'If the first direct invocation or attach fails, treat the hint as stale and follow only the smallest targeted diagnostic or repair from $panerelay.',
   'For explicit setup, verification, or troubleshooting requests, follow the full Skill workflow instead of this fast path.',
 ].join('\n');
 

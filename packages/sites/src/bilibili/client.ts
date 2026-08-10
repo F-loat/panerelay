@@ -225,13 +225,7 @@ export class BilibiliClient {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: { encoding: 'utf8', data: body },
-        cookieBindings: [
-          {
-            cookieName: 'bili_jct',
-            destination: { kind: 'form', name: 'csrf' },
-            required: true,
-          },
-        ],
+        bindings: ['bilibili-csrf'],
         responseType: 'json',
         withCookies: true,
       },

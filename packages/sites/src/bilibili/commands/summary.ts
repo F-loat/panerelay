@@ -1,4 +1,4 @@
-import { defineCommand } from '@panerelay/site-kit';
+import { defineCommand, SiteError } from '@panerelay/site-kit';
 import {
   type AdapterArgs,
   BilibiliClient,
@@ -50,18 +50,19 @@ export async function commandSummary(client: BilibiliClient, args: AdapterArgs):
     await client.data('/x/web-interface/view/conclusion/get', { bvid, cid, up_mid: upMid }, true),
     'conclusion data',
   );
-  if (conclusion.code !== 0) throw new Error(`No Bilibili AI summary found for ${bvid}`);
+  if (conclusion.code !== 0)
+    throw new SiteError('empty-result', `No Bilibili AI summary found for ${bvid}`);
   let model: unknown = conclusion.model_result;
   if (typeof model === 'string') {
     try {
       model = JSON.parse(model) as unknown;
     } catch {
-      throw new Error('Bilibili summary model is malformed');
+      throw new SiteError('shape-drift', 'Bilibili summary model is malformed');
     }
   }
   const result = objectValue(model, 'summary model');
   const summary = stringValue(result.summary).trim();
-  if (!summary) throw new Error(`No Bilibili AI summary found for ${bvid}`);
+  if (!summary) throw new SiteError('empty-result', `No Bilibili AI summary found for ${bvid}`);
   const rows = [{ time: '', content: summary }];
   for (const value of arrayValue(result.outline ?? [], 'summary outline')) {
     const section = objectValue(value, 'summary section');

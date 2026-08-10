@@ -8,7 +8,7 @@
 - Last verified: 2026-08-06
 - Last updated: 2026-08-06
 
-This record covers the setup-managed Panerelay connection adapter, the fixed Browser Harness environment default consumed by the official Browser Use CLI and CLI MCP, and the Browser Use workflow in the independently installed unified `panerelay-browser` Skill. It does not claim transparent interception of arbitrary Browser Use Python SDK construction or the official Browser Use Skill.
+This record covers the setup-managed Panerelay connection adapter, the fixed Browser Harness environment default consumed by the official Browser Use CLI and CLI MCP, and the Browser Use workflow in the independently installed unified `panerelay` Skill. It does not claim transparent interception of arbitrary Browser Use Python SDK construction or the official Browser Use Skill.
 
 This is exact evidence for Browser Use 0.13.7 and its Browser Harness 0.1.8 runtime, not a claim about every later release. Panerelay's user-facing compatibility floor is Browser Use 0.13.7; setup and doctor also verify the completeness of its internal runtime, but present one Browser Use check. A newer stable installation that passes the minimum gate is eligible to run and is not automatically classified as Verified by this record.
 

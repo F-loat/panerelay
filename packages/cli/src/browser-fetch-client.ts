@@ -7,10 +7,12 @@ import {
   isBrowserFetchResponse,
   isBrowserFetchSessionCreated,
   isBrowserFetchSessionError,
+  browserFetchOriginForUrl,
   type BrowserFetchRequest,
   type BrowserFetchPermissionResult,
   type BrowserFetchResponse,
   type BrowserFetchSessionCreated,
+  type BrowserFetchBindingPolicy,
   type BridgeState,
 } from '@panerelay/protocol';
 
@@ -18,6 +20,12 @@ export type BrowserFetchHttpClient = (input: string | URL, init?: RequestInit) =
 
 export interface BrowserFetchClientOptions {
   fetch?: BrowserFetchHttpClient;
+  signal?: AbortSignal;
+}
+
+export interface BrowserFetchSessionAuthority {
+  allowedOrigins: string[];
+  bindingPolicies?: BrowserFetchBindingPolicy[];
 }
 
 export interface ActiveBrowserFetchSession {
@@ -69,6 +77,7 @@ export async function requestBrowserFetchPermission(
       browser: { browserId: state.browserId, generation: state.generation },
       domain,
     }),
+    signal: options.signal,
   });
   const payload = boundedJsonPayload(await response.text(), 4_096);
   if (!response.ok) {
@@ -84,6 +93,7 @@ export async function requestBrowserFetchPermission(
 
 export async function createBrowserFetchSession(
   state: BridgeState,
+  authority: BrowserFetchSessionAuthority,
   options: BrowserFetchClientOptions = {},
 ): Promise<ActiveBrowserFetchSession> {
   const response = await httpClient(options)(`http://127.0.0.1:${state.port}/fetch/sessions`, {
@@ -95,7 +105,10 @@ export async function createBrowserFetchSession(
     body: JSON.stringify({
       protocol: PANERELAY_FETCH_SESSION_PROTOCOL,
       browser: { browserId: state.browserId, generation: state.generation },
+      allowedOrigins: authority.allowedOrigins,
+      ...(authority.bindingPolicies ? { bindingPolicies: authority.bindingPolicies } : {}),
     }),
+    signal: options.signal,
   });
   const payload = boundedJsonPayload(await response.text(), 4_096);
   if (!response.ok) {
@@ -142,6 +155,7 @@ export async function runBrowserFetchInSession(
       'content-type': 'application/json',
     },
     body: JSON.stringify(request),
+    signal: options.signal,
   });
   const responseText = await response.text();
   const payload = boundedJsonPayload(responseText, response.ok ? 48 * 1024 * 1024 : 4_096);
@@ -162,10 +176,12 @@ export async function runBrowserFetch(
   request: BrowserFetchRequest,
   options: BrowserFetchClientOptions = {},
 ): Promise<BrowserFetchResponse> {
-  const active = await createBrowserFetchSession(state, options);
+  const origin = browserFetchOriginForUrl(request.url);
+  if (!origin) throw new Error('Browser fetch requires an absolute HTTP(S) URL');
+  const active = await createBrowserFetchSession(state, { allowedOrigins: [origin] }, options);
   try {
     return await runBrowserFetchInSession(active, request, options);
   } finally {
-    await releaseBrowserFetchSession(active, options).catch(() => undefined);
+    await releaseBrowserFetchSession(active, { fetch: options.fetch }).catch(() => undefined);
   }
 }

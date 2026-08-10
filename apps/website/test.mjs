@@ -99,8 +99,8 @@ test('source contains the complete product and installation journey', async () =
     'Connect your automation tools.',
     'npx --yes @panerelay/setup',
     'Two installation steps.',
-    'Install one Skill for all three engines.',
-    'npx skills add F-loat/panerelay --skill panerelay-browser',
+    'Install one Skill for every Panerelay workflow.',
+    'npx skills add F-loat/panerelay --skill panerelay',
     'Browser access',
     'This tab',
     'All tabs',
@@ -156,16 +156,13 @@ test('source contains the complete product and installation journey', async () =
   );
   assert.match(
     html,
-    /data-i18n="demo\.tool\.prompt">\s*Use the panerelay-browser Skill\. Set up agent-browser, run doctor, and stop\s+when I need to authorize a tab\./,
+    /data-i18n="demo\.tool\.prompt">\s*Use the panerelay Skill\. Set up agent-browser, run doctor, and stop\s+when I\s+need to authorize a tab\./,
   );
   assert.doesNotMatch(html, /retry-action|demo\.local\.retry/);
   assert.match(i18n, /'setup\.authorization\.link': 'Read advanced setup and manual use'/);
   assert.match(i18n, /'setup\.authorization\.link': '查看高级设置与手动使用'/);
   assert.match(html, /F-loat\/panerelay#advanced-setup-and-installation-management/);
-  assert.equal(
-    (i18n.match(/npx skills add F-loat\/panerelay --skill panerelay-browser/g) ?? []).length,
-    2,
-  );
+  assert.equal((i18n.match(/npx skills add F-loat\/panerelay --skill panerelay/g) ?? []).length, 2);
 
   const englishCatalog = i18n.slice(
     i18n.indexOf('const english ='),
@@ -362,8 +359,8 @@ test('source provides complete English and Simplified Chinese language contracts
   assert.match(i18n, /释放控制不会暗中改变授权范围/);
   assert.match(i18n, /后台工作，不抢焦点/);
   assert.match(i18n, /已找出 2 个影响发布的问题/);
-  assert.match(i18n, /使用 panerelay-browser Skill，完成 agent-browser 接入并运行 doctor/);
-  assert.match(i18n, /一个 Skill 覆盖三种集成/);
+  assert.match(i18n, /使用 panerelay Skill，完成 agent-browser 接入并运行 doctor/);
+  assert.match(i18n, /一个 Skill 覆盖所有 Panerelay 工作流/);
   assert.match(i18n, /统一 Skill 中的 Browser Harness CLI/);
   assert.match(i18n, /控制权始终看得见/);
   assert.match(i18n, /当前标签页仍保持授权；再次点击已选范围，才会取消授权/);
@@ -549,7 +546,7 @@ test('comparison pages provide bilingual, sourced, and responsive decision suppo
 });
 
 test('unified Agent Skill keeps upstream installation and user authorization explicit', async () => {
-  const skill = await read('../../skills/panerelay-browser/SKILL.md');
+  const skill = await read('../../skills/panerelay/SKILL.md');
   const packageJson = JSON.parse(await read('package.json'));
 
   assert.equal(packageJson.dependencies.gsap.startsWith('^3.'), true);
@@ -564,7 +561,7 @@ test('unified Agent Skill keeps upstream installation and user authorization exp
   assert.match(skill, /playwright-cli attach --cdp http:\/\/127\.0\.0\.1:43827\/cdp\/playwright/);
   assert.match(skill, /Stop for user-owned browser authorization/);
   assert.match(skill, /Do not claim completion/);
-  assert.match(skill, /npx skills add F-loat\/panerelay --skill panerelay-browser/);
+  assert.match(skill, /npx skills add F-loat\/panerelay --skill panerelay/);
   await assert.rejects(read('dist/agent-setup.md'), /ENOENT/);
 });
 

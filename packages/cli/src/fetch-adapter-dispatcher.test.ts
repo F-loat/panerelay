@@ -9,11 +9,12 @@ import { dispatchFetchAdapter } from './fetch-adapter-dispatcher.js';
 function registration(executablePath: string): FetchAdapterRegistration {
   return {
     manifest: {
-      protocol: 'panerelay.fetch-adapter.v1',
+      protocol: 'panerelay.fetch-adapter.v3',
       id: 'fixture',
       name: 'Fixture',
       version: '1.0.0',
       description: 'Test fixture.',
+      origins: ['https://example.com'],
       entry: 'adapter.mjs',
       commands: [
         {
@@ -47,7 +48,7 @@ const active = {
     updatedAt: new Date().toISOString(),
   },
   session: {
-    protocol: 'panerelay.fetch-session.v1' as const,
+    protocol: 'panerelay.fetch-session.v3' as const,
     sessionId: 'session',
     endpoint: 'http://127.0.0.1:41234/fetch',
     token: 'adapter-fetch-token-secret',
@@ -102,7 +103,7 @@ process.stdout.write(JSON.stringify({
   requestId: request.requestId,
   operation: request.operation,
   success: false,
-  error: 'failed with ' + request.fetch.token,
+  error: { code: 'command-failed', message: 'failed with ' + request.fetch.token },
 }));
 `,
     { mode: 0o600 },

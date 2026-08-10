@@ -35,6 +35,10 @@ export type SetupOperation = 'setup' | 'doctor' | 'uninstall' | 'add' | 'remove'
 export interface ParsedSetupArgs {
   agentBrowser: boolean;
   browserUse: boolean;
+  claudeFetch?: boolean;
+  codexFetch?: boolean;
+  removeClaudeFetch?: boolean;
+  removeCodexFetch?: boolean;
   playwright: boolean;
   extensionId?: string;
   globalDefault: boolean;
@@ -198,6 +202,10 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
   let globalDefault = false;
   let agentBrowser = false;
   let browserUse = false;
+  let claudeFetch = false;
+  let codexFetch = false;
+  let removeClaudeFetch = false;
+  let removeCodexFetch = false;
   let playwright = false;
   let json = false;
   let yes = false;
@@ -207,6 +215,10 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
     if (argument === '--global-default') globalDefault = true;
     else if (argument === '--agent-browser') agentBrowser = true;
     else if (argument === '--browser-use') browserUse = true;
+    else if (argument === '--claude-fetch') claudeFetch = true;
+    else if (argument === '--codex-fetch') codexFetch = true;
+    else if (argument === '--remove-claude-fetch') removeClaudeFetch = true;
+    else if (argument === '--remove-codex-fetch') removeCodexFetch = true;
     else if (argument === '--playwright') playwright = true;
     else if (argument === '--json') json = true;
     else if (argument === '--extension-id' || argument.startsWith('--extension-id=')) {
@@ -238,6 +250,18 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
   if (playwright && operation === 'uninstall') {
     throw new Error('--playwright is not needed with uninstall');
   }
+  if ((claudeFetch || codexFetch) && operation === 'uninstall') {
+    throw new Error('--codex-fetch and --claude-fetch are not needed with uninstall');
+  }
+  if ((removeClaudeFetch || removeCodexFetch) && operation !== 'setup') {
+    throw new Error('--remove-*-fetch is only available with setup');
+  }
+  if (claudeFetch && removeClaudeFetch) {
+    throw new Error('--claude-fetch cannot be combined with --remove-claude-fetch');
+  }
+  if (codexFetch && removeCodexFetch) {
+    throw new Error('--codex-fetch cannot be combined with --remove-codex-fetch');
+  }
   if (extensionId && operation === 'uninstall') {
     throw new Error('--extension-id is not available with uninstall');
   }
@@ -247,6 +271,10 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
   return {
     agentBrowser,
     browserUse,
+    ...(claudeFetch ? { claudeFetch: true } : {}),
+    ...(codexFetch ? { codexFetch: true } : {}),
+    ...(removeClaudeFetch ? { removeClaudeFetch: true } : {}),
+    ...(removeCodexFetch ? { removeCodexFetch: true } : {}),
     playwright,
     ...(extensionId ? { extensionId } : {}),
     globalDefault,
@@ -776,6 +804,8 @@ export async function main(
       const report = await (dependencies.doctor ?? doctorPanerelay)({
         agentBrowser: parsed.agentBrowser,
         browserUse: parsed.browserUse,
+        ...(parsed.claudeFetch ? { claudeFetch: true } : {}),
+        ...(parsed.codexFetch ? { codexFetch: true } : {}),
         playwright: parsed.playwright,
         environment: dependencies.environment,
         extensionId: parsed.extensionId,
@@ -807,6 +837,10 @@ export async function main(
     let setupOptions: PanerelaySetupOptions = {
       agentBrowser: parsed.agentBrowser,
       browserUse: parsed.browserUse,
+      ...(parsed.claudeFetch ? { claudeFetch: true } : {}),
+      ...(parsed.codexFetch ? { codexFetch: true } : {}),
+      ...(parsed.removeClaudeFetch ? { removeClaudeFetch: true } : {}),
+      ...(parsed.removeCodexFetch ? { removeCodexFetch: true } : {}),
       playwright: parsed.playwright,
       environment: dependencies.environment,
       extensionId: parsed.extensionId,
@@ -820,6 +854,10 @@ export async function main(
       parsed.operation === 'setup' &&
       !parsed.agentBrowser &&
       !parsed.browserUse &&
+      !parsed.claudeFetch &&
+      !parsed.codexFetch &&
+      !parsed.removeClaudeFetch &&
+      !parsed.removeCodexFetch &&
       !parsed.playwright &&
       !parsed.yes &&
       (dependencies.interactive ?? isInteractiveTerminal)()
@@ -842,6 +880,10 @@ export async function main(
     }
     const selectedAgentBrowser = setupOptions.agentBrowser === true;
     const selectedBrowserUse = setupOptions.browserUse === true;
+    const selectedClaudeFetch = setupOptions.claudeFetch === true;
+    const selectedCodexFetch = setupOptions.codexFetch === true;
+    const selectedRemoveClaudeFetch = setupOptions.removeClaudeFetch === true;
+    const selectedRemoveCodexFetch = setupOptions.removeCodexFetch === true;
     const selectedPlaywright = setupOptions.playwright === true;
     const selectedGlobalDefault = setupOptions.globalDefault === true;
     if (interactiveSetup) {
@@ -866,13 +908,54 @@ export async function main(
         : translate(locale, 'extensionCustomNextStep', { id: result.host.extensionId }),
     );
 
-    if (selectedAgentBrowser || selectedBrowserUse || selectedPlaywright) {
+    if (
+      selectedAgentBrowser ||
+      selectedBrowserUse ||
+      selectedPlaywright ||
+      selectedCodexFetch ||
+      selectedClaudeFetch ||
+      selectedRemoveCodexFetch ||
+      selectedRemoveClaudeFetch
+    ) {
       console.log('');
       console.log(translate(locale, 'setupGroupAutomation'));
     }
 
     if (result.removedBrowserUseIntegration?.detachedDaemonMayRemain) {
       console.log(translate(locale, 'browserUseDetachedDaemon'));
+    }
+
+    if (selectedCodexFetch) {
+      printSetupCheck(
+        result.codexFetchConfigPath ? 'pass' : 'fail',
+        translate(locale, 'setupCodexFetch'),
+        result.codexFetchConfigPath ?? translate(locale, 'setupNotFound'),
+      );
+    }
+    if (selectedClaudeFetch) {
+      printSetupCheck(
+        result.claudeFetchConfigPaths ? 'pass' : 'fail',
+        translate(locale, 'setupClaudeFetch'),
+        result.claudeFetchConfigPaths
+          ? `${result.claudeFetchConfigPaths.configPath}; ${result.claudeFetchConfigPaths.settingsPath}`
+          : translate(locale, 'setupNotFound'),
+      );
+    }
+    if (selectedRemoveCodexFetch) {
+      printSetupCheck(
+        'pass',
+        translate(locale, 'setupCodexFetchRemoved'),
+        result.removedCodexFetchConfigPath ?? translate(locale, 'setupNotConfigured'),
+      );
+    }
+    if (selectedRemoveClaudeFetch) {
+      printSetupCheck(
+        'pass',
+        translate(locale, 'setupClaudeFetchRemoved'),
+        result.removedClaudeFetchConfigPaths
+          ? `${result.removedClaudeFetchConfigPaths.configPath}; ${result.removedClaudeFetchConfigPaths.settingsPath}`
+          : translate(locale, 'setupNotConfigured'),
+      );
     }
 
     const agentBrowserReady = result.agentBrowserInstallation?.supported === true;

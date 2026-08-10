@@ -1,4 +1,0 @@
-interface:
-  display_name: 'Panerelay Browser'
-  short_description: 'Set up and use three browser engines through Panerelay'
-  default_prompt: 'Use $panerelay-browser to set up or operate my explicitly authorized current-browser tabs with the automation engine I request.'

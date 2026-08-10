@@ -17,7 +17,7 @@ Panerelay setup verifies browser-use but does not install, upgrade, downgrade, r
 Install the unified Skill, then ask your Agent to use its Browser Use workflow:
 
 ```bash
-npx skills add F-loat/panerelay --skill panerelay-browser
+npx skills add F-loat/panerelay --skill panerelay
 ```
 
 The Skill defines environment inspection, official upstream installation when needed, Panerelay integration, the user authorization stop, verification, and troubleshooting.
@@ -94,7 +94,7 @@ The official `browser-use` executable remains the user-installed command. This p
 | Surface | Support |
 | --- | --- |
 | Official browser-use CLI with setup-managed environment | Supported |
-| Browser Use workflow in the independent `panerelay-browser` Skill | Supported |
+| Browser Use workflow in the independent `panerelay` Skill | Supported |
 | Official `browser-use --cli-mcp` | Supported |
 | Saved Direct or Extension mode and one-run override | Supported |
 | Arbitrary browser-use Python SDK construction | Not transparently intercepted; requires explicit connection integration |

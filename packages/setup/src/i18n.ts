@@ -65,6 +65,11 @@ const englishMessages = {
   setupAgentBrowser: 'agent-browser',
   setupBrowserHarnessEnvironment: 'Browser Harness environment',
   setupBrowserUse: 'Browser Use',
+  setupClaudeFetch: 'Claude Code browser fetch routing',
+  setupCodexFetch: 'Codex browser fetch routing',
+  setupClaudeFetchRemoved: 'Claude Code browser fetch routing removed',
+  setupCodexFetchRemoved: 'Codex browser fetch routing removed',
+  setupNotConfigured: 'Not configured',
   setupBrowserUseCommand: 'Browser Use command:',
   setupPlaywright: 'Playwright CLI',
   setupPlaywrightConfig: 'Playwright config:',
@@ -91,8 +96,8 @@ const englishMessages = {
   help: `Panerelay Setup
 
 Usage:
-  npx --yes @panerelay/setup [--agent-browser] [--browser-use] [--playwright] [--global-default] [--extension-id <id>] [--lang <language>]
-  npx --yes @panerelay/setup doctor [--agent-browser] [--browser-use] [--playwright] [--global-default] [--extension-id <id>] [--json] [--lang <language>]
+  npx --yes @panerelay/setup [--agent-browser] [--browser-use] [--playwright] [--codex-fetch|--remove-codex-fetch] [--claude-fetch|--remove-claude-fetch] [--global-default] [--extension-id <id>] [--lang <language>]
+  npx --yes @panerelay/setup doctor [--agent-browser] [--browser-use] [--playwright] [--codex-fetch] [--claude-fetch] [--global-default] [--extension-id <id>] [--json] [--lang <language>]
   npx --yes @panerelay/setup uninstall [--yes] [--lang <language>]
   npx --yes @panerelay/setup add <adapter|path|github-source>... | --all
   npx --yes @panerelay/setup remove <adapter>... | --all
@@ -109,6 +114,11 @@ Options:
   --agent-browser      Also install or diagnose the Panerelay agent-browser integration
   --browser-use        Also install or diagnose the Panerelay Browser Use integration
   --playwright         Also install or diagnose the Panerelay Playwright CLI integration
+  --codex-fetch        Route external Codex web access through Panerelay Fetch MCP
+  --claude-fetch       Route external Claude Code WebFetch through Panerelay Fetch MCP
+  --remove-codex-fetch Remove Panerelay-owned external Codex fetch routing
+  --remove-claude-fetch
+              Remove Panerelay-owned external Claude Code fetch routing
   --global-default
               Set selected automation integrations as user-level defaults
   --extension-id
@@ -124,6 +134,10 @@ Optional automation integrations:
   npx --yes @panerelay/setup --agent-browser
   npx --yes @panerelay/setup --browser-use
   npx --yes @panerelay/setup --playwright
+  npx --yes @panerelay/setup --codex-fetch
+  npx --yes @panerelay/setup --claude-fetch
+  npx --yes @panerelay/setup --remove-codex-fetch
+  npx --yes @panerelay/setup --remove-claude-fetch
 
 Optional fetch adapters:
   npx --yes @panerelay/setup add bilibili
@@ -203,6 +217,11 @@ const chineseMessages: Record<MessageKey, string> = {
   setupAgentBrowser: 'agent-browser',
   setupBrowserHarnessEnvironment: 'Browser Harness 环境',
   setupBrowserUse: 'Browser Use',
+  setupClaudeFetch: 'Claude Code 浏览器 Fetch 路由',
+  setupCodexFetch: 'Codex 浏览器 Fetch 路由',
+  setupClaudeFetchRemoved: '已移除 Claude Code 浏览器 Fetch 路由',
+  setupCodexFetchRemoved: '已移除 Codex 浏览器 Fetch 路由',
+  setupNotConfigured: '未配置',
   setupBrowserUseCommand: 'Browser Use 命令：',
   playwrightMissing:
     '警告：未找到 Playwright CLI 0.1.17 或更高版本。请安装或升级上游 CLI 后，使用 --playwright 重新运行 setup。',
@@ -230,8 +249,8 @@ const chineseMessages: Record<MessageKey, string> = {
   help: `Panerelay 安装工具
 
 用法：
-  npx --yes @panerelay/setup [--agent-browser] [--browser-use] [--playwright] [--global-default] [--extension-id <id>] [--lang <语言>]
-  npx --yes @panerelay/setup doctor [--agent-browser] [--browser-use] [--playwright] [--global-default] [--extension-id <id>] [--json] [--lang <语言>]
+  npx --yes @panerelay/setup [--agent-browser] [--browser-use] [--playwright] [--codex-fetch|--remove-codex-fetch] [--claude-fetch|--remove-claude-fetch] [--global-default] [--extension-id <id>] [--lang <语言>]
+  npx --yes @panerelay/setup doctor [--agent-browser] [--browser-use] [--playwright] [--codex-fetch] [--claude-fetch] [--global-default] [--extension-id <id>] [--json] [--lang <语言>]
   npx --yes @panerelay/setup uninstall [--yes] [--lang <语言>]
   npx --yes @panerelay/setup add <适配器|路径|GitHub 来源>... | --all
   npx --yes @panerelay/setup remove <适配器>... | --all
@@ -248,6 +267,11 @@ const chineseMessages: Record<MessageKey, string> = {
   --agent-browser      同时安装或诊断 Panerelay agent-browser 集成
   --browser-use        同时安装或诊断 Panerelay Browser Use 集成
   --playwright         同时安装或诊断 Panerelay Playwright CLI 集成
+  --codex-fetch        将外部 Codex 网络访问路由到 Panerelay Fetch MCP
+  --claude-fetch       将外部 Claude Code WebFetch 路由到 Panerelay Fetch MCP
+  --remove-codex-fetch 移除 Panerelay 管理的外部 Codex Fetch 路由
+  --remove-claude-fetch
+              移除 Panerelay 管理的外部 Claude Code Fetch 路由
   --global-default
               将选中的自动化集成设为用户级默认
   --extension-id
@@ -263,6 +287,10 @@ const chineseMessages: Record<MessageKey, string> = {
   npx --yes @panerelay/setup --agent-browser
   npx --yes @panerelay/setup --browser-use
   npx --yes @panerelay/setup --playwright
+  npx --yes @panerelay/setup --codex-fetch
+  npx --yes @panerelay/setup --claude-fetch
+  npx --yes @panerelay/setup --remove-codex-fetch
+  npx --yes @panerelay/setup --remove-claude-fetch
 
 可选 Fetch 适配器：
   npx --yes @panerelay/setup add bilibili

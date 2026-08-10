@@ -32,7 +32,7 @@ test('creates, uses, and releases one generation-bound fetch session', async () 
         if (url.endsWith('/fetch/sessions') && init?.method === 'POST') {
           return Response.json(
             {
-              protocol: 'panerelay.fetch-session.v1',
+              protocol: 'panerelay.fetch-session.v3',
               sessionId: 'session-1',
               endpoint: 'http://127.0.0.1:41234/fetch',
               token: 'fetch-session-secret-token',
@@ -76,7 +76,7 @@ test('does not include bearer credentials in Bridge failures', async () => {
       {
         fetch: async () =>
           Response.json(
-            { protocol: 'panerelay.fetch-session.v1', error: 'generation changed' },
+            { protocol: 'panerelay.fetch-session.v3', error: 'generation changed' },
             { status: 409 },
           ),
       },

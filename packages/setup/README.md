@@ -17,17 +17,33 @@ npx --yes @panerelay/setup doctor
 
 The base command always installs the Native Host and side-panel prerequisites. In an interactive terminal it also offers one automation-integration selector; in non-interactive use it remains engine-neutral. Setup does not manage an Agent Skill or change `PATH`.
 
-Agents in the side panel keep the selected project as their working directory and receive only bounded current-tab URL and title context. Browser MCP servers and Skills continue to come from the Agent's own configuration.
+Agents in the side panel keep the selected project as their working directory and receive only bounded current-tab URL and title context. Panerelay-owned Codex and Claude Code processes also receive the bounded Panerelay Fetch MCP for browser-authenticated HTTP(S) requests. Automation MCP servers and Skills continue to come from the Agent's own configuration.
+
+### Optional browser-authenticated fetch for external Agents
+
+Codex and Claude Code have native hosted fetch/search surfaces that cannot be replaced by hooks. Panerelay can explicitly configure their supported MCP/settings surfaces so requests to known URLs use `panerelay_fetch` with the browser's login state:
+
+```bash
+npx --yes @panerelay/setup --codex-fetch
+npx --yes @panerelay/setup --claude-fetch
+npx --yes @panerelay/setup doctor --codex-fetch --claude-fetch
+npx --yes @panerelay/setup --remove-codex-fetch
+npx --yes @panerelay/setup --remove-claude-fetch
+```
+
+`--codex-fetch` registers the MCP and disables Codex hosted web search. `--claude-fetch` registers the MCP and denies Claude `WebFetch` while leaving `WebSearch` available. The matching `--remove-*-fetch` option removes only that integration. These are explicit global Agent configuration changes: base setup and the interactive automation selector do not enable them. Setup uses marked/structured Panerelay-owned entries, rejects an unmanaged `panerelay_fetch` conflict, and removal or full uninstall removes only unchanged owned entries while restoring the previous Codex web-search value. It does not install either Agent, patch a vendor runtime, accept API keys, or guarantee model tool selection.
+
+The MCP is a generic HTTP(S) request path with exact-origin session authority and explicit Extension domain approval. It attaches applicable browser Cookies by default, rejects redirects, and never returns Cookie or storage values. Arbitrary `localStorage` access is not exposed; a built-in/site adapter may use only a protected exact-origin storage binding declared in its manifest.
 
 ### Automation tool integrations — let your Agent configure them
 
 Install the unified Skill with the standard Agent Skills CLI:
 
 ```bash
-npx skills add F-loat/panerelay --skill panerelay-browser
+npx skills add F-loat/panerelay --skill panerelay
 ```
 
-Then ask the Agent to use `$panerelay-browser` with the engine you want. The Skill covers environment inspection, official upstream installation only when needed, selected Panerelay setup and doctor commands, a stop for user-controlled tab authorization, engine-specific verification, and troubleshooting.
+Then ask the Agent to use `$panerelay`. The Skill chooses browser-authenticated Fetch or the requested automation engine and covers environment inspection, official upstream installation only when needed, selected Panerelay setup and doctor commands, a stop for user-controlled authorization, engine-specific verification, and troubleshooting.
 
 Skill installation, scope, updates, and removal are owned by `npx skills`. Setup does not inspect Agent Skill directories or remove independently installed Skills.
 
@@ -69,7 +85,7 @@ npx --yes @panerelay/setup remove --all
 
 A local source may be either the strict installed two-file form or an editable site-kit directory containing `panerelay.site.ts` and direct `commands/*.ts` files. Source-form adapters are built in protected temporary storage through `@panerelay/site-kit`; setup never writes generated files into the author directory and never runs colocated tests. Active files and the atomic registry are stored under `~/.panerelay/fetch-adapters` with user-only permissions. `adapters` shows recorded built-in, absolute local, or GitHub commit provenance. Re-running `add` explicitly replaces that site; `remove` changes only selected fetch-adapter records and owned version directories, not the Native Host, automation integrations, browser defaults, or conversations.
 
-The installed form contains exactly `panerelay-fetch-adapter.json` and the self-contained `.mjs` entry named by its `entry` field. The manifest protocol is `panerelay.fetch-adapter.v1` and declares a bounded ID, name, version, description, commands, typed arguments, output fields, and examples. Installed code runs as a one-shot Node child with a minimal environment and a short-lived fetch-only Bridge credential. Local and GitHub installation are explicit trust decisions: static build, process isolation, and digest verification do not sandbox later command execution from the user's filesystem.
+The installed form contains exactly `panerelay-fetch-adapter.json` and the self-contained `.mjs` entry named by its `entry` field. The manifest protocol is `panerelay.fetch-adapter.v3` and declares a bounded ID, name, version, description, commands, typed arguments, output fields, and examples. Installed code runs as a one-shot Node child with a minimal environment and a short-lived fetch-only Bridge credential. Local and GitHub installation are explicit trust decisions: static build, process isolation, and digest verification do not sandbox later command execution from the user's filesystem.
 
 Create, check, test, and build a source adapter without a nested npm package:
 
@@ -119,7 +135,7 @@ Setup writes it to Browser Harness's user-scoped environment file. The official 
 
 The explicit `BU_CDP_URL=` prefix is a one-process override. After saving Extension mode, it can be omitted. Do not set Browser Harness's higher-priority `BU_CDP_WS` at the same time.
 
-The supported surfaces are the official `browser-use` CLI, `browser-use --cli-mcp`, and the Browser Use workflow in the independently installed `panerelay-browser` Skill. Panerelay does not transparently intercept arbitrary browser-use Python SDK construction. The exact verified baseline is browser-use 0.13.7 with Browser Harness 0.1.8; newer supported versions meet the minimum without automatically inheriting `Verified` status. See the [compatibility record](../../docs/compatibility/browser-use-0.13.7.md).
+The supported surfaces are the official `browser-use` CLI, `browser-use --cli-mcp`, and the Browser Use workflow in the independently installed `panerelay` Skill. Panerelay does not transparently intercept arbitrary browser-use Python SDK construction. The exact verified baseline is browser-use 0.13.7 with Browser Harness 0.1.8; newer supported versions meet the minimum without automatically inheriting `Verified` status. See the [compatibility record](../../docs/compatibility/browser-use-0.13.7.md).
 
 The base CLI controls the durable Browser Use mode:
 
@@ -153,11 +169,11 @@ Choose the intended authorized tab ID from the first `tab-list` result. After `t
 
 Setup verifies the upstream executable and registers only Panerelay-owned adapter metadata. It does not install a shim, modify `PATH` or shell startup files, write user-owned Playwright configuration, or set Playwright as a default. Users who want persistent explicit configuration may set `PLAYWRIGHT_MCP_CDP_ENDPOINT` or manage their own `.playwright/cli.config.json`.
 
-The independently installed `panerelay-browser` Skill contains the Playwright workflow. See the [Playwright integration guide](../adapters/playwright/README.md) and [compatibility record](../../docs/compatibility/playwright-cli-0.1.17.md).
+The independently installed `panerelay` Skill contains the Playwright workflow. See the [Playwright integration guide](../adapters/playwright/README.md) and [compatibility record](../../docs/compatibility/playwright-cli-0.1.17.md).
 
 This connection reuses authorized tabs and does not provide isolated BrowserContexts, launch-time executable or proxy options, or browser-wide close. The fixed endpoint is loopback discovery, not a reusable browser credential.
 
-Omitting an action runs `setup`. In an interactive terminal, the unflagged command presents the desired-state selector described above. In non-interactive use it installs only the Native Messaging host and side-panel prerequisites. Add `--agent-browser`, `--browser-use`, and/or `--playwright` to install integrations explicitly without removing omitted integrations.
+Omitting an action runs `setup`. In an interactive terminal, the unflagged command presents the desired-state selector described above. In non-interactive use it installs only the Native Messaging host and side-panel prerequisites. Add `--agent-browser`, `--browser-use`, and/or `--playwright` to install automation integrations explicitly without removing omitted integrations. Add `--codex-fetch` or `--claude-fetch` only when the user explicitly wants the corresponding external-Agent configuration.
 
 ```bash
 npx --yes @panerelay/setup --agent-browser --browser-use

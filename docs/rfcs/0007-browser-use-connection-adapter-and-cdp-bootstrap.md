@@ -11,7 +11,7 @@
 
 ## Summary
 
-Panerelay defines an explicitly selected Browser Use integration alongside the agent-browser Provider. `--browser-use` installs the integration and a user-scoped fixed CDP gateway. Setup writes Browser Harness's `BU_CDP_URL` default to the gateway, so the official `browser-use` CLI and `browser-use --cli-mcp` consume the same connection without a Panerelay process wrapper. The independent unified `panerelay-browser` Skill documents this workflow and is managed through `npx skills`, not setup. The gateway mints short-lived authenticated CDP tickets only after selecting the saved browser and routes discovery to explicitly authorized targets in the user's existing Chromium browser.
+Panerelay defines an explicitly selected Browser Use integration alongside the agent-browser Provider. `--browser-use` installs the integration and a user-scoped fixed CDP gateway. Setup writes Browser Harness's `BU_CDP_URL` default to the gateway, so the official `browser-use` CLI and `browser-use --cli-mcp` consume the same connection without a Panerelay process wrapper. The independent unified `panerelay` Skill documents this workflow and is managed through `npx skills`, not setup. The gateway mints short-lived authenticated CDP tickets only after selecting the saved browser and routes discovery to explicitly authorized targets in the user's existing Chromium browser.
 
 Browser Harness uses one stable, lazily started user-scoped daemon lane and keeps its virtual CDP WebSocket participant connected across sequential commands. Task completion does not stop that lane. Extension revocation, authorization loss, WebSocket or heartbeat failure, and Native Host shutdown remain authoritative cleanup boundaries.
 
@@ -50,7 +50,7 @@ The Playwright amendment adds a separate `/cdp/playwright` route and `playwright
 ## Architecture
 
 ```text
-Unified panerelay-browser Skill
+Unified panerelay Skill
           │
           ▼
   @panerelay/cli
@@ -145,7 +145,7 @@ The Extension settings surface may change the saved Browser Use preference throu
 
 The user-facing minimum is Browser Use 0.13.7. Setup and doctor accept stable Browser Use releases at or above that floor only when the Browser Use environment is complete; they report one Browser Use status and tell users to install, repair, or upgrade Browser Use rather than manage its internal packages. Panerelay continues to probe the Browser Harness distribution internally with a 0.1.8 floor because the supported CLI, daemon, Skill-helper, and CLI MCP paths require it.
 
-The exact verified integration baseline remains Browser Use 0.13.7 with Browser Harness 0.1.8. A newer pair that passes the minimum gate is eligible to run but is not automatically `Verified`. Claims cover the Browser Use workflow in the unified `panerelay-browser` Skill, Browser Use CLI, and Browser Use CLI MCP. Python SDK transparency is not claimed.
+The exact verified integration baseline remains Browser Use 0.13.7 with Browser Harness 0.1.8. A newer pair that passes the minimum gate is eligible to run but is not automatically `Verified`. Claims cover the Browser Use workflow in the unified `panerelay` Skill, Browser Use CLI, and Browser Use CLI MCP. Python SDK transparency is not claimed.
 
 Compatibility must be recorded as `Verified`, `Forwarded`, `Partial`, or `Unsupported` for bootstrap, initialization, core page operations, tab and popup lifecycle, child sessions, revocation, persistent reuse, concurrency behavior, Native Host reload, stale-daemon recovery, and browser-ownership limitations. agent-browser 0.33.0 remains the unchanged regression baseline for the shared Bridge.
 

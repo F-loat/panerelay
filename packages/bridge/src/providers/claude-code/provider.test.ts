@@ -308,6 +308,10 @@ test('streams text, reasoning, tool activity, images, usage, and terminal events
   assert.match(cli.queryParameters?.systemPrompt ?? '', /switch_tab/);
   assert.match(cli.queryParameters?.systemPrompt ?? '', /tab-select 0/);
   assert.equal(cli.queryParameters?.mcpServers?.panerelay_browser, undefined);
+  assert.equal(cli.queryParameters?.mcpServers?.panerelay_fetch?.type, 'stdio');
+  assert.deepEqual(cli.queryParameters?.mcpServers?.panerelay_fetch?.args?.slice(-1), [
+    '--fetch-mcp',
+  ]);
   assert.equal(cli.queryParameters?.permissionPromptTool, 'mcp__panerelay_permission__approve');
   assert.equal(cli.queryParameters?.mcpServers?.panerelay_permission?.type, 'http');
   assert.match(JSON.stringify(cli.queryParameters?.prompt), /image/);

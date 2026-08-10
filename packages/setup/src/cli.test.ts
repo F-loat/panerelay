@@ -79,6 +79,18 @@ test('parses setup aliases and global default flags', () => {
   assert.equal(parseSetupArgs(['setup', '--agent-browser']).agentBrowser, true);
   assert.equal(parseSetupArgs(['doctor', '--browser-use']).browserUse, true);
   assert.equal(parseSetupArgs(['doctor', '--playwright']).playwright, true);
+  assert.equal(parseSetupArgs(['setup', '--codex-fetch']).codexFetch, true);
+  assert.equal(parseSetupArgs(['doctor', '--claude-fetch']).claudeFetch, true);
+  assert.equal(parseSetupArgs(['setup', '--remove-codex-fetch']).removeCodexFetch, true);
+  assert.equal(parseSetupArgs(['setup', '--remove-claude-fetch']).removeClaudeFetch, true);
+  assert.throws(
+    () => parseSetupArgs(['setup', '--codex-fetch', '--remove-codex-fetch']),
+    /cannot be combined/,
+  );
+  assert.throws(
+    () => parseSetupArgs(['doctor', '--remove-claude-fetch']),
+    /only available with setup/,
+  );
   const playwrightSetup = parseSetupArgs(['setup', '--playwright']);
   assert.equal(playwrightSetup.playwright, true);
   assert.equal(playwrightSetup.globalDefault, false);
@@ -91,6 +103,7 @@ test('parses setup aliases and global default flags', () => {
     () => parseSetupArgs(['uninstall', '--agent-browser']),
     /--agent-browser is not needed/,
   );
+  assert.throws(() => parseSetupArgs(['uninstall', '--codex-fetch']), /not needed with uninstall/);
 });
 
 test('parses fetch adapter add, batch remove, all, and list commands', () => {
@@ -130,11 +143,12 @@ test('runs fetch adapter lifecycle commands without invoking base setup', async 
   console.log = (...values: unknown[]) => output.push(values.join(' '));
   try {
     const manifest = {
-      protocol: 'panerelay.fetch-adapter.v1' as const,
+      protocol: 'panerelay.fetch-adapter.v3' as const,
       id: 'bilibili',
       name: 'Bilibili',
       version: '0.8.0',
       description: 'Bilibili commands.',
+      origins: ['https://api.bilibili.com'],
       entry: 'adapter.mjs',
       commands: [
         {

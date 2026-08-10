@@ -48,6 +48,7 @@ test('defineSite and defineCommand retain typed definitions', () => {
     id: 'example',
     name: 'Example',
     version: '1.0.0',
+    origins: ['https://example.com'],
     description: 'Test',
   });
   const command = defineCommand({
@@ -63,6 +64,21 @@ test('defineSite and defineCommand retain typed definitions', () => {
   });
   assert.equal(site.id, 'example');
   assert.equal(command.name, 'me');
+});
+
+test('init accepts canonical numeric-leading site ids and rejects invalid ids', async () => {
+  const root = await temporaryDirectory('numeric-site-id');
+  try {
+    const source = join(root, '12306');
+    await initializeSite(source, '12306');
+    assert.equal((await checkSite(source)).manifest.id, '12306');
+    await assert.rejects(
+      initializeSite(join(root, 'invalid'), '-12306'),
+      /site id must start with a lowercase letter or digit/,
+    );
+  } finally {
+    await rm(root, { force: true, recursive: true });
+  }
 });
 
 test('init, check, build, and generated one-shot runtime work without project boilerplate', async () => {
@@ -90,7 +106,7 @@ test('init, check, build, and generated one-shot runtime work without project bo
     assert.equal(built.manifest.commands[0]?.name, 'me');
 
     const invocation = JSON.stringify({
-      protocol: 'panerelay.fetch-adapter.v1',
+      protocol: 'panerelay.fetch-adapter.v3',
       requestId: 'request-1',
       operation: 'execute',
       command: 'me',
@@ -117,7 +133,7 @@ test('init, check, build, and generated one-shot runtime work without project bo
       child.stdin.end(invocation);
     });
     assert.deepEqual(JSON.parse(response), {
-      protocol: 'panerelay.fetch-adapter.v1',
+      protocol: 'panerelay.fetch-adapter.v3',
       requestId: 'request-1',
       operation: 'execute',
       success: true,
@@ -143,6 +159,32 @@ test('build is deterministic and refuses unrelated output', async () => {
     );
     await writeFile(join(first, 'unrelated.txt'), 'keep');
     await assert.rejects(buildSite(source, { outDirectory: first }), /not empty|owned/);
+  } finally {
+    await rm(root, { force: true, recursive: true });
+  }
+});
+
+test('preserves file arguments and rejects removed profile metadata', async () => {
+  const root = await temporaryDirectory('file-argument');
+  const source = join(root, 'source');
+  const output = join(root, 'output');
+  try {
+    await initializeSite(source, 'example');
+    await writeFile(
+      join(source, 'commands', 'me.ts'),
+      `import { createMultipartBody, defineCommand } from '@panerelay/site-kit';
+export default defineCommand({ name: 'me', description: 'Upload.', access: 'write', args: [{ name: 'document', description: 'Document.', type: 'file', required: true, positional: true }], output: ['contentType'], examples: ['panerelay example me document.pdf'], async run(context) { return { contentType: createMultipartBody('file', context.artifact('document')).contentType }; } });
+`,
+    );
+    const built = await buildSite(source, { outDirectory: output });
+    assert.equal(built.manifest.commands[0]?.args[0]?.type, 'file');
+    await writeFile(
+      join(source, 'panerelay.site.ts'),
+      `import { defineSite } from '@panerelay/site-kit';
+export default defineSite({ id: 'example', name: 'Example', version: '1.0.0', description: 'Fixture.', profile: { values: [], secrets: [] } });
+`,
+    );
+    await assert.rejects(checkSite(source), /does not satisfy the adapter protocol/);
   } finally {
     await rm(root, { force: true, recursive: true });
   }

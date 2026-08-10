@@ -106,6 +106,15 @@ test('uses the Claude stream-json protocol without putting the prompt in process
   assert.match(processArguments, /11111111-1111-4111-8111-111111111111/);
   assert.match(processArguments, /user_browser/);
   assert.match(processArguments, /panerelay_permission/);
+  const settingsIndex = spawned.launches[0]!.args.indexOf('--settings');
+  assert.deepEqual(
+    (
+      JSON.parse(spawned.launches[0]!.args[settingsIndex + 1]!) as {
+        permissions: { deny: string[] };
+      }
+    ).permissions.deny,
+    ['WebFetch'],
+  );
   assert.match(processArguments, /Panerelay context/);
   assert.doesNotMatch(processArguments, /secret prompt/);
 

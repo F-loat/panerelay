@@ -23,9 +23,9 @@ import {
   releaseBrowserFetchSession,
   requestBrowserFetchPermission,
   runBrowserFetch,
-  type BrowserFetchClientOptions,
 } from './browser-fetch-client.js';
 import { dispatchFetchAdapter } from './fetch-adapter-dispatcher.js';
+import { prepareFetchAdapterArtifacts } from './fetch-adapter-artifact.js';
 import {
   readFetchAdapterRegistration,
   readFetchAdapterRegistry,
@@ -51,6 +51,7 @@ export interface FetchCommandDependencies {
   releaseBrowserFetchSession?: typeof releaseBrowserFetchSession;
   requestBrowserFetchPermission?: typeof requestBrowserFetchPermission;
   runBrowserFetch?: typeof runBrowserFetch;
+  prepareFetchAdapterArtifacts?: typeof prepareFetchAdapterArtifacts;
   selectBrowserFetchRegistration?: (options?: BrowserRegistryOptions) => Promise<BrowserSelection>;
   now?: () => number;
 }
@@ -445,20 +446,27 @@ function extractAdapterInvocationOptions(
     if (argument.startsWith('--json=')) {
       throw new Error(localized(locale, '--json does not accept a value', '--json 不接受参数值'));
     }
-    if (argument !== '--browser' && !argument.startsWith('--browser=')) {
+    const isBrowser = argument === '--browser' || argument.startsWith('--browser=');
+    if (!isBrowser) {
       remaining.push(argument);
       index += 1;
       continue;
     }
     const parsed = requiredOptionValue(locale, argv, index);
-    if (browserSelector)
-      throw new Error(
-        localized(locale, '--browser can only be provided once', '--browser 只能指定一次'),
-      );
-    browserSelector = parsed.value;
+    if (isBrowser) {
+      if (browserSelector)
+        throw new Error(
+          localized(locale, '--browser can only be provided once', '--browser 只能指定一次'),
+        );
+      browserSelector = parsed.value;
+    }
     index += parsed.consumed;
   }
-  return { argv: remaining, json, ...(browserSelector ? { browserSelector } : {}) };
+  return {
+    argv: remaining,
+    json,
+    ...(browserSelector ? { browserSelector } : {}),
+  };
 }
 
 function tableCell(value: unknown): string {
@@ -554,7 +562,7 @@ function parseArgumentValue(
   definition: FetchAdapterArgument,
   value: string,
 ): string | number | boolean {
-  if (definition.type === 'string') return value;
+  if (definition.type === 'string' || definition.type === 'file') return value;
   if (definition.type === 'number') {
     const number = Number(value);
     if (!Number.isFinite(number))
@@ -649,26 +657,31 @@ async function executeAdapter(
   registration: FetchAdapterRegistration,
   command: FetchAdapterCommand,
   args: Record<string, string | number | boolean>,
+  artifacts: Awaited<ReturnType<typeof prepareFetchAdapterArtifacts>>['artifacts'],
   browserSelector: string | undefined,
   options: FetchCommandOptions,
 ): Promise<unknown> {
   const selection = await selectBrowser(browserSelector, options);
-  const clientOptions: BrowserFetchClientOptions = {};
   const active = await (
     options.dependencies?.createBrowserFetchSession ?? createBrowserFetchSession
-  )(selection.state, clientOptions);
+  )(selection.state, {
+    allowedOrigins: registration.manifest.origins,
+    ...(registration.manifest.bindings ? { bindingPolicies: registration.manifest.bindings } : {}),
+  });
   try {
     return await (options.dependencies?.dispatchFetchAdapter ?? dispatchFetchAdapter)(
       registration,
       active,
       command.name,
       args,
-      { environment: options.environment },
+      {
+        environment: options.environment,
+        ...(artifacts ? { artifacts } : {}),
+      },
     );
   } finally {
     await (options.dependencies?.releaseBrowserFetchSession ?? releaseBrowserFetchSession)(
       active,
-      clientOptions,
     ).catch(() => undefined);
   }
 }
@@ -762,10 +775,14 @@ export async function runFetchCommand(
         `Fetch 适配器未安装：${adapterId}`,
       ),
     );
+  const prepared = await (
+    options.dependencies?.prepareFetchAdapterArtifacts ?? prepareFetchAdapterArtifacts
+  )(command, args);
   const result = await executeAdapter(
     registration,
     command,
-    args,
+    prepared.args,
+    prepared.artifacts,
     selectedArguments.browserSelector,
     options,
   );

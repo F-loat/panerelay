@@ -3,7 +3,7 @@
     {
       "name": "panerelay",
       "command": "node",
-      "args": ["./packages/adapters/agent-browser/dist/index.js"],
+      "args": ["./packages/bridge/dist/native-host.js", "--agent-browser-plugin"],
       "capabilities": ["browser.provider"]
     }
   ]

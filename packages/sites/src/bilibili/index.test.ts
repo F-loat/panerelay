@@ -70,7 +70,7 @@ function invocation(
   args: FetchAdapterInvocationRequest['args'] = {},
 ): FetchAdapterInvocationRequest {
   return {
-    protocol: 'panerelay.fetch-adapter.v1',
+    protocol: 'panerelay.fetch-adapter.v3',
     requestId: `request-${command}`,
     operation: 'execute',
     command,
@@ -437,13 +437,7 @@ test('comment declares a generic bili_jct form binding without reading or serial
   ]);
   const post = requests.find(request => new URL(request.url).pathname === '/x/v2/reply/add');
   assert.ok(post);
-  assert.deepEqual(post.cookieBindings, [
-    {
-      cookieName: 'bili_jct',
-      destination: { kind: 'form', name: 'csrf' },
-      required: true,
-    },
-  ]);
+  assert.deepEqual(post.bindings, ['bilibili-csrf']);
   assert.equal(post.body?.encoding, 'utf8');
   assert.equal(post.body?.data.includes('csrf='), false);
   assert.equal(JSON.stringify(post).includes('fetch-session-secret-token'), false);
@@ -469,13 +463,7 @@ test('follow and unfollow use CSRF-bound writes and verify the resulting relatio
     ]);
     const post = requests.find(request => new URL(request.url).pathname === '/x/relation/modify');
     assert.ok(post);
-    assert.deepEqual(post.cookieBindings, [
-      {
-        cookieName: 'bili_jct',
-        destination: { kind: 'form', name: 'csrf' },
-        required: true,
-      },
-    ]);
+    assert.deepEqual(post.bindings, ['bilibili-csrf']);
     assert.equal(post.body?.encoding, 'utf8');
     assert.equal(new URLSearchParams(post.body?.data).get('act'), item.act);
     assert.equal(new URLSearchParams(post.body?.data).has('csrf'), false);

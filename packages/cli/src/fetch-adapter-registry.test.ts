@@ -15,15 +15,16 @@ async function fixture(): Promise<{ root: string; registryPath: string; entry: s
   await writeFile(
     registryPath,
     `${JSON.stringify({
-      protocol: 'panerelay.fetch-adapter-registry.v1',
+      protocol: 'panerelay.fetch-adapter-registry.v3',
       adapters: [
         {
           manifest: {
-            protocol: 'panerelay.fetch-adapter.v1',
+            protocol: 'panerelay.fetch-adapter.v3',
             id: 'bilibili',
             name: 'Bilibili',
             version: '0.8.0',
             description: 'Bilibili commands.',
+            origins: ['https://api.bilibili.com'],
             entry: 'adapter.mjs',
             commands: [
               {

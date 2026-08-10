@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   PANERELAY_FETCH_ADAPTER_PROTOCOL,
+  PANERELAY_FETCH_ADAPTER_MAX_INPUT_BYTES,
   isBrowserFetchResponse,
   isFetchAdapterInvocationRequest,
   serializeFetchAdapterMessage,
@@ -9,16 +10,33 @@ import {
   type FetchAdapterInvocationRequest,
   type FetchAdapterInvocationResponse,
 } from '@panerelay/protocol';
-import type { SiteCommandContext, SiteCommandDefinition } from './definitions.js';
-
-const MAX_INPUT_BYTES = 1024 * 1024;
-const MAX_ERROR_BYTES = 4_096;
+import type { SiteArtifact, SiteCommandContext, SiteCommandDefinition } from './definitions.js';
+import { SiteError } from './helpers.js';
 
 export interface SiteRuntimeDependencies {
   browserFetch?: (
     request: BrowserFetchRequest,
     invocation: FetchAdapterInvocationRequest,
   ) => Promise<BrowserFetchResponse>;
+}
+
+function relayFailure(status: number, detail: string): SiteError {
+  if (/localStorage/i.test(detail)) {
+    return new SiteError(
+      'missing-credential',
+      'Required browser localStorage state is unavailable',
+    );
+  }
+  if (/timed out|timeout/i.test(detail)) {
+    return new SiteError('upstream-failure', 'Browser-backed request timed out', true);
+  }
+  if (status === 429) {
+    return new SiteError('upstream-failure', 'Browser fetch relay is busy', true);
+  }
+  if (status >= 500) {
+    return new SiteError('upstream-failure', 'Browser-backed request failed', true);
+  }
+  return new SiteError('command-failed', 'Browser fetch relay rejected the request');
 }
 
 async function relayFetch(
@@ -48,7 +66,10 @@ async function relayFetch(
     } catch {
       // Retain the bounded status-only error.
     }
-    throw new Error(detail.replaceAll(invocation.fetch.token, '[redacted]').slice(0, 2_048));
+    throw relayFailure(
+      response.status,
+      detail.replaceAll(invocation.fetch.token, '[redacted]').slice(0, 2_048),
+    );
   }
   let value: unknown;
   try {
@@ -68,11 +89,33 @@ export async function executeSiteCommand(
   dependencies: SiteRuntimeDependencies = {},
 ): Promise<unknown> {
   const command = commands.find(candidate => candidate.name === invocation.command);
-  if (!command) throw new Error(`Unknown site command: ${invocation.command}`);
+  if (!command) throw new SiteError('invalid-input', `Unknown site command: ${invocation.command}`);
   const browserFetch = dependencies.browserFetch ?? relayFetch;
+  const artifact = (argumentName: string): SiteArtifact => {
+    const artifactId = invocation.args[argumentName];
+    if (typeof artifactId !== 'string') {
+      throw new SiteError('invalid-input', `Artifact argument is unavailable: ${argumentName}`);
+    }
+    const source = invocation.artifacts?.find(candidate => candidate.id === artifactId);
+    if (!source) {
+      throw new SiteError('invalid-input', `Artifact argument is unavailable: ${argumentName}`);
+    }
+    const bytes = Uint8Array.from(Buffer.from(source.data, 'base64'));
+    if (bytes.length !== source.size) {
+      throw new SiteError('invalid-input', `Artifact bytes are invalid: ${argumentName}`);
+    }
+    return {
+      id: source.id,
+      basename: source.basename,
+      mediaType: source.mediaType,
+      size: source.size,
+      bytes,
+    };
+  };
   const context: SiteCommandContext = {
     invocation,
     fetch: request => browserFetch(request, invocation),
+    artifact,
   };
   return command.run(context, invocation.args);
 }
@@ -90,7 +133,9 @@ async function readInvocation(
           ? chunk
           : Buffer.from(chunk as Uint8Array);
     length += value.length;
-    if (length > MAX_INPUT_BYTES) throw new Error('Site adapter input exceeded the protocol limit');
+    if (length > PANERELAY_FETCH_ADAPTER_MAX_INPUT_BYTES) {
+      throw new Error('Site adapter input exceeded the protocol limit');
+    }
     chunks.push(value);
   }
   let parsed: unknown;
@@ -121,12 +166,20 @@ export async function runSiteAdapter(
       result: await executeSiteCommand(commands, invocation),
     };
   } catch (error) {
+    const failure =
+      error instanceof SiteError
+        ? {
+            code: error.code,
+            message: error.message,
+            ...(error.retryable === undefined ? {} : { retryable: error.retryable }),
+          }
+        : { code: 'command-failed' as const, message: 'Site command failed' };
     response = {
       protocol: PANERELAY_FETCH_ADAPTER_PROTOCOL,
       requestId,
       operation: 'execute',
       success: false,
-      error: (error instanceof Error ? error.message : String(error)).slice(0, MAX_ERROR_BYTES),
+      error: failure,
     };
   }
   output.write(serializeFetchAdapterMessage(response));

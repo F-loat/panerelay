@@ -5,8 +5,10 @@
 - Status: Accepted
 - Authors: F-loat
 - Created: 2026-08-06
-- Updated: 2026-08-07
-- OpenSpec: `openspec/changes/archive/2026-08-07-add-browser-fetch-adapters`, `openspec/changes/add-site-adapter-tooling`
+- Updated: 2026-08-10
+- OpenSpec: `openspec/changes/archive/2026-08-07-add-browser-fetch-adapters`, `openspec/changes/add-site-adapter-tooling`, `openspec/changes/extend-site-adapter-capabilities`, `openspec/changes/harden-browser-fetch-and-agent-routing`, `openspec/changes/migrate-opencli-sites`
+
+RFC-0010 extends this RFC and supersedes its v1/v2 protocol, caller-defined binding, redirect-following, `credentials: "omit"`, and browser-storage decisions. The sections below retain the original accepted design context; current fetch authority and Agent routing are defined by [RFC-0010](0010-browser-state-fetch-authority-and-agent-routing.md).
 
 ## Summary
 
@@ -14,7 +16,7 @@ Panerelay will expose a bounded fetch-shaped request path through one selected l
 
 Fetch is not a CDP operation. It does not attach, observe, navigate, focus, or control a tab, and it never creates a relay participant or browser-control lease. Users can grant the active page's hostname or all domains from the side panel and can expand, review, or revoke saved exact and leading-wildcard patterns such as `*.baidu.com`. An Agent can explicitly request approval with a hostname, wildcard, or URL through a registration-authenticated command; that action opens a focused Extension confirmation window where the user's click may approve only the normalized requested pattern and request the corresponding Chrome Host Permission. All-domains approval remains a settings-only user action.
 
-The standalone CLI also supports setup-managed site adapters. Each installed adapter has a strict metadata manifest and one self-contained executable. A public source toolkit generates that form from a lightweight command-per-file TypeScript directory without a nested npm package, handwritten manifest, or site-specific protocol entrypoint. Setup installs built-in, explicit local, or explicit public GitHub adapters into protected user storage; CLI help reads only generated manifests, and command execution occurs out of process with a short-lived fetch-only credential. The first built-in adapter implements the fetch-compatible Bilibili command set.
+The standalone CLI also supports setup-managed site adapters. Each installed adapter has a strict metadata manifest and one self-contained executable. A public source toolkit generates that form from a lightweight command-per-file TypeScript directory without a nested npm package, handwritten manifest, or site-specific protocol entrypoint. Setup installs built-in, explicit local, or explicit public GitHub adapters into protected user storage; CLI help reads only generated manifests, and command execution occurs out of process with a short-lived fetch-only credential. A command may accept one explicitly selected regular file as a bounded invocation artifact and construct one ordinary multipart request without receiving the local path. Site adapters can reuse browser Cookie state, but Panerelay does not accept user-supplied API keys, personal access tokens, client secrets, or similar credentials. The first built-in adapter implements the fetch-compatible Bilibili command set.
 
 ## Relationship to existing RFCs
 
@@ -38,15 +40,18 @@ This RFC extends RFC-0001's protocol families and RFC-0006's CLI scope. It does 
 5. Install, discover, invoke, update, and remove versioned site adapters without loading their code into the CLI or Bridge process.
 6. Preserve current tab authorization, CDP participant, activity, and control state exactly.
 7. Support common Cookie-backed CSRF form, JSON, and header patterns without returning Cookie values to adapters.
+8. Support one explicit bounded local-file input and multipart construction without exposing the source path or adding general filesystem/download behavior.
 
 ### Non-goals
 
 1. Per-request approval after a domain is already granted, path- or method-level ACLs, nested wildcard syntax, or request activity history.
-2. File upload, multipart construction, streaming bodies, streaming responses, WebSocket, EventSource, or download management.
+2. Directory or batch input, arbitrary local-path access, implicit file output, download management, streaming bodies, streaming responses, WebSocket, or EventSource.
 3. An adapter marketplace, registry search, npm package-per-site resolution, automatic adapter updates, private GitHub authentication, arbitrary Git hosts, or repository dependency installation.
 4. An operating-system sandbox for explicitly installed local adapter code.
 5. Proxy selection, isolated profiles, top-level request containment, incognito routing, or browser-process ownership.
 6. Importing or depending on Mearl or OpenCLI runtime code.
+7. User-managed API keys, personal access tokens, client secrets, OAuth callbacks, refresh-token lifecycle, CAPTCHA/WAF bypass, or model-agent sessions.
+8. Reading browser `localStorage` or `sessionStorage`. A future exact-origin, Extension-owned browser-storage binding requires a separate spike and RFC covering origin, tab, lease, and navigation semantics.
 
 ## Terminology
 
@@ -59,6 +64,7 @@ This RFC extends RFC-0001's protocol families and RFC-0006's CLI scope. It does 
 - **GitHub adapter source**: an explicitly supplied public owner/repository or canonical GitHub URL resolved once to a concrete commit before source selection and installation.
 - **Fetch domain grant**: Panerelay's Extension-local approval for one exact hostname, one leading-wildcard domain pattern, or all domains. It ignores scheme and port, authorizes only browser fetch, and never grants tab authorization or control ownership.
 - **Chrome Host Permission**: Chrome or Edge's own match-pattern grant allowing the Extension to contact and access cookies for a domain. It is mandatory in addition to a fetch domain grant and can be shared with other Extension capabilities.
+- **Invocation artifact**: one bounded regular file explicitly selected as a command argument, represented to the adapter by safe metadata and bytes without its local source path.
 
 ## Architecture
 
@@ -97,7 +103,7 @@ DELETE /fetch/sessions/<opaque-session-id>
 POST   /fetch
 ```
 
-Session creation requires the protocol version and exact selected browser ID/generation. The Bridge refuses stale generations, more than 16 live fetch sessions, invalid JSON, or oversized input. A successful result contains an opaque session ID, loopback endpoint, random bearer token, and expiry no later than 120 seconds. Release is idempotent; expiry, browser disconnect, Host shutdown, or generation replacement revokes the session.
+Session creation requires the protocol version and exact selected browser ID/generation. The Bridge refuses stale generations, more than 16 live fetch sessions, invalid JSON, or unknown session metadata. A successful result contains an opaque session ID, loopback endpoint, random bearer token, and expiry no later than 120 seconds. Release is idempotent; expiry, browser disconnect, Host shutdown, or generation replacement revokes the session.
 
 `POST /fetch` accepts only a live fetch-session token. It cannot reach session creation, CDP, automation participants, Agent providers, integration setup, or other Bridge endpoints. A fetch request refreshes no automation participant and creates no control ownership. Adapter processes receive this scoped token over stdin; registration tokens never cross into adapter input or output.
 
@@ -114,7 +120,7 @@ fetch.result
 
 The registration-authenticated Agent approval path adds `fetch.permission.request` and `fetch.permission.result`. The CLI accepts a hostname, leading-wildcard pattern, or URL of any parseable scheme and sends one normalized scheme-independent domain pattern. The Bridge validates that pattern and the selected browser identity/generation, keeps a bounded 90-second pending request, and forwards no registration token to the Extension or adapter. The result reports denial or the requested-domain scope; this path cannot grant all domains. Adapter children receive only fetch-session credentials and cannot open permission UI themselves.
 
-The existing chunked Native Messaging envelope carries larger JSON bodies. Initial limits remain below the 64 MiB transfer ceiling: URL 8 KiB, at most 128 headers and 64 KiB of aggregate header material, 8 MiB decoded request body, timeout 100 through 120,000 ms, and 32 MiB decoded response body. Unsupported URL schemes, methods, encodings, sizes, and response types fail before network work.
+The existing chunked Native Messaging envelope carries larger JSON bodies. Limits remain below the 64 MiB transfer ceiling: URL 8 KiB, at most 128 headers and 64 KiB of aggregate header material, 16 MiB decoded request body, timeout 100 through 120,000 ms, and 32 MiB decoded response body. Unsupported URL schemes, methods, encodings, sizes, response types, redirect modes, and unknown fields fail before network work. Removed profile and credential-binding metadata is therefore rejected rather than ignored.
 
 ## Extension request execution
 
@@ -138,6 +144,12 @@ Bindings do not enable query-string injection because URLs are commonly retained
 
 This is a protocol-level double-submit primitive rather than Bilibili-specific behavior. It covers common CSRF form fields, top-level JSON fields, and headers such as `X-CSRF-Token` while preserving the rule that Cookie values never become adapter input. It does not turn local adapters into an untrusted-code sandbox: explicit local adapters retain ordinary process authority and can direct authenticated requests to the same origins their target cookies already reach.
 
+### Invocation artifacts and multipart bodies
+
+A command manifest may declare at most one `file` argument. The CLI opens only the explicit supplied path with no-follow behavior where available, requires a stable non-symlink regular file, enforces a 12 MiB limit, reads it once, and rechecks identity and size. Adapter stdin receives one invocation artifact with an opaque argument ID, safe basename, media type, decoded size, and Base64 bytes; it never receives the original path.
+
+Site-kit may combine that artifact and bounded UTF-8 fields into one standards-compliant multipart body and return the matching `Content-Type` plus ordinary Base64 fetch body. The resulting decoded body remains subject to the 16 MiB fetch bound. Artifacts live only for the one-shot child invocation. This capability does not add directory traversal, batch media, background transfer, arbitrary output paths, or automatic local writes.
+
 ## CLI contract
 
 An absolute HTTP or HTTPS first operand selects raw mode:
@@ -159,6 +171,8 @@ Any other first operand must match an installed adapter ID, followed by a comman
 
 The raw command prints the complete response JSON. It never prints the registration token, fetch token, generated Cookie header, or hidden child request.
 
+There is no profile-management command or common API-key option. Adapter manifests, invocations, and fetch-session creation reject profile or manually supplied credential metadata.
+
 ## Source and installed adapter formats
 
 An installed source directory contains only:
@@ -168,7 +182,7 @@ panerelay-fetch-adapter.json
 <self-contained-entry>.mjs
 ```
 
-The strict `panerelay.fetch-adapter.v1` manifest declares bounded ID, name, version, description, safe entry filename, and command metadata. Command metadata includes a read/write access label, arguments, output fields, and examples. The access label is descriptive and does not implement domain or request authorization.
+The strict `panerelay.fetch-adapter.v2` manifest declares bounded ID, name, version, description, safe entry filename, and command metadata. Adapter IDs use `^[a-z0-9][a-z0-9-]{0,63}$` so canonical site names such as `12306` and `36kr` do not require aliases. Command, argument, and protected-binding identifiers retain the narrower `^[a-z][a-z0-9-]{0,63}$` grammar. Command metadata includes a read/write access label, string/number/boolean/file arguments, output fields, and examples. The v2 reader rejects v1 manifests, registry state, and unknown metadata; setup rebuilds and reinstalls selected adapters as one lockstep upgrade. The access label is descriptive and does not implement domain or request authorization by itself.
 
 An editable source adapter instead uses:
 
@@ -201,7 +215,7 @@ Removal changes only fetch-adapter registry entries and Panerelay-owned adapter 
 
 ## Adapter execution
 
-The CLI spawns a verified entry with Node.js as a one-shot child and a minimal environment. One bounded JSON request on stdin contains the adapter protocol, correlation ID, command, validated arguments, and fetch-session endpoint/token/expiry. One bounded JSON response on stdout contains the same correlation and either the result or a sanitized error. Timeout and stdout/stderr limits terminate misbehaving children.
+The CLI spawns a verified entry with Node.js as a one-shot child and a minimal environment. One bounded JSON request on stdin contains the v2 adapter protocol, correlation ID, command, validated primitive arguments, an optional invocation artifact, and fetch-session endpoint/token/expiry. The original local file path remains absent. User credential environment variables are not forwarded. One bounded JSON response on stdout contains the same correlation and either the result or a sanitized structured error. String failures and v1 messages are rejected. Timeout and stdin/stdout/stderr limits terminate misbehaving children.
 
 This is process isolation, not a security sandbox. A local or GitHub adapter is code the user explicitly chose to install and can exercise ordinary user-process authority when invoked. Static source inspection and build-time non-execution reduce installation side effects but do not make later command execution safe. Panerelay protects its own protocol and credentials from accidental mixing, verifies installed artifacts against setup's registry, and documents the trust decision; it does not claim to protect the filesystem from malicious adapter code.
 
@@ -224,7 +238,7 @@ The implementation is informed by the local OpenCLI Bilibili reference but impor
 
 1. Fetch remains loopback-only and starts from a protected live browser registration.
 2. Fetch sessions are random, short-lived, browser/generation-bound, fetch-only, concurrency-bounded, and explicitly releasable.
-3. Registration tokens, fetch tokens, cookies, resolved Cookie bindings, source-header rules, request bodies, and response bodies are not logged by default.
+3. Registration tokens, fetch tokens, cookies, resolved Cookie bindings, invocation artifact bytes, local file paths, source-header rules, request bodies, and response bodies are not logged by default.
 4. Ordinary fetch never grants or requests Chrome Host Permission; Chrome rejection is reported after the attempted operation. Only explicit side-panel or Agent approval clicks may request it.
 5. Every fetch requires a matching exact, wildcard, or all-domains Panerelay grant before Cookie, DNR, or network work. Fetch grants remain separate from tab authorization and control ownership.
 6. Browser fetch never enters CDP, target, tab authorization, participant, activity, or control-lease state.
@@ -232,16 +246,18 @@ The implementation is informed by the local OpenCLI Bilibili reference but impor
 8. Adapter execution is out of process, bounded, protected-storage verified, and given only fetch-scoped connection material.
 9. HTTP remains supported because the raw API permits it, but documentation recommends HTTPS and makes network transport visible in the supplied URL.
 10. Setup reaches the network only for an explicit public GitHub source, accepts no URL credentials or tokens, resolves one commit, bounds archive download/extraction, and never runs repository setup code.
+11. Site adapters and CLI commands do not accept or persist user-managed API keys, personal access tokens, client secrets, or equivalent manually supplied credentials.
+12. File input requires one explicit regular-file argument, is bounded before adapter execution, omits the source path from child input, and creates no implicit local output.
 
 ## Compatibility and migration
 
-All components ship lockstep. An older Extension or Host will reject the new message/endpoint rather than silently issuing a request. Existing setup and browser automation remain functional; fetch adapters are absent until explicitly added.
+All components ship lockstep. Adapter, adapter-registry, and fetch-session protocols move to v2, and current readers reject v1 messages instead of carrying dual semantics. Setup rebuilds and reinstalls selected built-ins as v2 adapters. Existing browser registration, domain grants, Host Permission, and browser automation state remain functional; stale v1 fetch-adapter registry state must be replaced before adapter execution.
 
 Browser fetch is `Partial` for Chrome and Edge until a real daily-browser run verifies custom `Origin`/`Referer`, cookie reuse, missing Host Permission, timeout, binary/JSON handling, and reconnect behavior. The Bilibili adapter is `Forwarded` until a logged-in daily Chrome run validates the current endpoint and output fields. Unit and mocked integration tests do not upgrade either classification.
 
-This RFC changes no agent-browser 0.33.0, Browser Use 0.13.7 with Browser Harness 0.1.8, Playwright CLI 0.1.17, Qoder, OpenCode, Claude Code, or Codex capability claim. Their regression suites must pass because the shared protocol and Extension changed, but browser fetch does not broaden their browser-process capabilities.
+This RFC changes no agent-browser 0.33.0, Browser Use 0.13.7 with Browser Harness 0.1.8, Playwright CLI 0.1.17, Qoder, OpenCode, Claude Code, or Codex capability claim. Their regression suites must pass because the shared protocol and Extension changed, but browser fetch does not broaden their browser-process capabilities. Multipart behavior is `Verified` within the one-file and documented size bounds by local complete-path coverage; daily-browser evidence is tracked separately in the compatibility document.
 
-Rollback removes adapters with `setup remove --all` and reinstalls matching older lockstep components. Source- and GitHub-installed adapters are ordinary two-file installations; provenance is optional for current readers. Before rolling back to a strict older registry reader, setup removes or reinstalls provenance-bearing entries. No browser registration or automation adapter migration is required.
+Rollback reinstalls matching v1 adapters and registry state together with the older lockstep components. No browser registration, domain grant, Host Permission, or automation adapter migration is required.
 
 ## Alternatives considered
 
@@ -252,6 +268,14 @@ Rejected because it requires a controlled attached tab, inherits page CORS and l
 ### Fetch in the Bridge
 
 Rejected because the Bridge does not own the browser cookie store. Copying cookies to the Bridge or caller would enlarge the credential exposure boundary.
+
+### Accept manually supplied API keys or tokens
+
+Rejected because it creates credential setup, storage, lifecycle, redaction, and support obligations that are outside browser-session reuse. Sites that require users to apply for or copy a key remain unsupported.
+
+### Pass local file paths to adapters
+
+Rejected because it makes arbitrary path reads part of the product contract and exposes machine-specific paths. The CLI instead resolves one explicit regular file and passes only bounded bytes and safe metadata.
 
 ### Give adapters the registration bearer token
 
@@ -289,5 +313,8 @@ The linked OpenSpec change owns implementation details. Acceptance requires:
 10. site-kit scaffold, static metadata, typecheck, no-execution, deterministic build, explicit-test, and isolated packed-consumer coverage;
 11. a daily-Chrome Bilibili reinstall and representative command regression without retained credentials; and
 12. full workspace check, release check, OpenSpec strict validation, diff hygiene, and no generated browser, source archive, temporary checkout, or credential artifacts in source.
+13. explicit rejection tests for removed profile, user-credential, and credential-binding metadata;
+14. one-file no-follow/identity/size/path-redaction tests plus deterministic multipart fixture coverage; and
+15. daily Chrome or Edge local-fixture verification for multipart upload when the required domain grant and Host Permission are available.
 
 This RFC remains Accepted until the governed release and applicable compatibility evidence are published. Local implementation or tests alone do not make it Implemented.

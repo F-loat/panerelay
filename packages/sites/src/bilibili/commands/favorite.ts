@@ -21,6 +21,7 @@ export default defineCommand({
       name: 'fid',
       description: 'Favorite folder ID; defaults to the first folder',
       type: 'number',
+      positional: true,
     },
     {
       name: 'limit',

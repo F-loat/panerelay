@@ -1,17 +1,19 @@
 import { PANERELAY_PROTOCOL_VERSION } from './constants.js';
 
-export const PANERELAY_FETCH_SESSION_PROTOCOL = 'panerelay.fetch-session.v1' as const;
+export const PANERELAY_FETCH_SESSION_PROTOCOL = 'panerelay.fetch-session.v3' as const;
 export const PANERELAY_FETCH_PERMISSION_PROTOCOL = 'panerelay.fetch-permission.v1' as const;
-export const PANERELAY_FETCH_ADAPTER_PROTOCOL = 'panerelay.fetch-adapter.v1' as const;
+export const PANERELAY_FETCH_ADAPTER_PROTOCOL = 'panerelay.fetch-adapter.v3' as const;
 export const PANERELAY_FETCH_ADAPTER_REGISTRY_PROTOCOL =
-  'panerelay.fetch-adapter-registry.v1' as const;
+  'panerelay.fetch-adapter-registry.v3' as const;
 export const PANERELAY_FETCH_MAX_URL_BYTES = 8 * 1024;
 export const PANERELAY_FETCH_MAX_HEADERS = 128;
 export const PANERELAY_FETCH_MAX_HEADER_BYTES = 64 * 1024;
-export const PANERELAY_FETCH_MAX_COOKIE_BINDINGS = 16;
-export const PANERELAY_FETCH_MAX_BODY_BYTES = 8 * 1024 * 1024;
+export const PANERELAY_FETCH_MAX_ORIGINS = 32;
+export const PANERELAY_FETCH_MAX_BINDINGS = 16;
+export const PANERELAY_FETCH_MAX_BODY_BYTES = 16 * 1024 * 1024;
 export const PANERELAY_FETCH_MAX_RESPONSE_BODY_BYTES = 32 * 1024 * 1024;
-export const PANERELAY_FETCH_MAX_HTTP_REQUEST_BYTES = 12 * 1024 * 1024;
+export const PANERELAY_FETCH_MAX_HTTP_REQUEST_BYTES = 24 * 1024 * 1024;
+export const PANERELAY_FETCH_MAX_SESSION_REQUEST_BYTES = 96 * 1024;
 export const PANERELAY_FETCH_MIN_TIMEOUT_MS = 100;
 export const PANERELAY_FETCH_MAX_TIMEOUT_MS = 120_000;
 export const PANERELAY_FETCH_DEFAULT_TIMEOUT_MS = 30_000;
@@ -23,6 +25,8 @@ export const PANERELAY_FETCH_ADAPTER_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
 export const PANERELAY_FETCH_ADAPTER_MAX_STDERR_BYTES = 64 * 1024;
 export const PANERELAY_FETCH_ADAPTER_MAX_SOURCE_PATH_BYTES = 4 * 1024;
 export const PANERELAY_FETCH_ADAPTER_MAX_SOURCE_REF_BYTES = 256;
+export const PANERELAY_FETCH_ADAPTER_MAX_FILE_BYTES = 12 * 1024 * 1024;
+export const PANERELAY_FETCH_ADAPTER_MAX_INPUT_BYTES = 18 * 1024 * 1024;
 
 export const PANERELAY_FETCH_METHODS = [
   'GET',
@@ -46,16 +50,34 @@ export interface BrowserFetchQueryEntry {
   value: string;
 }
 
-export type BrowserFetchCookieBindingDestinationKind = 'form' | 'json' | 'header';
-export type BrowserFetchCookieBindingTransform = 'raw' | 'url-decode';
+export type BrowserFetchBindingDestinationKind = 'form' | 'json' | 'header';
 
-export interface BrowserFetchCookieBinding {
-  cookieName: string;
-  destination: {
-    kind: BrowserFetchCookieBindingDestinationKind;
-    name: string;
-  };
-  transform?: BrowserFetchCookieBindingTransform;
+export interface BrowserFetchBindingDestination {
+  kind: BrowserFetchBindingDestinationKind;
+  name: string;
+  prefix?: string;
+  suffix?: string;
+}
+
+export type BrowserFetchBindingSource =
+  | {
+      kind: 'cookie';
+      name: string;
+      transform?: 'raw' | 'url-decode';
+    }
+  | {
+      kind: 'local-storage';
+      origin: string;
+      key: string;
+      jsonPointers?: string[];
+      trim?: boolean;
+    };
+
+export interface BrowserFetchBindingPolicy {
+  id: string;
+  source: BrowserFetchBindingSource;
+  destination: BrowserFetchBindingDestination;
+  requestOrigins: string[];
   required?: boolean;
 }
 
@@ -66,7 +88,7 @@ export interface BrowserFetchRequest {
   query?: BrowserFetchQueryEntry[];
   body?: BrowserFetchBody;
   withCookies?: boolean;
-  cookieBindings?: BrowserFetchCookieBinding[];
+  bindings?: string[];
   responseType?: BrowserFetchResponseType;
   timeoutMs?: number;
 }
@@ -88,7 +110,17 @@ export interface BrowserFetchRequestMessage {
   requestId: string;
   browserId: string;
   generation: string;
+  allowedOrigins: string[];
+  bindingPolicies: BrowserFetchBindingPolicy[];
   request: BrowserFetchRequest;
+}
+
+export interface BrowserFetchCancelMessage {
+  type: 'fetch.cancel';
+  protocol: typeof PANERELAY_PROTOCOL_VERSION;
+  requestId: string;
+  browserId: string;
+  generation: string;
 }
 
 export interface BrowserFetchResultMessage {
@@ -111,6 +143,14 @@ export interface BrowserFetchPermissionRequestMessage {
   domain: string;
 }
 
+export interface BrowserFetchPermissionCancelMessage {
+  type: 'fetch.permission.cancel';
+  protocol: typeof PANERELAY_PROTOCOL_VERSION;
+  requestId: string;
+  browserId: string;
+  generation: string;
+}
+
 export interface BrowserFetchPermissionResultMessage {
   type: 'fetch.permission.result';
   protocol: typeof PANERELAY_PROTOCOL_VERSION;
@@ -127,6 +167,8 @@ export interface BrowserFetchSessionCreateRequest {
     browserId: string;
     generation: string;
   };
+  allowedOrigins: string[];
+  bindingPolicies?: BrowserFetchBindingPolicy[];
 }
 
 export interface BrowserFetchSessionCreated {
@@ -163,7 +205,7 @@ export interface BrowserFetchPermissionError {
   error: string;
 }
 
-export type FetchAdapterArgumentType = 'string' | 'number' | 'boolean';
+export type FetchAdapterArgumentType = 'string' | 'number' | 'boolean' | 'file';
 
 export interface FetchAdapterArgument {
   name: string;
@@ -189,6 +231,8 @@ export interface FetchAdapterManifest {
   name: string;
   version: string;
   description: string;
+  origins: string[];
+  bindings?: BrowserFetchBindingPolicy[];
   entry: string;
   commands: FetchAdapterCommand[];
 }
@@ -229,11 +273,39 @@ export interface FetchAdapterInvocationRequest {
   operation: 'execute';
   command: string;
   args: Record<string, string | number | boolean>;
+  artifacts?: FetchAdapterInvocationArtifact[];
   fetch: {
     endpoint: string;
     token: string;
     expiresAt: string;
   };
+}
+
+export interface FetchAdapterInvocationArtifact {
+  id: string;
+  basename: string;
+  mediaType: string;
+  size: number;
+  data: string;
+}
+
+export const SITE_ERROR_CODES = [
+  'invalid-input',
+  'auth-required',
+  'missing-credential',
+  'challenge-required',
+  'upstream-failure',
+  'shape-drift',
+  'empty-result',
+  'unsupported',
+  'command-failed',
+] as const;
+export type SiteErrorCode = (typeof SITE_ERROR_CODES)[number];
+
+export interface FetchAdapterInvocationError {
+  code: SiteErrorCode;
+  message: string;
+  retryable?: boolean;
 }
 
 export interface FetchAdapterInvocationResponse {
@@ -242,7 +314,7 @@ export interface FetchAdapterInvocationResponse {
   operation: 'execute';
   success: boolean;
   result?: unknown;
-  error?: string;
+  error?: FetchAdapterInvocationError;
 }
 
 function hasExactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
@@ -265,6 +337,10 @@ function isBoundedString(value: unknown, minimum: number, maximum: number): valu
 
 function isIdentifier(value: unknown): value is string {
   return typeof value === 'string' && /^[a-z][a-z0-9-]{0,63}$/.test(value);
+}
+
+function isAdapterId(value: unknown): value is string {
+  return typeof value === 'string' && /^[a-z0-9][a-z0-9-]{0,63}$/.test(value);
 }
 
 function isFieldName(value: unknown): value is string {
@@ -360,29 +436,83 @@ const RESERVED_BOUND_HEADER_NAMES = new Set([
   'content-length',
 ]);
 
-function isCookieBinding(value: unknown): value is BrowserFetchCookieBinding {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
-  const candidate = value as Record<string, unknown>;
-  if (
-    !hasAllowedKeys(candidate, ['cookieName', 'destination', 'transform', 'required']) ||
-    !isBoundedString(candidate.cookieName, 1, 256) ||
-    !/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(candidate.cookieName) ||
-    (candidate.transform !== undefined &&
-      candidate.transform !== 'raw' &&
-      candidate.transform !== 'url-decode') ||
-    (candidate.required !== undefined && typeof candidate.required !== 'boolean') ||
-    !candidate.destination ||
-    typeof candidate.destination !== 'object' ||
-    Array.isArray(candidate.destination)
-  ) {
-    return false;
+export function normalizeBrowserFetchOriginPattern(value: unknown): string | null {
+  if (!isBoundedString(value, 1, PANERELAY_FETCH_MAX_URL_BYTES)) return null;
+  try {
+    const url = new URL(value);
+    if (
+      (url.protocol !== 'http:' && url.protocol !== 'https:') ||
+      url.username ||
+      url.password ||
+      url.pathname !== '/' ||
+      url.search ||
+      url.hash
+    ) {
+      return null;
+    }
+    let hostname = url.hostname.toLowerCase().replace(/\.$/, '');
+    const wildcard = hostname.startsWith('*.');
+    if (wildcard) hostname = hostname.slice(2);
+    if (!hostname || /[\s/*]/.test(hostname)) return null;
+    if (
+      wildcard &&
+      (hostname === 'localhost' || /^\[.*\]$/.test(hostname) || /^\d+(?:\.\d+){3}$/.test(hostname))
+    ) {
+      return null;
+    }
+    return `${url.protocol}//${wildcard ? '*.' : ''}${hostname}${url.port ? `:${url.port}` : ''}`;
+  } catch {
+    return null;
   }
-  const destination = candidate.destination as Record<string, unknown>;
+}
+
+export function browserFetchOriginForUrl(value: string): string | null {
+  try {
+    const url = new URL(value);
+    if ((url.protocol !== 'http:' && url.protocol !== 'https:') || url.username || url.password) {
+      return null;
+    }
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
+export function doesBrowserFetchOriginMatch(pattern: string, value: string): boolean {
+  const normalized = normalizeBrowserFetchOriginPattern(pattern);
+  const origin = browserFetchOriginForUrl(value);
+  if (!normalized || !origin) return false;
+  const target = new URL(origin);
+  const wildcard = normalized.includes('://*.');
+  const parsed = new URL(wildcard ? normalized.replace('://*.', '://') : normalized);
+  if (parsed.protocol !== target.protocol || parsed.port !== target.port) return false;
+  return wildcard
+    ? target.hostname === parsed.hostname || target.hostname.endsWith(`.${parsed.hostname}`)
+    : target.hostname === parsed.hostname;
+}
+
+function isOriginPatterns(value: unknown, allowEmpty = false): value is string[] {
+  return (
+    Array.isArray(value) &&
+    (allowEmpty || value.length > 0) &&
+    value.length <= PANERELAY_FETCH_MAX_ORIGINS &&
+    value.every(origin => normalizeBrowserFetchOriginPattern(origin) === origin) &&
+    new Set(value).size === value.length
+  );
+}
+
+function isBindingDestination(value: unknown): value is BrowserFetchBindingDestination {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const destination = value as Record<string, unknown>;
   if (
-    !hasExactKeys(destination, ['kind', 'name']) ||
+    !hasAllowedKeys(destination, ['kind', 'name', 'prefix', 'suffix']) ||
     !['form', 'json', 'header'].includes(destination.kind as string) ||
     !isBoundedString(destination.name, 1, 256) ||
-    /[\r\n]/.test(destination.name as string)
+    /[\r\n]/.test(destination.name as string) ||
+    (destination.prefix !== undefined &&
+      (!isBoundedString(destination.prefix, 0, 256) || /[\r\n]/.test(destination.prefix))) ||
+    (destination.suffix !== undefined &&
+      (!isBoundedString(destination.suffix, 0, 256) || /[\r\n]/.test(destination.suffix)))
   ) {
     return false;
   }
@@ -390,6 +520,65 @@ function isCookieBinding(value: unknown): value is BrowserFetchCookieBinding {
   return (
     /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(destination.name as string) &&
     !RESERVED_BOUND_HEADER_NAMES.has((destination.name as string).toLowerCase())
+  );
+}
+
+function isJsonPointer(value: unknown): value is string {
+  return (
+    isBoundedString(value, 0, 512) &&
+    (value === '' || (value.startsWith('/') && !/(?:~[^01])|(?:~$)/.test(value)))
+  );
+}
+
+function isBindingSource(value: unknown): value is BrowserFetchBindingSource {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  if (candidate.kind === 'cookie') {
+    return (
+      hasAllowedKeys(candidate, ['kind', 'name', 'transform']) &&
+      isBoundedString(candidate.name, 1, 256) &&
+      /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/.test(candidate.name) &&
+      (candidate.transform === undefined ||
+        candidate.transform === 'raw' ||
+        candidate.transform === 'url-decode')
+    );
+  }
+  return (
+    candidate.kind === 'local-storage' &&
+    hasAllowedKeys(candidate, ['kind', 'origin', 'key', 'jsonPointers', 'trim']) &&
+    normalizeBrowserFetchOriginPattern(candidate.origin) === candidate.origin &&
+    !String(candidate.origin).includes('://*.') &&
+    isBoundedString(candidate.key, 1, 512) &&
+    (candidate.jsonPointers === undefined ||
+      (Array.isArray(candidate.jsonPointers) &&
+        candidate.jsonPointers.length > 0 &&
+        candidate.jsonPointers.length <= 8 &&
+        candidate.jsonPointers.every(isJsonPointer) &&
+        new Set(candidate.jsonPointers).size === candidate.jsonPointers.length)) &&
+    (candidate.trim === undefined || typeof candidate.trim === 'boolean')
+  );
+}
+
+export function isBrowserFetchBindingPolicy(value: unknown): value is BrowserFetchBindingPolicy {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    hasAllowedKeys(candidate, ['id', 'source', 'destination', 'requestOrigins', 'required']) &&
+    isIdentifier(candidate.id) &&
+    isBindingSource(candidate.source) &&
+    isBindingDestination(candidate.destination) &&
+    isOriginPatterns(candidate.requestOrigins) &&
+    (candidate.required === undefined || typeof candidate.required === 'boolean')
+  );
+}
+
+function isBindingPolicies(value: unknown, optional = false): value is BrowserFetchBindingPolicy[] {
+  if (value === undefined) return optional;
+  return (
+    Array.isArray(value) &&
+    value.length <= PANERELAY_FETCH_MAX_BINDINGS &&
+    value.every(isBrowserFetchBindingPolicy) &&
+    new Set(value.map(policy => policy.id)).size === value.length
   );
 }
 
@@ -403,24 +592,34 @@ function headerValue(
   return undefined;
 }
 
-function isCookieBindings(
-  value: unknown,
-  method: BrowserFetchMethod,
-  headers: Record<string, string> | undefined,
-  body: BrowserFetchBody | undefined,
-): value is BrowserFetchCookieBinding[] {
-  if (!Array.isArray(value) || value.length > PANERELAY_FETCH_MAX_COOKIE_BINDINGS) return false;
-  if (!value.every(isCookieBinding)) return false;
-  const destinations = value.map(binding =>
-    binding.destination.kind === 'header'
-      ? `header:${binding.destination.name.toLowerCase()}`
-      : `${binding.destination.kind}:${binding.destination.name}`,
+export function areBrowserFetchBindingPoliciesCompatible(
+  request: BrowserFetchRequest,
+  policies: readonly BrowserFetchBindingPolicy[],
+): boolean {
+  if (!isBrowserFetchRequest(request)) return false;
+  if (
+    policies.length > PANERELAY_FETCH_MAX_BINDINGS ||
+    !policies.every(isBrowserFetchBindingPolicy)
+  )
+    return false;
+  if (
+    !policies.every(policy =>
+      policy.requestOrigins.some(origin => doesBrowserFetchOriginMatch(origin, request.url)),
+    )
+  )
+    return false;
+  const value = policies;
+  const method = request.method ?? 'GET';
+  const headers = request.headers;
+  const body = request.body;
+  const destinations = value.map(policy =>
+    policy.destination.kind === 'header'
+      ? `header:${policy.destination.name.toLowerCase()}`
+      : `${policy.destination.kind}:${policy.destination.name}`,
   );
   if (new Set(destinations).size !== destinations.length) return false;
   const bodyKinds = new Set(
-    value
-      .map(binding => binding.destination.kind)
-      .filter(kind => kind === 'form' || kind === 'json'),
+    value.map(policy => policy.destination.kind).filter(kind => kind === 'form' || kind === 'json'),
   );
   if (bodyKinds.size > 1) return false;
   if (bodyKinds.size === 0) return true;
@@ -442,7 +641,7 @@ export function isBrowserFetchRequest(value: unknown): value is BrowserFetchRequ
       'query',
       'body',
       'withCookies',
-      'cookieBindings',
+      'bindings',
       'responseType',
       'timeoutMs',
     ]) ||
@@ -472,16 +671,13 @@ export function isBrowserFetchRequest(value: unknown): value is BrowserFetchRequ
   if (candidate.withCookies !== undefined && typeof candidate.withCookies !== 'boolean')
     return false;
   if (
-    candidate.cookieBindings !== undefined &&
-    !isCookieBindings(
-      candidate.cookieBindings,
-      method as BrowserFetchMethod,
-      candidate.headers as Record<string, string> | undefined,
-      candidate.body as BrowserFetchBody | undefined,
-    )
-  ) {
+    candidate.bindings !== undefined &&
+    (!Array.isArray(candidate.bindings) ||
+      candidate.bindings.length > PANERELAY_FETCH_MAX_BINDINGS ||
+      !candidate.bindings.every(isIdentifier) ||
+      new Set(candidate.bindings).size !== candidate.bindings.length)
+  )
     return false;
-  }
   if (
     candidate.responseType !== undefined &&
     !['auto', 'json', 'text', 'base64'].includes(candidate.responseType as string)
@@ -560,6 +756,8 @@ export function isBrowserFetchRequestMessage(value: unknown): value is BrowserFe
       'requestId',
       'browserId',
       'generation',
+      'allowedOrigins',
+      'bindingPolicies',
       'request',
     ]) &&
     candidate.type === 'fetch.request' &&
@@ -567,7 +765,46 @@ export function isBrowserFetchRequestMessage(value: unknown): value is BrowserFe
     isBoundedString(candidate.requestId, 1, 128) &&
     isBoundedString(candidate.browserId, 1, 256) &&
     isBoundedString(candidate.generation, 1, 128) &&
-    isBrowserFetchRequest(candidate.request)
+    isOriginPatterns(candidate.allowedOrigins) &&
+    isBindingPolicies(candidate.bindingPolicies) &&
+    isBrowserFetchRequest(candidate.request) &&
+    ((candidate.request as BrowserFetchRequest).bindings?.length ?? 0) ===
+      (candidate.bindingPolicies as BrowserFetchBindingPolicy[]).length &&
+    ((candidate.request as BrowserFetchRequest).bindings ?? []).every(
+      (id, index) => id === (candidate.bindingPolicies as BrowserFetchBindingPolicy[])[index]?.id,
+    ) &&
+    areBrowserFetchBindingPoliciesCompatible(
+      candidate.request as BrowserFetchRequest,
+      candidate.bindingPolicies as BrowserFetchBindingPolicy[],
+    )
+  );
+}
+
+export function isBrowserFetchCancelMessage(value: unknown): value is BrowserFetchCancelMessage {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    hasExactKeys(candidate, ['type', 'protocol', 'requestId', 'browserId', 'generation']) &&
+    candidate.type === 'fetch.cancel' &&
+    candidate.protocol === PANERELAY_PROTOCOL_VERSION &&
+    isBoundedString(candidate.requestId, 1, 128) &&
+    isBoundedString(candidate.browserId, 1, 256) &&
+    isBoundedString(candidate.generation, 1, 128)
+  );
+}
+
+export function isBrowserFetchPermissionCancelMessage(
+  value: unknown,
+): value is BrowserFetchPermissionCancelMessage {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    hasExactKeys(candidate, ['type', 'protocol', 'requestId', 'browserId', 'generation']) &&
+    candidate.type === 'fetch.permission.cancel' &&
+    candidate.protocol === PANERELAY_PROTOCOL_VERSION &&
+    isBoundedString(candidate.requestId, 1, 128) &&
+    isBoundedString(candidate.browserId, 1, 256) &&
+    isBoundedString(candidate.generation, 1, 128)
   );
 }
 
@@ -663,8 +900,10 @@ export function isBrowserFetchSessionCreateRequest(
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const candidate = value as Record<string, unknown>;
   if (
-    !hasExactKeys(candidate, ['protocol', 'browser']) ||
+    !hasAllowedKeys(candidate, ['protocol', 'browser', 'allowedOrigins', 'bindingPolicies']) ||
     candidate.protocol !== PANERELAY_FETCH_SESSION_PROTOCOL ||
+    !isOriginPatterns(candidate.allowedOrigins, true) ||
+    !isBindingPolicies(candidate.bindingPolicies, true) ||
     !candidate.browser ||
     typeof candidate.browser !== 'object' ||
     Array.isArray(candidate.browser)
@@ -771,6 +1010,7 @@ export function isBrowserFetchSessionError(value: unknown): value is BrowserFetc
 }
 
 function isAdapterDefault(type: FetchAdapterArgumentType, value: unknown): boolean {
+  if (type === 'file') return value === undefined;
   return value === undefined || typeof value === type;
 }
 
@@ -788,7 +1028,7 @@ function isFetchAdapterArgument(value: unknown): value is FetchAdapterArgument {
     ]) ||
     !isIdentifier(candidate.name) ||
     !isBoundedString(candidate.description, 1, 1_024) ||
-    !['string', 'number', 'boolean'].includes(candidate.type as string) ||
+    !['string', 'number', 'boolean', 'file'].includes(candidate.type as string) ||
     (candidate.required !== undefined && typeof candidate.required !== 'boolean') ||
     (candidate.positional !== undefined && typeof candidate.positional !== 'boolean') ||
     (candidate.required === true && candidate.default !== undefined)
@@ -825,28 +1065,35 @@ function isFetchAdapterCommand(value: unknown): value is FetchAdapterCommand {
     (argument, index) =>
       !argument.required && positional.slice(index + 1).some(later => later.required),
   );
-  return !optionalBeforeRequired;
+  return (
+    !optionalBeforeRequired &&
+    candidate.args.filter(argument => argument.type === 'file').length <= 1
+  );
 }
 
 export function isFetchAdapterManifest(value: unknown): value is FetchAdapterManifest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const candidate = value as Record<string, unknown>;
   return (
-    hasExactKeys(candidate, [
+    hasAllowedKeys(candidate, [
       'protocol',
       'id',
       'name',
       'version',
       'description',
+      'origins',
+      'bindings',
       'entry',
       'commands',
     ]) &&
     candidate.protocol === PANERELAY_FETCH_ADAPTER_PROTOCOL &&
-    isIdentifier(candidate.id) &&
+    isAdapterId(candidate.id) &&
     isBoundedString(candidate.name, 1, 128) &&
     isBoundedString(candidate.version, 1, 64) &&
     /^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$/.test(candidate.version) &&
     isBoundedString(candidate.description, 1, 2_048) &&
+    isOriginPatterns(candidate.origins, true) &&
+    isBindingPolicies(candidate.bindings, true) &&
     isSafeEntry(candidate.entry) &&
     Array.isArray(candidate.commands) &&
     candidate.commands.length > 0 &&
@@ -907,7 +1154,7 @@ export function isFetchAdapterSourceProvenance(
   if (candidate.kind === 'builtin') {
     return (
       hasExactKeys(candidate, ['kind', 'id', 'version']) &&
-      isIdentifier(candidate.id) &&
+      isAdapterId(candidate.id) &&
       isBoundedString(candidate.version, 1, 64) &&
       /^[0-9A-Za-z][0-9A-Za-z.+-]{0,63}$/.test(candidate.version)
     );
@@ -971,13 +1218,71 @@ function isAdapterArguments(value: unknown): value is Record<string, string | nu
   );
 }
 
+function isSafeArtifactBasename(value: unknown): value is string {
+  return (
+    isBoundedString(value, 1, 255) && value !== '.' && value !== '..' && !/[\\/\p{Cc}]/u.test(value)
+  );
+}
+
+function isInvocationArtifact(value: unknown): value is FetchAdapterInvocationArtifact {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  if (
+    !hasExactKeys(candidate, ['id', 'basename', 'mediaType', 'size', 'data']) ||
+    !isBoundedString(candidate.id, 1, 128) ||
+    !/^[A-Za-z0-9_-]+$/.test(candidate.id) ||
+    !isSafeArtifactBasename(candidate.basename) ||
+    !isBoundedString(candidate.mediaType, 3, 256) ||
+    !/^[A-Za-z0-9!#$&^_.+-]+\/[A-Za-z0-9!#$&^_.+-]+$/.test(candidate.mediaType) ||
+    typeof candidate.size !== 'number' ||
+    !Number.isSafeInteger(candidate.size) ||
+    candidate.size < 0 ||
+    candidate.size > PANERELAY_FETCH_ADAPTER_MAX_FILE_BYTES ||
+    typeof candidate.data !== 'string'
+  ) {
+    return false;
+  }
+  return (
+    decodedBase64Bytes(candidate.data, PANERELAY_FETCH_ADAPTER_MAX_FILE_BYTES) === candidate.size
+  );
+}
+
+export function isFetchAdapterInvocationError(
+  value: unknown,
+): value is FetchAdapterInvocationError {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    hasAllowedKeys(candidate, ['code', 'message', 'retryable']) &&
+    Object.hasOwn(candidate, 'code') &&
+    Object.hasOwn(candidate, 'message') &&
+    SITE_ERROR_CODES.includes(candidate.code as SiteErrorCode) &&
+    isBoundedString(candidate.message, 1, 4_096) &&
+    (candidate.retryable === undefined || typeof candidate.retryable === 'boolean')
+  );
+}
+
 export function isFetchAdapterInvocationRequest(
   value: unknown,
 ): value is FetchAdapterInvocationRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const candidate = value as Record<string, unknown>;
   if (
-    !hasExactKeys(candidate, ['protocol', 'requestId', 'operation', 'command', 'args', 'fetch']) ||
+    !hasAllowedKeys(candidate, [
+      'protocol',
+      'requestId',
+      'operation',
+      'command',
+      'args',
+      'artifacts',
+      'fetch',
+    ]) ||
+    !Object.hasOwn(candidate, 'protocol') ||
+    !Object.hasOwn(candidate, 'requestId') ||
+    !Object.hasOwn(candidate, 'operation') ||
+    !Object.hasOwn(candidate, 'command') ||
+    !Object.hasOwn(candidate, 'args') ||
+    !Object.hasOwn(candidate, 'fetch') ||
     candidate.protocol !== PANERELAY_FETCH_ADAPTER_PROTOCOL ||
     !isBoundedString(candidate.requestId, 1, 128) ||
     candidate.operation !== 'execute' ||
@@ -986,6 +1291,14 @@ export function isFetchAdapterInvocationRequest(
     !candidate.fetch ||
     typeof candidate.fetch !== 'object' ||
     Array.isArray(candidate.fetch)
+  ) {
+    return false;
+  }
+  if (
+    candidate.artifacts !== undefined &&
+    (!Array.isArray(candidate.artifacts) ||
+      candidate.artifacts.length > 1 ||
+      !candidate.artifacts.every(isInvocationArtifact))
   ) {
     return false;
   }
@@ -1013,7 +1326,7 @@ export function isFetchAdapterInvocationResponse(
     isBoundedString(candidate.requestId, 1, 128) &&
     candidate.operation === 'execute' &&
     typeof candidate.success === 'boolean' &&
-    (candidate.success || isBoundedString(candidate.error, 1, 4_096))
+    (candidate.success || isFetchAdapterInvocationError(candidate.error))
   );
 }
 

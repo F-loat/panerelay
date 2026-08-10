@@ -10,6 +10,8 @@ import {
   fetchAuthorizationCommand,
   fetchPermissionPatterns,
   grantFetchDomain,
+  isFetchDomainAuthorized,
+  readFetchAuthorization,
   revokeFetchDomain,
 } from '../shared/fetch-permissions.js';
 
@@ -29,6 +31,7 @@ interface FetchPermissionRequestEnvironment {
   removeWindow(windowId: number): Promise<void>;
   extensionUrl(path: string): string;
   containsOrigins(origins: string[]): Promise<boolean>;
+  isDomainAuthorized(domain: string): Promise<boolean>;
   grantDomain(domain: string): Promise<void>;
   revokeDomain(domain: string): Promise<void>;
 }
@@ -82,6 +85,9 @@ function chromeEnvironment(): FetchPermissionRequestEnvironment {
     containsOrigins(origins) {
       return chrome.permissions.contains({ origins });
     },
+    async isDomainAuthorized(domain) {
+      return isFetchDomainAuthorized(domain, await readFetchAuthorization());
+    },
     async grantDomain(domain) {
       await grantFetchDomain(domain);
     },
@@ -107,6 +113,15 @@ interface PendingPermission {
   reject(error: Error): void;
 }
 
+interface FetchPermissionRequestOptions {
+  requestId?: string;
+  signal?: AbortSignal;
+}
+
+function cancellationError(): Error {
+  return new Error('Browser fetch authorization was cancelled');
+}
+
 export class FetchPermissionRequestManager {
   private readonly pending = new Map<string, PendingPermission>();
 
@@ -115,14 +130,39 @@ export class FetchPermissionRequestManager {
     private readonly timeoutMs = PANERELAY_FETCH_PERMISSION_TIMEOUT_MS,
   ) {}
 
-  async request(domain: string): Promise<BrowserFetchPermissionResult> {
-    const requestId = crypto.randomUUID();
+  async request(
+    domain: string,
+    options: FetchPermissionRequestOptions = {},
+  ): Promise<BrowserFetchPermissionResult> {
+    if (options.signal?.aborted) throw cancellationError();
+    const patterns = fetchPermissionPatterns('domain', domain);
+    if (
+      (await this.environment.isDomainAuthorized(domain)) &&
+      (await this.environment.containsOrigins(patterns))
+    ) {
+      if (options.signal?.aborted) throw cancellationError();
+      return {
+        protocol: PANERELAY_FETCH_PERMISSION_PROTOCOL,
+        granted: true,
+        domain,
+        scope: 'domain',
+      };
+    }
+    if (options.signal?.aborted) throw cancellationError();
+    const requestId = options.requestId ?? crypto.randomUUID();
+    if (this.pending.has(requestId)) {
+      throw new Error('Duplicate browser fetch authorization request');
+    }
     const popupUrl = new URL(
       this.environment.extensionUrl('src/pages/fetch-permission/index.html'),
     );
     popupUrl.searchParams.set('domain', domain);
     popupUrl.searchParams.set('requestId', requestId);
     const windowId = await this.environment.createPopup(popupUrl.toString());
+    if (options.signal?.aborted) {
+      await this.environment.removeWindow(windowId).catch(() => undefined);
+      throw cancellationError();
+    }
 
     return new Promise<BrowserFetchPermissionResult>((resolve, reject) => {
       let settled = false;
@@ -132,6 +172,7 @@ export class FetchPermissionRequestManager {
         this.pending.delete(requestId);
         this.environment.removeDecisionListener(onDecision);
         this.environment.removeWindowRemovedListener(onWindowRemoved);
+        options.signal?.removeEventListener('abort', onAbort);
         clearTimeout(timer);
       };
       const finish = (result: BrowserFetchPermissionResult) => {
@@ -184,11 +225,14 @@ export class FetchPermissionRequestManager {
       const onWindowRemoved = (removedWindowId: number) => {
         if (removedWindowId === windowId && !settling) deny();
       };
+      const onAbort = () => fail(cancellationError());
       const timer = setTimeout(() => deny(), this.timeoutMs);
 
       this.environment.addDecisionListener(onDecision);
       this.environment.addWindowRemovedListener(onWindowRemoved);
+      options.signal?.addEventListener('abort', onAbort, { once: true });
       this.pending.set(requestId, { windowId, reject: fail });
+      if (options.signal?.aborted) onAbort();
     });
   }
 

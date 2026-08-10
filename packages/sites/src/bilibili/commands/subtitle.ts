@@ -1,4 +1,4 @@
-import { defineCommand } from '@panerelay/site-kit';
+import { defineCommand, SiteError } from '@panerelay/site-kit';
 import {
   SITE_ORIGIN,
   type AdapterArgs,
@@ -64,8 +64,9 @@ export async function commandSubtitle(client: BilibiliClient, args: AdapterArgs)
   const subtitle = isObject(player.subtitle) ? player.subtitle : {};
   const subtitles = arrayValue(subtitle.subtitles ?? [], 'subtitle list');
   if (subtitles.length === 0) {
-    if (player.need_login_subtitle) throw new Error('Bilibili login is required to read subtitles');
-    throw new Error('No Bilibili subtitles found');
+    if (player.need_login_subtitle)
+      throw new SiteError('auth-required', 'Bilibili login is required to read subtitles');
+    throw new SiteError('empty-result', 'No Bilibili subtitles found');
   }
   const language = optionalString(args, 'lang');
   const selected = objectValue(
@@ -73,9 +74,14 @@ export async function commandSubtitle(client: BilibiliClient, args: AdapterArgs)
     'subtitle entry',
   );
   const rawUrl = stringValue(selected.subtitle_url).trim();
-  if (!rawUrl) throw new Error('Bilibili subtitle URL is unavailable; login may be required');
+  if (!rawUrl)
+    throw new SiteError(
+      'auth-required',
+      'Bilibili subtitle URL is unavailable; login may be required',
+    );
   const url = rawUrl.startsWith('//') ? `https:${rawUrl}` : rawUrl;
-  if (!/^https?:\/\//i.test(url)) throw new Error('Bilibili subtitle URL is invalid');
+  if (!/^https?:\/\//i.test(url))
+    throw new SiteError('shape-drift', 'Bilibili subtitle URL is invalid');
   const document = await client.request(
     {
       url,
@@ -88,7 +94,8 @@ export async function commandSubtitle(client: BilibiliClient, args: AdapterArgs)
   const entries = Array.isArray(document)
     ? document
     : arrayValue(objectValue(document, 'subtitle document').body, 'subtitle body');
-  if (entries.length === 0) throw new Error('Bilibili subtitle document is empty');
+  if (entries.length === 0)
+    throw new SiteError('empty-result', 'Bilibili subtitle document is empty');
   return entries.map((value, index) => {
     const item = objectValue(value, 'subtitle line');
     return {

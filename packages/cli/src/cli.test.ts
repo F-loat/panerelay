@@ -32,15 +32,16 @@ const state = {
 
 function fetchRegistry(id = 'bilibili') {
   return {
-    protocol: 'panerelay.fetch-adapter-registry.v1' as const,
+    protocol: 'panerelay.fetch-adapter-registry.v3' as const,
     adapters: [
       {
         manifest: {
-          protocol: 'panerelay.fetch-adapter.v1' as const,
+          protocol: 'panerelay.fetch-adapter.v3' as const,
           id,
           name: id,
           version: '0.8.0',
           description: `${id} commands`,
+          origins: ['https://example.com'],
           entry: 'adapter.mjs',
           commands: [
             {
@@ -275,6 +276,21 @@ test('preserves manifest command --lang while global --lang still selects the CL
   });
 });
 
+test('preserves a site command --version option instead of printing the CLI version', async () => {
+  let invocation: string[] | undefined;
+  assert.equal(
+    await main(['fetch', 'osv', 'query', 'lodash', '--version', '4.17.20'], {
+      environment: {},
+      runFetchCommand: async argv => {
+        invocation = argv;
+        return 0;
+      },
+    }),
+    0,
+  );
+  assert.deepEqual(invocation, ['osv', 'query', 'lodash', '--version', '4.17.20']);
+});
+
 test('passes the exact child command through the run surface', async () => {
   let input: RunCliConnectionInput | undefined;
   assert.equal(
@@ -466,7 +482,7 @@ test('localizes help and argument errors', async () => {
       await main(['setup', '--lang', 'en'], {
         environment: {},
         readFetchAdapterRegistry: async () => ({
-          protocol: 'panerelay.fetch-adapter-registry.v1',
+          protocol: 'panerelay.fetch-adapter-registry.v3',
           adapters: [],
         }),
         systemLocale: 'zh-CN',

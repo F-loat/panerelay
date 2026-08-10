@@ -1,6 +1,7 @@
 import type {
   BrowserFetchRequest,
   BrowserFetchResponse,
+  BrowserFetchBindingPolicy,
   FetchAdapterCommand,
   FetchAdapterInvocationRequest,
 } from '@panerelay/protocol';
@@ -16,11 +17,22 @@ export interface SiteDefinition {
   name: string;
   version: string;
   description: string;
+  origins: string[];
+  bindings?: BrowserFetchBindingPolicy[];
+}
+
+export interface SiteArtifact {
+  id: string;
+  basename: string;
+  mediaType: string;
+  size: number;
+  bytes: Uint8Array;
 }
 
 export interface SiteCommandContext {
   invocation: FetchAdapterInvocationRequest;
   fetch(request: BrowserFetchRequest): Promise<BrowserFetchResponse>;
+  artifact(argumentName: string): SiteArtifact;
 }
 
 export interface SiteCommandDefinition extends FetchAdapterCommand {

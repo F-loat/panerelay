@@ -34,6 +34,7 @@ import { ensureBrowserUseGateway, runBrowserUseGateway } from './browser-use-gat
 import { PANERELAY_HOST_RELEASE_VERSION } from './host-release.js';
 import { HostReleaseCoordinator } from './host-release-coordinator.js';
 import { runNativeHostUpdate } from './host-updater.js';
+import { runFetchMcpServer } from './fetch-mcp-server.js';
 
 function log(message: string): void {
   process.stderr.write(`[Panerelay] ${message}\n`);
@@ -259,11 +260,13 @@ async function main(): Promise<void> {
 
 const operation = process.argv.includes('--self-check')
   ? Promise.resolve(runSelfCheck())
-  : process.argv.includes('--browser-use-gateway')
-    ? runBrowserUseGateway()
-    : process.argv.includes('--agent-browser-plugin')
-      ? runAgentBrowserPlugin()
-      : main();
+  : process.argv.includes('--fetch-mcp')
+    ? runFetchMcpServer()
+    : process.argv.includes('--browser-use-gateway')
+      ? runBrowserUseGateway()
+      : process.argv.includes('--agent-browser-plugin')
+        ? runAgentBrowserPlugin()
+        : main();
 
 void operation.catch(error => {
   log(`Bridge failed to start: ${error instanceof Error ? error.message : String(error)}`);

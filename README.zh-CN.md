@@ -35,14 +35,14 @@ Panerelay 提供两种接入方式：
 把统一 Skill 安装到你使用的 Agent：
 
 ```bash
-npx skills add F-loat/panerelay --skill panerelay-browser
+npx skills add F-loat/panerelay --skill panerelay
 ```
 
-然后让 Agent 使用 `$panerelay-browser` 接入 agent-browser、Browser Use 或 Playwright CLI。普通浏览器任务的新侧边栏会话会提供已登记的集成信息，让 Skill 直接尝试所选工具；只有首次调用失败，或你明确要求安装、验证和排查时，才进入对应的环境检查、setup 和 doctor 流程。
+然后让 Agent 使用 `$panerelay`。统一 Skill 会为已知 HTTP(S) 请求选择携带浏览器登录态的 Fetch，为页面自动化选择 agent-browser、Browser Use 或 Playwright CLI。普通浏览器任务的新侧边栏会话会提供已登记的集成信息，让 Skill 直接尝试所选工具；只有首次调用失败，或你明确要求安装、验证和排查时，才进入对应的环境检查、setup 和 doctor 流程。
 
 新侧边栏会话还会提供当前标签页的不透明、可失效目标提示：agent-browser 会把它映射为本地 `t1`，Browser Use 使用精确 `switch_tab`，Playwright 使用目标化连接并选择索引 `0`。提示中没有 Chrome 原始 tab ID，也不会授予权限或控制；标签页关闭或未授权时会直接失败，不会按 URL 猜测或换到其他标签页。
 
-之后只要告诉 Agent 要完成的浏览器任务和希望使用的工具；它会调用 `$panerelay-browser`，并在需要你通过扩展授权时暂停。
+之后只要告诉 Agent 要完成的 Panerelay 任务和希望使用的工具；它会调用 `$panerelay`，并在需要你通过扩展授权时暂停。
 
 ## 工作方式
 
@@ -205,9 +205,9 @@ playwright-cli snapshot
 ### 管理或排查 Skill
 
 ```bash
-npx skills add F-loat/panerelay --skill panerelay-browser
-npx skills update panerelay-browser
-npx skills remove panerelay-browser
+npx skills add F-loat/panerelay --skill panerelay
+npx skills update panerelay
+npx skills remove panerelay
 ```
 
 如果安装时选择的是用户级范围，请在对应 `npx skills` 命令中使用 `--global`。Agent 无法加载 Skill 时，先核对安装时选择的 Agent 和范围；自动化命令缺失时，再按该工具的官方来源安装。Skill 本身包含 Skill、三个上游程序、setup/doctor、扩展连接和浏览器授权的完整分层排错流程。

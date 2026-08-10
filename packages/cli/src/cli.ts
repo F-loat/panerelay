@@ -61,7 +61,17 @@ function topLevelArguments(argv: string[]): string[] {
 
 function versionRequested(argv: string[]): boolean {
   const commandArguments = topLevelArguments(argv);
-  return commandArguments.includes('--version') || commandArguments.includes('-v');
+  const meaningful: string[] = [];
+  for (let index = 0; index < commandArguments.length; index += 1) {
+    const argument = commandArguments[index];
+    if (argument === '--lang') {
+      index += 1;
+      continue;
+    }
+    if (argument?.startsWith('--lang=')) continue;
+    if (argument) meaningful.push(argument);
+  }
+  return meaningful.length === 1 && ['--version', '-v'].includes(meaningful[0]!);
 }
 
 function directSiteCandidateIndex(argv: string[]): number | undefined {

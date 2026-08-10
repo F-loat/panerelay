@@ -6,6 +6,8 @@ import {
   isControlSessionChangedMessage,
 } from './control-activity.js';
 import {
+  isBrowserFetchCancelMessage,
+  isBrowserFetchPermissionCancelMessage,
   isBrowserFetchPermissionRequestMessage,
   isBrowserFetchPermissionResultMessage,
   isBrowserFetchRequestMessage,
@@ -556,7 +558,9 @@ export type HostToExtensionMessage =
   | AgentResponseMessage
   | IntegrationResponseMessage
   | ConversationEventMessage
+  | import('./browser-fetch.js').BrowserFetchCancelMessage
   | import('./browser-fetch.js').BrowserFetchRequestMessage
+  | import('./browser-fetch.js').BrowserFetchPermissionCancelMessage
   | import('./browser-fetch.js').BrowserFetchPermissionRequestMessage;
 
 export type ExtensionToHostMessage =
@@ -786,6 +790,10 @@ export function isHostToExtensionMessage(value: unknown): value is HostToExtensi
     );
   }
   if (candidate.type === 'fetch.request') return isBrowserFetchRequestMessage(value);
+  if (candidate.type === 'fetch.cancel') return isBrowserFetchCancelMessage(value);
+  if (candidate.type === 'fetch.permission.cancel') {
+    return isBrowserFetchPermissionCancelMessage(value);
+  }
   if (candidate.type === 'fetch.permission.request') {
     return isBrowserFetchPermissionRequestMessage(value);
   }

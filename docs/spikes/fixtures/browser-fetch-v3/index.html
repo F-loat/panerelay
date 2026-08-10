@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Panerelay browser fetch v3 fixture</title>
+  </head>
+  <body>
+    <h1>Panerelay browser fetch v3 fixture</h1>
+    <button id="seed" type="button">Seed localStorage fixture</button>
+    <output id="status">Not seeded</output>
+    <script>
+      document.querySelector('#seed').addEventListener('click', () => {
+        localStorage.setItem(
+          'panerelay.fetch-v3.fixture',
+          JSON.stringify({ data: { access_token: 'panerelay-fetch-v3-local-storage-fixture' } }),
+        );
+        document.querySelector('#status').value = 'Seeded';
+      });
+    </script>
+  </body>
+</html>

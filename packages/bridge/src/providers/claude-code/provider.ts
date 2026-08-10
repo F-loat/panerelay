@@ -36,6 +36,7 @@ import {
 } from './permission-server.js';
 import { isClaudeCodeSupported } from '../../compatibility.js';
 import { readRuntimeConfig, type PanerelayRuntimeConfig } from '../../runtime-config.js';
+import { providerFetchMcpCommand } from '../../provider-fetch-mcp.js';
 
 const CLAUDE_PROVIDER_ID = 'claude';
 const MAX_TEXT_CHARS = 64 * 1024;
@@ -385,6 +386,7 @@ export class ClaudeProvider implements AgentProvider {
         cwd: session.cwd,
         prompt: promptInput(trimmed, images),
         mcpServers: {
+          panerelay_fetch: providerFetchMcpCommand(),
           panerelay_permission: permissionServer.mcpServer,
         },
         permissionPromptTool: permissionServer.toolName,

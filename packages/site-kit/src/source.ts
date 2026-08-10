@@ -299,7 +299,7 @@ function typeRoots(): string[] {
 }
 
 function typecheck(root: string, files: readonly string[]): void {
-  const declarations = fileURLToPath(new URL('./definitions.d.ts', import.meta.url));
+  const declarations = fileURLToPath(new URL('./adapter-api.d.ts', import.meta.url));
   const options: ts.CompilerOptions = {
     allowImportingTsExtensions: true,
     module: ts.ModuleKind.ESNext,

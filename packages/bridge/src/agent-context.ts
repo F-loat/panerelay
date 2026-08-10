@@ -12,7 +12,7 @@ const MAX_PAGE_URL_CHARS = 2_000;
 const MAX_PAGE_TITLE_CHARS = 300;
 const SENSITIVE_URL_KEY = /(?:auth|code|credential|key|password|secret|session|sig|token)/i;
 const SENSITIVE_FRAGMENT = /(?:auth|bearer|credential|password|secret|session|token)[=:]/i;
-const PANERELAY_SKILL_INSTALL_COMMAND = 'npx skills add F-loat/panerelay --skill panerelay-browser';
+const PANERELAY_SKILL_INSTALL_COMMAND = 'npx skills add F-loat/panerelay --skill panerelay';
 
 export interface ResolvedConversationStartOptions {
   cwd?: string;
@@ -64,14 +64,16 @@ export function createConversationContextInstructions(
   automationHint?: BrowserAutomationSetupHint,
 ): string {
   const skillGuidance = [
-    'For work in the user’s existing authorized browser tabs, first load and follow the $panerelay-browser Skill.',
-    'Do not switch to another browser automation Skill or tool while $panerelay-browser is available.',
+    'For HTTP(S) requests that should reuse the user’s browser login state, use mcp__panerelay_fetch__browser_fetch. Do not use a provider-hosted WebFetch or WebSearch tool for those requests.',
+    'The Panerelay fetch tool may open an Extension permission prompt for a new domain. It never returns browser cookies and rejects redirects.',
+    'For browser-authenticated Fetch, Panerelay setup, or work in the user’s existing authorized browser tabs, first load and follow the $panerelay Skill.',
+    'Do not switch to another browser automation Skill or tool while $panerelay is available.',
     'Select exactly one automation engine before readiness checks: use an engine named by the user, otherwise follow the registered-integration priority below when present, and otherwise use agent-browser.',
     'Inspect, invoke, set up, and diagnose only that selected engine. Do not probe every supported executable or ask the user to choose an engine merely because none was named.',
-    'If $panerelay-browser is unavailable after the user explicitly requests browser work, treat that browser-work request as authorization to attempt one canonical Skill installation with:',
+    'If $panerelay is unavailable after the user explicitly requests Panerelay work, treat that request as authorization to attempt one canonical Skill installation with:',
     PANERELAY_SKILL_INSTALL_COMMAND,
     'Still follow the provider’s normal command-approval flow, and do not retry the installation after the user denies it.',
-    'After a successful installation, load $panerelay-browser and follow its workflow.',
+    'After a successful installation, load $panerelay and follow its workflow.',
     'Only if installation cannot complete, explain why and then fall back to another available browser automation tool, clearly identifying the fallback.',
     'Do not claim Panerelay browser access before the Skill is available and its authorization workflow succeeds.',
   ];
@@ -97,7 +99,7 @@ export function createConversationContextInstructions(
         'Before the first direct attempt, do not repeat generic operating-system, shell, Node.js, executable-version, Panerelay setup, or doctor checks.',
         'For an ordinary task, this fast-path rule takes precedence over the Skill’s generic readiness workflow.',
         'A registration does not prove that its executable is still present, the Extension is connected, any tab is authorized, or a control lease exists.',
-        'If the first direct invocation or attach fails, treat the hint as stale and follow only the smallest targeted diagnostic or repair from $panerelay-browser.',
+        'If the first direct invocation or attach fails, treat the hint as stale and follow only the smallest targeted diagnostic or repair from $panerelay.',
         'For explicit setup, verification, or troubleshooting requests, follow the full Skill workflow instead of this fast path.',
       ]
     : [];

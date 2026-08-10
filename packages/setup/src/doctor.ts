@@ -37,6 +37,7 @@ import { readCliAdapterMode } from '@panerelay/cli/adapter-config';
 import { readJsonObject, userAgentBrowserConfigPath } from './config.js';
 import { probeAgentBrowserInstallation } from './agent-browser-integration.js';
 import { PLAYWRIGHT_MINIMUM_VERSION, probePlaywrightInstallation } from '@panerelay/playwright';
+import { readAgentFetchIntegrationStatus } from './agent-fetch-integration.js';
 
 const SETUP_COMMAND = 'npx --yes @panerelay/setup';
 
@@ -59,6 +60,8 @@ export interface DoctorOptions {
   agentBrowser?: boolean;
   agentBrowserProbe?: typeof probeAgentBrowserInstallation;
   browserUse?: boolean;
+  claudeFetch?: boolean;
+  codexFetch?: boolean;
   playwright?: boolean;
   playwrightProbe?: typeof probePlaywrightInstallation;
   browserUseProbe?: typeof probeBrowserUseVersions;
@@ -297,6 +300,19 @@ export async function doctorPanerelay(options: DoctorOptions = {}): Promise<Doct
               ? `Upgrade Playwright CLI to ${PLAYWRIGHT_MINIMUM_VERSION} or newer, then run: ${SETUP_COMMAND} doctor --playwright`
               : `Install Playwright CLI ${PLAYWRIGHT_MINIMUM_VERSION} or newer, then run: ${SETUP_COMMAND} --playwright`,
           }),
+    });
+  }
+  for (const integration of [
+    ...(options.codexFetch ? (['codex'] as const) : []),
+    ...(options.claudeFetch ? (['claude'] as const) : []),
+  ]) {
+    const status = await readAgentFetchIntegrationStatus(integration, { homeDirectory: home });
+    checks.push({
+      id: `${integration}-fetch`,
+      label: `${integration === 'codex' ? 'Codex' : 'Claude Code'} browser fetch routing`,
+      status: status.configured ? 'pass' : 'fail',
+      detail: status.detail,
+      ...(status.configured ? {} : { hint: `Run: ${SETUP_COMMAND} --${integration}-fetch` }),
     });
   }
   let runtimeConfig: Record<string, unknown> = {};

@@ -48,7 +48,7 @@ PaneRelay SHALL let the user select or clear an optional project directory while
 
 ### Requirement: New conversations receive bounded current-page metadata
 
-PaneRelay SHALL orient a newly created Side Panel conversation with the active page URL and title captured for the first draft send and, when available, a bounded target hint containing only the originating browser's opaque registration ID and the Extension-generated opaque target ID. It SHALL label URL and title values as untrusted metadata and SHALL identify the target hint as staleable locating data rather than authority. It MAY provide bounded engine-specific commands that consume the target hint through an already configured user-owned automation tool, but MUST NOT inject a browser tool definition, MCP server, credential, raw Chrome tab ID, authorization state, control state, or project directory duplicated as prompt metadata. The separately selected canonical project directory SHALL continue to be used as the Agent's actual working directory.
+PaneRelay SHALL orient a newly created Side Panel conversation with the active page URL and title captured for the first draft send and, when available, a bounded target hint containing only the originating browser's opaque registration ID and the Extension-generated opaque target ID. It SHALL label URL and title values as untrusted metadata and SHALL identify the target hint as staleable locating data rather than authority. It MAY provide bounded engine-specific commands that consume the target hint through an already configured user-owned automation tool. Panerelay-owned Codex and Claude Code Providers MAY inject only the bounded Panerelay Fetch MCP tool described by `agent-web-fetch-routing`; they MUST NOT inject another browser tool definition or MCP server, a credential, raw Chrome tab ID, authorization state, control state, or project directory duplicated as prompt metadata. The separately selected canonical project directory SHALL continue to be used as the Agent's actual working directory.
 
 #### Scenario: First send includes current page context
 
@@ -88,7 +88,7 @@ PaneRelay SHALL orient a newly created Side Panel conversation with the active p
 
 - **GIVEN** Chrome cannot provide a readable URL, title, or opaque target identity for the active tab
 - **WHEN** the first message creates a conversation
-- **THEN** PaneRelay omits each unavailable value and continues without inventing it, injecting a browser tool definition, or widening authorization
+- **THEN** PaneRelay omits each unavailable value and continues without inventing it, injecting an unrelated browser tool definition, or widening authorization
 
 ### Requirement: Users can attach explicit page-element comments
 

@@ -42,6 +42,18 @@ export {
   uninstallPlaywrightIntegration,
 } from './playwright-integration.js';
 export {
+  installClaudeFetchIntegration,
+  installCodexFetchIntegration,
+  readAgentFetchIntegrationStatus,
+  uninstallClaudeFetchIntegration,
+  uninstallCodexFetchIntegration,
+} from './agent-fetch-integration.js';
+export type {
+  AgentFetchIntegration,
+  AgentFetchIntegrationOptions,
+  AgentFetchIntegrationStatus,
+} from './agent-fetch-integration.js';
+export {
   builtinFetchAdapterIds,
   installFetchAdapters,
   listFetchAdapters,

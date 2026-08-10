@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from 'node:child_process';
-import { readdir } from 'node:fs/promises';
+import { access, readdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 async function findTests(directory) {
@@ -15,9 +15,19 @@ async function findTests(directory) {
 }
 
 const directory = resolve(process.argv[2] ?? 'dist');
-const tests = (await findTests(directory)).sort();
+const siteId = process.argv[3];
+const tests = siteId
+  ? [resolve(directory, siteId, 'index.test.js')]
+  : (await findTests(directory)).sort();
 if (tests.length === 0) {
   throw new Error(`No compiled test files found in ${directory}`);
+}
+if (siteId) {
+  try {
+    await access(tests[0]);
+  } catch {
+    throw new Error(`No compiled test file found for site "${siteId}" in ${directory}`);
+  }
 }
 
 await new Promise((resolvePromise, reject) => {

@@ -1,0 +1,23 @@
+import { defineCommand } from '@panerelay/site-kit';
+import { unlike } from '../operations.js';
+export default defineCommand({
+  name: 'unlike',
+  description: 'Unlike an Instagram post.',
+  access: 'write',
+  args: [
+    {
+      name: 'username',
+      description: 'Post author.',
+      type: 'string',
+      positional: true,
+      required: true,
+    },
+    { name: 'index', description: 'One-based post index.', type: 'number', default: 1 },
+    { name: 'execute', description: 'Confirm the write.', type: 'boolean', default: false },
+  ],
+  output: ['status', 'user', 'post'],
+  examples: ['panerelay instagram unlike instagram --execute'],
+  async run(context, args) {
+    return unlike(context, args);
+  },
+});

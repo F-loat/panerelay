@@ -17,7 +17,7 @@ Panerelay setup verifies agent-browser but does not install, update, downgrade, 
 Install the unified Skill, then ask your Agent to use its agent-browser workflow:
 
 ```bash
-npx skills add F-loat/panerelay --skill panerelay-browser
+npx skills add F-loat/panerelay --skill panerelay
 ```
 
 The Skill defines environment inspection, official upstream installation when needed, Panerelay integration, the user authorization stop, verification, and troubleshooting.
@@ -41,7 +41,7 @@ Success means the doctor checks pass and agent-browser lists only the tabs autho
 
 ## What setup adds
 
-`@panerelay/setup --agent-browser` installs the Panerelay Provider and registers the exact compatible integration. The independently managed `panerelay-browser` Skill tells Agents how to use it; this package remains a setup-managed runtime and is not intended to be invoked directly by Agents.
+`@panerelay/setup --agent-browser` installs the Panerelay Provider and registers the exact compatible integration. The independently managed `panerelay` Skill tells Agents how to use it; this package remains a setup-managed runtime and is not intended to be invoked directly by Agents.
 
 ## Daily use and defaults
 

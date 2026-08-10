@@ -37,6 +37,10 @@ function environment() {
         calls.push(`contains:${origins.join(',')}`);
         return true;
       },
+      async isDomainAuthorized(domain: string) {
+        calls.push(`authorized:${domain}`);
+        return false;
+      },
       async grantDomain(domain: string) {
         calls.push(`grant:${domain}`);
       },
@@ -47,15 +51,38 @@ function environment() {
   };
 }
 
+test('reuses an existing domain and Chrome permission without opening a popup', async () => {
+  const setup = environment();
+  setup.value.isDomainAuthorized = async domain => {
+    setup.calls.push(`authorized:${domain}`);
+    return true;
+  };
+  const result = await new FetchPermissionRequestManager(setup.value, 1_000).request(
+    'api.example.com',
+  );
+  assert.deepEqual(result, {
+    protocol: 'panerelay.fetch-permission.v1',
+    granted: true,
+    domain: 'api.example.com',
+    scope: 'domain',
+  });
+  assert.deepEqual(setup.calls, [
+    'authorized:api.example.com',
+    'contains:http://api.example.com/*,https://api.example.com/*',
+  ]);
+});
+
 function requestIdFrom(calls: string[]): string {
-  return new URL(calls[0]!).searchParams.get('requestId')!;
+  return new URL(calls.find(call => call.startsWith('chrome-extension://'))!).searchParams.get(
+    'requestId',
+  )!;
 }
 
 test('settles domain approval once after Chrome permission is present', async () => {
   const setup = environment();
   const manager = new FetchPermissionRequestManager(setup.value, 1_000);
   const pending = manager.request('api.example.com');
-  await Promise.resolve();
+  await new Promise(resolve => setImmediate(resolve));
   const message = {
     type: 'panerelay.fetch-permission.decision',
     requestId: requestIdFrom(setup.calls),
@@ -77,7 +104,7 @@ test('explicit denial revokes the requested grant while passive exits only fail 
   const deniedSetup = environment();
   const deniedManager = new FetchPermissionRequestManager(deniedSetup.value, 1_000);
   const denied = deniedManager.request('api.example.com');
-  await Promise.resolve();
+  await new Promise(resolve => setImmediate(resolve));
   for (const listener of deniedSetup.decisions) {
     listener({
       type: 'panerelay.fetch-permission.decision',
@@ -92,7 +119,7 @@ test('explicit denial revokes the requested grant while passive exits only fail 
   const closed = new FetchPermissionRequestManager(closedSetup.value, 1_000).request(
     'api.example.com',
   );
-  await Promise.resolve();
+  await new Promise(resolve => setImmediate(resolve));
   for (const listener of closedSetup.removals) listener(42);
   assert.equal((await closed).granted, false);
   assert.equal(
@@ -113,7 +140,7 @@ test('explicit denial revokes the requested grant while passive exits only fail 
   const cancelSetup = environment();
   const cancelManager = new FetchPermissionRequestManager(cancelSetup.value, 1_000);
   const cancelled = cancelManager.request('api.example.com');
-  await Promise.resolve();
+  await new Promise(resolve => setImmediate(resolve));
   cancelManager.cancelAll('Browser generation changed');
   await assert.rejects(cancelled, /Browser generation changed/);
   assert.equal(
@@ -131,7 +158,7 @@ test('does not persist a decision whose Chrome check outlives cancellation', asy
     });
   const manager = new FetchPermissionRequestManager(setup.value, 1_000);
   const pending = manager.request('*.baidu.com');
-  await Promise.resolve();
+  await new Promise(resolve => setImmediate(resolve));
   for (const listener of setup.decisions) {
     listener({
       type: 'panerelay.fetch-permission.decision',
@@ -149,4 +176,20 @@ test('does not persist a decision whose Chrome check outlives cancellation', asy
     setup.calls.some(call => call.startsWith('grant:')),
     false,
   );
+});
+
+test('uses the Bridge request id and closes the popup when that request is cancelled', async () => {
+  const setup = environment();
+  const controller = new AbortController();
+  const pending = new FetchPermissionRequestManager(setup.value, 1_000).request('api.example.com', {
+    requestId: 'bridge-request',
+    signal: controller.signal,
+  });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(requestIdFrom(setup.calls), 'bridge-request');
+  controller.abort();
+  await assert.rejects(pending, /authorization was cancelled/);
+  assert.equal(setup.calls.includes('remove:42'), true);
+  assert.equal(setup.decisions.size, 0);
+  assert.equal(setup.removals.size, 0);
 });

@@ -23,11 +23,12 @@ async function source(root: string, id: string, version = '1.0.0'): Promise<stri
   await writeFile(
     join(directory, 'panerelay-fetch-adapter.json'),
     JSON.stringify({
-      protocol: 'panerelay.fetch-adapter.v1',
+      protocol: 'panerelay.fetch-adapter.v3',
       id,
       name: id,
       version,
       description: `${id} commands.`,
+      origins: ['https://example.com'],
       entry: 'adapter.mjs',
       commands: [
         {
@@ -49,7 +50,7 @@ async function sourceSite(root: string, id: string): Promise<string> {
   await mkdir(join(directory, 'commands'), { recursive: true });
   await writeFile(
     join(directory, 'panerelay.site.ts'),
-    `import { defineSite } from '@panerelay/site-kit';\nexport default defineSite({ id: ${JSON.stringify(id)}, name: ${JSON.stringify(id)}, version: '1.0.0', description: '${id} source commands.' });\n`,
+    `import { defineSite } from '@panerelay/site-kit';\nexport default defineSite({ id: ${JSON.stringify(id)}, name: ${JSON.stringify(id)}, version: '1.0.0', description: '${id} source commands.', origins: ['https://example.com'] });\n`,
   );
   await writeFile(
     join(directory, 'commands', 'show.ts'),
@@ -102,7 +103,7 @@ function sourceArchive(id: string, prefix = 'repository-commit'): Buffer {
   return tarArchive([
     {
       name: `${prefix}/panerelay.site.ts`,
-      body: `import { defineSite } from '@panerelay/site-kit';\nexport default defineSite({ id: ${JSON.stringify(id)}, name: ${JSON.stringify(id)}, version: '1.0.0', description: '${id} GitHub commands.' });\n`,
+      body: `import { defineSite } from '@panerelay/site-kit';\nexport default defineSite({ id: ${JSON.stringify(id)}, name: ${JSON.stringify(id)}, version: '1.0.0', description: '${id} GitHub commands.', origins: ['https://example.com'] });\n`,
     },
     {
       name: `${prefix}/commands/show.ts`,

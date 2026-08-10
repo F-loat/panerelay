@@ -6,6 +6,12 @@ import {
   PANERELAY_FETCH_MAX_BODY_BYTES,
   PANERELAY_FETCH_PERMISSION_PROTOCOL,
   PANERELAY_FETCH_SESSION_PROTOCOL,
+  areBrowserFetchBindingPoliciesCompatible,
+  browserFetchOriginForUrl,
+  doesBrowserFetchOriginMatch,
+  isBrowserFetchCancelMessage,
+  isBrowserFetchPermissionCancelMessage,
+  isBrowserFetchBindingPolicy,
   isBrowserFetchPermissionRequest,
   isBrowserFetchPermissionRequestMessage,
   isBrowserFetchPermissionResult,
@@ -19,6 +25,8 @@ import {
   isFetchAdapterManifest,
   isFetchAdapterRegistry,
   isFetchAdapterSourceProvenance,
+  normalizeBrowserFetchOriginPattern,
+  type BrowserFetchBindingPolicy,
   type FetchAdapterManifest,
 } from './browser-fetch.js';
 import { PANERELAY_PROTOCOL_VERSION } from './constants.js';
@@ -29,6 +37,7 @@ const manifest: FetchAdapterManifest = {
   name: 'Bilibili',
   version: '0.8.0',
   description: 'Authenticated Bilibili fetch commands.',
+  origins: ['https://api.bilibili.com'],
   entry: 'adapter.mjs',
   commands: [
     {
@@ -56,13 +65,7 @@ test('validates bounded browser fetch requests and explicit source headers', () 
       responseType: 'json',
       timeoutMs: 10_000,
       withCookies: true,
-      cookieBindings: [
-        {
-          cookieName: 'bili_jct',
-          destination: { kind: 'form', name: 'csrf' },
-          required: true,
-        },
-      ],
+      bindings: ['csrf-form'],
     }),
     true,
   );
@@ -89,57 +92,114 @@ test('validates bounded browser fetch requests and explicit source headers', () 
   );
 });
 
-test('validates bounded Cookie bindings and rejects unsafe destinations', () => {
+test('validates protected binding policies and request compatibility', () => {
   const base = {
     url: 'https://api.example.com/write',
     method: 'POST',
     body: { encoding: 'utf8', data: 'value=one' },
   } as const;
+  const headerPolicy: BrowserFetchBindingPolicy = {
+    id: 'csrf-header',
+    source: { kind: 'cookie', name: 'XSRF-TOKEN', transform: 'url-decode' },
+    destination: { kind: 'header', name: 'X-XSRF-TOKEN' },
+    requestOrigins: ['https://api.example.com'],
+  };
+  assert.equal(isBrowserFetchBindingPolicy(headerPolicy), true);
+  assert.equal(isBrowserFetchRequest({ ...base, bindings: [headerPolicy.id] }), true);
   assert.equal(
-    isBrowserFetchRequest({
-      ...base,
-      cookieBindings: [
-        {
-          cookieName: 'XSRF-TOKEN',
-          destination: { kind: 'header', name: 'X-XSRF-TOKEN' },
-          transform: 'url-decode',
-        },
-      ],
-    }),
+    areBrowserFetchBindingPoliciesCompatible({ ...base, bindings: [headerPolicy.id] }, [
+      headerPolicy,
+    ]),
     true,
   );
   assert.equal(
-    isBrowserFetchRequest({
-      ...base,
-      cookieBindings: [{ cookieName: 'csrf', destination: { kind: 'header', name: 'Cookie' } }],
+    isBrowserFetchBindingPolicy({
+      ...headerPolicy,
+      destination: { kind: 'header', name: 'Cookie' },
     }),
     false,
   );
   assert.equal(
-    isBrowserFetchRequest({
-      ...base,
-      headers: { 'Content-Type': 'application/json' },
-      cookieBindings: [{ cookieName: 'csrf', destination: { kind: 'form', name: 'csrf' } }],
-    }),
-    false,
-  );
-  assert.equal(
-    isBrowserFetchRequest({
-      ...base,
-      cookieBindings: [
-        { cookieName: 'one', destination: { kind: 'form', name: 'csrf' } },
-        { cookieName: 'two', destination: { kind: 'json', name: 'csrf' } },
+    areBrowserFetchBindingPoliciesCompatible(
+      { ...base, headers: { 'Content-Type': 'application/json' }, bindings: ['csrf-form'] },
+      [
+        {
+          ...headerPolicy,
+          id: 'csrf-form',
+          destination: { kind: 'form', name: 'csrf' },
+        },
       ],
-    }),
+    ),
+    false,
+  );
+  assert.equal(
+    areBrowserFetchBindingPoliciesCompatible({ ...base, bindings: ['one', 'two'] }, [
+      { ...headerPolicy, id: 'one', destination: { kind: 'form', name: 'csrf' } },
+      { ...headerPolicy, id: 'two', destination: { kind: 'json', name: 'csrf' } },
+    ]),
     false,
   );
   assert.equal(
     isBrowserFetchRequest({
       ...base,
-      cookieBindings: Array.from({ length: 17 }, (_, index) => ({
-        cookieName: `csrf-${index}`,
-        destination: { kind: 'header' as const, name: `X-CSRF-${index}` },
-      })),
+      bindings: Array.from({ length: 17 }, (_, index) => `csrf-${index}`),
+    }),
+    false,
+  );
+  assert.equal(
+    isBrowserFetchBindingPolicy({
+      id: 'flomo-token',
+      source: {
+        kind: 'local-storage',
+        origin: 'https://v.flomoapp.com',
+        key: 'me',
+        jsonPointers: ['/access_token', '/data/access_token'],
+        trim: true,
+      },
+      destination: { kind: 'header', name: 'Authorization', prefix: 'Bearer ' },
+      requestOrigins: ['https://flomoapp.com'],
+    }),
+    true,
+  );
+});
+
+test('normalizes and matches exact and wildcard fetch origins', () => {
+  assert.equal(
+    normalizeBrowserFetchOriginPattern('https://api.example.com:443'),
+    'https://api.example.com',
+  );
+  assert.equal(
+    normalizeBrowserFetchOriginPattern('https://*.example.com'),
+    'https://*.example.com',
+  );
+  assert.equal(normalizeBrowserFetchOriginPattern('https://example.com/path'), null);
+  assert.equal(browserFetchOriginForUrl('https://example.com/path?q=1'), 'https://example.com');
+  assert.equal(
+    doesBrowserFetchOriginMatch('https://*.example.com', 'https://api.example.com/v1'),
+    true,
+  );
+  assert.equal(
+    doesBrowserFetchOriginMatch('https://*.example.com', 'http://api.example.com/v1'),
+    false,
+  );
+});
+
+test('rejects removed user-managed credential bindings', () => {
+  assert.equal(
+    isBrowserFetchRequest({
+      url: 'https://api.example.com/write',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: { encoding: 'utf8', data: '{}' },
+      redirectMode: 'error',
+      credentialBindings: [
+        {
+          secretName: 'api-token',
+          destination: { kind: 'header', name: 'Authorization' },
+          transform: 'bearer',
+          required: true,
+        },
+      ],
     }),
     false,
   );
@@ -150,6 +210,7 @@ test('validates generation-bound fetch session creation', () => {
     isBrowserFetchSessionCreateRequest({
       protocol: PANERELAY_FETCH_SESSION_PROTOCOL,
       browser: { browserId: 'browser', generation: 'generation' },
+      allowedOrigins: ['https://api.example.com'],
     }),
     true,
   );
@@ -157,7 +218,21 @@ test('validates generation-bound fetch session creation', () => {
     isBrowserFetchSessionCreateRequest({
       protocol: PANERELAY_FETCH_SESSION_PROTOCOL,
       browser: { browserId: 'browser', generation: 'generation' },
+      allowedOrigins: ['https://api.example.com'],
       token: 'not-accepted',
+    }),
+    false,
+  );
+  assert.equal(
+    isBrowserFetchSessionCreateRequest({
+      protocol: PANERELAY_FETCH_SESSION_PROTOCOL,
+      browser: { browserId: 'browser', generation: 'generation' },
+      allowedOrigins: ['https://api.example.com'],
+      adapterProfile: {
+        adapterId: 'example',
+        profileName: 'default',
+        secrets: [{ name: 'api-token', value: 'secret', origin: 'https://api.example.com' }],
+      },
     }),
     false,
   );
@@ -237,6 +312,27 @@ test('validates domain fetch permission payloads and correlated messages', () =>
   );
 });
 
+test('validates generation-bound fetch cancellation messages', () => {
+  const message = {
+    type: 'fetch.cancel',
+    protocol: PANERELAY_PROTOCOL_VERSION,
+    requestId: 'request',
+    browserId: 'browser',
+    generation: 'generation',
+  } as const;
+  assert.equal(isBrowserFetchCancelMessage(message), true);
+  assert.equal(isBrowserFetchCancelMessage({ ...message, requestId: '' }), false);
+  assert.equal(isBrowserFetchCancelMessage({ ...message, extra: true }), false);
+
+  const permissionMessage = { ...message, type: 'fetch.permission.cancel' } as const;
+  assert.equal(isBrowserFetchPermissionCancelMessage(permissionMessage), true);
+  assert.equal(
+    isBrowserFetchPermissionCancelMessage({ ...permissionMessage, generation: '' }),
+    false,
+  );
+  assert.equal(isBrowserFetchPermissionCancelMessage({ ...permissionMessage, extra: true }), false);
+});
+
 test('bounds structured fetch response bodies', () => {
   assert.equal(
     isBrowserFetchResponse({
@@ -268,6 +364,8 @@ test('bounds structured fetch response bodies', () => {
 
 test('validates strict fetch adapter manifests and registries', () => {
   assert.equal(isFetchAdapterManifest(manifest), true);
+  assert.equal(isFetchAdapterManifest({ ...manifest, id: '12306' }), true);
+  assert.equal(isFetchAdapterManifest({ ...manifest, id: '36kr' }), true);
   assert.equal(isFetchAdapterManifest({ ...manifest, entry: '../adapter.mjs' }), false);
   assert.equal(
     isFetchAdapterManifest({ ...manifest, commands: [...manifest.commands, manifest.commands[0]] }),
@@ -295,9 +393,86 @@ test('validates strict fetch adapter manifests and registries', () => {
   );
 });
 
+test('keeps commands, arguments, and binding identifiers letter-prefixed', () => {
+  assert.equal(
+    isFetchAdapterManifest({
+      ...manifest,
+      commands: [{ ...manifest.commands[0], name: '1profile' }],
+    }),
+    false,
+  );
+  assert.equal(
+    isFetchAdapterManifest({
+      ...manifest,
+      commands: [
+        {
+          ...manifest.commands[0],
+          args: [
+            {
+              name: '1user',
+              description: 'User identifier.',
+              type: 'string',
+            },
+          ],
+        },
+      ],
+    }),
+    false,
+  );
+  assert.equal(
+    isBrowserFetchBindingPolicy({
+      id: '1csrf',
+      source: { kind: 'cookie', name: 'csrf' },
+      destination: { kind: 'header', name: 'X-CSRF-Token' },
+      requestOrigins: ['https://example.com'],
+    }),
+    false,
+  );
+});
+
+test('rejects removed profile metadata and allows one file argument per command', () => {
+  assert.equal(
+    isFetchAdapterManifest({
+      ...manifest,
+      profile: {
+        values: [],
+        secrets: [],
+      },
+    }),
+    false,
+  );
+  const fileArgument = {
+    name: 'document',
+    description: 'Document to upload.',
+    type: 'file',
+    required: true,
+    positional: true,
+  } as const;
+  assert.equal(
+    isFetchAdapterManifest({
+      ...manifest,
+      commands: [{ ...manifest.commands[0], args: [fileArgument] }],
+    }),
+    true,
+  );
+  assert.equal(
+    isFetchAdapterManifest({
+      ...manifest,
+      commands: [
+        { ...manifest.commands[0], args: [fileArgument, { ...fileArgument, name: 'other' }] },
+      ],
+    }),
+    false,
+  );
+});
+
 test('validates backward-compatible adapter source provenance', () => {
   assert.equal(
     isFetchAdapterSourceProvenance({ kind: 'builtin', id: 'bilibili', version: '0.8.0' }),
+    true,
+  );
+  assert.equal(
+    isFetchAdapterSourceProvenance({ kind: 'builtin', id: '12306', version: '0.8.0' }),
     true,
   );
   assert.equal(
@@ -348,6 +523,45 @@ test('validates correlated one-shot adapter messages', () => {
     },
   };
   assert.equal(isFetchAdapterInvocationRequest(request), true);
+  const artifactData = Buffer.from('pdf-bytes').toString('base64');
+  assert.equal(
+    isFetchAdapterInvocationRequest({
+      ...request,
+      args: { document: 'artifact_1' },
+      artifacts: [
+        {
+          id: 'artifact_1',
+          basename: 'document.pdf',
+          mediaType: 'application/pdf',
+          size: Buffer.byteLength('pdf-bytes'),
+          data: artifactData,
+        },
+      ],
+    }),
+    true,
+  );
+  assert.equal(
+    isFetchAdapterInvocationRequest({
+      ...request,
+      profile: { name: 'default', values: {} },
+    }),
+    false,
+  );
+  assert.equal(
+    isFetchAdapterInvocationRequest({
+      ...request,
+      artifacts: [
+        {
+          id: 'artifact_1',
+          basename: '../secret.pdf',
+          mediaType: 'application/pdf',
+          size: Buffer.byteLength('pdf-bytes'),
+          data: artifactData,
+        },
+      ],
+    }),
+    false,
+  );
   assert.equal(
     isFetchAdapterInvocationRequest({
       ...request,
@@ -364,5 +578,25 @@ test('validates correlated one-shot adapter messages', () => {
       result: { uid: '1' },
     }),
     true,
+  );
+  assert.equal(
+    isFetchAdapterInvocationResponse({
+      protocol: PANERELAY_FETCH_ADAPTER_PROTOCOL,
+      requestId: 'request-1',
+      operation: 'execute',
+      success: false,
+      error: { code: 'auth-required', message: 'Sign in first.', retryable: false },
+    }),
+    true,
+  );
+  assert.equal(
+    isFetchAdapterInvocationResponse({
+      protocol: PANERELAY_FETCH_ADAPTER_PROTOCOL,
+      requestId: 'request-1',
+      operation: 'execute',
+      success: false,
+      error: 'legacy string error',
+    }),
+    false,
   );
 });

@@ -2,7 +2,7 @@ import {
   PANERELAY_FETCH_DEFAULT_TIMEOUT_MS,
   PANERELAY_FETCH_MAX_BODY_BYTES,
   PANERELAY_FETCH_MAX_RESPONSE_BODY_BYTES,
-  type BrowserFetchCookieBinding,
+  type BrowserFetchBindingPolicy,
   type BrowserFetchRequest,
   type BrowserFetchResponse,
 } from '@panerelay/protocol';
@@ -10,6 +10,8 @@ import {
 const FETCH_RULE_ID_START = 850_000;
 const FETCH_RULE_ID_END = 859_999;
 const MANAGED_HEADER_NAMES = new Set(['cookie', 'origin', 'referer']);
+const MIN_REDACTABLE_SECRET_BYTES = 8;
+const MAX_BOUND_VALUE_BYTES = 64 * 1024;
 
 export interface BrowserCookie {
   name: string;
@@ -25,6 +27,7 @@ export interface BrowserFetchHeaderOperation {
 
 export interface BrowserFetchEnvironment {
   cookiesForUrl(url: string): Promise<BrowserCookie[]>;
+  localStorageForOrigin(origin: string, key: string): Promise<string | null>;
   fetch(input: string, init: RequestInit): Promise<Response>;
   installHeaderRule(
     ruleId: number,
@@ -118,34 +121,92 @@ function orderedCookies(cookies: BrowserCookie[]): BrowserCookie[] {
   return [...cookies].sort((left, right) => (right.path?.length ?? 0) - (left.path?.length ?? 0));
 }
 
-interface ResolvedCookieBinding {
-  binding: BrowserFetchCookieBinding;
+interface ResolvedBinding {
+  policy: BrowserFetchBindingPolicy;
   sourceValue: string;
+  transformedValue: string;
   value: string;
 }
 
-function resolveCookieBindings(
-  bindings: BrowserFetchCookieBinding[] | undefined,
+function jsonPointer(value: unknown, pointer: string): unknown {
+  if (pointer === '') return value;
+  let current = value;
+  for (const encoded of pointer.slice(1).split('/')) {
+    const segment = encoded.replaceAll('~1', '/').replaceAll('~0', '~');
+    if (!current || typeof current !== 'object') return undefined;
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return current;
+}
+
+function decoratedValue(policy: BrowserFetchBindingPolicy, value: string): string {
+  return `${policy.destination.prefix ?? ''}${value}${policy.destination.suffix ?? ''}`;
+}
+
+function validatedBoundValue(
+  policy: BrowserFetchBindingPolicy,
+  sourceValue: string,
+): ResolvedBinding {
+  let value = sourceValue;
+  if (policy.source.kind === 'cookie' && policy.source.transform === 'url-decode') {
+    try {
+      value = decodeURIComponent(value);
+    } catch {
+      throw new Error(`Browser Cookie URL decoding failed for binding: ${policy.id}`);
+    }
+  }
+  if (policy.source.kind === 'local-storage') {
+    if (policy.source.jsonPointers) {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(value) as unknown;
+      } catch {
+        throw new Error(`Browser localStorage JSON is invalid for binding: ${policy.id}`);
+      }
+      const selected = policy.source.jsonPointers
+        .map(pointer => jsonPointer(parsed, pointer))
+        .find(candidate => typeof candidate === 'string' && candidate.length > 0);
+      if (typeof selected !== 'string') {
+        throw new Error(`Browser localStorage JSON value is missing for binding: ${policy.id}`);
+      }
+      value = selected;
+    }
+    if (policy.source.trim) value = value.trim();
+  }
+  const sourceBytes = utf8Bytes(sourceValue);
+  const valueBytes = utf8Bytes(value);
+  if (
+    sourceBytes < MIN_REDACTABLE_SECRET_BYTES ||
+    valueBytes < MIN_REDACTABLE_SECRET_BYTES ||
+    sourceBytes > MAX_BOUND_VALUE_BYTES ||
+    valueBytes > MAX_BOUND_VALUE_BYTES
+  ) {
+    throw new Error(`Browser state value is outside safe binding bounds: ${policy.id}`);
+  }
+  return { policy, sourceValue, transformedValue: value, value: decoratedValue(policy, value) };
+}
+
+async function resolveBindings(
+  policies: BrowserFetchBindingPolicy[],
   cookies: BrowserCookie[],
-): ResolvedCookieBinding[] {
-  const result: ResolvedCookieBinding[] = [];
-  for (const binding of bindings ?? []) {
-    const cookie = cookies.find(candidate => candidate.name === binding.cookieName);
-    if (!cookie) {
-      if (binding.required !== false) {
-        throw new Error(`Required browser Cookie is missing: ${binding.cookieName}`);
+  environment: BrowserFetchEnvironment,
+): Promise<ResolvedBinding[]> {
+  const result: ResolvedBinding[] = [];
+  for (const policy of policies) {
+    const source = policy.source;
+    let sourceValue: string | null;
+    if (source.kind === 'cookie') {
+      sourceValue = cookies.find(candidate => candidate.name === source.name)?.value ?? null;
+    } else {
+      sourceValue = await environment.localStorageForOrigin(source.origin, source.key);
+    }
+    if (sourceValue === null || sourceValue === '') {
+      if (policy.required !== false) {
+        throw new Error(`Required browser state is missing for binding: ${policy.id}`);
       }
       continue;
     }
-    let value = cookie.value;
-    if (binding.transform === 'url-decode') {
-      try {
-        value = decodeURIComponent(value);
-      } catch {
-        throw new Error(`Browser Cookie URL decoding failed: ${binding.cookieName}`);
-      }
-    }
-    result.push({ binding, sourceValue: cookie.value, value });
+    result.push(validatedBoundValue(policy, sourceValue));
   }
   return result;
 }
@@ -156,22 +217,22 @@ function utf8Bytes(value: string): number {
 
 function preparedRequest(
   request: BrowserFetchRequest,
-  bindings: ResolvedCookieBinding[],
+  bindings: ResolvedBinding[],
 ): { body: BodyInit | undefined; headers: Headers } {
   const headers = directHeaders(request.headers);
   const bodyBindingKind = bindings.find(
     binding =>
-      binding.binding.destination.kind === 'form' || binding.binding.destination.kind === 'json',
-  )?.binding.destination.kind;
+      binding.policy.destination.kind === 'form' || binding.policy.destination.kind === 'json',
+  )?.policy.destination.kind;
   let body: BodyInit | undefined;
   if (bodyBindingKind === 'form') {
     const form = new URLSearchParams(request.body?.data ?? '');
-    for (const { binding, value } of bindings) {
-      if (binding.destination.kind === 'form') form.set(binding.destination.name, value);
+    for (const { policy, value } of bindings) {
+      if (policy.destination.kind === 'form') form.set(policy.destination.name, value);
     }
     const serialized = form.toString();
     if (utf8Bytes(serialized) > PANERELAY_FETCH_MAX_BODY_BYTES) {
-      throw new Error('Browser fetch body exceeds the limit after Cookie binding');
+      throw new Error('Browser fetch body exceeds the limit after browser-state binding');
     }
     headers.set('Content-Type', 'application/x-www-form-urlencoded');
     body = serialized;
@@ -181,79 +242,37 @@ function preparedRequest(
       try {
         value = JSON.parse(request.body.data) as unknown;
       } catch {
-        throw new Error('Browser fetch JSON body is invalid for Cookie binding');
+        throw new Error('Browser fetch JSON body is invalid for browser-state binding');
       }
     }
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
-      throw new Error('Browser fetch JSON body must be an object for Cookie binding');
+      throw new Error('Browser fetch JSON body must be an object for browser-state binding');
     }
     const object = value as Record<string, unknown>;
-    for (const { binding, value: cookieValue } of bindings) {
-      if (binding.destination.kind === 'json') {
-        object[binding.destination.name] = cookieValue;
+    for (const { policy, value: boundValue } of bindings) {
+      if (policy.destination.kind === 'json') {
+        object[policy.destination.name] = boundValue;
       }
     }
     const serialized = JSON.stringify(object);
     if (utf8Bytes(serialized) > PANERELAY_FETCH_MAX_BODY_BYTES) {
-      throw new Error('Browser fetch body exceeds the limit after Cookie binding');
+      throw new Error('Browser fetch body exceeds the limit after browser-state binding');
     }
     if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
     body = serialized;
   } else {
     body = requestBody(request);
   }
-  for (const { binding, value } of bindings) {
-    if (binding.destination.kind === 'header') headers.set(binding.destination.name, value);
+  for (const { policy, value } of bindings) {
+    if (policy.destination.kind === 'header') headers.set(policy.destination.name, value);
   }
   return { body, headers };
 }
 
 function redactString(value: string, secrets: string[]): string {
   let result = value;
-  for (const secret of secrets) {
+  for (const secret of [...secrets].sort((left, right) => right.length - left.length)) {
     if (secret) result = result.replaceAll(secret, '[redacted]');
-  }
-  return result;
-}
-
-function redactBytes(value: Uint8Array, secrets: string[]): Uint8Array {
-  let result = value;
-  const encoder = new TextEncoder();
-  const replacement = encoder.encode('[redacted]');
-  for (const secret of secrets) {
-    const pattern = encoder.encode(secret);
-    if (pattern.length === 0 || pattern.length > result.length) continue;
-    const starts: number[] = [];
-    for (let offset = 0; offset <= result.length - pattern.length;) {
-      let matches = true;
-      for (let index = 0; index < pattern.length; index += 1) {
-        if (result[offset + index] !== pattern[index]) {
-          matches = false;
-          break;
-        }
-      }
-      if (matches) {
-        starts.push(offset);
-        offset += pattern.length;
-      } else {
-        offset += 1;
-      }
-    }
-    if (starts.length === 0) continue;
-    const next = new Uint8Array(
-      result.length + starts.length * (replacement.length - pattern.length),
-    );
-    let sourceOffset = 0;
-    let targetOffset = 0;
-    for (const start of starts) {
-      next.set(result.subarray(sourceOffset, start), targetOffset);
-      targetOffset += start - sourceOffset;
-      next.set(replacement, targetOffset);
-      targetOffset += replacement.length;
-      sourceOffset = start + pattern.length;
-    }
-    next.set(result.subarray(sourceOffset), targetOffset);
-    result = next;
   }
   return result;
 }
@@ -328,6 +347,19 @@ function decodeResponseBody(
   return { body: text, bodyType: 'text' };
 }
 
+function decodeBoundResponseBody(
+  bytes: Uint8Array,
+  contentType: string,
+  requestedType: BrowserFetchRequest['responseType'],
+  secrets: string[],
+): Pick<BrowserFetchResponse, 'body' | 'bodyType'> {
+  if (requestedType === 'base64' || looksBinary(contentType)) {
+    throw new Error('Browser-state-bound fetch requires a textual or JSON response');
+  }
+  const redacted = redactString(new TextDecoder().decode(bytes), secrets);
+  return decodeResponseBody(new TextEncoder().encode(redacted), contentType, requestedType);
+}
+
 function requestBody(request: BrowserFetchRequest): BodyInit | undefined {
   if (!request.body) return undefined;
   if (request.body.encoding === 'utf8') return request.body.data;
@@ -347,12 +379,18 @@ function siteAccessFailure(url: URL, phase: string, error: unknown): Error {
 
 async function executeSerialized(
   request: BrowserFetchRequest,
+  bindingPolicies: BrowserFetchBindingPolicy[],
   target: URL,
   environment: BrowserFetchEnvironment,
+  signal?: AbortSignal,
 ): Promise<BrowserFetchResponse> {
+  signal?.throwIfAborted();
   const targetUrl = target.toString();
   let cookies: BrowserCookie[] = [];
-  if (request.withCookies !== false || (request.cookieBindings?.length ?? 0) > 0) {
+  if (
+    request.withCookies !== false ||
+    bindingPolicies.some(policy => policy.source.kind === 'cookie')
+  ) {
     try {
       cookies = await environment.cookiesForUrl(targetUrl);
     } catch (error) {
@@ -360,9 +398,10 @@ async function executeSerialized(
     }
   }
   cookies = orderedCookies(cookies);
-  let bindings: ResolvedCookieBinding[] = [];
+  let bindings: ResolvedBinding[] = [];
   try {
-    bindings = resolveCookieBindings(request.cookieBindings, cookies);
+    bindings = await resolveBindings(bindingPolicies, cookies, environment);
+    signal?.throwIfAborted();
   } catch (error) {
     throw sanitizedError(
       error,
@@ -370,7 +409,11 @@ async function executeSerialized(
     );
   }
   const secrets = [
-    ...new Set(bindings.flatMap(binding => [binding.sourceValue, binding.value]).filter(Boolean)),
+    ...new Set(
+      bindings
+        .flatMap(binding => [binding.sourceValue, binding.transformedValue, binding.value])
+        .filter(Boolean),
+    ),
   ];
   let prepared: ReturnType<typeof preparedRequest>;
   try {
@@ -406,33 +449,42 @@ async function executeSerialized(
     }
 
     const abort = new AbortController();
+    const abortFromCaller = () => abort.abort(signal?.reason);
+    if (signal?.aborted) abortFromCaller();
+    else signal?.addEventListener('abort', abortFromCaller, { once: true });
     const timeoutMs = request.timeoutMs ?? PANERELAY_FETCH_DEFAULT_TIMEOUT_MS;
-    const timeout = setTimeout(() => abort.abort(), timeoutMs);
+    let timedOut = false;
+    const timeout = setTimeout(() => {
+      timedOut = true;
+      abort.abort();
+    }, timeoutMs);
     let response: Response;
     try {
       response = await environment.fetch(targetUrl, {
         method: request.method ?? 'GET',
         headers: prepared.headers,
         body: prepared.body,
-        credentials: 'omit',
-        redirect: bindings.length > 0 ? 'error' : 'follow',
+        credentials: 'include',
+        redirect: 'error',
         signal: abort.signal,
       });
     } catch (error) {
       if (abort.signal.aborted) {
+        if (!timedOut) throw new Error('Browser fetch was cancelled', { cause: error });
         throw new Error(`Browser fetch timed out after ${timeoutMs} ms`, { cause: error });
       }
       throw sanitizedError(siteAccessFailure(target, 'request', error), secrets);
     } finally {
       clearTimeout(timeout);
+      signal?.removeEventListener('abort', abortFromCaller);
     }
 
-    const bytes = redactBytes(await readBoundedBody(response), secrets);
-    const decoded = decodeResponseBody(
-      bytes,
-      response.headers.get('content-type')?.toLowerCase() ?? '',
-      request.responseType ?? 'auto',
-    );
+    const bytes = await readBoundedBody(response);
+    const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
+    const decoded =
+      bindings.length > 0
+        ? decodeBoundResponseBody(bytes, contentType, request.responseType ?? 'auto', secrets)
+        : decodeResponseBody(bytes, contentType, request.responseType ?? 'auto');
     const headers: Record<string, string> = {};
     response.headers.forEach((value, name) => {
       if (name !== 'set-cookie' && name !== 'set-cookie2') {
@@ -456,12 +508,16 @@ async function executeSerialized(
 
 export function executeBrowserFetch(
   request: BrowserFetchRequest,
+  bindingPolicies: BrowserFetchBindingPolicy[],
   environment: BrowserFetchEnvironment,
+  signal?: AbortSignal,
 ): Promise<BrowserFetchResponse> {
   const target = new URL(request.url);
   target.hash = '';
   appendQuery(target, request);
-  return serializeUrl(target.toString(), () => executeSerialized(request, target, environment));
+  return serializeUrl(target.toString(), () =>
+    executeSerialized(request, bindingPolicies, target, environment, signal),
+  );
 }
 
 function escapeDnrRegex(value: string): string {
@@ -472,6 +528,33 @@ export function createChromeBrowserFetchEnvironment(): BrowserFetchEnvironment {
   return {
     cookiesForUrl: async url =>
       (await chrome.cookies.getAll({ url })).filter(cookie => cookie.partitionKey === undefined),
+    localStorageForOrigin: async (origin, key) => {
+      const tabs = (await chrome.tabs.query({}))
+        .filter(
+          (tab): tab is chrome.tabs.Tab & { id: number; url: string } =>
+            typeof tab.id === 'number' &&
+            typeof tab.url === 'string' &&
+            (() => {
+              try {
+                return new URL(tab.url).origin === origin;
+              } catch {
+                return false;
+              }
+            })(),
+        )
+        .sort(
+          (left, right) =>
+            (right.lastAccessed ?? 0) - (left.lastAccessed ?? 0) || left.id - right.id,
+        );
+      const tab = tabs[0];
+      if (!tab) throw new Error(`No open browser tab matches localStorage origin: ${origin}`);
+      const [injection] = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: storageKey => localStorage.getItem(storageKey),
+        args: [key],
+      });
+      return typeof injection?.result === 'string' ? injection.result : null;
+    },
     fetch: (input, init) => fetch(input, init),
     installHeaderRule: async (ruleId, url, operations) => {
       const requestHeaders: chrome.declarativeNetRequest.ModifyHeaderInfo[] = operations.map(

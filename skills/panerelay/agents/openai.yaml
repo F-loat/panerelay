@@ -1,0 +1,4 @@
+interface:
+  display_name: 'Panerelay'
+  short_description: 'Use browser login state and automation through Panerelay'
+  default_prompt: 'Use $panerelay to choose browser-authenticated Fetch or the right automation-engine workflow for my task.'

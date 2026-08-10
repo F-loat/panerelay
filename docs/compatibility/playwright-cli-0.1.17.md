@@ -46,7 +46,7 @@ A dedicated macOS Edge 151 probe passed browser-specific routing, attach, author
 
 ## Configuration boundary
 
-Setup verifies Playwright CLI 0.1.17 or newer and installs only Panerelay-owned adapter files. It does not install or replace `playwright-cli`, edit `PATH` or shell startup files, create user-owned `.playwright/cli.config.json`, set a Playwright default, or manage an Agent Skill. The independently installed unified `panerelay-browser` Skill documents the explicit attach command and user-managed `PLAYWRIGHT_MCP_CDP_ENDPOINT`/`browser.cdpEndpoint` options.
+Setup verifies Playwright CLI 0.1.17 or newer and installs only Panerelay-owned adapter files. It does not install or replace `playwright-cli`, edit `PATH` or shell startup files, create user-owned `.playwright/cli.config.json`, set a Playwright default, or manage an Agent Skill. The independently installed unified `panerelay` Skill documents the explicit attach command and user-managed `PLAYWRIGHT_MCP_CDP_ENDPOINT`/`browser.cdpEndpoint` options.
 
 The stable endpoint `http://127.0.0.1:43827/cdp/playwright` is loopback discovery, not a persistent credential. Dynamic ticket and WebSocket credentials remain short-lived, participant-scoped, generation-bound, and invalid after use or revocation.
 

@@ -7,6 +7,8 @@ import {
   isFetchAdapterInvocationResponse,
   serializeFetchAdapterMessage,
   type FetchAdapterInvocationRequest,
+  type FetchAdapterInvocationResponse,
+  type FetchAdapterInvocationArtifact,
   type FetchAdapterRegistration,
 } from '@panerelay/protocol';
 import type { ActiveBrowserFetchSession } from './browser-fetch-client.js';
@@ -16,6 +18,18 @@ const DEFAULT_ADAPTER_TIMEOUT_MS = 120_000;
 export interface FetchAdapterDispatchOptions {
   environment?: NodeJS.ProcessEnv;
   timeoutMs?: number;
+  artifacts?: FetchAdapterInvocationArtifact[];
+}
+
+export class FetchAdapterCommandError extends Error {
+  constructor(
+    readonly code: NonNullable<FetchAdapterInvocationResponse['error']>['code'],
+    message: string,
+    readonly retryable?: boolean,
+  ) {
+    super(`[${code}] ${message}`);
+    this.name = 'FetchAdapterCommandError';
+  }
 }
 
 function minimalEnvironment(source: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
@@ -55,6 +69,7 @@ export async function dispatchFetchAdapter(
     operation: 'execute',
     command,
     args,
+    ...(options.artifacts ? { artifacts: options.artifacts } : {}),
     fetch: {
       endpoint: active.session.endpoint,
       token: active.session.token,
@@ -119,8 +134,13 @@ export async function dispatchFetchAdapter(
           throw new Error('invalid response');
         }
         if (!response.success) {
-          const message = redact(response.error ?? 'Fetch adapter failed', [active.session.token]);
-          finish(() => reject(new Error(message)));
+          const message = redact(response.error?.message ?? 'Fetch adapter failed', [
+            active.session.token,
+          ]);
+          const code = response.error?.code ?? 'command-failed';
+          finish(() =>
+            reject(new FetchAdapterCommandError(code, message, response.error?.retryable)),
+          );
           return;
         }
         finish(() => resolve(response.result));

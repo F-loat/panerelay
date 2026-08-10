@@ -45,10 +45,7 @@ const playwrightReadme = readFileSync(
   new URL('../packages/adapters/playwright/README.md', import.meta.url),
   'utf8',
 );
-const unifiedSkill = readFileSync(
-  new URL('../skills/panerelay-browser/SKILL.md', import.meta.url),
-  'utf8',
-);
+const unifiedSkill = readFileSync(new URL('../skills/panerelay/SKILL.md', import.meta.url), 'utf8');
 const setupPackage = JSON.parse(
   readFileSync(new URL('../packages/setup/package.json', import.meta.url), 'utf8'),
 );
@@ -249,12 +246,12 @@ test('keeps official installation guidance Store-first and version-neutral', () 
 
   for (const guidance of [englishQuickstart, chineseQuickstart]) {
     assert.match(guidance, new RegExp(chromeWebStoreUrl.replaceAll('.', '\\.')));
-    assert.match(guidance, /npx skills add F-loat\/panerelay --skill panerelay-browser/);
+    assert.match(guidance, /npx skills add F-loat\/panerelay --skill panerelay/);
     assert.doesNotMatch(guidance, /npx --yes @panerelay\/setup/);
     assert.doesNotMatch(guidance, /@panerelay\/setup@\d+\.\d+\.\d+/);
   }
   assert.match(setupReadme, new RegExp(chromeWebStoreUrl.replaceAll('.', '\\.')));
-  assert.match(setupReadme, /npx skills add F-loat\/panerelay --skill panerelay-browser/);
+  assert.match(setupReadme, /npx skills add F-loat\/panerelay --skill panerelay/);
   assert.match(setupReadme, /npx --yes @panerelay\/setup/);
   assert.doesNotMatch(englishQuickstart, /Panerelay Releases|chrome:\/\/extensions/);
   assert.doesNotMatch(chineseQuickstart, /Panerelay Releases|chrome:\/\/extensions/);

@@ -30,7 +30,7 @@ The website SHALL explain Panerelay through two clearly named paths: **Agent sid
 
 ### Requirement: First-screen standard workflow walkthrough
 
-The website SHALL demonstrate the representative zero-to-first-control automation-tool journey on the first screen through six separate, product-accurate interface states: installing the Extension, installing the repository-level `panerelay-browser` Skill, asking an Agent to use that Skill with a supported automation integration, choosing between current-tab and all-supported-tabs authorization in the Extension, observing and controlling an authorized tab, and releasing control while preserving the selected authorization scope. The focused example MAY select current-tab authorization, but SHALL present both scopes as available user choices rather than implying that one-tab authorization is the only supported model. The first screen SHALL lead with a primary Extension installation action and a separate copyable Skill-backed Agent-setup action; documentation SHALL remain available at lower visual emphasis. Its descriptive sentence SHALL place agent-browser, Browser Use, and Playwright CLI in one compact vertically advancing tool reel with a visually distinctive monospace treatment and a complete static accessible equivalent.
+The website SHALL demonstrate the representative zero-to-first-control automation-tool journey on the first screen through six separate, product-accurate interface states: installing the Extension, installing the repository-level `panerelay` Skill, asking an Agent to use that Skill with a supported automation integration, choosing between current-tab and all-supported-tabs authorization in the Extension, observing and controlling an authorized tab, and releasing control while preserving the selected authorization scope. The focused example MAY select current-tab authorization, but SHALL present both scopes as available user choices rather than implying that one-tab authorization is the only supported model. The first screen SHALL lead with a primary Extension installation action and a separate copyable Skill-backed Agent-setup action; documentation SHALL remain available at lower visual emphasis. Its descriptive sentence SHALL place agent-browser, Browser Use, and Playwright CLI in one compact vertically advancing tool reel with a visually distinctive monospace treatment and a complete static accessible equivalent.
 
 At wide desktop widths, the hero and its positioning strip SHALL fit within one dynamic viewport, with shorter desktop heights tightening internal spacing instead of clipping content. Intermediate and mobile layouts SHALL expand naturally when a side-by-side composition is no longer readable. Localized headline text SHALL remain inside the copy column without painting beneath the product stage. At a 375 CSS-pixel viewport, every first-screen copy, action, trust item, and walkthrough surface SHALL remain within the same balanced left and right inset and SHALL NOT increase the document's horizontal scroll width.
 
@@ -100,9 +100,9 @@ JavaScript enhancement SHALL coordinate one restrained pass through the six stat
 
 ### Requirement: Actionable installation journey
 
-The website SHALL provide direct paths to the Chrome Web Store, the Panerelay GitHub repository, project documentation, and the upstream agent-browser, Browser Use, and Playwright CLI websites. Its initial installation journey SHALL contain two steps: install the Extension and install the repository-level `panerelay-browser` Skill with `npx skills add F-loat/panerelay --skill panerelay-browser`. The website SHALL state that the unified Skill contains agent-browser, Browser Use, and Playwright CLI workflows, while `@panerelay/setup` remains an advanced command for selected upstream program probes and Panerelay-owned Provider, adapter, and default management. The website SHALL NOT publish or reference a separate Agent setup document. The Skill command SHALL remain readable without JavaScript, and supported browsers SHALL offer a copy interaction with an accessible success indication.
+The website SHALL provide direct paths to the Chrome Web Store, the Panerelay GitHub repository, project documentation, and the upstream agent-browser, Browser Use, and Playwright CLI websites. Its initial installation journey SHALL contain two steps: install the Extension and install the repository-level `panerelay` Skill with `npx skills add F-loat/panerelay --skill panerelay`. The website SHALL state that the unified Skill contains browser-authenticated Fetch, Agent routing, agent-browser, Browser Use, and Playwright CLI workflows, while `@panerelay/setup` remains an advanced command for selected upstream program probes and Panerelay-owned Provider, adapter, and default management. The website SHALL NOT publish or reference a separate Agent setup document. The Skill command SHALL remain readable without JavaScript, and supported browsers SHALL offer a copy interaction with an accessible success indication.
 
-The repository-level `panerelay-browser` Skill SHALL state that Panerelay setup does not install upstream automation tools. It SHALL provide deterministic steps for selected-engine environment inspection, official-source installation or update only when needed, the selected Panerelay integration, targeted doctor diagnostics, authorization-aware success verification, combined setup, supported-version boundaries, and platform-appropriate command execution without modifying unrelated Agent or Skill configuration.
+The repository-level `panerelay` Skill SHALL state that Panerelay setup does not install upstream automation tools. It SHALL provide deterministic steps for browser-authenticated Fetch selection, selected-engine environment inspection, official-source installation or update only when needed, the selected Panerelay integration, targeted doctor diagnostics, authorization-aware success verification, combined setup, supported-version boundaries, and platform-appropriate command execution without modifying unrelated Agent or Skill configuration.
 
 #### Scenario: Visitor installs from the primary call to action
 
@@ -114,13 +114,13 @@ The repository-level `panerelay-browser` Skill SHALL state that Panerelay setup 
 
 - **GIVEN** clipboard APIs are available and JavaScript enhancement has loaded
 - **WHEN** the visitor activates the Skill command copy control
-- **THEN** the exact `npx skills add F-loat/panerelay --skill panerelay-browser` command is written to the clipboard and the control communicates completion without removing the visible command
+- **THEN** the exact `npx skills add F-loat/panerelay --skill panerelay` command is written to the clipboard and the control communicates completion without removing the visible command
 
 #### Scenario: Visitor delegates workflow setup to an Agent
 
 - **GIVEN** the visitor has installed Panerelay and wants agent-browser, Browser Use, Playwright CLI, or a supported combination
 - **WHEN** the visitor selects and copies the corresponding Agent handoff
-- **THEN** the copied instruction identifies the selected scenario, asks the Agent to use the installed `panerelay-browser` Skill, and relies on that Skill for the detailed safety and acceptance sequence while the subordinate manual command reflects the same selected integration flags
+- **THEN** the copied instruction identifies the selected scenario, asks the Agent to use the installed `panerelay` Skill, and relies on that Skill for the detailed safety and acceptance sequence while the subordinate manual command reflects the same selected integration flags
 
 #### Scenario: Selected manual integration command stays synchronized
 
@@ -131,7 +131,7 @@ The repository-level `panerelay-browser` Skill SHALL state that Panerelay setup 
 #### Scenario: Agent follows the installed Skill
 
 - **GIVEN** an Agent receives one of the website or README handoffs
-- **WHEN** it invokes the installed `panerelay-browser` Skill for the selected scenario
+- **WHEN** it invokes the installed `panerelay` Skill for the selected scenario
 - **THEN** it can distinguish upstream-tool installation from Panerelay integration, run the exact integration and doctor steps, and report either verified authorized access or a concrete user action still required
 
 #### Scenario: Visitor continues to upstream agent-browser documentation

@@ -35,14 +35,14 @@ Add [Panerelay from the Chrome Web Store](https://chromewebstore.google.com/deta
 Install the unified Skill into the Agent you use:
 
 ```bash
-npx skills add F-loat/panerelay --skill panerelay-browser
+npx skills add F-loat/panerelay --skill panerelay
 ```
 
-Then ask the Agent to use `$panerelay-browser` with agent-browser, Browser Use, or Playwright CLI. For an ordinary browser task, a new side-panel conversation supplies cached Panerelay integration registrations so the Skill can try the selected engine directly and pause when you need to authorize a tab. If that fast-path attempt fails, or when you explicitly ask for setup or verification, the Skill inspects the environment, installs or repairs only the selected upstream tool when needed, manages the matching Panerelay integration through setup, and runs targeted doctor checks.
+Then ask the Agent to use `$panerelay`. The unified Skill chooses browser-authenticated Fetch for known HTTP(S) requests or agent-browser, Browser Use, or Playwright CLI for page automation. For an ordinary browser task, a new side-panel conversation supplies cached Panerelay integration registrations so the Skill can try the selected engine directly and pause when you need to authorize a tab. If that fast-path attempt fails, or when you explicitly ask for setup or verification, the Skill inspects the environment, installs or repairs only the selected upstream tool when needed, manages the matching Panerelay integration through setup, and runs targeted doctor checks.
 
 A new side-panel conversation also supplies an opaque, staleable target hint for the originating tab. The Skill maps it to agent-browser's first local tab, Browser Use's exact `switch_tab` target, or Playwright's target-scoped attach and index `0`. The hint never contains Chrome's raw tab ID and never grants authorization or control; if the target is closed or unauthorized, selection fails instead of falling back to a similar URL or another tab.
 
-From then on, tell the Agent what browser task to do and which engine to use; it will invoke `$panerelay-browser` and pause when the Extension needs your authorization.
+From then on, tell the Agent what Panerelay task to do and, when relevant, which engine to use; it will invoke `$panerelay` and pause when the Extension needs your authorization.
 
 ## How it works
 
@@ -75,6 +75,8 @@ panerelay fetch https://api.example.com/me \
 
 Browser cookies are included by default; use `--no-cookies` to disable them. The raw command also supports `--data`, `--data-base64`, repeated `--header/-H` and `--query`, `--timeout`, `--response`, and `--browser`. Run `panerelay fetch --help` for the complete localized reference.
 
+Every raw request is scoped to its exact HTTP(S) origin, and redirects fail before a second request. Responses may update ordinary unpartitioned browser Cookies through Chromium. Partitioned Cookies remain excluded because an Extension fetch has no truthful top-level-site context.
+
 Browser fetch requires both a Panerelay domain grant and Chrome site access. A request without a matching Panerelay grant fails before cookies, temporary header rules, or network work and tells the Agent exactly how to request approval:
 
 ```bash
@@ -83,6 +85,17 @@ panerelay fetch --authorize '*.example.com'
 ```
 
 Authorization is domain-based: schemes, ports, paths, and queries are discarded, so a grant applies to both HTTP and HTTPS on that hostname. Exact hostnames match only themselves; `*.example.com` matches the root and every subdomain. The authorization command and the expanded Fetch access manager also accept URLs and normalize them to a hostname. An Agent request opens a focused Extension confirmation that can only approve or explicitly deny the requested domain; explicit denial removes that exact Panerelay grant, while close and timeout leave saved grants unchanged. The broader all-domains option remains available only from Extension settings. Removing a Panerelay grant takes effect immediately but does not remove shared Chrome Host Permission. Fetch authorization stays separate from browser-tab authorization and never acquires a tab-control lease.
+
+The same path is available as the stdio MCP tool `panerelay_fetch.browser_fetch`. Panerelay-owned Codex and Claude Code side-panel sessions receive it automatically. External sessions are opt-in because vendor-hosted tools cannot be transparently intercepted:
+
+```bash
+npx --yes @panerelay/setup --codex-fetch
+npx --yes @panerelay/setup doctor --codex-fetch
+npx --yes @panerelay/setup --claude-fetch
+npx --yes @panerelay/setup doctor --claude-fetch
+```
+
+Codex routing registers MCP and disables hosted web search. Claude routing registers MCP and denies `WebFetch` while preserving `WebSearch`. Remove only these owned settings with `--remove-codex-fetch` or `--remove-claude-fetch`. Previously authorized domains are reused without another popup; a new or browser-revoked domain still requires direct Extension approval. Fetch MCP handles known URLs and may issue mutating HTTP methods—it is not a search engine or a DOM/navigation tool.
 
 Site adapters are opt-in. All built-ins ship together in the lockstep `@panerelay/sites` catalog rather than one npm package per site. Setup accepts built-ins, existing local two-file artifacts, lightweight site-kit source directories, and explicit public GitHub repositories in one atomic batch:
 
@@ -205,9 +218,9 @@ Choose the intended authorized tab ID from the first `tab-list` result. After `t
 ### Manage or troubleshoot the Skill
 
 ```bash
-npx skills add F-loat/panerelay --skill panerelay-browser
-npx skills update panerelay-browser
-npx skills remove panerelay-browser
+npx skills add F-loat/panerelay --skill panerelay
+npx skills update panerelay
+npx skills remove panerelay
 ```
 
 Use `--global` with the matching `npx skills` command when you chose a user-level installation. If an Agent cannot load the Skill, first verify its selected Agent and scope; if an automation command is missing, follow that tool's official installation source. The Skill contains the complete layered troubleshooting flow for the Skill, each upstream executable, setup/doctor, Extension connection, and browser authorization.

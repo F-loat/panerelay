@@ -7,15 +7,16 @@ import {
 } from './fetch-command.js';
 
 const registry = {
-  protocol: 'panerelay.fetch-adapter-registry.v1' as const,
+  protocol: 'panerelay.fetch-adapter-registry.v3' as const,
   adapters: [
     {
       manifest: {
-        protocol: 'panerelay.fetch-adapter.v1' as const,
+        protocol: 'panerelay.fetch-adapter.v3' as const,
         id: 'bilibili',
         name: 'Bilibili',
         version: '0.8.0',
         description: 'Authenticated Bilibili commands.',
+        origins: ['https://api.bilibili.com'],
         entry: 'adapter.mjs',
         commands: [
           {
@@ -243,7 +244,7 @@ test('renders adapter results as an OpenCLI-style table and supports explicit JS
   const active = {
     state,
     session: {
-      protocol: 'panerelay.fetch-session.v1' as const,
+      protocol: 'panerelay.fetch-session.v3' as const,
       sessionId: 'session',
       endpoint: 'http://127.0.0.1:41234/fetch',
       token: 'fetch-secret',
@@ -284,4 +285,293 @@ test('renders adapter results as an OpenCLI-style table and supports explicit JS
   } finally {
     console.log = originalLog;
   }
+});
+
+test('passes migrated site positional arguments through the real fetch command path', async () => {
+  const output: string[] = [];
+  const originalLog = console.log;
+  const state = {
+    protocol: 'panerelay.relay.v2' as const,
+    pid: 1,
+    port: 41_234,
+    token: 'root-secret',
+    generation: 'generation',
+    browserId: 'browser',
+    browserName: 'Chrome',
+    capabilities: { cdpRelay: true, browserFetch: true },
+    extensionReleaseVersion: '0.8.0',
+    extensionBuildVersion: '0.8.0.0',
+    hostVersion: '0.8.0',
+    extensionId: 'extension',
+    updatedAt: new Date().toISOString(),
+  };
+  const active = {
+    state,
+    session: {
+      protocol: 'panerelay.fetch-session.v3' as const,
+      sessionId: 'session',
+      endpoint: 'http://127.0.0.1:41234/fetch',
+      token: 'fetch-secret',
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    },
+  };
+  const migratedRegistry = {
+    protocol: 'panerelay.fetch-adapter-registry.v3' as const,
+    adapters: [
+      {
+        manifest: {
+          protocol: 'panerelay.fetch-adapter.v3' as const,
+          id: 'arxiv',
+          name: 'arXiv',
+          version: '0.8.0',
+          description: 'Public arXiv commands.',
+          origins: ['https://export.arxiv.org'],
+          entry: 'adapter.mjs',
+          commands: [
+            {
+              name: 'search',
+              description: 'Search arXiv papers.',
+              access: 'read' as const,
+              args: [
+                {
+                  name: 'query',
+                  description: 'Search keyword',
+                  type: 'string' as const,
+                  required: true,
+                  positional: true,
+                },
+                {
+                  name: 'limit',
+                  description: 'Maximum results',
+                  type: 'number' as const,
+                  default: 10,
+                },
+              ],
+              output: ['id', 'title'],
+              examples: ['panerelay arxiv search help'],
+            },
+          ],
+        },
+        executablePath: '/protected/arxiv/0.8.0/adapter.mjs',
+        sha256: 'a'.repeat(64),
+      },
+      {
+        manifest: {
+          protocol: 'panerelay.fetch-adapter.v3' as const,
+          id: 'hackernews',
+          name: 'Hacker News',
+          version: '0.8.0',
+          description: 'Public Hacker News commands.',
+          origins: ['https://hacker-news.firebaseio.com'],
+          entry: 'adapter.mjs',
+          commands: [
+            {
+              name: 'top',
+              description: 'List top stories.',
+              access: 'read' as const,
+              args: [
+                {
+                  name: 'limit',
+                  description: 'Number of stories',
+                  type: 'number' as const,
+                  default: 20,
+                },
+              ],
+              output: ['id'],
+              examples: ['panerelay hackernews top --limit 3'],
+            },
+          ],
+        },
+        executablePath: '/protected/hackernews/0.8.0/adapter.mjs',
+        sha256: 'b'.repeat(64),
+      },
+    ],
+  };
+  const calls: Array<{ site: string; command: string; args: Record<string, unknown> }> = [];
+  console.log = (...values: unknown[]) => output.push(values.join(' '));
+  try {
+    const dependencies = {
+      readFetchAdapterRegistry: async () => migratedRegistry,
+      readFetchAdapterRegistration: async (site: string) =>
+        migratedRegistry.adapters.find(adapter => adapter.manifest.id === site) ?? null,
+      selectBrowserFetchRegistration: async () => ({ source: 'single' as const, state }),
+      createBrowserFetchSession: async () => active,
+      releaseBrowserFetchSession: async () => undefined,
+      dispatchFetchAdapter: async (
+        _registration: unknown,
+        _active: unknown,
+        command: string,
+        args: Record<string, string | number | boolean>,
+      ) => {
+        calls.push({ site: command === 'search' ? 'arxiv' : 'hackernews', command, args });
+        return command === 'search' ? [{ id: '1508.06444', title: 'HELP' }] : [{ id: 1 }];
+      },
+    };
+    assert.equal(
+      await runFetchCommand(['arxiv', 'search', 'help', '--json'], { locale: 'en', dependencies }),
+      0,
+    );
+    assert.deepEqual(JSON.parse(output.pop() ?? ''), [{ id: '1508.06444', title: 'HELP' }]);
+    assert.equal(
+      await runFetchCommand(['hackernews', 'top', '--limit', '3', '--json'], {
+        locale: 'en',
+        dependencies,
+      }),
+      0,
+    );
+    assert.deepEqual(JSON.parse(output.pop() ?? ''), [{ id: 1 }]);
+    assert.deepEqual(calls, [
+      { site: 'arxiv', command: 'search', args: { query: 'help', limit: 10 } },
+      { site: 'hackernews', command: 'top', args: { limit: 3 } },
+    ]);
+  } finally {
+    console.log = originalLog;
+  }
+});
+
+test('prepares file artifacts before browser selection without exposing local paths', async () => {
+  const output: string[] = [];
+  const originalLog = console.log;
+  console.log = (...values: unknown[]) => output.push(values.join(' '));
+  const manifest = {
+    protocol: 'panerelay.fetch-adapter.v3' as const,
+    id: 'upload-example',
+    name: 'Upload example',
+    version: '1.0.0',
+    description: 'Artifact fixture.',
+    origins: ['https://example.com'],
+    entry: 'adapter.mjs',
+    commands: [
+      {
+        name: 'upload',
+        description: 'Upload one document.',
+        access: 'write' as const,
+        args: [
+          {
+            name: 'document',
+            description: 'Document.',
+            type: 'file' as const,
+            required: true,
+            positional: true,
+          },
+        ],
+        output: ['ok'],
+        examples: ['panerelay upload-example upload document.pdf'],
+      },
+    ],
+  };
+  const registration = {
+    manifest,
+    executablePath: '/protected/upload-example/1.0.0/adapter.mjs',
+    sha256: 'c'.repeat(64),
+  };
+  const uploadRegistry = {
+    protocol: 'panerelay.fetch-adapter-registry.v3' as const,
+    adapters: [registration],
+  };
+  const state = {
+    protocol: 'panerelay.relay.v2' as const,
+    pid: 1,
+    port: 41_234,
+    token: 'root-secret',
+    generation: 'generation',
+    browserId: 'browser',
+    browserName: 'Chrome',
+    capabilities: { cdpRelay: true, browserFetch: true },
+    extensionReleaseVersion: '0.8.0',
+    extensionBuildVersion: '0.8.0.0',
+    hostVersion: '0.8.0',
+    extensionId: 'extension',
+    updatedAt: new Date().toISOString(),
+  };
+  const active = {
+    state,
+    session: {
+      protocol: 'panerelay.fetch-session.v3' as const,
+      sessionId: 'session',
+      endpoint: 'http://127.0.0.1:41234/fetch',
+      token: 'fetch-secret',
+      expiresAt: new Date(Date.now() + 60_000).toISOString(),
+    },
+  };
+  const sequence: string[] = [];
+  let dispatchArgs: unknown;
+  let dispatchOptions: unknown;
+  try {
+    assert.equal(
+      await runFetchCommand(['upload-example', 'upload', '/local/document.pdf', '--json'], {
+        locale: 'en',
+        dependencies: {
+          readFetchAdapterRegistry: async () => uploadRegistry,
+          readFetchAdapterRegistration: async () => registration,
+          prepareFetchAdapterArtifacts: async (_command, args) => {
+            sequence.push('artifact');
+            assert.equal(args.document, '/local/document.pdf');
+            return {
+              args: { document: 'artifact-1' },
+              artifacts: [
+                {
+                  id: 'artifact-1',
+                  basename: 'document.pdf',
+                  mediaType: 'application/pdf',
+                  size: 4,
+                  data: 'JVBERg==',
+                },
+              ],
+            };
+          },
+          selectBrowserFetchRegistration: async () => {
+            sequence.push('browser');
+            return { source: 'single' as const, state };
+          },
+          createBrowserFetchSession: async () => {
+            sequence.push('session');
+            return active;
+          },
+          dispatchFetchAdapter: async (_registration, _active, _command, args, options) => {
+            sequence.push('dispatch');
+            dispatchArgs = args;
+            dispatchOptions = options;
+            return { ok: true };
+          },
+          releaseBrowserFetchSession: async () => {
+            sequence.push('release');
+          },
+        },
+      }),
+      0,
+    );
+    assert.deepEqual(sequence, ['artifact', 'browser', 'session', 'dispatch', 'release']);
+    assert.deepEqual(dispatchArgs, { document: 'artifact-1' });
+    assert.equal(JSON.stringify(dispatchOptions).includes('/local/document.pdf'), false);
+    assert.deepEqual(JSON.parse(output[0] ?? '{}'), { ok: true });
+    assert.doesNotMatch(output.join('\n'), /root-secret|fetch-secret/);
+  } finally {
+    console.log = originalLog;
+  }
+});
+
+test('rejects the removed --profile option before file access or browser selection', async () => {
+  let prepared = false;
+  let selected = false;
+  await assert.rejects(
+    runFetchCommand(['bilibili', 'me', '--profile', 'work'], {
+      locale: 'en',
+      dependencies: {
+        readFetchAdapterRegistry: async () => registry,
+        readFetchAdapterRegistration: async () => registry.adapters[0] ?? null,
+        prepareFetchAdapterArtifacts: async (_command, args) => {
+          prepared = true;
+          return { args };
+        },
+        selectBrowserFetchRegistration: async () => {
+          selected = true;
+          throw new Error('must not select');
+        },
+      },
+    }),
+    /Unknown adapter option: --profile/,
+  );
+  assert.equal(prepared, false);
+  assert.equal(selected, false);
 });

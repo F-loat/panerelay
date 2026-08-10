@@ -35,7 +35,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "pnpm --filter @panerelay/sites build && node clean.mjs && tsc -p tsconfig.json && node build-private.mjs",
+    "build": "pnpm --filter @panerelay/sites run build && node clean.mjs && tsc -p tsconfig.json && node build-private.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "pnpm run build && node ../../scripts/run-compiled-tests.mjs dist",
     "prepublishOnly": "pnpm build"

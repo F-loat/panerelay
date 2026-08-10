@@ -1,13 +1,4 @@
-export {
-  defineCommand,
-  defineSite,
-  type SiteCommandContext,
-  type SiteCommandDefinition,
-  type SiteDefinition,
-  type BrowserFetchRequest,
-  type BrowserFetchResponse,
-  type FetchAdapterInvocationRequest,
-} from './definitions.js';
+export * from './adapter-api.js';
 export {
   buildSite,
   checkSite,

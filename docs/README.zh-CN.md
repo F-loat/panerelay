@@ -9,14 +9,14 @@
 | 目标 | 从这里开始 |
 | --- | --- |
 | 了解并安装 Panerelay | [中文快速开始](../README.zh-CN.md#快速开始) |
-| 让 Agent 配置 Panerelay 和自动化工具 | [`panerelay-browser` Skill](../skills/panerelay-browser/SKILL.md) |
+| 让 Agent 使用 Panerelay Fetch 或配置自动化工具 | [`panerelay` Skill](../skills/panerelay/SKILL.md) |
 | 只安装用于浏览器侧边栏的 Panerelay | [`@panerelay/setup` 入门说明](../packages/setup/README.md#start-here) |
 | 通过 agent-browser 使用现有浏览器中已授权的标签页 | [agent-browser 接入说明](../packages/adapters/agent-browser/README.md) |
 | 通过 browser-use CLI、Skill 或 CLI MCP 使用已授权的 Chrome 标签页 | [browser-use 接入说明](../packages/adapters/browser-use/README.md) |
 | 让 Playwright CLI 显式连接已授权的 Chrome 标签页 | [Playwright CLI 接入说明](../packages/adapters/playwright/README.md) |
 | 发送浏览器请求或使用站点适配器 | [浏览器 Fetch](../README.zh-CN.md#浏览器-fetch) |
 
-使用 `npx skills add F-loat/panerelay --skill panerelay-browser` 安装统一 Agent 工作流。该 Skill 是 agent-browser、Browser Use 和 Playwright CLI 设置、使用、验证与排错的版本受控指令源。
+使用 `npx skills add F-loat/panerelay --skill panerelay` 安装统一 Agent 工作流。该 Skill 是浏览器登录态 Fetch、Agent 路由，以及 agent-browser、Browser Use 和 Playwright CLI 设置、使用、验证与排错的版本受控指令源。
 
 ## 运行与排障
 

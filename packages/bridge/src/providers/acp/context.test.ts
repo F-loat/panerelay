@@ -26,6 +26,10 @@ function message(id: string, role: ConversationMessage['role'], text: string): C
 function asLegacyContext(context: string): string {
   return context
     .replace(
+      'For HTTP(S) requests that should reuse the user’s browser login state, use mcp__panerelay_fetch__browser_fetch. Do not use a provider-hosted WebFetch or WebSearch tool for those requests.\nThe Panerelay fetch tool may open an Extension permission prompt for a new domain. It never returns browser cookies and rejects redirects.\n',
+      '',
+    )
+    .replace(
       '\nSelect exactly one automation engine before readiness checks: use an engine named by the user, otherwise follow the registered-integration priority below when present, and otherwise use agent-browser.',
       '',
     )

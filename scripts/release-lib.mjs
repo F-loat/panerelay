@@ -801,7 +801,7 @@ export async function smokePackedSetup(tarballs) {
   const consumerDirectory = join(smokeRoot, 'consumer');
   const homeDirectory = join(smokeRoot, 'home');
   const binDirectory = join(smokeRoot, 'bin');
-  const independentSkillDirectory = join(homeDirectory, '.agents/skills/panerelay-browser');
+  const independentSkillDirectory = join(homeDirectory, '.agents/skills/panerelay');
   const independentSkillPath = join(independentSkillDirectory, 'SKILL.md');
   try {
     await Promise.all([
@@ -895,6 +895,14 @@ export async function smokePackedSetup(tarballs) {
       { cwd: consumerDirectory, env: environment },
     );
     await writeFile(
+      join(siteSourceDirectory, 'panerelay.site.ts'),
+      "import { defineSite } from '@panerelay/site-kit';\nexport default defineSite({ id: 'packed-site', name: 'Packed site', version: '0.1.0', description: 'Packed consumer fixture.' });\n",
+    );
+    await writeFile(
+      join(siteSourceDirectory, 'commands/me.ts'),
+      "import { createMultipartBody, defineCommand } from '@panerelay/site-kit';\nexport default defineCommand({ name: 'me', description: 'Build upload.', access: 'write', args: [{ name: 'document', description: 'Document.', type: 'file', required: true, positional: true }], output: ['contentType'], examples: ['panerelay packed-site me document.pdf'], async run(context) { const body = createMultipartBody('file', context.artifact('document')); return { contentType: body.contentType }; } });\n",
+    );
+    await writeFile(
       join(siteSourceDirectory, 'commands/me.test.ts'),
       "import assert from 'node:assert/strict';\nimport test from 'node:test';\ntest('packed site fixture', () => assert.equal(2 + 2, 4));\n",
     );
@@ -920,8 +928,10 @@ export async function smokePackedSetup(tarballs) {
       join(siteOutputDirectory, 'panerelay-fetch-adapter.json'),
     );
     invariant(
-      packedSiteManifest.id === 'packed-site' && packedSiteManifest.commands?.[0]?.name === 'me',
-      'Packed site-kit build emitted an invalid minimal adapter manifest',
+      packedSiteManifest.id === 'packed-site' &&
+        packedSiteManifest.commands?.[0]?.name === 'me' &&
+        packedSiteManifest.commands?.[0]?.args?.[0]?.type === 'file',
+      'Packed site-kit build emitted an invalid file adapter manifest',
     );
     const browserCliScript = join(consumerDirectory, 'node_modules/@panerelay/cli/dist/cli.js');
     const browserCliArguments = args => [browserCliScript, ...args];
@@ -1098,7 +1108,7 @@ async function validateStableDistributionSources(root) {
     'docs/compatibility/playwright-cli-0.1.17.md',
     'docs/compatibility/claude-code.md',
     ...PACKAGE_DEFINITIONS.map(definition => `${definition.directory}/README.md`),
-    'skills/panerelay-browser/SKILL.md',
+    'skills/panerelay/SKILL.md',
   ];
   for (const relativePath of distributionFiles) {
     const source = await readFile(join(root, relativePath), 'utf8');

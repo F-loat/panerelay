@@ -21,6 +21,7 @@ import {
 import { readBrowserAutomationSetupHint } from '../../browser-automation-hints.js';
 import { readRuntimeConfig, type PanerelayRuntimeConfig } from '../../runtime-config.js';
 import { CodexAppServer, type CodexRpcMessage } from './app-server.js';
+import { codexFetchMcpConfigOverrides } from '../../provider-fetch-mcp.js';
 
 interface CodexThread {
   id: string;
@@ -387,6 +388,7 @@ export class CodexProvider implements AgentProvider {
       ? this.options.createClient(config, handlers)
       : new CodexAppServer({
           codexPath: config.codexPath,
+          configOverrides: codexFetchMcpConfigOverrides(),
           environment: this.options.environment,
           ...handlers,
         });

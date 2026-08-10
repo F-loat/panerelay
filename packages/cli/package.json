@@ -27,6 +27,10 @@
     "./adapter-config": {
       "types": "./dist/adapter-config.d.ts",
       "import": "./dist/adapter-config.js"
+    },
+    "./browser-fetch-client": {
+      "types": "./dist/browser-fetch-client.d.ts",
+      "import": "./dist/browser-fetch-client.js"
     }
   },
   "bin": {

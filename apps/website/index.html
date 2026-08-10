@@ -374,7 +374,7 @@
                       <div class="setup-command-card">
                         <span data-i18n="demo.local.install">Install the Agent Skill</span>
                         <div class="setup-command-surface">
-                          <code>npx skills add F-loat/panerelay --skill panerelay-browser</code>
+                          <code>npx skills add F-loat/panerelay --skill panerelay</code>
                           <span class="mini-copy" aria-hidden="true">
                             <svg viewBox="0 0 20 20">
                               <rect x="7" y="7" width="9" height="9" rx="1.5" />
@@ -386,7 +386,7 @@
                       </div>
                       <div class="setup-complete-row">
                         <span>✓</span>
-                        <code data-i18n="demo.local.result">panerelay-browser Skill installed</code>
+                        <code data-i18n="demo.local.result">panerelay Skill installed</code>
                       </div>
                     </div>
                   </div>
@@ -414,8 +414,8 @@
                       <span>Playwright CLI</span>
                     </div>
                     <div class="agent-message" data-i18n="demo.tool.prompt">
-                      Use the panerelay-browser Skill. Set up agent-browser, run doctor, and stop
-                      when I need to authorize a tab.
+                      Use the panerelay Skill. Set up agent-browser, run doctor, and stop when I
+                      need to authorize a tab.
                     </div>
                     <div class="agent-checks">
                       <span
@@ -1177,14 +1177,17 @@ PY
               <span class="step-index">02</span>
               <div class="step-content">
                 <span class="step-kicker" data-i18n="setup.bridge.label">AGENT SKILL</span>
-                <h3 data-i18n="setup.bridge.title">Install one Skill for all three engines.</h3>
+                <h3 data-i18n="setup.bridge.title">
+                  Install one Skill for every Panerelay workflow.
+                </h3>
                 <p data-i18n="setup.bridge.body">
-                  Install panerelay-browser through npx skills. It covers agent-browser, Browser
-                  Use, and Playwright CLI, including setup, verification, and troubleshooting.
+                  Install panerelay through npx skills. It covers browser-authenticated Fetch, Agent
+                  routing, agent-browser, Browser Use, and Playwright CLI, including setup,
+                  verification, and troubleshooting.
                 </p>
                 <div class="manual-setup">
                   <strong data-i18n="setup.agent.manual"
-                    >One Skill contains setup for every supported engine.</strong
+                    >One Skill contains every supported Panerelay workflow.</strong
                   >
                   <div
                     class="command command-inline"
@@ -1193,13 +1196,13 @@ PY
                     data-i18n-aria-label="command.group.base"
                   >
                     <span class="command-prompt" aria-hidden="true">$</span>
-                    <code>npx skills add F-loat/panerelay --skill panerelay-browser</code>
+                    <code>npx skills add F-loat/panerelay --skill panerelay</code>
                     <button
                       class="copy-button"
                       type="button"
                       aria-label="Copy Skill command"
                       data-i18n-aria-label="command.copy"
-                      data-copy-command="npx skills add F-loat/panerelay --skill panerelay-browser"
+                      data-copy-command="npx skills add F-loat/panerelay --skill panerelay"
                       data-copied="false"
                     >
                       <svg class="copy-icon" viewBox="0 0 20 20" aria-hidden="true">
@@ -1314,8 +1317,8 @@ PY
                         data-i18n-aria-label="prompt.group.agentBrowser"
                       >
                         <p data-i18n="setup.agentPrompt.agentBrowser">
-                          Use the installed panerelay-browser Skill to set up and verify
-                          agent-browser. Stop when I need to authorize a browser tab.
+                          Use the installed panerelay Skill to set up and verify agent-browser. Stop
+                          when I need to authorize a browser tab.
                         </p>
                         <button
                           class="copy-button agent-prompt-copy"
@@ -1357,8 +1360,8 @@ PY
                         data-i18n-aria-label="prompt.group.browserUse"
                       >
                         <p data-i18n="setup.agentPrompt.browserUse">
-                          Use the installed panerelay-browser Skill to set up and verify Browser
-                          Use. Stop when I need to authorize a browser tab.
+                          Use the installed panerelay Skill to set up and verify Browser Use. Stop
+                          when I need to authorize a browser tab.
                         </p>
                         <button
                           class="copy-button agent-prompt-copy"
@@ -1400,8 +1403,8 @@ PY
                         data-i18n-aria-label="prompt.group.playwright"
                       >
                         <p data-i18n="setup.agentPrompt.playwright">
-                          Use the installed panerelay-browser Skill to set up and verify Playwright
-                          CLI. Stop when I need to authorize a browser tab.
+                          Use the installed panerelay Skill to set up and verify Playwright CLI.
+                          Stop when I need to authorize a browser tab.
                         </p>
                         <button
                           class="copy-button agent-prompt-copy"
@@ -1443,9 +1446,9 @@ PY
                         data-i18n-aria-label="prompt.group.all"
                       >
                         <p data-i18n="setup.agentPrompt.all">
-                          Use the installed panerelay-browser Skill to set up and verify
-                          agent-browser, Browser Use, and Playwright CLI. Stop when I need to
-                          authorize browser tabs.
+                          Use the installed panerelay Skill to set up and verify agent-browser,
+                          Browser Use, and Playwright CLI. Stop when I need to authorize browser
+                          tabs.
                         </p>
                         <button
                           class="copy-button agent-prompt-copy"

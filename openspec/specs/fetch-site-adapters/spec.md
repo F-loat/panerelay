@@ -8,7 +8,7 @@ Define a versioned, protected, setup-managed site-adapter format that gives brow
 
 ### Requirement: Fetch adapters use a versioned installable format
 
-A fetch site adapter SHALL consist of a strict versioned manifest and one self-contained executable entry artifact. The manifest SHALL declare an adapter ID, display name, version, description, protocol version, executable entry, and bounded command metadata including each command's name, description, access classification, arguments, output fields, and examples. Adapter and command identifiers SHALL be lowercase, bounded, and unique.
+A fetch site adapter SHALL consist of a strict versioned manifest and one self-contained executable entry artifact. The manifest SHALL declare an adapter ID, display name, version, description, protocol version, executable entry, and bounded command metadata including each command's name, description, access classification, arguments, output fields, and examples. Command arguments MAY use string, number, boolean, or file types, but one command SHALL declare at most one file argument. Adapter, command, and argument identifiers SHALL be lowercase, bounded, and unique within their scope. The manifest and invocation protocol SHALL NOT declare user-managed profiles or site API secrets.
 
 #### Scenario: Local adapter directory is valid
 
@@ -19,7 +19,7 @@ A fetch site adapter SHALL consist of a strict versioned manifest and one self-c
 
 #### Scenario: Adapter format is invalid
 
-- **GIVEN** an adapter has an unknown protocol, unsafe path, symlink, duplicate command, undeclared file, oversized artifact, or malformed metadata
+- **GIVEN** an adapter has an unknown protocol, unsafe path, symlink, duplicate command, user-managed credential metadata, multiple file arguments in one command, undeclared file, oversized artifact, or malformed metadata
 - **WHEN** setup evaluates it
 - **THEN** setup rejects that adapter before changing its active installation
 
@@ -92,27 +92,41 @@ The Panerelay CLI SHALL render `panerelay fetch --help` from built-in raw-fetch 
 
 ### Requirement: CLI invokes fetch adapters out of process
 
-For an adapter command, the CLI SHALL select one live browser using the raw-fetch rules, validate command arguments against installed manifest metadata, and invoke the protected adapter executable out of process through a bounded correlated protocol. The CLI SHALL provide request-scoped Bridge connection material only to that process, suppress it from output and logs, enforce time and message-size bounds, preserve the adapter result, and terminate invocation if the browser generation changes. By default it SHALL render the result as an OpenCLI-style table using the manifest output-field order and an `<count> items · <seconds>s` footer. Matching OpenCLI, elapsed time SHALL start at the concrete command action before argument preparation and stop before rendering; `--json` SHALL instead print only the underlying structured result without changing adapter input or execution.
+For an adapter command, the CLI SHALL validate command arguments and any explicit file input, select one live browser using the raw-fetch rules, and invoke the protected adapter executable out of process through a bounded correlated protocol. The CLI SHALL provide only request-scoped Bridge connection material and bounded invocation artifacts to that process. It SHALL NOT accept, persist, select, or inject user-supplied site API keys, PATs, bearer tokens, refresh tokens, or client secrets for an adapter. The CLI SHALL enforce time and message-size bounds, preserve successful adapter results, preserve bounded structured command-error codes, and terminate invocation if the browser generation changes. By default it SHALL render the result as an OpenCLI-style table using the manifest output-field order and an `<count> items · <seconds>s` footer. Matching OpenCLI, elapsed time SHALL start at the concrete command action before argument preparation and stop before rendering; `--json` SHALL instead print only the underlying structured result without changing adapter input or execution.
 
-#### Scenario: Adapter command succeeds
+#### Scenario: Adapter command succeeds with a file
 
-- **GIVEN** a compatible installed adapter and one selected live browser
-- **WHEN** the user runs `panerelay fetch <site> <command>` with valid arguments
-- **THEN** the adapter can issue one or more browser fetches through the selected Bridge
-- **AND** the CLI prints only the command result as a table in manifest output-field order
+- **GIVEN** a compatible installed adapter, one accepted file argument, and one selected live browser
+- **WHEN** the user runs the command
+- **THEN** the adapter can access the one-shot artifact and issue one or more browser fetches through the selected Bridge
+- **AND** the local path does not appear in adapter input or output
+
+#### Scenario: Adapter requests a user-managed API key
+
+- **GIVEN** a site requires an API key, PAT, bearer token, refresh token, or client secret supplied outside the browser login state
+- **WHEN** its adapter manifest or invocation attempts to declare that credential
+- **THEN** Panerelay rejects the unsupported metadata or input
+- **AND** it does not create protected adapter credential state
 
 #### Scenario: Caller requests structured adapter output
 
 - **GIVEN** an installed adapter command returns a structured result
 - **WHEN** the user adds `--json`
 - **THEN** the CLI prints that result as JSON
-- **AND** `--json` is not forwarded as a site-command argument
+- **AND** `--json` and `--browser` are not forwarded as site-command arguments
+
+#### Scenario: Adapter returns a typed failure
+
+- **GIVEN** a command reports a bounded authentication, challenge, upstream, response-shape, empty-result, invalid-input, or generic command failure
+- **WHEN** the adapter child completes unsuccessfully
+- **THEN** the CLI preserves its normalized code, message, and retryable state for diagnostics
+- **AND** no Bridge token, file bytes, or local path is included
 
 #### Scenario: Installed executable is unsafe
 
 - **GIVEN** an installed adapter entry is missing, symlinked, outside protected storage, permission-writable by other users, or inconsistent with its registry manifest
 - **WHEN** the user requests a command
-- **THEN** the CLI fails before reading Bridge credentials or starting the process
+- **THEN** the CLI fails before reading Bridge credentials or file bytes and before starting the process
 
 ### Requirement: Built-in Bilibili adapter exposes fetch-compatible read operations
 
@@ -261,3 +275,50 @@ The Panerelay CLI SHALL accept `panerelay <site> <command> [arguments]` and `pan
 - **GIVEN** a compatible site adapter is installed
 - **WHEN** the caller uses `panerelay fetch <site> <command>`
 - **THEN** the existing invocation remains supported without behavioral changes
+
+### Requirement: Site E2E cases declare authentication expectations
+
+The built-in site E2E inventory SHALL classify each representative case as public, optionally authenticated, or authentication-required and MAY declare a bounded expected blocker category. E2E output and compatibility records SHALL distinguish authentication, challenge, upstream, response-shape, and empty-result failures without retaining response bodies, cookies, file bytes, screenshots, or machine-specific paths.
+
+#### Scenario: Required-login case lacks its session
+
+- **GIVEN** a representative E2E case is marked authentication-required
+- **WHEN** it fails with a normalized authentication error
+- **THEN** the result is recorded as blocked by authentication rather than as an unknown parser failure
+- **AND** no credential data is retained
+
+### Requirement: Adapter manifests declare network and browser-state authority
+
+Every source and compiled fetch-adapter manifest SHALL declare a bounded normalized origin list and MAY declare protected browser-state binding policies. Setup, registry reads, source inspection, artifact verification, and runtime dispatch SHALL reject missing, malformed, widened, or hash-mismatched authority metadata. Adapter code SHALL receive only binding IDs, not resolved values or mutable policy definitions.
+
+#### Scenario: Source adapter is built
+
+- **GIVEN** a source-form adapter declares valid origins and optional binding policies as literal metadata
+- **WHEN** setup builds and inspects it
+- **THEN** the compiled manifest preserves exactly that authority metadata
+- **AND** the protected registry copy is used to create adapter fetch sessions
+
+#### Scenario: Legacy manifest has no origins
+
+- **GIVEN** a manifest uses the previous protocol without an origin list
+- **WHEN** setup or the CLI validates it
+- **THEN** validation fails with migration guidance
+- **AND** Panerelay does not infer authority from executable code or a first request
+
+### Requirement: Flomo memos use exact-origin localStorage binding
+
+The built-in Flomo adapter SHALL expose its fetch-expressible memo-list operation by binding the signed-in web application's declared `localStorage.me` access token to the fixed Flomo API Authorization header inside the Extension. It SHALL require an already-open signed-in Flomo tab and SHALL keep login, navigation, and storage export unsupported.
+
+#### Scenario: Signed-in Flomo tab is open
+
+- **GIVEN** the user granted the declared Flomo origins and an open Flomo tab contains the expected access token
+- **WHEN** the user invokes the Flomo memo command
+- **THEN** the adapter returns bounded memo rows from the Flomo API
+- **AND** no access token appears in adapter input, output, diagnostics, or default logs
+
+#### Scenario: Flomo storage is unavailable
+
+- **GIVEN** no exact-origin Flomo tab or usable declared token exists
+- **WHEN** the user invokes the Flomo memo command
+- **THEN** the adapter fails with signed-in-tab guidance before API traffic
+- **AND** it does not navigate to login or ask for a manually supplied token

@@ -3,7 +3,7 @@
 - Panerelay release: current development candidate
 - Integration: user-installed Claude Code CLI 2.1.206 or newer
 - Provider ID: `claude`
-- Last verified: 2026-07-31
+- Last updated: 2026-08-10
 
 ## Status meanings
 
@@ -39,13 +39,13 @@ Panerelay does not depend on, install, or bundle the Claude Agent SDK or a Claud
 | Capability | Status | Evidence and boundary |
 | --- | --- | --- |
 | PNG, JPEG, WebP, and GIF input | Verified | Bounded Extension image input maps to Claude base64 image blocks over stdin; protocol and provider tests cover image-only turns. |
-| Browser tools | Forwarded | Panerelay does not inject a browser MCP or Skill contents. New conversations tell Claude to use an available `$panerelay-browser` Skill or present its canonical installation command; Claude still loads tools from its own user/project configuration, and Panerelay browser connections require explicit Chrome authorization and a current control lease. |
+| Browser tools | Forwarded | Panerelay injects only the bounded `panerelay_fetch` MCP for browser-authenticated HTTP(S) requests and points all Panerelay work at the independently managed `$panerelay` Skill. Fetch requires separate domain/Host Permission and creates no control lease; automation still requires explicit tab authorization and control. No signed-in live Claude turn is claimed. |
 | One-request approval | Verified | A turn-scoped loopback MCP permission tool correlates each request by tool-use ID; `accept`, `decline`, and `cancel` return one JSON-stringified allow or deny decision. |
 | Cancelled, duplicate, stale, or unknown approval control | Verified | Pending state is removed on MCP cancellation or disconnect; repeated IDs are denied and unsupported MCP requests fail closed. |
 | Session-wide approval changes | Unsupported | Claude permission suggestions are never applied; `acceptForSession` and `declineForSession` fail closed. |
 | Interruption | Verified | Matching active turns deny pending approvals, request interruption, terminate the child deterministically, and emit one interrupted terminal state. |
 | Close and terminal cleanup | Verified | Pending approvals fail closed and the turn-scoped query and permission bridge close on normal completion, failure, interruption, or Provider shutdown. Panerelay does not infer or close browser-tool sessions owned by Claude configuration. |
-| User/project/local Claude settings | Forwarded | The CLI loads these setting sources unchanged. Panerelay adds its bounded new-conversation context guidance and turn-scoped approval bridge but does not rewrite browser MCP or Skill configuration. |
+| User/project/local Claude settings | Forwarded | The CLI loads these setting sources and adds turn-scoped `panerelay_fetch`, approval MCP, and `WebFetch` deny configuration for Panerelay-owned turns. Persistent external configuration changes occur only through explicit `@panerelay/setup --claude-fetch`, preserve unrelated JSON, and are independently reversible. |
 | Automatic permission widening | Unsupported | The Provider uses Claude's default permission mode, disables sandbox auto-allow for the scoped process, and never turns an approval into a persistent rule. |
 
 Provider-native CLI payloads remain inside the Bridge. Panerelay emits only bounded protocol events and does not log prompts, model output, tool inputs, or transcript records by default.

@@ -28,9 +28,9 @@ panerelay fetch https://api.example.com/me \
   --response json
 ```
 
-Supported raw options are `--method`, repeatable `--header/-H`, repeatable `--query`, `--data`, `--data-base64`, `--response`, `--timeout`, `--cookies`, `--no-cookies`, and `--browser`. The output is a structured JSON object containing HTTP status, headers, decoded body type, final URL, redirect state, and attached-cookie count. Browser cookies are included by default but never printed or passed through the Bridge protocol as header material.
+Supported raw options are `--method`, repeatable `--header/-H`, repeatable `--query`, `--data`, `--data-base64`, `--response`, `--timeout`, `--cookies`, `--no-cookies`, and `--browser`. The output is a structured JSON object containing HTTP status, headers, decoded body type, final URL, redirect state, and attached-cookie count. Browser cookies are included by default but never printed or passed through the Bridge protocol as header material. Redirects always fail closed.
 
-`Origin` and `Referer` are customizable. When omitted they default to the target origin and `<origin>/panerelay`; an explicit empty value removes the generated header. The target still needs Chrome site access. Panerelay does not query or request that permission before execution, so a Chrome rejection returns guidance to grant site access and retry.
+`Origin` and `Referer` are customizable. When omitted they default to the target origin and `<origin>/panerelay`; an explicit empty value removes the generated header. The target still needs a Panerelay domain grant and Chrome site access. Raw CLI execution does not open permission UI automatically, so a missing grant or Chrome rejection returns bounded guidance to authorize and retry.
 
 Fetch adapters installed by `@panerelay/setup` use an OpenCLI-like form:
 
@@ -43,9 +43,11 @@ panerelay fetch bilibili subtitle BV1xx411c7mD --lang zh-CN
 panerelay fetch bilibili comment BV1xx411c7mD 'test' --execute
 ```
 
-Help reads only protected manifest metadata and does not select a browser. Adapter results use an OpenCLI-style table with an item-count and one-decimal elapsed-time footer by default; like OpenCLI, timing starts when the concrete command action begins and stops before rendering. `--json` prints only the underlying structured result for scripts. Execution verifies the registered digest and runs the adapter once in a bounded child process with a short-lived fetch-only token. Fetch has no Panerelay domain ACL or tab-control lease in this version.
+Help reads only protected manifest metadata and does not select a browser. Adapter results use an OpenCLI-style table with an item-count and one-decimal elapsed-time footer by default; like OpenCLI, timing starts when the concrete command action begins and stops before rendering. `--json` prints only the underlying structured result for scripts. Execution verifies the registered digest and runs the adapter once in a bounded child process with a short-lived fetch-only token. Raw requests receive one exact-origin session; adapters receive only the origin and protected binding authority declared in their installed manifest. The Bridge and Extension enforce that authority independently. Fetch still creates no tab-control lease.
 
-The built-in Bilibili command inventory is `whoami`, `me`, `video`, `search`, `hot`, `ranking`, `dynamic`, `feed`, `feed-detail`, `favorite`, `history`, `following`, `user-videos`, `comments`, `subtitle`, `summary`, `comment`, `follow`, and `unfollow`. The final three are writes. Comment requires `--execute`; each write uses a generic Cookie binding that asks the Extension to inject `bili_jct` as the `csrf` form field without disclosing its value to the adapter. Interactive `login` and media/filesystem-oriented `download` are excluded.
+The built-in Bilibili command inventory is `whoami`, `me`, `video`, `search`, `hot`, `ranking`, `dynamic`, `feed`, `feed-detail`, `favorite`, `history`, `following`, `user-videos`, `comments`, `subtitle`, `summary`, `comment`, `follow`, and `unfollow`. The final three are writes. Comment requires `--execute`; each write selects a protected manifest binding that asks the Extension to inject `bili_jct` as the `csrf` form field without disclosing its value to the adapter. Interactive `login` and media/filesystem-oriented `download` are excluded.
+
+The installed Native Host also supports a bounded stdio MCP mode used by Panerelay's Codex/Claude integrations. It exposes one `browser_fetch` tool with the same exact-origin, permission, Cookie, timeout, redirect, response, cancellation, and non-disclosure boundaries. It is a request tool rather than browser automation or a search engine. Arbitrary Cookie names and browser storage keys are not MCP inputs.
 
 Once `<site> <command>` has been parsed, manifest-declared `--lang` remains a command argument. A global CLI locale must appear before `fetch`, such as `panerelay --lang zh-CN fetch bilibili --help`.
 

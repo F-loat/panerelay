@@ -147,6 +147,57 @@ test('base setup installs only the Native Host and skips both engine integration
   assert.equal(result.browserUseIntegration, undefined);
 });
 
+test('explicit Agent fetch setup uses the stable Native Host launcher', async () => {
+  const calls: string[] = [];
+  const result = await setupPanerelay(
+    { codexFetch: true, claudeFetch: true, homeDirectory: '/home' },
+    {
+      installHost: async () => host,
+      installCodexFetch: async (launchPath, options) => {
+        calls.push(`codex:${launchPath}:${options?.homeDirectory}`);
+        return '/home/.codex/config.toml';
+      },
+      installClaudeFetch: async (launchPath, options) => {
+        calls.push(`claude:${launchPath}:${options?.homeDirectory}`);
+        return {
+          configPath: '/home/.claude.json',
+          settingsPath: '/home/.claude/settings.json',
+        };
+      },
+    },
+  );
+  assert.deepEqual(calls, [`codex:${host.launchPath}:/home`, `claude:${host.launchPath}:/home`]);
+  assert.equal(result.codexFetchConfigPath, '/home/.codex/config.toml');
+  assert.equal(result.claudeFetchConfigPaths?.settingsPath, '/home/.claude/settings.json');
+});
+
+test('explicit Agent fetch removal keeps the Native Host and removes only selected routing', async () => {
+  const calls: string[] = [];
+  const result = await setupPanerelay(
+    { removeCodexFetch: true, removeClaudeFetch: true, homeDirectory: '/home' },
+    {
+      installHost: async () => {
+        calls.push('install-host');
+        return host;
+      },
+      uninstallCodexFetch: async options => {
+        calls.push(`remove-codex:${options?.homeDirectory}`);
+        return '/home/.codex/config.toml';
+      },
+      uninstallClaudeFetch: async options => {
+        calls.push(`remove-claude:${options?.homeDirectory}`);
+        return {
+          configPath: '/home/.claude.json',
+          settingsPath: '/home/.claude/settings.json',
+        };
+      },
+    },
+  );
+  assert.deepEqual(calls, ['install-host', 'remove-codex:/home', 'remove-claude:/home']);
+  assert.equal(result.removedCodexFetchConfigPath, '/home/.codex/config.toml');
+  assert.equal(result.removedClaudeFetchConfigPaths?.settingsPath, '/home/.claude/settings.json');
+});
+
 test('Playwright setup installs only Panerelay-owned adapter artifacts', async () => {
   const calls: string[] = [];
   const result = await setupPanerelay(

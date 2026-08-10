@@ -71,13 +71,13 @@ function publicInspection(site: InspectedSite, manifest = site.manifest): Inspec
 }
 
 function siteKitAliasPlugin() {
-  const definitions = fileURLToPath(new URL('./definitions.js', import.meta.url));
+  const adapterApi = fileURLToPath(new URL('./adapter-api.js', import.meta.url));
   const runtime = fileURLToPath(new URL('./runtime.js', import.meta.url));
   const protocol = createRequire(import.meta.url).resolve('@panerelay/protocol');
   return {
     name: 'panerelay-site-kit',
     setup(buildApi: import('esbuild').PluginBuild): void {
-      buildApi.onResolve({ filter: /^@panerelay\/site-kit$/ }, () => ({ path: definitions }));
+      buildApi.onResolve({ filter: /^@panerelay\/site-kit$/ }, () => ({ path: adapterApi }));
       buildApi.onResolve({ filter: /^@panerelay\/site-kit\/runtime$/ }, () => ({ path: runtime }));
       buildApi.onResolve({ filter: /^@panerelay\/protocol$/ }, () => ({ path: protocol }));
       buildApi.onResolve({ filter: /.*/ }, args => {
@@ -359,8 +359,10 @@ export async function testSite(sourceDirectory: string): Promise<TestSiteResult>
 }
 
 function validateSiteId(id: string): void {
-  if (!/^[a-z][a-z0-9-]{0,63}$/.test(id)) {
-    throw new Error('site id must start with a lowercase letter and contain only a-z, 0-9, or -');
+  if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(id)) {
+    throw new Error(
+      'site id must start with a lowercase letter or digit and contain only a-z, 0-9, or -',
+    );
   }
 }
 
@@ -372,7 +374,7 @@ export async function initializeSite(directory: string, id: string): Promise<voi
   await mkdir(join(target, 'commands'), { mode: 0o700 });
   await writeFile(
     join(target, 'panerelay.site.ts'),
-    `import { defineSite } from '@panerelay/site-kit';\n\nexport default defineSite({\n  id: ${JSON.stringify(id)},\n  name: ${JSON.stringify(id)},\n  version: '0.1.0',\n  description: ${JSON.stringify(`${id} commands through Panerelay browser fetch.`)},\n});\n`,
+    `import { defineSite } from '@panerelay/site-kit';\n\nexport default defineSite({\n  id: ${JSON.stringify(id)},\n  name: ${JSON.stringify(id)},\n  version: '0.1.0',\n  origins: ['https://example.com'],\n  description: ${JSON.stringify(`${id} commands through Panerelay browser fetch.`)},\n});\n`,
     'utf8',
   );
   await writeFile(
@@ -382,7 +384,7 @@ export async function initializeSite(directory: string, id: string): Promise<voi
   );
   await writeFile(
     join(target, 'README.md'),
-    `# ${id}\n\n- Check: \`npx --yes @panerelay/site-kit check .\`\n- Test: \`npx --yes @panerelay/site-kit test .\`\n- Build: \`npx --yes @panerelay/site-kit build . --out ../${id}-adapter\`\n`,
+    `# ${id}\n\n- Check: \`npx --yes @panerelay/site-kit check .\`\n- Test: \`npx --yes @panerelay/site-kit test .\`\n- Build: \`npx --yes @panerelay/site-kit build . --out ../${id}-adapter\`\n\nOptional capabilities:\n\n- Declare at most one \`file\` argument per command and read it with \`context.artifact(name)\`.\n- Use \`createMultipartBody\`, response decoding helpers, and \`SiteError\` from \`@panerelay/site-kit\`.\n`,
     'utf8',
   );
 }
