@@ -342,7 +342,10 @@ test('CLI exposes package-runner help, version, success, and failure exit codes'
   assert.match(help.stdout, /panerelay-site init/);
   const version = await runCli(['--version']);
   assert.equal(version.code, 0);
-  assert.match(version.stdout, /^v0\.8\.0\n$/);
+  const packageMetadata = JSON.parse(
+    await readFile(join(packageDirectory, 'package.json'), 'utf8'),
+  ) as { version: string };
+  assert.equal(version.stdout, `v${packageMetadata.version}\n`);
   const invalid = await runCli(['unknown']);
   assert.equal(invalid.code, 1);
   assert.match(invalid.stderr, /unknown command/);

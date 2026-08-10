@@ -368,6 +368,20 @@ test('keeps selectable release preparation validated, auto-squashed, and dispatc
   assert.match(prepareReleaseWorkflow, /refs\/tags\/\$base_tag/);
   assert.match(prepareReleaseWorkflow, /refs\/heads\/\$PREPARE_BRANCH/);
   assert.match(prepareReleaseWorkflow, /npm view "\$package_name@\$TARGET_VERSION"/);
+  const packagePreflight = /for package_name in \\\n([\s\S]*?); do/.exec(prepareReleaseWorkflow);
+  assert.ok(packagePreflight);
+  assert.deepEqual(
+    packagePreflight[1].match(/@panerelay\/[a-z-]+/g),
+    PACKAGE_DEFINITIONS.map(definition => definition.name),
+  );
+  for (const definition of PACKAGE_DEFINITIONS) {
+    const manifestPath = `${definition.directory}/package.json`;
+    assert.equal(
+      prepareReleaseWorkflow.split(manifestPath).length - 1,
+      2,
+      `${manifestPath} should be checked and committed by release preparation`,
+    );
+  }
   assert.match(prepareReleaseWorkflow, /pnpm run check/);
   assert.match(prepareReleaseWorkflow, /pnpm run release:check/);
   assert.match(
