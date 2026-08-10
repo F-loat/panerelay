@@ -896,7 +896,7 @@ export async function smokePackedSetup(tarballs) {
     );
     await writeFile(
       join(siteSourceDirectory, 'panerelay.site.ts'),
-      "import { defineSite } from '@panerelay/site-kit';\nexport default defineSite({ id: 'packed-site', name: 'Packed site', version: '0.1.0', description: 'Packed consumer fixture.' });\n",
+      "import { defineSite } from '@panerelay/site-kit';\nexport default defineSite({ id: 'packed-site', name: 'Packed site', version: '0.1.0', origins: ['https://example.com'], description: 'Packed consumer fixture.' });\n",
     );
     await writeFile(
       join(siteSourceDirectory, 'commands/me.ts'),
@@ -929,6 +929,7 @@ export async function smokePackedSetup(tarballs) {
     );
     invariant(
       packedSiteManifest.id === 'packed-site' &&
+        packedSiteManifest.origins?.[0] === 'https://example.com' &&
         packedSiteManifest.commands?.[0]?.name === 'me' &&
         packedSiteManifest.commands?.[0]?.args?.[0]?.type === 'file',
       'Packed site-kit build emitted an invalid file adapter manifest',
