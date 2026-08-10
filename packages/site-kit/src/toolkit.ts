@@ -21,7 +21,7 @@ import {
   type FetchAdapterManifest,
 } from '@panerelay/protocol';
 import { build } from 'esbuild';
-import { inspectSiteSource, type InspectedSite } from './source.js';
+import { inspectSiteSource, inspectSiteSources, type InspectedSite } from './source.js';
 
 const MANIFEST_FILE = 'panerelay-fetch-adapter.json';
 const ADAPTER_FILE = 'adapter.mjs';
@@ -40,10 +40,25 @@ export interface BuildSiteOptions {
   version?: string;
 }
 
+export interface BuildSiteCatalogEntry {
+  id: string;
+  sourceDirectory: string;
+}
+
+export interface BuildSiteCatalogOptions {
+  outDirectory: string;
+  version?: string;
+}
+
 export interface BuildSiteResult extends InspectSiteResult {
   outDirectory: string;
   manifestPath: string;
   adapterPath: string;
+}
+
+export interface BuildSiteCatalogResult {
+  outDirectory: string;
+  sites: BuildSiteResult[];
 }
 
 export type CheckSiteResult = InspectSiteResult;
@@ -103,6 +118,30 @@ function generatedEntry(site: InspectedSite): string {
   ].join('\n');
 }
 
+const GENERATED_ENTRY_PREFIX = 'panerelay-site-entry:';
+
+function generatedEntriesPlugin(sites: readonly InspectedSite[]) {
+  return {
+    name: 'panerelay-site-entries',
+    setup(buildApi: import('esbuild').PluginBuild): void {
+      buildApi.onResolve({ filter: /^panerelay-site-entry:/ }, args => ({
+        namespace: 'panerelay-site-entry',
+        path: args.path.slice(GENERATED_ENTRY_PREFIX.length),
+      }));
+      buildApi.onLoad({ filter: /.*/, namespace: 'panerelay-site-entry' }, args => {
+        const index = Number(args.path);
+        const site = Number.isInteger(index) ? sites[index] : undefined;
+        if (!site) return { errors: [{ text: `Unknown generated site entry: ${args.path}` }] };
+        return {
+          contents: generatedEntry(site),
+          loader: 'ts',
+          resolveDir: site.sourceDirectory,
+        };
+      });
+    },
+  } satisfies import('esbuild').Plugin;
+}
+
 async function bundleSite(site: InspectedSite): Promise<Uint8Array> {
   const result = await build({
     absWorkingDir: site.sourceDirectory,
@@ -129,6 +168,47 @@ async function bundleSite(site: InspectedSite): Promise<Uint8Array> {
   return output.contents;
 }
 
+async function bundleSiteCatalog(
+  sites: readonly InspectedSite[],
+): Promise<Map<string, Uint8Array>> {
+  const outputRoot = resolve('.panerelay-site-catalog-output');
+  const result = await build({
+    bundle: true,
+    entryNames: '[dir]/[name]',
+    entryPoints: Object.fromEntries(
+      sites.map((site, index) => [
+        `${site.manifest.id}/adapter`,
+        `${GENERATED_ENTRY_PREFIX}${index}`,
+      ]),
+    ),
+    format: 'esm',
+    legalComments: 'none',
+    logLevel: 'silent',
+    outdir: outputRoot,
+    outExtension: { '.js': '.mjs' },
+    platform: 'node',
+    plugins: [generatedEntriesPlugin(sites), siteKitAliasPlugin()],
+    target: 'node20',
+    write: false,
+  });
+  if (!result.outputFiles || result.outputFiles.length !== sites.length) {
+    throw new Error('site catalog bundle output is incomplete');
+  }
+  const outputs = new Map(
+    result.outputFiles.map(output => [resolve(output.path), output.contents]),
+  );
+  const bundles = new Map<string, Uint8Array>();
+  for (const site of sites) {
+    const output = outputs.get(join(outputRoot, site.manifest.id, ADAPTER_FILE));
+    if (!output) throw new Error(`${site.manifest.id}: site catalog bundle output is missing`);
+    if (output.byteLength > PANERELAY_FETCH_ADAPTER_MAX_ARTIFACT_BYTES) {
+      throw new Error(`${site.manifest.id}: generated adapter exceeds the protocol artifact limit`);
+    }
+    bundles.set(site.manifest.id, output);
+  }
+  return bundles;
+}
+
 async function existingOutputIsReplaceable(path: string, siteId: string): Promise<boolean> {
   try {
     const metadata = await stat(path);
@@ -148,6 +228,23 @@ async function existingOutputIsReplaceable(path: string, siteId: string): Promis
   } catch {
     return false;
   }
+}
+
+async function existingCatalogIsReplaceable(path: string): Promise<boolean> {
+  try {
+    const metadata = await stat(path);
+    if (!metadata.isDirectory()) return false;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return true;
+    throw error;
+  }
+  const entries = await readdir(path, { withFileTypes: true });
+  if (entries.length === 0) return true;
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.isSymbolicLink()) return false;
+    if (!(await existingOutputIsReplaceable(join(path, entry.name), entry.name))) return false;
+  }
+  return true;
 }
 
 async function validateGeneratedOutput(
@@ -199,6 +296,52 @@ async function replaceOutput(staging: string, output: string, siteId: string): P
   }
 }
 
+async function replaceCatalogOutput(staging: string, output: string): Promise<void> {
+  if (!(await existingCatalogIsReplaceable(output))) {
+    throw new Error('catalog output directory is not empty or contains unrelated files');
+  }
+  const backup = `${output}.backup-${randomUUID()}`;
+  let movedExisting = false;
+  let published = false;
+  try {
+    try {
+      await rename(output, backup);
+      movedExisting = true;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    }
+    await rename(staging, output);
+    published = true;
+    if (movedExisting) await rm(backup, { recursive: true });
+  } catch (error) {
+    if (movedExisting && !published) {
+      try {
+        await rename(backup, output);
+      } catch {
+        // Preserve the original failure; the backup path remains available for recovery.
+      }
+    }
+    throw error;
+  }
+}
+
+async function writeGeneratedOutput(
+  output: string,
+  manifest: FetchAdapterManifest,
+  bundle: Uint8Array,
+): Promise<void> {
+  await mkdir(output, { recursive: true, mode: 0o700 });
+  await chmod(output, 0o700);
+  await writeFile(join(output, MANIFEST_FILE), `${JSON.stringify(manifest, null, 2)}\n`, {
+    encoding: 'utf8',
+    mode: 0o600,
+  });
+  await writeFile(join(output, ADAPTER_FILE), bundle, { mode: 0o600 });
+  await chmod(join(output, MANIFEST_FILE), 0o600);
+  await chmod(join(output, ADAPTER_FILE), 0o600);
+  await validateGeneratedOutput(output, manifest);
+}
+
 export async function inspectSite(sourceDirectory: string): Promise<InspectSiteResult> {
   return publicInspection(await inspectSiteSource(sourceDirectory));
 }
@@ -218,15 +361,7 @@ export async function buildSite(
   await mkdir(dirname(output), { recursive: true, mode: 0o700 });
   const staging = await mkdtemp(join(dirname(output), `.${basename(output)}.panerelay-`));
   try {
-    await chmod(staging, 0o700);
-    await writeFile(join(staging, MANIFEST_FILE), `${JSON.stringify(manifest, null, 2)}\n`, {
-      encoding: 'utf8',
-      mode: 0o600,
-    });
-    await writeFile(join(staging, ADAPTER_FILE), bundle, { mode: 0o600 });
-    await chmod(join(staging, MANIFEST_FILE), 0o600);
-    await chmod(join(staging, ADAPTER_FILE), 0o600);
-    await validateGeneratedOutput(staging, manifest);
+    await writeGeneratedOutput(staging, manifest, bundle);
     await replaceOutput(staging, output, manifest.id);
   } finally {
     await rm(staging, { force: true, recursive: true });
@@ -236,6 +371,70 @@ export async function buildSite(
     outDirectory: output,
     manifestPath: join(output, MANIFEST_FILE),
     adapterPath: join(output, ADAPTER_FILE),
+  };
+}
+
+export async function buildSiteCatalog(
+  entries: readonly BuildSiteCatalogEntry[],
+  options: BuildSiteCatalogOptions,
+): Promise<BuildSiteCatalogResult> {
+  if (entries.length === 0) throw new Error('site catalog selection must not be empty');
+  if (entries.length > 256) throw new Error('site catalog exceeds 256 adapters');
+  const selectedIds = new Set<string>();
+  for (const entry of entries) {
+    if (selectedIds.has(entry.id))
+      throw new Error(`${entry.id}: adapter id is selected more than once`);
+    selectedIds.add(entry.id);
+  }
+
+  const sites = await inspectSiteSources(
+    entries.map(entry => ({ sourceDirectory: entry.sourceDirectory, label: entry.id })),
+  );
+  const output = resolve(options.outDirectory);
+  const manifests = sites.map((site, index) => {
+    const expectedId = entries[index]!.id;
+    if (site.manifest.id !== expectedId) {
+      throw new Error(`${expectedId}: source declares adapter id ${site.manifest.id}`);
+    }
+    if (isWithin(site.sourceDirectory, output) || isWithin(output, site.sourceDirectory)) {
+      throw new Error(`${expectedId}: catalog output must be outside every site source directory`);
+    }
+    const manifest = options.version
+      ? { ...site.manifest, version: options.version }
+      : site.manifest;
+    if (!isFetchAdapterManifest(manifest)) {
+      throw new Error(`${expectedId}: version override is invalid`);
+    }
+    return manifest;
+  });
+  const bundles = await bundleSiteCatalog(sites);
+
+  await mkdir(dirname(output), { recursive: true, mode: 0o700 });
+  const staging = await mkdtemp(join(dirname(output), `.${basename(output)}.panerelay-`));
+  try {
+    await chmod(staging, 0o700);
+    for (const manifest of manifests) {
+      const bundle = bundles.get(manifest.id);
+      if (!bundle) throw new Error(`${manifest.id}: site catalog bundle output is missing`);
+      await writeGeneratedOutput(join(staging, manifest.id), manifest, bundle);
+    }
+    await replaceCatalogOutput(staging, output);
+  } finally {
+    await rm(staging, { force: true, recursive: true });
+  }
+
+  return {
+    outDirectory: output,
+    sites: sites.map((site, index) => {
+      const manifest = manifests[index]!;
+      const siteOutput = join(output, manifest.id);
+      return {
+        ...publicInspection(site, manifest),
+        outDirectory: siteOutput,
+        manifestPath: join(siteOutput, MANIFEST_FILE),
+        adapterPath: join(siteOutput, ADAPTER_FILE),
+      };
+    }),
   };
 }
 

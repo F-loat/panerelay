@@ -34,7 +34,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "pnpm run build && node ../../../scripts/run-compiled-tests.mjs dist",
+    "test": "pnpm run build && pnpm run test:compiled",
+    "test:compiled": "node ../../../scripts/run-compiled-tests.mjs dist",
     "prepublishOnly": "pnpm build"
   },
   "dependencies": {

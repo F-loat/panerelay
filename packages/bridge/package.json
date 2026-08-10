@@ -50,7 +50,8 @@
   "scripts": {
     "build": "node clean.mjs && tsc -p tsconfig.json && node build.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "pnpm run build && node ../../scripts/run-compiled-tests.mjs dist",
+    "test": "pnpm run build && pnpm run test:compiled",
+    "test:compiled": "node ../../scripts/run-compiled-tests.mjs dist",
     "install:host": "pnpm run build && node dist/install.js",
     "uninstall:host": "pnpm run build && node dist/install.js --uninstall",
     "prepublishOnly": "pnpm build"

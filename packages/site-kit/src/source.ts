@@ -33,6 +33,11 @@ export interface InspectedSite {
   manifest: FetchAdapterManifest;
 }
 
+export interface InspectSiteSourceInput {
+  sourceDirectory: string;
+  label?: string;
+}
+
 function sourceError(sourceDirectory: string, filePath: string, message: string): Error {
   const shown = relative(sourceDirectory, filePath) || '.';
   return new Error(`${shown}: ${message}`);
@@ -298,7 +303,12 @@ function typeRoots(): string[] {
   }
 }
 
-function typecheck(root: string, files: readonly string[]): void {
+interface TypecheckSite {
+  input: InspectSiteSourceInput;
+  site: InspectedSite;
+}
+
+function typecheck(sites: readonly TypecheckSite[]): void {
   const declarations = fileURLToPath(new URL('./adapter-api.d.ts', import.meta.url));
   const options: ts.CompilerOptions = {
     allowImportingTsExtensions: true,
@@ -313,24 +323,39 @@ function typecheck(root: string, files: readonly string[]): void {
     types: ['node'],
     typeRoots: typeRoots(),
   };
-  const program = ts.createProgram({ rootNames: [...files], options });
-  const diagnostics = ts.getPreEmitDiagnostics(program).filter(diagnostic => {
-    const fileName = diagnostic.file?.fileName;
-    return !fileName || isWithin(root, fileName);
-  });
+  const rootNames = [...new Set(sites.flatMap(({ site }) => site.sourceFiles))];
+  const program = ts.createProgram({ rootNames, options });
+  const ownerOf = (fileName: string): TypecheckSite | undefined =>
+    sites.find(({ site }) => isWithin(site.sourceDirectory, fileName));
+  const diagnostics = ts
+    .getPreEmitDiagnostics(program)
+    .filter(diagnostic => !diagnostic.file || ownerOf(diagnostic.file.fileName))
+    .sort((left, right) => {
+      const leftOwner = left.file ? ownerOf(left.file.fileName) : undefined;
+      const rightOwner = right.file ? ownerOf(right.file.fileName) : undefined;
+      const leftIndex = leftOwner ? sites.indexOf(leftOwner) : -1;
+      const rightIndex = rightOwner ? sites.indexOf(rightOwner) : -1;
+      if (leftIndex !== rightIndex) return leftIndex - rightIndex;
+      const fileOrder = (left.file?.fileName ?? '').localeCompare(right.file?.fileName ?? '');
+      if (fileOrder !== 0) return fileOrder;
+      return (left.start ?? 0) - (right.start ?? 0);
+    });
   const first = diagnostics[0];
   if (!first) return;
   const message = ts.flattenDiagnosticMessageText(first.messageText, '\n');
   if (!first.file) throw new Error(`typecheck: ${message}`);
+  const owner = ownerOf(first.file.fileName);
+  if (!owner) throw new Error(`typecheck: ${message}`);
   const position = first.file.getLineAndCharacterOfPosition(first.start ?? 0);
-  throw sourceError(
-    root,
+  const error = sourceError(
+    owner.site.sourceDirectory,
     first.file.fileName,
     `${position.line + 1}:${position.character + 1} ${message}`,
   );
+  throw owner.input.label ? new Error(`${owner.input.label}: ${error.message}`) : error;
 }
 
-export async function inspectSiteSource(sourceDirectory: string): Promise<InspectedSite> {
+async function inspectSiteSourceStructure(sourceDirectory: string): Promise<InspectedSite> {
   const requestedRoot = resolve(sourceDirectory);
   const rootMetadata = await stat(requestedRoot);
   if (!rootMetadata.isDirectory()) throw new Error(`${requestedRoot} is not a directory`);
@@ -376,6 +401,38 @@ export async function inspectSiteSource(sourceDirectory: string): Promise<Inspec
   if (!isFetchAdapterManifest(manifest)) {
     throw new Error(`${SITE_FILE}: site or command metadata does not satisfy the adapter protocol`);
   }
-  typecheck(root, graph.files);
   return { sourceDirectory: root, site, commands, sourceFiles: graph.files, manifest };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export async function inspectSiteSources(
+  inputs: readonly InspectSiteSourceInput[],
+): Promise<InspectedSite[]> {
+  if (inputs.length === 0) throw new Error('site source selection must not be empty');
+  const selected: TypecheckSite[] = [];
+  const sourceRoots = new Set<string>();
+  for (const input of inputs) {
+    let site: InspectedSite;
+    try {
+      site = await inspectSiteSourceStructure(input.sourceDirectory);
+    } catch (error) {
+      if (!input.label) throw error;
+      throw new Error(`${input.label}: ${errorMessage(error)}`, { cause: error });
+    }
+    if (sourceRoots.has(site.sourceDirectory)) {
+      const message = 'source directory is selected more than once';
+      throw new Error(input.label ? `${input.label}: ${message}` : message);
+    }
+    sourceRoots.add(site.sourceDirectory);
+    selected.push({ input, site });
+  }
+  typecheck(selected);
+  return selected.map(({ site }) => site);
+}
+
+export async function inspectSiteSource(sourceDirectory: string): Promise<InspectedSite> {
+  return (await inspectSiteSources([{ sourceDirectory }]))[0]!;
 }

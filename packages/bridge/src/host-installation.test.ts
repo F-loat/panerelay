@@ -7,8 +7,9 @@ import { setTimeout as delay } from 'node:timers/promises';
 import test from 'node:test';
 import {
   acquireNativeHostUpdateLock,
-  installNativeHost,
+  installNativeHost as installNativeHostProduction,
   nativeHostManifestPaths,
+  type NativeHostInstallOptions,
   parseWindowsRegistryString,
   registerWindowsNativeHost,
   resolveEffectiveExtensionId,
@@ -27,6 +28,36 @@ const currentReleaseVersion = (
     version: string;
   }
 ).version;
+
+interface NativeHostFixtureInstallOptions extends NativeHostInstallOptions {
+  selfCheckRelease?: string;
+}
+
+function successfulNativeHostSelfCheck(release: string): CommandRunner {
+  return async (command, args, options) => {
+    assert.equal(command, process.execPath);
+    assert.equal(args.length, 2);
+    assert.equal(args[1], '--self-check');
+    assert.equal(options?.timeoutMs, 5_000);
+    return {
+      code: 0,
+      stderr: '',
+      stdout: JSON.stringify({ protocol: 'panerelay.relay.v2', release }),
+    };
+  };
+}
+
+function installNativeHost(options: NativeHostFixtureInstallOptions) {
+  const { selfCheckRelease, ...installOptions } = options;
+  return installNativeHostProduction({
+    ...installOptions,
+    selfCheckRunner:
+      installOptions.selfCheckRunner ??
+      successfulNativeHostSelfCheck(
+        selfCheckRelease ?? installOptions.expectedReleaseVersion ?? currentReleaseVersion,
+      ),
+  });
+}
 
 function nativeHostFixture(release = currentReleaseVersion, output = ''): string {
   return `#!/usr/bin/env node
@@ -154,6 +185,22 @@ test('Native Host setup remains automation-engine neutral', async () => {
   const homeDirectory = join(root, 'home');
   const binDirectory = join(root, 'bin');
   const bundledHostPath = join(root, 'native-host.bundle.cjs');
+  let selfCheckCalls = 0;
+  const selfCheckRunner: CommandRunner = async (command, args, options) => {
+    selfCheckCalls += 1;
+    assert.equal(command, process.execPath);
+    assert.equal(args.length, 2);
+    assert.equal(args[1], '--self-check');
+    assert.equal(options?.timeoutMs, 5_000);
+    return {
+      code: 0,
+      stderr: '',
+      stdout: JSON.stringify({
+        protocol: 'panerelay.relay.v2',
+        release: currentReleaseVersion,
+      }),
+    };
+  };
   await mkdir(binDirectory, { recursive: true });
   await writeFile(bundledHostPath, nativeHostFixture());
   try {
@@ -162,6 +209,7 @@ test('Native Host setup remains automation-engine neutral', async () => {
       environment: { PATH: binDirectory },
       homeDirectory,
       platform: 'linux',
+      selfCheckRunner,
     });
     const runtime = JSON.parse(await readFile(result.runtimeConfigPath, 'utf8')) as Record<
       string,
@@ -171,6 +219,7 @@ test('Native Host setup remains automation-engine neutral', async () => {
     assert.equal('agentBrowserConfigPath' in runtime, false);
     assert.ok(Array.isArray(runtime.agentPathEntries));
     assert.ok((runtime.agentPathEntries as string[]).includes(binDirectory));
+    assert.equal(selfCheckCalls, 1);
   } finally {
     await rm(root, { force: true, recursive: true });
   }
@@ -182,6 +231,22 @@ test('installs and removes an isolated Native Messaging host', async () => {
   const binDirectory = join(root, 'bin');
   const bundledHostPath = join(root, 'native-host.bundle.cjs');
   const configuredOpenCodePath = join(root, 'configured tools', 'opencode');
+  let selfCheckCalls = 0;
+  const selfCheckRunner: CommandRunner = async (command, args, options) => {
+    selfCheckCalls += 1;
+    assert.equal(command, process.execPath);
+    assert.equal(args.length, 2);
+    assert.equal(args[1], '--self-check');
+    assert.equal(options?.timeoutMs, 5_000);
+    return {
+      code: 0,
+      stderr: '',
+      stdout: JSON.stringify({
+        protocol: 'panerelay.relay.v2',
+        release: currentReleaseVersion,
+      }),
+    };
+  };
   await mkdir(binDirectory, { recursive: true });
   await mkdir(dirname(configuredOpenCodePath), { recursive: true });
   await writeFile(bundledHostPath, nativeHostFixture(currentReleaseVersion, 'ready'));
@@ -211,6 +276,7 @@ test('installs and removes an isolated Native Messaging host', async () => {
       homeDirectory,
       nodePath: '/test/node',
       platform: 'linux',
+      selfCheckRunner,
     });
 
     assert.equal(result.codexPath, join(binDirectory, 'codex'));
@@ -263,9 +329,11 @@ test('installs and removes an isolated Native Messaging host', async () => {
       homeDirectory,
       nodePath: '/test/node',
       platform: 'linux',
+      selfCheckRunner,
     });
     assert.equal(updated.opencodePath, configuredOpenCodePath);
     assert.equal(updated.opencodePathSource, 'override');
+    assert.equal(selfCheckCalls, 3);
     assert.ok(
       result.manifestPaths.some(path =>
         path.includes(join('.config', 'microsoft-edge', 'NativeMessagingHosts')),
@@ -405,6 +473,7 @@ test('a failed staged self-check preserves the selected launchable Host', async 
         expectedReleaseVersion: '0.8.0',
         homeDirectory,
         platform: 'linux',
+        selfCheckRelease: '0.7.1',
       }),
       /identity does not match setup/,
     );

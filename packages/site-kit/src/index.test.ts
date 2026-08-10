@@ -6,6 +6,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import {
+  buildSiteCatalog,
   buildSite,
   checkSite,
   defineCommand,
@@ -159,6 +160,113 @@ test('build is deterministic and refuses unrelated output', async () => {
     );
     await writeFile(join(first, 'unrelated.txt'), 'keep');
     await assert.rejects(buildSite(source, { outDirectory: first }), /not empty|owned/);
+  } finally {
+    await rm(root, { force: true, recursive: true });
+  }
+});
+
+test('catalog build validates ordered identities and writes exact standalone outputs', async () => {
+  const root = await temporaryDirectory('catalog');
+  const alpha = join(root, 'alpha-source');
+  const beta = join(root, 'beta-source');
+  const output = join(root, 'catalog');
+  try {
+    await initializeSite(alpha, 'alpha');
+    await initializeSite(beta, 'beta');
+    const result = await buildSiteCatalog(
+      [
+        { id: 'alpha', sourceDirectory: alpha },
+        { id: 'beta', sourceDirectory: beta },
+      ],
+      { outDirectory: output, version: '2.0.0' },
+    );
+    assert.deepEqual(
+      result.sites.map(site => site.manifest.id),
+      ['alpha', 'beta'],
+    );
+    assert.deepEqual((await readdir(output)).sort(), ['alpha', 'beta']);
+    for (const id of ['alpha', 'beta']) {
+      assert.deepEqual((await readdir(join(output, id))).sort(), [
+        'adapter.mjs',
+        'panerelay-fetch-adapter.json',
+      ]);
+      const manifest = JSON.parse(
+        await readFile(join(output, id, 'panerelay-fetch-adapter.json'), 'utf8'),
+      ) as { id?: string; version?: string };
+      assert.equal(manifest.id, id);
+      assert.equal(manifest.version, '2.0.0');
+    }
+    await assert.rejects(
+      buildSiteCatalog(
+        [
+          { id: 'alpha', sourceDirectory: alpha },
+          { id: 'alpha', sourceDirectory: beta },
+        ],
+        { outDirectory: output },
+      ),
+      /alpha: adapter id is selected more than once/,
+    );
+    await assert.rejects(
+      buildSiteCatalog([{ id: 'renamed', sourceDirectory: alpha }], { outDirectory: output }),
+      /renamed: source declares adapter id alpha/,
+    );
+    await assert.rejects(
+      buildSiteCatalog(
+        [
+          { id: 'alpha', sourceDirectory: alpha },
+          { id: 'duplicate-source', sourceDirectory: alpha },
+        ],
+        { outDirectory: output },
+      ),
+      /duplicate-source: source directory is selected more than once/,
+    );
+  } finally {
+    await rm(root, { force: true, recursive: true });
+  }
+});
+
+test('catalog build keeps the previous catalog on validation and ownership failures', async () => {
+  const root = await temporaryDirectory('catalog-atomic');
+  const alpha = join(root, 'alpha-source');
+  const beta = join(root, 'beta-source');
+  const output = join(root, 'catalog');
+  try {
+    await initializeSite(alpha, 'alpha');
+    await initializeSite(beta, 'beta');
+    await buildSiteCatalog([{ id: 'alpha', sourceDirectory: alpha }], { outDirectory: output });
+    const original = await readFile(join(output, 'alpha', 'adapter.mjs'), 'utf8');
+    await writeFile(
+      join(beta, 'commands', 'me.ts'),
+      `import { defineCommand } from '@panerelay/site-kit';
+export default defineCommand({ name: 'me', description: 'Profile', access: 'read', args: [], output: ['name'], examples: ['panerelay beta me'], async run() { const name: string = 42; return { name }; } });
+`,
+    );
+    await assert.rejects(
+      buildSiteCatalog(
+        [
+          { id: 'alpha', sourceDirectory: alpha },
+          { id: 'beta', sourceDirectory: beta },
+        ],
+        { outDirectory: output },
+      ),
+      /beta: commands\/me\.ts:.*Type 'number' is not assignable to type 'string'/,
+    );
+    assert.deepEqual(await readdir(output), ['alpha']);
+    assert.equal(await readFile(join(output, 'alpha', 'adapter.mjs'), 'utf8'), original);
+
+    await writeFile(join(output, 'unrelated.txt'), 'keep');
+    await assert.rejects(
+      buildSiteCatalog([{ id: 'alpha', sourceDirectory: alpha }], { outDirectory: output }),
+      /contains unrelated files/,
+    );
+    assert.equal(await readFile(join(output, 'unrelated.txt'), 'utf8'), 'keep');
+    assert.equal(await readFile(join(output, 'alpha', 'adapter.mjs'), 'utf8'), original);
+    assert.deepEqual(
+      (await readdir(root)).filter(
+        name => name.includes('.catalog.panerelay-') || name.includes('.catalog.backup-'),
+      ),
+      [],
+    );
   } finally {
     await rm(root, { force: true, recursive: true });
   }

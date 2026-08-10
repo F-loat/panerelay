@@ -262,6 +262,18 @@ test('doctor verifies Windows registry, manifest, launcher, and effective origin
     registryValues.set(args[1] || '', args[6] || '');
     return { code: 0, stderr: '', stdout: '' };
   };
+  const selfCheckRunner: CommandRunner = async (command, args) => {
+    assert.equal(command, process.execPath);
+    assert.equal(args[1], '--self-check');
+    return {
+      code: 0,
+      stderr: '',
+      stdout: JSON.stringify({
+        protocol: PANERELAY_PROTOCOL_VERSION,
+        release: currentReleaseVersion,
+      }),
+    };
+  };
   try {
     await installNativeHost({
       bundledHostPath,
@@ -275,6 +287,7 @@ test('doctor verifies Windows registry, manifest, launcher, and effective origin
       registryRunner,
     });
     const report = await doctorPanerelay({
+      commandRunner: selfCheckRunner,
       homeDirectory,
       platform: 'win32',
       registryRunner,
@@ -299,6 +312,7 @@ test('doctor verifies Windows registry, manifest, launcher, and effective origin
     }
 
     const stale = await doctorPanerelay({
+      commandRunner: selfCheckRunner,
       homeDirectory,
       platform: 'win32',
       registryRunner: async () => ({

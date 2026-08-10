@@ -1,10 +1,14 @@
 export * from './adapter-api.js';
 export {
+  buildSiteCatalog,
   buildSite,
   checkSite,
   initializeSite,
   inspectSite,
   testSite,
+  type BuildSiteCatalogEntry,
+  type BuildSiteCatalogOptions,
+  type BuildSiteCatalogResult,
   type BuildSiteOptions,
   type BuildSiteResult,
   type CheckSiteResult,

@@ -648,6 +648,34 @@ export function validatePackedPackage({
     entries.every(entry => !entry.includes('.test.')),
     `${name} tarball contains compiled test files`,
   );
+  if (name === '@panerelay/sites') {
+    const allowedRuntimeEntries = new Set([
+      'package/dist/index.d.ts',
+      'package/dist/index.d.ts.map',
+      'package/dist/index.js',
+    ]);
+    const adapterFiles = new Map();
+    for (const entry of entries.filter(
+      entry => entry.startsWith('package/dist/') && !entry.endsWith('/'),
+    )) {
+      if (allowedRuntimeEntries.has(entry)) continue;
+      const match =
+        /^package\/dist\/adapters\/([^/]+)\/(adapter\.mjs|panerelay-fetch-adapter\.json)$/.exec(
+          entry,
+        );
+      invariant(match, `${name} tarball contains redundant site source output: ${entry}`);
+      const files = adapterFiles.get(match[1]) ?? new Set();
+      files.add(match[2]);
+      adapterFiles.set(match[1], files);
+    }
+    invariant(adapterFiles.size > 0, `${name} tarball contains no built-in adapters`);
+    for (const [id, files] of adapterFiles) {
+      invariant(
+        files.size === 2 && files.has('adapter.mjs') && files.has('panerelay-fetch-adapter.json'),
+        `${name} tarball adapter ${id} is not an exact two-file artifact`,
+      );
+    }
+  }
   invariant(
     entries.every(
       entry => !/(?:^|\/)(?:private[-_.]?key[^/]*|[^/]+\.(?:pem|p12|pfx|crx))$/i.test(entry),

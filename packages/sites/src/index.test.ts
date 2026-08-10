@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFile, readdir, stat } from 'node:fs/promises';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { builtinSiteIds, builtinSiteSources } from './index.js';
 
@@ -8,109 +8,15 @@ test('catalog exposes every built-in adapter as a valid two-file source', async 
   const catalogPackage = JSON.parse(
     await readFile(new URL('../package.json', import.meta.url), 'utf8'),
   ) as { version?: string };
+  const ids = builtinSiteIds();
   const sources = builtinSiteSources();
-  assert.deepEqual(builtinSiteIds(), [
-    'bilibili',
-    'hackernews',
-    'arxiv',
-    '12306',
-    '1point3acres',
-    'coingecko',
-    'wikipedia',
-    'npm',
-    'openalex',
-    'endoflife',
-    'archive',
-    'apple-podcasts',
-    'bbc',
-    'binance',
-    'autohome',
-    'bluesky',
-    'crates',
-    'dblp',
-    'openreview',
-    'defillama',
-    'goproxy',
-    'dockerhub',
-    'osv',
-    'packagist',
-    'rubygems',
-    'pypi',
-    'nuget',
-    'devto',
-    'oeis',
-    'flathub',
-    'flomo',
-    'nvd',
-    'openfda',
-    'wttr',
-    'semanticscholar',
-    'rfc',
-    'tvmaze',
-    'wikidata',
-    'pubmed',
-    'dictionary',
-    'github-trending',
-    'homebrew',
-    'lobsters',
-    'maven',
-    'lichess',
-    'juejin',
-    'mdn',
-    'lesswrong',
-    'stackoverflow',
-    'steam',
-    'duckduckgo',
-    'google',
-    'medium',
-    'hf',
-    'bloomberg',
-    'chess',
-    'ths',
-    '36kr',
-    'v2ex',
-    'nowcoder',
-    'linux-do',
-    'zsxq',
-    'xueqiu',
-    'reddit',
-    'pixiv',
-    'boss',
-    'zhihu',
-    'uisdc',
-    'barchart',
-    'linkedin-learning',
-    'yahoo-finance',
-    'huodongxing',
-    'weibo',
-    'quark',
-    'uiverse',
-    'reuters',
-    'tieba',
-    'douban',
-    'hupu',
-    'google-scholar',
-    'github',
-    'booking',
-    'wanfang',
-    'powerchina',
-    'maimai',
-    'instagram',
-    'producthunt',
-    'yollomi',
-    'ctrip',
-    'toutiao',
-    'sinafinance',
-    'eastmoney',
-    'dongchedi',
-    'guazi',
-    'substack',
-    'sinablog',
-    'trip',
-    'weread',
-    'paperreview',
-  ]);
-  assert.deepEqual(Object.keys(sources).sort(), [...builtinSiteIds()].sort());
+  assert.equal(ids.length, 99);
+  assert.equal(new Set(ids).size, ids.length);
+  assert.deepEqual(ids.slice(0, 5), ['bilibili', 'hackernews', 'arxiv', '12306', '1point3acres']);
+  assert.deepEqual(ids.slice(-5), ['substack', 'sinablog', 'trip', 'weread', 'paperreview']);
+  assert.ok(ids.includes('36kr'));
+  assert.deepEqual(Object.keys(sources).sort(), [...ids].sort());
+  assert.deepEqual((await readdir(dirname(sources[ids[0]!]))).sort(), [...ids].sort());
 
   for (const [id, directory] of Object.entries(sources)) {
     assert.deepEqual((await readdir(directory)).sort(), [

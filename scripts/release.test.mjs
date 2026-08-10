@@ -648,6 +648,56 @@ test('rejects workspace references and incomplete packed package contents', () =
   );
 });
 
+test('sites tarballs contain only exact adapter artifacts and the public entry', () => {
+  const entries = [
+    'package/dist/adapters/example/adapter.mjs',
+    'package/dist/adapters/example/panerelay-fetch-adapter.json',
+    'package/dist/index.d.ts',
+    'package/dist/index.d.ts.map',
+    'package/dist/index.js',
+    'package/package.json',
+  ];
+  const manifest = {
+    name: '@panerelay/sites',
+    version: '0.1.0',
+    publishConfig: { access: 'public' },
+  };
+  assert.doesNotThrow(() =>
+    validatePackedPackage({
+      entries,
+      manifest,
+      manifestText: JSON.stringify(manifest),
+      name: manifest.name,
+      requiredEntries: entries,
+      version: manifest.version,
+    }),
+  );
+  assert.throws(
+    () =>
+      validatePackedPackage({
+        entries: [...entries, 'package/dist/bilibili/client.js'],
+        manifest,
+        manifestText: JSON.stringify(manifest),
+        name: manifest.name,
+        requiredEntries: entries,
+        version: manifest.version,
+      }),
+    /redundant site source output/,
+  );
+  assert.throws(
+    () =>
+      validatePackedPackage({
+        entries: entries.filter(entry => !entry.endsWith('panerelay-fetch-adapter.json')),
+        manifest,
+        manifestText: JSON.stringify(manifest),
+        name: manifest.name,
+        requiredEntries: entries.filter(entry => !entry.endsWith('panerelay-fetch-adapter.json')),
+        version: manifest.version,
+      }),
+    /not an exact two-file artifact/,
+  );
+});
+
 test('accepts an external-Claude bridge tarball and rejects a bundled Claude SDK dependency', () => {
   const requiredEntries = [
     'package/dist/providers/claude-code/cli.js',
