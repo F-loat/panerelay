@@ -1,6 +1,6 @@
 {
   "name": "@panerelay/browser-registry",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Protected local browser registration and deterministic routing for Panerelay.",
   "type": "module",
   "license": "MIT",

@@ -1,6 +1,6 @@
 {
   "name": "@panerelay/protocol",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Versioned relay protocol and shared types for Panerelay.",
   "type": "module",
   "license": "MIT",

@@ -1,6 +1,6 @@
 {
   "name": "@panerelay/site-kit",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Authoring and build toolkit for Panerelay fetch site adapters.",
   "type": "module",
   "license": "MIT",
