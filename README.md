@@ -52,27 +52,22 @@ Use Fetch when you know the target URL and do not need navigation, DOM, screensh
 panerelay fetch https://api.example.com/me --response json
 ```
 
+Installed site adapters expose OpenCLI-style commands over the same bounded Fetch path. Install one adapter, or install/update the complete built-in catalog:
+
+```bash
+npx --yes @panerelay/setup add bilibili
+npx --yes @panerelay/setup add --all
+panerelay bilibili me
+panerelay bilibili me --json
+```
+
+The built-in site catalog was migrated from the fetch-compatible parts of [OpenCLI](https://github.com/jackwener/OpenCLI). Thanks to the OpenCLI project and its contributors for the original site implementations.
+
 Browser cookies are included by default but never returned. Every raw request is limited to the URL's exact origin, redirects fail closed, and a new domain requires direct Extension approval:
 
 ```bash
 panerelay fetch --authorize api.example.com
 panerelay fetch --authorize '*.example.com'
-```
-
-The same request path is available as the `panerelay_fetch.browser_fetch` MCP tool. Panerelay-owned Codex and Claude Code sessions receive it automatically. External Agent configuration is explicit:
-
-```bash
-npx --yes @panerelay/setup --codex-fetch
-npx --yes @panerelay/setup --claude-fetch
-npx --yes @panerelay/setup doctor --codex-fetch --claude-fetch
-```
-
-Installed site adapters expose OpenCLI-style commands over the same bounded Fetch path:
-
-```bash
-npx --yes @panerelay/setup add bilibili
-panerelay bilibili me
-panerelay bilibili me --json
 ```
 
 See [browser Fetch compatibility](docs/compatibility/browser-fetch.md), the [site migration catalog](docs/compatibility/opencli-site-migration.md), and the [site adapter guide](packages/sites/README.md).
@@ -121,14 +116,15 @@ Each command must list only explicitly authorized tabs. Release ends active cont
 
 ## How it works
 
-```text
-Known URL ── Fetch CLI / MCP / site adapter ──┐
-                                              │
-Agent ── agent-browser / Browser Use / Playwright CLI ── Panerelay Bridge
-                                                            ↕ Native Messaging
-                                                    Panerelay Extension
-                                                      ↙             ↘
-                                            Approved domains   Authorized tabs
+```mermaid
+flowchart LR
+  Agent["AI Agent"] --> Fetch["Fetch<br/>Known URL · CLI · MCP · site adapter"]
+  Agent --> Connect["Connect<br/>agent-browser · Browser Use · Playwright CLI"]
+  Fetch --> Bridge["Panerelay Bridge"]
+  Connect --> Bridge
+  Bridge <-->|Native Messaging| Extension["Panerelay Extension"]
+  Extension --> Domains["HTTP(S) origins<br/>Approved domains"]
+  Extension --> Tabs["Existing browser tabs<br/>Authorized tabs"]
 ```
 
 - The Bridge is the local routing and policy boundary.
@@ -147,6 +143,14 @@ npx --yes @panerelay/setup
 npx --yes @panerelay/setup doctor
 npx --yes @panerelay/cli browsers
 npx --yes @panerelay/setup uninstall
+```
+
+The same request path is available as the `panerelay_fetch.browser_fetch` MCP tool. Panerelay-owned Codex and Claude Code sessions receive it automatically. Configure external Agents explicitly when needed:
+
+```bash
+npx --yes @panerelay/setup --codex-fetch
+npx --yes @panerelay/setup --claude-fetch
+npx --yes @panerelay/setup doctor --codex-fetch --claude-fetch
 ```
 
 To make selected agent-browser or Browser Use integrations the user default, add `--global-default`. For a repository checkout, use `node packages/setup/dist/cli.js --agent-browser --global-default` after building. Playwright remains an explicit attach.

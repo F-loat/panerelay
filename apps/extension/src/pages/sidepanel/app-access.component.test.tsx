@@ -113,7 +113,7 @@ describe('React Side Panel browser access and settings', () => {
     await user.click(allDomainsButton);
     await waitFor(() => expect(client.status.fetchAuthorization.allDomains).toBe(true));
     expect(client.requestedOrigins).toContainEqual(['http://*/*', 'https://*/*']);
-    expect(screen.getByText('All domains authorized')).toBeVisible();
+    expect(screen.getAllByText('All domains authorized').length).toBeGreaterThan(0);
     expect(allDomainsButton).toHaveAttribute('data-active', 'true');
     expect(currentDomainButton).toHaveAttribute('data-active', 'false');
     expect(client.status.fetchAuthorization.domains).toContain('example.com');

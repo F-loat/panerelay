@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { SidepanelApp } from './app.js';
-import { AppClient, detail, readyProviders, renderReady } from './app.test-support.js';
+import { AppClient, detail, readyProviders, readyStatus, renderReady } from './app.test-support.js';
 import { createProviderBootstrap, providerCacheValue } from './provider-selection.js';
 
 describe('React Side Panel shell and providers', () => {
@@ -88,12 +88,35 @@ describe('React Side Panel shell and providers', () => {
       ),
     ).toBeVisible();
     expect(screen.getByRole('button', { name: 'Summarize this page' })).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Operate this page' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: 'Find something' })).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: 'Automation authorization' })).toBeVisible();
+    expect(screen.getByRole('region', { name: 'Fetch authorization' })).toBeVisible();
+    expect(
+      screen.queryByRole('group', {
+        name: 'Automation authorization / Fetch authorization',
+      }),
+    ).not.toBeInTheDocument();
+    const cardStack = screen
+      .getByRole('button', { name: 'Summarize this page' })
+      .closest('.suggestions');
+    expect(cardStack?.children).toHaveLength(4);
+    expect(cardStack?.children[0]).toHaveAttribute('aria-label', 'Summarize this page');
+    expect(cardStack?.children[1]).toHaveAttribute('aria-label', 'Operate this page');
+    expect(cardStack?.children[2]).toHaveAttribute('data-welcome-authorization');
+    expect(cardStack?.children[3]).toHaveAttribute('data-welcome-fetch-authorization');
     expect(screen.getByText('No tab authorized')).toBeVisible();
+    expect(screen.getByText('No domains authorized')).toBeVisible();
     expect(screen.getByText('gpt-5.3-codex · Connected')).toBeVisible();
 
     await user.click(screen.getByRole('button', { name: 'Summarize this page' }));
     expect(screen.getByRole('textbox')).toHaveValue(
       'Summarize the current page and highlight the most useful details.',
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Operate this page' }));
+    expect(screen.getByRole('textbox')).toHaveValue(
+      'Operate the current page as I request, clicking, typing, or navigating when needed.',
     );
   });
 
@@ -370,16 +393,149 @@ describe('React Side Panel shell and providers', () => {
     expect(screen.queryByText(/Provider default/)).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Summarize this page' })).not.toBeInTheDocument();
     expect(screen.getByRole('textbox')).toBeDisabled();
+    expect(screen.getByText('Automation authorization')).toBeVisible();
+    expect(screen.getByText('Fetch authorization')).toBeVisible();
     expect(screen.getByText('No tab authorized')).toBeVisible();
+    expect(screen.getByText('No domains authorized')).toBeVisible();
     expect(
       client.requests.filter(request => request.type === 'panerelay.authorization.set'),
     ).toHaveLength(0);
 
-    await user.click(screen.getByRole('button', { name: 'Browser authorization' }));
+    await user.click(screen.getByRole('button', { name: 'Fetch authorization' }));
+    await user.click(screen.getByRole('option', { name: 'All domains' }));
+
+    await waitFor(() => expect(client.status.fetchAuthorization.allDomains).toBe(true));
+    expect(client.status.authorizationMode).toBe('none');
+
+    await user.click(screen.getByRole('button', { name: 'Automation authorization' }));
     await user.click(screen.getByRole('option', { name: 'All tabs' }));
 
     await waitFor(() => expect(client.status.authorizationMode).toBe('all-tabs'));
+    expect(client.status.fetchAuthorization.allDomains).toBe(true);
     expect(screen.getByText('All web tabs authorized')).toBeVisible();
+  });
+
+  it('changes compact Fetch scope without changing automation authorization', async () => {
+    const { client, user } = await renderReady();
+
+    await user.click(screen.getByRole('button', { name: 'Fetch authorization' }));
+    await user.click(screen.getByRole('option', { name: 'Current domain' }));
+
+    await waitFor(() => expect(client.status.fetchAuthorization.domains).toEqual(['example.com']));
+    expect(client.status.authorizationMode).toBe('none');
+    expect(client.requestedOrigins).toContainEqual([
+      'http://example.com/*',
+      'https://example.com/*',
+    ]);
+    expect(screen.getByRole('button', { name: 'Fetch authorization' })).toHaveTextContent(
+      'Current domain',
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Fetch authorization' }));
+    await user.click(screen.getByRole('option', { name: 'All domains' }));
+
+    await waitFor(() => expect(client.status.fetchAuthorization.allDomains).toBe(true));
+    expect(client.status.authorizationMode).toBe('none');
+    expect(screen.getByRole('button', { name: 'Fetch authorization' })).toHaveTextContent(
+      'All domains',
+    );
+  });
+
+  it('toggles selected compact scopes off without releasing active control', async () => {
+    const client = new AppClient();
+    client.status = {
+      ...readyStatus,
+      controlledTab: { id: 9, title: 'Controlled fixture', url: 'https://example.com/controlled' },
+      controlledTabs: [
+        { id: 9, title: 'Controlled fixture', url: 'https://example.com/controlled' },
+      ],
+      controlSession: {
+        id: 'control-1',
+        actor: { kind: 'automation', name: 'agent-browser' },
+        state: 'active',
+        participantCount: 1,
+        observedTargetCount: 1,
+        controlledTargetCount: 1,
+        heartbeatFreshness: 'fresh',
+        updatedAt: '2026-08-10T15:30:00.000Z',
+      },
+    };
+    const { user } = await renderReady(client);
+
+    await user.click(screen.getByRole('button', { name: 'Automation authorization' }));
+    expect(screen.queryByRole('option', { name: 'Release' })).not.toBeInTheDocument();
+    await user.click(screen.getByRole('option', { name: 'This tab' }));
+    await waitFor(() => expect(client.status.authorizationMode).toBe('single-tab'));
+
+    await user.click(screen.getByRole('button', { name: 'Automation authorization' }));
+    await user.click(screen.getByRole('option', { name: 'This tab' }));
+    await waitFor(() => expect(client.status.authorizationMode).toBe('none'));
+
+    await user.click(screen.getByRole('button', { name: 'Automation authorization' }));
+    await user.click(screen.getByRole('option', { name: 'All tabs' }));
+    await waitFor(() => expect(client.status.authorizationMode).toBe('all-tabs'));
+
+    await user.click(screen.getByRole('button', { name: 'Automation authorization' }));
+    await user.click(screen.getByRole('option', { name: 'All tabs' }));
+    await waitFor(() => expect(client.status.authorizationMode).toBe('none'));
+
+    await user.click(screen.getByRole('button', { name: 'Fetch authorization' }));
+    await user.click(screen.getByRole('option', { name: 'Current domain' }));
+    await waitFor(() => expect(client.status.fetchAuthorization.domains).toEqual(['example.com']));
+
+    await user.click(screen.getByRole('button', { name: 'Fetch authorization' }));
+    await user.click(screen.getByRole('option', { name: 'Current domain' }));
+    await waitFor(() => expect(client.status.fetchAuthorization.domains).toEqual([]));
+
+    await user.click(screen.getByRole('button', { name: 'Fetch authorization' }));
+    await user.click(screen.getByRole('option', { name: 'All domains' }));
+    await waitFor(() => expect(client.status.fetchAuthorization.allDomains).toBe(true));
+
+    await user.click(screen.getByRole('button', { name: 'Fetch authorization' }));
+    await user.click(screen.getByRole('option', { name: 'All domains' }));
+    await waitFor(() => expect(client.status.fetchAuthorization.allDomains).toBe(false));
+
+    expect(client.status.controlledTab).toEqual({
+      id: 9,
+      title: 'Controlled fixture',
+      url: 'https://example.com/controlled',
+    });
+    expect(client.status.controlSession?.state).toBe('active');
+    expect(client.requests).not.toContainEqual({ type: 'panerelay.control.release' });
+  });
+
+  it('keeps compact Fetch authorization fail-closed after Chrome denies permission', async () => {
+    const client = new AppClient();
+    vi.spyOn(client, 'requestOrigins').mockResolvedValue(false);
+    const { user } = await renderReady(client);
+
+    await user.click(screen.getByRole('button', { name: 'Fetch authorization' }));
+    await user.click(screen.getByRole('option', { name: 'Current domain' }));
+
+    expect(
+      (await screen.findAllByText('Chrome access to this domain was not granted')).length,
+    ).toBeGreaterThan(0);
+    expect(client.status.fetchAuthorization).toEqual({ allDomains: false, domains: [] });
+    expect(client.status.authorizationMode).toBe('none');
+    expect(screen.getByRole('button', { name: 'Fetch authorization' })).toHaveTextContent(
+      'Choose scope',
+    );
+  });
+
+  it('disables compact current-domain authorization for browser-internal tabs', async () => {
+    const client = new AppClient();
+    client.status = {
+      ...readyStatus,
+      activeTab: { id: 8, title: 'Extensions', url: 'chrome://extensions/' },
+    };
+    const { user } = await renderReady(client);
+
+    await user.click(screen.getByRole('button', { name: 'Fetch authorization' }));
+
+    expect(screen.getByRole('option', { name: 'Current domain' })).toBeDisabled();
+    expect(client.requestedOrigins).toEqual([]);
+    expect(client.status.fetchAuthorization).toEqual({ allDomains: false, domains: [] });
+    expect(client.status.authorizationMode).toBe('none');
   });
 
   it('lists installed providers before unavailable providers', async () => {

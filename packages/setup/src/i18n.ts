@@ -141,6 +141,7 @@ Optional automation integrations:
 
 Optional fetch adapters:
   npx --yes @panerelay/setup add bilibili
+  npx --yes @panerelay/setup add --all
   npx --yes @panerelay/setup add ./my-site
   npx --yes @panerelay/setup add owner/repository
   npx --yes @panerelay/setup add github:owner/repository@v1.0.0#sites/example
@@ -294,6 +295,7 @@ const chineseMessages: Record<MessageKey, string> = {
 
 可选 Fetch 适配器：
   npx --yes @panerelay/setup add bilibili
+  npx --yes @panerelay/setup add --all
   npx --yes @panerelay/setup add ./my-site
   npx --yes @panerelay/setup add owner/repository
   npx --yes @panerelay/setup add github:owner/repository@v1.0.0#sites/example

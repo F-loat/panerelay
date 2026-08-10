@@ -243,6 +243,22 @@ test('keeps official installation guidance Store-first and version-neutral', () 
     rootReadmeZhCn.indexOf('## 快速开始'),
     rootReadmeZhCn.indexOf('## 使用浏览器登录态 Fetch'),
   );
+  const englishFetch = rootReadme.slice(
+    rootReadme.indexOf('## Fetch with browser login state'),
+    rootReadme.indexOf('## Connect automation tools'),
+  );
+  const chineseFetch = rootReadmeZhCn.slice(
+    rootReadmeZhCn.indexOf('## 使用浏览器登录态 Fetch'),
+    rootReadmeZhCn.indexOf('## Connect 自动化工具'),
+  );
+  const englishAdvanced = rootReadme.slice(
+    rootReadme.indexOf('## Advanced management'),
+    rootReadme.indexOf('## Development and release checks'),
+  );
+  const chineseAdvanced = rootReadmeZhCn.slice(
+    rootReadmeZhCn.indexOf('## 高级管理'),
+    rootReadmeZhCn.indexOf('## 开发与发布检查'),
+  );
 
   for (const guidance of [englishQuickstart, chineseQuickstart]) {
     assert.match(guidance, new RegExp(chromeWebStoreUrl.replaceAll('.', '\\.')));
@@ -266,6 +282,25 @@ test('keeps official installation guidance Store-first and version-neutral', () 
   assert.match(rootReadmeZhCn, /\| \*\*Fetch\*\*[\s\S]+\| \*\*Connect\*\*/);
   assert.match(rootReadme, /## Advanced management[\s\S]+?<details>[\s\S]+?<\/details>/);
   assert.match(rootReadmeZhCn, /## 高级管理[\s\S]+?<details>[\s\S]+?<\/details>/);
+  for (const readme of [rootReadme, rootReadmeZhCn]) {
+    assert.match(readme, /```mermaid\nflowchart LR/);
+    assert.match(readme, /npx --yes @panerelay\/setup add --all/);
+    assert.match(readme, /https:\/\/github\.com\/jackwener\/OpenCLI/);
+  }
+  for (const fetchSection of [englishFetch, chineseFetch]) {
+    const adapters = fetchSection.indexOf('@panerelay/setup add --all');
+    const authorization = fetchSection.indexOf('panerelay fetch --authorize');
+    assert.ok(adapters >= 0 && authorization >= 0 && adapters < authorization);
+    assert.doesNotMatch(
+      fetchSection,
+      /panerelay_fetch\.browser_fetch|--codex-fetch|--claude-fetch/,
+    );
+  }
+  for (const advancedSection of [englishAdvanced, chineseAdvanced]) {
+    assert.match(advancedSection, /panerelay_fetch\.browser_fetch/);
+    assert.match(advancedSection, /--codex-fetch/);
+    assert.match(advancedSection, /--claude-fetch/);
+  }
   assert.doesNotMatch(rootReadme, /^## (?:Supported workflows|Documentation)$/m);
   assert.doesNotMatch(rootReadmeZhCn, /^## (?:支持的工作流|文档)$/m);
   const sharedImage =

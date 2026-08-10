@@ -72,6 +72,18 @@ test('aligns the missing-Host card stack with the connected welcome layout', asy
   assert.doesNotMatch(styles, /setup-integration-check/);
 });
 
+test('renders compact authorization controls as independent single-row cards', async () => {
+  const styles = await readSidepanelStyles();
+  const card = styles.match(/\.welcome-authorization\s*\{[^}]*\}/)?.[0] ?? '';
+
+  assert.match(card, /grid-template-columns: 30px minmax\(0, 1fr\) auto/);
+  assert.match(card, /min-height: 52px/);
+  assert.match(card, /border: 1px solid var\(--border\)/);
+  assert.match(card, /border-radius: 9px/);
+  assert.match(card, /background: color-mix\(in srgb, var\(--surface\) 86%, transparent\)/);
+  assert.doesNotMatch(styles, /welcome-authorization-group/);
+});
+
 test('keeps the accent picker and theme selector together at narrow widths', async () => {
   const styles = await readSidepanelStyles();
   const field = styles.match(/\.settings-theme-field\s*\{[^}]*\}/)?.[0] ?? '';

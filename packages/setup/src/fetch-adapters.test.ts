@@ -45,6 +45,33 @@ async function source(root: string, id: string, version = '1.0.0'): Promise<stri
   return directory;
 }
 
+test('installs every built-in source when all is requested', async t => {
+  const root = await mkdtemp(join(tmpdir(), 'panerelay-fetch-all-builtins-'));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const registryPath = join(root, 'installed', 'registry.json');
+  const second = await source(root, 'second');
+  const first = await source(root, 'first');
+  const installed = await installFetchAdapters(['all'], {
+    registryPath,
+    builtinSources: { second, first },
+  });
+  assert.deepEqual(
+    installed.map(adapter => adapter.manifest.id),
+    ['second', 'first'],
+  );
+  assert.deepEqual(
+    installed.map(adapter => adapter.source),
+    [
+      { kind: 'builtin', id: 'second', version: '1.0.0' },
+      { kind: 'builtin', id: 'first', version: '1.0.0' },
+    ],
+  );
+  assert.deepEqual(
+    (await readFetchAdapterRegistry({ registryPath })).adapters.map(adapter => adapter.manifest.id),
+    ['first', 'second'],
+  );
+});
+
 async function sourceSite(root: string, id: string): Promise<string> {
   const directory = join(root, `${id}-site`);
   await mkdir(join(directory, 'commands'), { recursive: true });

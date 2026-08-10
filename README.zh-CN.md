@@ -52,27 +52,22 @@ Skill 只配置任务所需的能力，并在需要浏览器授权时暂停。Fe
 panerelay fetch https://api.example.com/me --response json
 ```
 
+站点适配器在同一条受限 Fetch 路径上提供 OpenCLI 风格命令。可以只安装一个，也可以安装或更新完整的内置站点目录：
+
+```bash
+npx --yes @panerelay/setup add bilibili
+npx --yes @panerelay/setup add --all
+panerelay bilibili me
+panerelay bilibili me --json
+```
+
+内置站点目录迁移自 [OpenCLI](https://github.com/jackwener/OpenCLI) 中可通过 Fetch 实现的部分。感谢 OpenCLI 项目及其贡献者提供原始站点实现。
+
 请求默认携带浏览器 Cookie，但不会返回 Cookie。每个原始请求只能访问 URL 的精确 Origin，重定向会失败关闭，新域名必须由用户在扩展中直接批准：
 
 ```bash
 panerelay fetch --authorize api.example.com
 panerelay fetch --authorize '*.example.com'
-```
-
-同一路径也通过 `panerelay_fetch.browser_fetch` MCP 工具提供。Panerelay 自己管理的 Codex 和 Claude Code 会话会自动获得该工具；外部 Agent 必须显式配置：
-
-```bash
-npx --yes @panerelay/setup --codex-fetch
-npx --yes @panerelay/setup --claude-fetch
-npx --yes @panerelay/setup doctor --codex-fetch --claude-fetch
-```
-
-站点适配器在同一条受限 Fetch 路径上提供 OpenCLI 风格命令：
-
-```bash
-npx --yes @panerelay/setup add bilibili
-panerelay bilibili me
-panerelay bilibili me --json
 ```
 
 更多信息见 [浏览器 Fetch 兼容性](docs/compatibility/browser-fetch.md)、[站点迁移清单](docs/compatibility/opencli-site-migration.md)和[站点适配器指南](packages/sites/README.md)。
@@ -121,14 +116,15 @@ playwright-cli tab-list
 
 ## 工作方式
 
-```text
-已知 URL ── Fetch CLI / MCP / 站点适配器 ──┐
-                                             │
-Agent ── agent-browser / Browser Use / Playwright CLI ── Panerelay Bridge
-                                                           ↕ Native Messaging
-                                                   Panerelay Extension
-                                                     ↙             ↘
-                                                已授权域名      已授权标签页
+```mermaid
+flowchart LR
+  Agent["AI Agent"] --> Fetch["Fetch<br/>已知 URL · CLI · MCP · 站点适配器"]
+  Agent --> Connect["Connect<br/>agent-browser · Browser Use · Playwright CLI"]
+  Fetch --> Bridge["Panerelay Bridge"]
+  Connect --> Bridge
+  Bridge <-->|Native Messaging| Extension["Panerelay Extension"]
+  Extension --> Domains["HTTP(S) Origin<br/>已授权域名"]
+  Extension --> Tabs["现有浏览器标签页<br/>已授权标签页"]
 ```
 
 - Bridge 是本地路由和策略边界。
@@ -147,6 +143,14 @@ npx --yes @panerelay/setup
 npx --yes @panerelay/setup doctor
 npx --yes @panerelay/cli browsers
 npx --yes @panerelay/setup uninstall
+```
+
+同一路径也通过 `panerelay_fetch.browser_fetch` MCP 工具提供。Panerelay 自己管理的 Codex 和 Claude Code 会话会自动获得该工具；外部 Agent 可按需显式配置：
+
+```bash
+npx --yes @panerelay/setup --codex-fetch
+npx --yes @panerelay/setup --claude-fetch
+npx --yes @panerelay/setup doctor --codex-fetch --claude-fetch
 ```
 
 如需让已选 agent-browser 或 Browser Use 集成成为用户默认连接，可增加 `--global-default`。使用仓库构建时，在完成 build 后运行 `node packages/setup/dist/cli.js --agent-browser --global-default`。Playwright 始终显式连接。

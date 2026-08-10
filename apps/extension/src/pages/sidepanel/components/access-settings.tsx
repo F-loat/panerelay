@@ -155,7 +155,6 @@ export function AuthorizationPanel({ compact = false, controller }: Authorizatio
     const options: SelectMenuOption[] = [
       { value: 'single-tab', label: t('thisTab') },
       { value: 'all-tabs', label: t('allTabs') },
-      ...(mode === 'none' ? [] : [{ value: 'none', label: t('release') }]),
     ];
     return (
       <section
@@ -167,7 +166,7 @@ export function AuthorizationPanel({ compact = false, controller }: Authorizatio
           <PanelTop />
         </span>
         <span className="welcome-authorization-copy">
-          <strong id="welcome-browser-access-title">{t('browserAccess')}</strong>
+          <strong id="welcome-browser-access-title">{t('automationAuthorization')}</strong>
           <small className="scope-target">{target}</small>
         </span>
         <span className="welcome-authorization-select">
@@ -175,16 +174,13 @@ export function AuthorizationPanel({ compact = false, controller }: Authorizatio
             alignment="end"
             disabled={disabled}
             minWidth={132}
-            onChange={value =>
-              void (value === 'none'
-                ? controller.releaseControl()
-                : controller.setAuthorization(value as AuthorizationMode))
-            }
+            onChange={value => void controller.setAuthorization(value as AuthorizationMode)}
+            onReselect={() => void controller.setAuthorization('none')}
             options={options}
             renderTrigger={props => (
               <button
                 {...props}
-                aria-label={t('browserAuthorization')}
+                aria-label={t('automationAuthorization')}
                 className="authorization-trigger"
                 data-authorized={mode !== 'none'}
                 type="button"
@@ -247,7 +243,15 @@ export function AuthorizationPanel({ compact = false, controller }: Authorizatio
   );
 }
 
-export function FetchAuthorizationPanel({ controller }: { controller: SidepanelController }) {
+interface FetchAuthorizationPanelProps {
+  compact?: boolean;
+  controller: SidepanelController;
+}
+
+export function FetchAuthorizationPanel({
+  compact = false,
+  controller,
+}: FetchAuthorizationPanelProps) {
   const { state } = controller;
   const { t, tf } = useCopy(state);
   const [expanded, setExpanded] = useState(false);
@@ -268,6 +272,93 @@ export function FetchAuthorizationPanel({ controller }: { controller: SidepanelC
     : authorization.domains.length > 0
       ? tf('fetchAccessCount', { count: authorization.domains.length })
       : t('fetchAccessNone');
+
+  if (compact) {
+    const mode = authorization.allDomains
+      ? 'all-domains'
+      : currentDomainAuthorized
+        ? 'current-domain'
+        : '';
+    const options: SelectMenuOption[] = [
+      {
+        value: 'current-domain',
+        label: t('currentDomain'),
+        disabled: !currentDomain,
+        title: currentDomain ?? undefined,
+      },
+      { value: 'all-domains', label: t('allDomains') },
+    ];
+    return (
+      <section
+        aria-labelledby="welcome-fetch-access-title"
+        className="welcome-authorization"
+        data-welcome-fetch-authorization
+      >
+        <span aria-hidden="true" className="welcome-authorization-icon">
+          <Globe2 />
+        </span>
+        <span className="welcome-authorization-copy">
+          <strong id="welcome-fetch-access-title">{t('fetchAuthorization')}</strong>
+          <small className="scope-target">{target}</small>
+        </span>
+        <span className="welcome-authorization-select">
+          <SelectMenu
+            alignment="end"
+            disabled={disabled}
+            minWidth={132}
+            onChange={value => {
+              if (value === 'current-domain') {
+                if (currentDomain) void controller.selectCurrentFetchDomain(currentDomain);
+                return;
+              }
+              void controller.setFetchAuthorization({
+                type: 'panerelay.fetch-authorization.set',
+                scope: 'all-domains',
+                enabled: true,
+              });
+            }}
+            onReselect={value => {
+              if (value === 'current-domain') {
+                if (!currentDomain) return;
+                void controller.setFetchAuthorization({
+                  type: 'panerelay.fetch-authorization.set',
+                  scope: 'domain',
+                  domain: currentDomain,
+                  enabled: false,
+                });
+                return;
+              }
+              void controller.setFetchAuthorization({
+                type: 'panerelay.fetch-authorization.set',
+                scope: 'all-domains',
+                enabled: false,
+              });
+            }}
+            options={options}
+            renderTrigger={props => (
+              <button
+                {...props}
+                aria-label={t('fetchAuthorization')}
+                className="authorization-trigger"
+                data-authorized={mode !== ''}
+                type="button"
+              >
+                <span>
+                  {mode === 'current-domain'
+                    ? t('currentDomain')
+                    : mode === 'all-domains'
+                      ? t('allDomains')
+                      : t('chooseScope')}
+                </span>
+                <ChevronDown aria-hidden="true" />
+              </button>
+            )}
+            value={mode}
+          />
+        </span>
+      </section>
+    );
+  }
 
   const addDomain = () => {
     const domain = normalizeBrowserFetchDomain(domainInput);

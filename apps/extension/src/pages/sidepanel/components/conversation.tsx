@@ -36,7 +36,7 @@ import {
 import { translate, type CopyKey, type Locale } from '../i18n.js';
 import { writeClipboardText } from '../clipboard.js';
 import { isPanerelaySetupFailure } from '../setup-guidance.js';
-import { AuthorizationPanel } from './access-settings.js';
+import { AuthorizationPanel, FetchAuthorizationPanel } from './access-settings.js';
 import {
   PanerelaySetupGuide,
   NativeHostUpdateGuide,
@@ -813,16 +813,10 @@ export function Welcome({
       body: t('suggestSummarizeBody'),
     },
     {
-      key: 'inspect' as const,
+      key: 'operate' as const,
       icon: ScanSearch,
-      title: t('suggestInspect'),
-      body: t('suggestInspectBody'),
-    },
-    {
-      key: 'find' as const,
-      icon: Search,
-      title: t('suggestFind'),
-      body: t('suggestFindBody'),
+      title: t('suggestOperate'),
+      body: t('suggestOperateBody'),
     },
   ];
 
@@ -912,6 +906,7 @@ export function Welcome({
               );
             })}
           <AuthorizationPanel compact controller={controller} />
+          <FetchAuthorizationPanel compact controller={controller} />
         </div>
       )}
     </div>

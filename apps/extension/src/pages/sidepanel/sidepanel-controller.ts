@@ -154,7 +154,7 @@ export interface SidepanelController {
   addPastedImages(files: File[]): Promise<void>;
   removePastedImage(imageId: string): void;
   setAutoApprove(enabled: boolean): Promise<void>;
-  useSuggestion(kind: 'summarize' | 'inspect' | 'find'): void;
+  useSuggestion(kind: 'summarize' | 'operate'): void;
   sendMessage(text?: string): Promise<void>;
   interrupt(): Promise<void>;
   respondToApproval(
@@ -1256,13 +1256,8 @@ export function useSidepanelController(
   );
 
   const useSuggestion = useCallback(
-    (kind: 'summarize' | 'inspect' | 'find') => {
-      const key =
-        kind === 'summarize'
-          ? 'suggestSummarizePrompt'
-          : kind === 'inspect'
-            ? 'suggestInspectPrompt'
-            : 'suggestFindPrompt';
+    (kind: 'summarize' | 'operate') => {
+      const key = kind === 'summarize' ? 'suggestSummarizePrompt' : 'suggestOperatePrompt';
       patch({ composerText: translate(stateRef.current.locale, key) });
     },
     [patch],

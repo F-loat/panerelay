@@ -131,6 +131,18 @@ test('parses fetch adapter add, batch remove, all, and list commands', () => {
     yes: false,
     adapterAll: true,
   });
+  assert.deepEqual(parseSetupArgs(['add', '--all']), {
+    agentBrowser: false,
+    browserUse: false,
+    playwright: false,
+    globalDefault: false,
+    help: false,
+    json: false,
+    language: undefined,
+    operation: 'add',
+    yes: false,
+    adapterAll: true,
+  });
   assert.equal(parseSetupArgs(['adapters']).operation, 'adapters');
   assert.throws(() => parseSetupArgs(['add']), /requires at least one adapter/);
   assert.throws(() => parseSetupArgs(['remove', '--all', 'bilibili']), /cannot be combined/);
@@ -138,6 +150,7 @@ test('parses fetch adapter add, batch remove, all, and list commands', () => {
 
 test('runs fetch adapter lifecycle commands without invoking base setup', async () => {
   const output: string[] = [];
+  const installCalls: string[][] = [];
   const originalLog = console.log;
   let setupCalls = 0;
   console.log = (...values: unknown[]) => output.push(values.join(' '));
@@ -177,14 +190,19 @@ test('runs fetch adapter lifecycle commands without invoking base setup', async 
         setupCalls += 1;
         throw new Error('base setup must not run');
       },
-      installFetchAdapters: async () => [registration],
+      installFetchAdapters: async (sources: string[]) => {
+        installCalls.push(sources);
+        return [registration];
+      },
       listFetchAdapters: async () => [registration],
       removeFetchAdapters: async () => ['bilibili'],
     };
     assert.equal(await main(['add', 'bilibili', '--lang', 'en'], dependencies), 0);
+    assert.equal(await main(['add', '--all', '--lang', 'en'], dependencies), 0);
     assert.equal(await main(['adapters', '--lang', 'en'], dependencies), 0);
     assert.equal(await main(['remove', 'bilibili', '--lang', 'zh-CN'], dependencies), 0);
     assert.equal(setupCalls, 0);
+    assert.deepEqual(installCalls, [['bilibili'], ['all']]);
     assert.match(output.join('\n'), /Installed fetch adapters\n {2}bilibili@0\.8\.0/);
     assert.match(output.join('\n'), /GitHub owner\/repository at 0123456789ab/);
     assert.match(output.join('\n'), /已移除 Fetch 适配器：bilibili/);
@@ -204,10 +222,12 @@ test('localizes source and GitHub help, trust guidance, and adapter failures', a
     assert.equal(await main(['add', '--help', '--lang', 'en'], { environment: {} }), 0);
     assert.match(output.join('\n'), /owner\/repository/);
     assert.match(output.join('\n'), /local two-file\/source-form/);
+    assert.match(output.join('\n'), /@panerelay\/setup add --all/);
     output.length = 0;
     assert.equal(await main(['add', '--help', '--lang', 'zh-CN'], { environment: {} }), 0);
     assert.match(output.join('\n'), /公开 GitHub/);
     assert.match(output.join('\n'), /源码格式/);
+    assert.match(output.join('\n'), /@panerelay\/setup add --all/);
     output.length = 0;
     assert.equal(
       await main(['add', 'unknown', '--lang', 'zh-CN'], {

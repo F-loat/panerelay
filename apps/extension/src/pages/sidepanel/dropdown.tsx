@@ -32,6 +32,7 @@ export interface SelectMenuProps {
   disabled?: boolean;
   minWidth?: number;
   onChange(value: string): void;
+  onReselect?(value: string): void;
   options: SelectMenuOption[];
   renderTrigger(props: TriggerProps): ReactNode;
   value: string;
@@ -42,6 +43,7 @@ export function SelectMenu({
   disabled = false,
   minWidth = 160,
   onChange,
+  onReselect,
   options,
   renderTrigger,
   value,
@@ -170,7 +172,8 @@ export function SelectMenu({
                 disabled={option.disabled}
                 key={option.value}
                 onClick={() => {
-                  if (option.value !== value) onChange(option.value);
+                  if (option.value === value) onReselect?.(option.value);
+                  else onChange(option.value);
                   close(true);
                 }}
                 role="option"
