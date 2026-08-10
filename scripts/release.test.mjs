@@ -357,6 +357,12 @@ test('keeps official installation guidance Store-first and version-neutral', () 
   assert.match(unifiedSkill, /## agent-browser workflow/);
   assert.match(unifiedSkill, /## Browser Use workflow/);
   assert.match(unifiedSkill, /## Playwright CLI workflow/);
+  assert.match(unifiedSkill, /## Discover and run installed site adapters/);
+  assert.match(
+    unifiedSkill,
+    /panerelay <site> --help[\s\S]+panerelay fetch --help[\s\S]+panerelay <site> <command> --help[\s\S]+--json/,
+  );
+  assert.match(unifiedSkill, /without connecting to a browser or requesting authorization/);
 });
 
 test('keeps localized README documentation navigation in the selected language', () => {

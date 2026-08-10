@@ -88,6 +88,17 @@ npx --yes @panerelay/setup doctor --codex-fetch --claude-fetch
 
 These options register only the Panerelay Fetch MCP and disable the bypassing native fetch/search setting. Base setup does not change external Agent configuration. Full Panerelay uninstall removes only unchanged Panerelay-owned entries and restores the prior Codex web-search value.
 
+## Discover and run installed site adapters
+
+Do not copy a site or command catalog into this Skill or guess adapter commands. Treat the installed adapter registry as the current source of truth and discover only the detail needed for the task:
+
+1. If the site adapter ID is known, run `panerelay <site> --help` to list that site's commands.
+2. If the adapter ID is unknown, run `panerelay fetch --help` to inspect installed sites, then run the selected site's help.
+3. Before the first invocation, run `panerelay <site> <command> --help` to inspect its arguments, output fields, and examples.
+4. Invoke `panerelay <site> <command> ... --json` so the result is machine-readable.
+
+These help paths read installed manifests without connecting to a browser or requesting authorization. Prefer a matching installed site command over manually recreating its request with generic Fetch, especially when the adapter may use protected browser-state bindings. Never invoke a mutating site command unless the user requested that mutation. If no suitable installed command exists, use raw Fetch only for an exact known URL that fits its boundary; otherwise use Connect. Install or update adapters only when the user asks.
+
 ## Use an exact conversation target hint
 
 When Panerelay's injected `<panerelay-context version="1">` contains `Panerelay exact browser target hint`, treat the supplied browser UUID, target UUID, session value, and Playwright URL as staleable locating data. They do not grant authorization or control.
