@@ -31,7 +31,7 @@ Run base Setup once, then install the single Panerelay Skill into your Agent:
 
 ```bash
 npx --yes @panerelay/setup
-npx skills add F-loat/panerelay --skill panerelay
+npx skills add https://github.com/F-loat/panerelay --skill panerelay
 ```
 
 Setup installs the Native Host and provides the global `panerelay` CLI. The Skill separately teaches the Agent when and how to use Fetch or Connect.

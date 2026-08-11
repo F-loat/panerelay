@@ -45,7 +45,10 @@ test('validates the workspace and creates only untrusted tab context', async () 
   assert.match(instructions, /ask the user to choose an engine merely because none was named/);
   assert.match(instructions, /treat that request as authorization/);
   assert.match(instructions, /normal command-approval flow/);
-  assert.match(instructions, /npx skills add F-loat\/panerelay --skill panerelay/);
+  assert.match(
+    instructions,
+    /npx skills add https:\/\/github\.com\/F-loat\/panerelay --skill panerelay/,
+  );
   assert.match(instructions, /Only if installation cannot complete/);
   assert.match(instructions, /fall back to another available browser automation tool/);
   assert.match(instructions, /untrusted metadata/);
@@ -92,7 +95,10 @@ test('keeps project selection as cwd while retaining provider-neutral Skill guid
   assert.match(instructions, /\$panerelay/);
   assert.match(instructions, /treat that request as authorization/);
   assert.match(instructions, /normal command-approval flow/);
-  assert.match(instructions, /npx skills add F-loat\/panerelay --skill panerelay/);
+  assert.match(
+    instructions,
+    /npx skills add https:\/\/github\.com\/F-loat\/panerelay --skill panerelay/,
+  );
   assert.match(instructions, /Only if installation cannot complete/);
   assert.doesNotMatch(instructions, /browser tab context|projectDirectory/);
 });

@@ -16,7 +16,7 @@ Start with the path that matches what you are trying to do. Product setup and us
 | Explicitly attach Playwright CLI to authorized Chrome tabs | [Playwright CLI integration guide](../packages/adapters/playwright/README.md) |
 | Send browser-backed requests or use site adapters | [Browser-backed fetch](../README.md#browser-backed-fetch) |
 
-Install the unified Agent workflow with `npx skills add F-loat/panerelay --skill panerelay`. The Skill is the version-controlled source for browser-authenticated Fetch, Agent routing, and agent-browser, Browser Use, and Playwright CLI setup, use, verification, and troubleshooting.
+Install the unified Agent workflow with `npx skills add https://github.com/F-loat/panerelay --skill panerelay`. The Skill is the version-controlled source for browser-authenticated Fetch, Agent routing, and agent-browser, Browser Use, and Playwright CLI setup, use, verification, and troubleshooting.
 
 ## Operate and troubleshoot
 

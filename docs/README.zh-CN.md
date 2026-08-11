@@ -16,7 +16,7 @@
 | 让 Playwright CLI 显式连接已授权的 Chrome 标签页 | [Playwright CLI 接入说明](../packages/adapters/playwright/README.md) |
 | 发送浏览器请求或使用站点适配器 | [浏览器 Fetch](../README.zh-CN.md#浏览器-fetch) |
 
-使用 `npx skills add F-loat/panerelay --skill panerelay` 安装统一 Agent 工作流。该 Skill 是浏览器登录态 Fetch、Agent 路由，以及 agent-browser、Browser Use 和 Playwright CLI 设置、使用、验证与排错的版本受控指令源。
+使用 `npx skills add https://github.com/F-loat/panerelay --skill panerelay` 安装统一 Agent 工作流。该 Skill 是浏览器登录态 Fetch、Agent 路由，以及 agent-browser、Browser Use 和 Playwright CLI 设置、使用、验证与排错的版本受控指令源。
 
 ## 运行与排障
 

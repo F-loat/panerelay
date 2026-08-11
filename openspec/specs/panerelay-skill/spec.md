@@ -19,7 +19,7 @@ Panerelay SHALL publish one discoverable `panerelay` Skill as its single Agent e
 
 ### Requirement: Skill lifecycle is managed through the Agent Skills CLI
 
-Documentation SHALL install the Skill from the repository using `npx skills add F-loat/panerelay --skill panerelay` and SHALL use the corresponding `npx skills` list, update, and remove operations for diagnosis and lifecycle management. `@panerelay/setup` SHALL NOT install, overwrite, remove, export, or diagnose the Skill.
+Documentation SHALL install the Skill from the repository using `npx skills add https://github.com/F-loat/panerelay --skill panerelay` and SHALL use the corresponding `npx skills` list, update, and remove operations for diagnosis and lifecycle management. `@panerelay/setup` SHALL NOT install, overwrite, remove, export, or diagnose the Skill.
 
 #### Scenario: User installs Panerelay Agent guidance
 

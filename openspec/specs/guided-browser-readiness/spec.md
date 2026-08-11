@@ -320,7 +320,7 @@ Panerelay SHALL present the normal end-user onboarding path as installing the of
 - **GIVEN** a user opens either root README
 - **WHEN** they follow the primary usage guide
 - **THEN** step one links to the official Chrome Web Store Extension
-- **AND** step two installs `panerelay` using `npx skills add F-loat/panerelay --skill panerelay`
+- **AND** step two installs `panerelay` using `npx skills add https://github.com/F-loat/panerelay --skill panerelay`
 - **AND** the guide states that the Agent will finish the selected local integration and pause for browser authorization
 
 #### Scenario: User needs manual control

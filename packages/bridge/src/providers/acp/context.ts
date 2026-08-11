@@ -7,7 +7,7 @@ const LEGACY_BASE_CONTEXT = [
   'For browser-authenticated Fetch, Panerelay setup, or work in the user’s existing authorized browser tabs, first load and follow the $panerelay Skill.',
   'Do not switch to another browser automation Skill or tool while $panerelay is available.',
   'If $panerelay is unavailable after the user explicitly requests Panerelay work, treat that request as authorization to attempt one canonical Skill installation with:',
-  'npx skills add F-loat/panerelay --skill panerelay',
+  'npx skills add https://github.com/F-loat/panerelay --skill panerelay',
   'Still follow the provider’s normal command-approval flow, and do not retry the installation after the user denies it.',
   'After a successful installation, load $panerelay and follow its workflow.',
   'Only if installation cannot complete, explain why and then fall back to another available browser automation tool, clearly identifying the fallback.',

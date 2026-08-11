@@ -657,7 +657,7 @@ test('unified Agent Skill keeps upstream installation and user authorization exp
   assert.match(skill, /playwright-cli attach --cdp http:\/\/127\.0\.0\.1:43827\/cdp\/playwright/);
   assert.match(skill, /Stop for user-owned browser authorization/);
   assert.match(skill, /Do not claim completion/);
-  assert.match(skill, /npx skills add F-loat\/panerelay --skill panerelay/);
+  assert.match(skill, /npx skills add https:\/\/github\.com\/F-loat\/panerelay --skill panerelay/);
   await assert.rejects(read('dist/agent-setup.md'), /ENOENT/);
 });
 

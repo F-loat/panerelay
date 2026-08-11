@@ -245,7 +245,7 @@ Diagnose these layers separately and stop after the smallest repair that restore
 
 1. **Skill discovery**
    - Ask the active Agent whether `$panerelay` is available. Do not enumerate, read, or report other installed Skills or their files.
-   - Install or repair with `npx skills add F-loat/panerelay --skill panerelay`; choose the intended Agent and scope.
+   - Install or repair with `npx skills add https://github.com/F-loat/panerelay --skill panerelay`; choose the intended Agent and scope.
    - Update with `npx skills update panerelay`; remove with `npx skills remove panerelay` plus the matching scope/Agent options.
    - Manage any known legacy Skill only through its owning Skill manager. Do not inspect or report unrelated Skill metadata or locations.
    - If the Agent still does not load the Skill, confirm the target Agent selected by `npx skills`, its supported Skill directory, valid YAML frontmatter, and whether the Agent must restart or begin a new session.

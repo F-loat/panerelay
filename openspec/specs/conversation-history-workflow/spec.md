@@ -132,7 +132,7 @@ PaneRelay SHALL add provider-neutral guidance to each new Agent conversation tha
 #### Scenario: Browser Skill is unavailable
 
 - **WHEN** the user explicitly requests Panerelay work and `$panerelay` is unavailable
-- **THEN** the Agent treats that request as authorization to attempt `npx skills add F-loat/panerelay --skill panerelay` through the normal command-approval flow and loads the Skill after installation succeeds
+- **THEN** the Agent treats that request as authorization to attempt `npx skills add https://github.com/F-loat/panerelay --skill panerelay` through the normal command-approval flow and loads the Skill after installation succeeds
 
 #### Scenario: Browser work has not been requested
 

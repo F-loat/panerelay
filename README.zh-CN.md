@@ -31,7 +31,7 @@ Fetch 不负责页面导航和 DOM。Connect 保留各自动化引擎原有的�
 
 ```bash
 npx --yes @panerelay/setup
-npx skills add F-loat/panerelay --skill panerelay
+npx skills add https://github.com/F-loat/panerelay --skill panerelay
 ```
 
 Setup 会安装 Native Host 并提供全局 `panerelay` CLI。Skill 则独立负责告诉 Agent 何时、如何使用 Fetch 或 Connect。

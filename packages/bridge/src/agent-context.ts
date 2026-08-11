@@ -12,7 +12,8 @@ const MAX_PAGE_URL_CHARS = 2_000;
 const MAX_PAGE_TITLE_CHARS = 300;
 const SENSITIVE_URL_KEY = /(?:auth|code|credential|key|password|secret|session|sig|token)/i;
 const SENSITIVE_FRAGMENT = /(?:auth|bearer|credential|password|secret|session|token)[=:]/i;
-const PANERELAY_SKILL_INSTALL_COMMAND = 'npx skills add F-loat/panerelay --skill panerelay';
+const PANERELAY_SKILL_INSTALL_COMMAND =
+  'npx skills add https://github.com/F-loat/panerelay --skill panerelay';
 
 export interface ResolvedConversationStartOptions {
   cwd?: string;

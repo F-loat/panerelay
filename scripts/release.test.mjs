@@ -271,17 +271,23 @@ test('keeps official installation guidance Store-first and version-neutral', () 
   for (const guidance of [englishQuickstart, chineseQuickstart]) {
     assert.match(guidance, new RegExp(chromeWebStoreUrl.replaceAll('.', '\\.')));
     assert.match(guidance, /npx --yes @panerelay\/setup/);
-    assert.match(guidance, /npx skills add F-loat\/panerelay --skill panerelay/);
+    assert.match(
+      guidance,
+      /npx skills add https:\/\/github\.com\/F-loat\/panerelay --skill panerelay/,
+    );
     assert.doesNotMatch(guidance, /@panerelay\/setup@\d+\.\d+\.\d+/);
     assert.ok(
       guidance.indexOf('npx --yes @panerelay/setup') <
-        guidance.indexOf('npx skills add F-loat/panerelay --skill panerelay'),
+        guidance.indexOf('npx skills add https://github.com/F-loat/panerelay --skill panerelay'),
     );
     assert.match(guidance, /global [`]?panerelay[`]? CLI|全局 [`]?panerelay[`]? CLI/);
     assert.doesNotMatch(guidance, /preserves it|保留它/);
   }
   assert.match(setupReadme, new RegExp(chromeWebStoreUrl.replaceAll('.', '\\.')));
-  assert.match(setupReadme, /npx skills add F-loat\/panerelay --skill panerelay/);
+  assert.match(
+    setupReadme,
+    /npx skills add https:\/\/github\.com\/F-loat\/panerelay --skill panerelay/,
+  );
   assert.match(setupReadme, /npx --yes @panerelay\/setup/);
   assert.doesNotMatch(englishQuickstart, /Panerelay Releases|chrome:\/\/extensions/);
   assert.doesNotMatch(chineseQuickstart, /Panerelay Releases|chrome:\/\/extensions/);

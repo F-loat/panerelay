@@ -40,7 +40,7 @@ The MCP is a generic HTTP(S) request path with exact-origin session authority an
 Install the unified Skill with the standard Agent Skills CLI:
 
 ```bash
-npx skills add F-loat/panerelay --skill panerelay
+npx skills add https://github.com/F-loat/panerelay --skill panerelay
 ```
 
 Then ask the Agent to use `$panerelay`. The Skill chooses browser-authenticated Fetch or the requested automation engine and covers environment inspection, official upstream installation only when needed, selected Panerelay setup and doctor commands, a stop for user-controlled authorization, engine-specific verification, and troubleshooting.
