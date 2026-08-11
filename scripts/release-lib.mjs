@@ -977,10 +977,21 @@ export async function smokePackedSetup(tarballs) {
       browserList.stdout.includes('No live Panerelay browsers are registered.'),
       'Packed Panerelay CLI did not run against the isolated browser registry',
     );
-    await run(process.execPath, browserCliArguments(['browser', 'clear', '--lang=en']), {
-      cwd: consumerDirectory,
-      env: environment,
-    });
+    const browserCliHelp = await run(
+      process.execPath,
+      browserCliArguments(['--help', '--lang=en']),
+      {
+        cwd: consumerDirectory,
+        env: environment,
+      },
+    );
+    invariant(
+      browserCliHelp.stdout.includes('Setup and site adapters:') &&
+        !browserCliHelp.stdout.includes('browser clear') &&
+        !browserCliHelp.stdout.includes('connection resolve') &&
+        !browserCliHelp.stdout.includes('panerelay run'),
+      'Packed Panerelay CLI help does not match the supported command surface',
+    );
     await run(process.execPath, setupCliArguments(['--help']), {
       cwd: consumerDirectory,
       env: environment,
