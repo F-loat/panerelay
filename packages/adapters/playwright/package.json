@@ -1,6 +1,6 @@
 {
   "name": "@panerelay/playwright",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Connect Playwright CLI to current-tab or all-supported-tabs authorization through Panerelay.",
   "type": "module",
   "license": "MIT",
