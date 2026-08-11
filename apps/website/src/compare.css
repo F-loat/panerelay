@@ -260,6 +260,209 @@
   margin: 18px 0 0;
 }
 
+.fetch-scope {
+  max-width: 920px;
+  margin: -16px 0 28px;
+  padding: 18px 20px;
+  border-left: 2px solid var(--green);
+  background: rgb(32 230 143 / 6%);
+  color: var(--muted-strong);
+}
+
+.fetch-scope strong {
+  color: var(--ink);
+}
+
+.fetch-scope code,
+.fetch-comparison-table code {
+  color: var(--green-soft);
+  font-size: 0.9em;
+}
+
+.fetch-comparison-table {
+  min-width: 1100px;
+}
+
+.benchmark-heading {
+  display: grid;
+  max-width: 760px;
+  gap: 12px;
+  margin-top: 58px;
+}
+
+.benchmark-kicker {
+  margin: 0;
+  color: var(--green);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.benchmark-heading h3 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(2rem, 3.4vw, 3.5rem);
+  font-weight: 450;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+}
+
+.benchmark-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 28px 0 0;
+}
+
+.benchmark-grid > div {
+  min-height: 190px;
+  padding: 26px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background:
+    radial-gradient(circle at 90% 10%, rgb(32 230 143 / 10%), transparent 45%), var(--surface);
+}
+
+.benchmark-grid dt {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.benchmark-grid dd {
+  display: grid;
+  gap: 10px;
+  margin: 46px 0 0;
+}
+
+.benchmark-grid strong {
+  color: var(--ink);
+  font-family: var(--display);
+  font-size: clamp(2rem, 3.5vw, 3.4rem);
+  font-weight: 450;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.benchmark-grid span {
+  color: var(--green-soft);
+  font-size: 13px;
+}
+
+.benchmark-note {
+  max-width: 900px;
+  margin: 20px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.benchmark-note a {
+  color: var(--green-soft);
+  text-decoration: underline;
+  text-decoration-color: rgb(32 230 143 / 35%);
+  text-underline-offset: 3px;
+}
+
+.adapter-benchmark {
+  margin-top: 40px;
+  padding: 30px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, rgb(32 230 143 / 7%), transparent 48%), var(--surface);
+}
+
+.adapter-benchmark-heading {
+  display: grid;
+  max-width: 850px;
+  gap: 12px;
+}
+
+.adapter-benchmark-heading h3 {
+  margin: 0;
+  font-family: var(--display);
+  font-size: clamp(1.7rem, 3vw, 2.7rem);
+  font-weight: 450;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+}
+
+.adapter-benchmark-heading > p:last-child {
+  max-width: 780px;
+  margin: 0;
+  color: var(--muted-strong);
+}
+
+.adapter-benchmark-heading code {
+  color: var(--green-soft);
+}
+
+.adapter-benchmark-results {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  margin: 26px 0 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--line);
+}
+
+.adapter-benchmark-results > div {
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+  background: rgb(8 11 10 / 72%);
+}
+
+.adapter-benchmark-results dt {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.adapter-benchmark-results dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--display);
+  font-size: clamp(1.55rem, 2.7vw, 2.35rem);
+  letter-spacing: -0.035em;
+}
+
+.adapter-benchmark-results span {
+  color: var(--green-soft);
+  font-family: var(--sans);
+  font-size: 12px;
+  letter-spacing: normal;
+}
+
+.adapter-benchmark-note {
+  max-width: 940px;
+  margin: 20px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.adapter-benchmark-note a {
+  color: var(--green-soft);
+  text-decoration: underline;
+  text-decoration-color: rgb(32 230 143 / 35%);
+  text-underline-offset: 3px;
+}
+
 .model-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -388,7 +591,9 @@
 html[lang='zh-CN'] .compare-hero h1,
 html[lang='zh-CN'] .compare-heading h2,
 html[lang='zh-CN'] .compare-cta h2,
-html[lang='zh-CN'] .decision-card h3 {
+html[lang='zh-CN'] .decision-card h3,
+html[lang='zh-CN'] .benchmark-heading h3,
+html[lang='zh-CN'] .adapter-benchmark-heading h3 {
   font-family: 'LXGW WenKai', 'PingFang SC', 'Microsoft YaHei', var(--sans);
   font-weight: 600;
   letter-spacing: -0.04em;
@@ -432,7 +637,20 @@ html[lang='zh-CN'] .decision-card h3 {
   }
 
   .decision-grid,
-  .source-list {
+  .source-list,
+  .benchmark-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .benchmark-grid > div {
+    min-height: 0;
+  }
+
+  .benchmark-grid dd {
+    margin-top: 34px;
+  }
+
+  .adapter-benchmark-results {
     grid-template-columns: 1fr;
   }
 
@@ -556,6 +774,10 @@ html[lang='zh-CN'] .decision-card h3 {
 
   .honesty-panel {
     padding: 28px;
+  }
+
+  .adapter-benchmark {
+    padding: 24px;
   }
 
   .compare-footer .shell {

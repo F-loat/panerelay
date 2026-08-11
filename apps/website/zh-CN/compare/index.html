@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="对比 Panerelay、托管或隔离浏览器、Chrome 原生 CDP 与 Playwright Chrome Extension：AI Agent 如何复用已登录浏览器，以及各自的授权与控制边界。"
+      content="对比 Panerelay Fetch 与 OpenCLI，以及托管或隔离浏览器、Chrome 原生 CDP 与 Playwright Chrome Extension：实现原理、执行效率、授权与控制边界。"
     />
     <meta name="theme-color" content="#080b0a" />
     <link rel="canonical" href="https://f-loat.github.io/panerelay/zh-CN/compare/" />
@@ -43,7 +43,7 @@
         "license": "https://github.com/F-loat/panerelay/blob/main/LICENSE"
       }
     </script>
-    <title>Panerelay 与 CDP、托管浏览器、Playwright Extension 对比</title>
+    <title>Panerelay 与 OpenCLI、CDP、托管浏览器、Playwright Extension 对比</title>
   </head>
   <body class="compare-page">
     <a class="skip-link" href="#main-content">跳到主要内容</a>
@@ -72,6 +72,7 @@
           data-open="false"
         >
           <a href="#matrix">方案对比</a>
+          <a href="#fetch-opencli">Fetch 与 OpenCLI</a>
           <a href="#permission-model">授权模型</a>
           <a href="#sources">参考来源</a>
           <a class="locale-link" href="../../compare/" lang="en" data-language-option="en">EN</a>
@@ -98,7 +99,7 @@
           <a class="button button-solid" href="#matrix">查看完整对比</a>
           <a class="button button-ghost" href="https://github.com/F-loat/panerelay">查看源码</a>
         </div>
-        <p class="review-note">事实与来源链接最后核对于 2026 年 8 月 4 日。</p>
+        <p class="review-note">事实、实测数据与来源链接最后核对于 2026 年 8 月 11 日。</p>
       </section>
 
       <section class="compare-section shell" aria-labelledby="quick-heading">
@@ -149,7 +150,12 @@
             授权范围、连接审批、当前控制是否可见、谁拥有浏览器进程，才决定一套方案是否适合日常使用。
           </p>
         </div>
-        <div class="comparison-table-wrap" tabindex="0" aria-label="可横向滚动的方案对比表">
+        <div
+          class="comparison-table-wrap"
+          role="region"
+          tabindex="0"
+          aria-label="可横向滚动的方案对比表"
+        >
           <table class="comparison-table">
             <thead>
               <tr>
@@ -208,9 +214,132 @@
         </p>
       </section>
 
+      <section class="compare-section shell" id="fetch-opencli" aria-labelledby="fetch-heading">
+        <div class="compare-heading">
+          <p class="section-index">03 · 登录态 FETCH</p>
+          <h2 id="fetch-heading">无需借道标签页的登录态请求。</h2>
+          <p>
+            当 Agent 需要携带浏览器登录态调用 HTTP API 时，Panerelay Fetch 与 OpenCLI
+            存在能力交集，但采用了不同的执行链路。OpenCLI 的范围更广，还覆盖公开
+            HTTP、页面操作、请求拦截和桌面端工作流。
+          </p>
+        </div>
+        <p class="fetch-scope">
+          <strong>对比范围。</strong>这里比较的是 Panerelay Fetch 与 OpenCLI
+          由浏览器驱动、在页面上下文执行的 <code>fetch()</code> 路径；OpenCLI 可直接请求 HTTP 的
+          <code>PUBLIC</code> 命令不在本次对比中。
+        </p>
+        <div
+          class="comparison-table-wrap fetch-comparison-wrap"
+          role="region"
+          tabindex="0"
+          aria-label="可横向滚动的 Panerelay Fetch 与 OpenCLI 对比表"
+        >
+          <table class="comparison-table fetch-comparison-table">
+            <thead>
+              <tr>
+                <th scope="col">方案</th>
+                <th scope="col">请求链路</th>
+                <th scope="col">登录态</th>
+                <th scope="col">目标标签页依赖</th>
+                <th scope="col">浏览器界面</th>
+                <th scope="col">并行执行</th>
+                <th scope="col">适合场景</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Panerelay Fetch</th>
+                <td data-label="请求链路">Agent CLI → 本地 Bridge → 扩展后台 Fetch</td>
+                <td data-label="登录态">浏览器 Cookie；适配器需要时可声明受限数据绑定</td>
+                <td data-label="目标标签页依赖">无，相关页面可以关闭</td>
+                <td data-label="浏览器界面">不附加 CDP，也不显示调试横幅</td>
+                <td data-label="并行执行">独立的短时会话，由扩展限制并发上限</td>
+                <td data-label="适合场景">快速调用带当前登录态的 API、Feed 与数据接口</td>
+              </tr>
+              <tr>
+                <th scope="row">OpenCLI 浏览器驱动路径</th>
+                <td data-label="请求链路">
+                  CLI → daemon / 扩展 → CDP Runtime.evaluate → 页面 Fetch
+                </td>
+                <td data-label="登录态">预备浏览器页面可用的凭证</td>
+                <td data-label="目标标签页依赖">需要一个存活且可定位的页面目标</td>
+                <td data-label="浏览器界面">
+                  使用 <code>chrome.debugger</code>，Chrome 可能显示调试提示
+                </td>
+                <td data-label="并行执行">并行调用仍经过共享的页面与 CDP 命令链路</td>
+                <td data-label="适合场景">需要把请求与页面检查、操作组合起来的适配器</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="benchmark-heading">
+          <p class="benchmark-kicker">本地实测快照 · 完整 CLI 调用</p>
+          <h3>在浏览器登录态请求场景中，命令链路更短。</h3>
+        </div>
+        <dl class="benchmark-grid">
+          <div>
+            <dt>串行中位数</dt>
+            <dd><strong>129.9 ms</strong><span>对比 217.1 ms · 降低 40.2%</span></dd>
+          </div>
+          <div>
+            <dt>8 请求批次</dt>
+            <dd><strong>227.7 ms</strong><span>对比 441.4 ms · 降低 48.4%</span></dd>
+          </div>
+          <div>
+            <dt>成功请求</dt>
+            <dd><strong>110 / 110</strong><span>两种实现均无失败</span></dd>
+          </div>
+        </dl>
+        <p class="benchmark-note">
+          2026 年 8 月 11 日在 Apple M4 Pro、Chrome 151、Panerelay 0.9.0 与 OpenCLI 1.8.6
+          上测得。预热 5 次后，使用合成 HttpOnly Cookie 保护的本地回环 1 KiB JSON 接口，执行 30
+          次串行调用和 10 × 8 次并发调用；OpenCLI
+          页面在计时前已准备完成。该结果是本机快照，不代表所有命令或环境。
+          <a
+            href="https://github.com/F-loat/panerelay/blob/main/docs/spikes/0010-fetch-opencli-performance.md"
+            >查看方法、汇总数据与限制</a
+          >。
+        </p>
+        <article class="adapter-benchmark" aria-labelledby="bilibili-benchmark-heading">
+          <div class="adapter-benchmark-heading">
+            <p class="benchmark-kicker">真实适配器快照 · BILIBILI <code>ME</code></p>
+            <h3 id="bilibili-benchmark-heading">真实命令的差距可能更大。</h3>
+            <p>
+              OpenCLI 需要先准备并等待页面稳定，这个命令随后在页面上下文执行 3 次 API
+              请求；Panerelay 通过扩展后台 Fetch，并复用导航数据，无需准备目标页面，只发起 2 次 API
+              请求。
+            </p>
+          </div>
+          <dl class="adapter-benchmark-results">
+            <div>
+              <dt>Panerelay 中位数</dt>
+              <dd>633.8 ms</dd>
+            </div>
+            <div>
+              <dt>OpenCLI 中位数</dt>
+              <dd>2753.0 ms</dd>
+            </div>
+            <div>
+              <dt>实测差距</dt>
+              <dd>4.34×<span>延迟降低 77.0%</span></dd>
+            </div>
+          </dl>
+          <p class="adapter-benchmark-note">
+            在同一设备、浏览器配置与账号登录态下，各预热 1 次后交替实测 10 轮，20
+            次调用全部成功。结果包含 Bilibili
+            实时网络、页面准备和适配器实现差异，只是一次现场快照，不能外推到其他站点或策略。
+            <a
+              href="https://github.com/F-loat/panerelay/blob/main/docs/spikes/0010-fetch-opencli-performance.md#field-snapshot-bilibili-me"
+              >查看 p95、计时边界、源码路径与限制</a
+            >。
+          </p>
+        </article>
+      </section>
+
       <section class="compare-section shell" id="permission-model" aria-labelledby="model-heading">
         <div class="compare-heading">
-          <p class="section-index">03 · PANERELAY 模型</p>
+          <p class="section-index">04 · PANERELAY 模型</p>
           <h2 id="model-heading">获得授权，与获得当前控制权，是两件不同的事。</h2>
         </div>
         <div class="model-grid">
@@ -235,7 +364,7 @@
 
       <section class="compare-section shell" aria-labelledby="other-heading">
         <div class="compare-heading">
-          <p class="section-index">04 · 不适合 PANERELAY 的情况</p>
+          <p class="section-index">05 · 不适合 PANERELAY 的情况</p>
           <h2 id="other-heading">如果“拥有浏览器进程”本身就是需求，请选择其他方案。</h2>
         </div>
         <div class="honesty-panel">
@@ -254,7 +383,7 @@
 
       <section class="compare-section shell" id="sources" aria-labelledby="sources-heading">
         <div class="compare-heading">
-          <p class="section-index">05 · 参考来源</p>
+          <p class="section-index">06 · 参考来源</p>
           <h2 id="sources-heading">这份对比所依据的一手资料。</h2>
         </div>
         <ul class="source-list">
@@ -275,6 +404,13 @@
             >
           </li>
           <li><a href="https://agent-browser.dev/configuration">agent-browser Provider 配置</a></li>
+          <li><a href="https://github.com/jackwener/OpenCLI">OpenCLI 源码与策略模型</a></li>
+          <li>
+            <a
+              href="https://github.com/F-loat/panerelay/blob/main/docs/spikes/0010-fetch-opencli-performance.md"
+              >Panerelay Fetch / OpenCLI 基准</a
+            >
+          </li>
           <li>
             <a href="https://github.com/F-loat/panerelay/tree/main/docs/rfcs">Panerelay RFC</a>
           </li>

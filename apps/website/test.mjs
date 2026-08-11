@@ -506,6 +506,8 @@ test('comparison pages provide bilingual, sourced, and responsive decision suppo
   const script = await read('src/compare.ts');
   const sitemap = await read('public/sitemap.xml');
   const viteConfig = await read('vite.config.ts');
+  const benchmarkReport = await read('../../docs/spikes/0010-fetch-opencli-performance.md');
+  const benchmarkFixture = await read('../../docs/spikes/run-fetch-opencli-benchmark.mjs');
 
   for (const [html, locale] of [
     [english, 'en'],
@@ -519,7 +521,26 @@ test('comparison pages provide bilingual, sourced, and responsive decision suppo
     assert.match(html, /application\/ld\+json/);
     assert.match(html, /"@type": "SoftwareApplication"/);
     assert.match(html, /class="comparison-table"/);
-    assert.equal((html.match(/data-label=/g) ?? []).length, 24);
+    assert.equal((html.match(/<table class="comparison-table/g) ?? []).length, 2);
+    assert.equal((html.match(/data-label=/g) ?? []).length, 36);
+    assert.match(html, /id="fetch-opencli"/);
+    assert.match(html, /class="benchmark-grid"/);
+    assert.match(html, /<dl class="benchmark-grid">/);
+    assert.equal((html.match(/class="comparison-table-wrap[^>]+role="region"/g) ?? []).length, 2);
+    assert.match(html, /129\.9 ms/);
+    assert.match(html, /217\.1 ms/);
+    assert.match(html, /227\.7 ms/);
+    assert.match(html, /441\.4 ms/);
+    assert.match(html, /110 \/ 110/);
+    assert.match(html, /class="adapter-benchmark"/);
+    assert.match(html, /633\.8 ms/);
+    assert.match(html, /2753\.0 ms/);
+    assert.match(html, /4\.34×/);
+    assert.match(html, /77\.0%/);
+    assert.match(html, /field-snapshot-bilibili-me/);
+    assert.match(html, /<code>PUBLIC<\/code>/);
+    assert.match(html, /github\.com\/jackwener\/OpenCLI/);
+    assert.match(html, /docs\/spikes\/0010-fetch-opencli-performance\.md/);
     assert.match(html, /developer\.chrome\.com\/blog\/remote-debugging-port/);
     assert.match(html, /packages\/extension\/README\.md/);
     assert.match(html, /docs\.browser-use\.com\/open-source\/browser-use-cli/);
@@ -530,14 +551,33 @@ test('comparison pages provide bilingual, sourced, and responsive decision suppo
   }
 
   assert.match(english, /current tab or all supported tabs/i);
+  assert.match(english, /Authenticated requests without routing through a tab/);
+  assert.match(english, /No CDP attachment or debugging banner/);
+  assert.match(english, /OpenCLI is the broader tool/);
+  assert.match(english, /40\.2% lower/);
+  assert.match(english, /48\.4% lower/);
+  assert.match(english, /Real commands can widen the gap/);
+  assert.match(english, /Ten alternating measured invocations after one warm-up/);
+  assert.match(english, /not a prediction for other sites or strategies/);
   assert.match(english, /Authorization and active control are separate decisions/);
   assert.match(english, /Choose another approach when browser ownership is the feature/);
   assert.match(chinese, /当前标签页或全部受支持标签页/);
+  assert.match(chinese, /无需借道标签页的登录态请求/);
+  assert.match(chinese, /不附加 CDP，也不显示调试横幅/);
+  assert.match(chinese, /OpenCLI 的范围更广/);
+  assert.match(chinese, /降低 40\.2%/);
+  assert.match(chinese, /降低 48\.4%/);
+  assert.match(chinese, /真实命令的差距可能更大/);
+  assert.match(chinese, /各预热 1 次后交替实测 10 轮/);
+  assert.match(chinese, /不能外推到其他站点或策略/);
   assert.match(chinese, /获得授权，与获得当前控制权，是两件不同的事/);
   assert.match(chinese, /如果“拥有浏览器进程”本身就是需求/);
   assert.doesNotMatch(english, /CDP always prompts|Playwright can only use one tab|safest/i);
   assert.doesNotMatch(chinese, /CDP 每次都|Playwright 只能|最安全/);
   assert.match(styles, /@media \(max-width: 760px\)/);
+  assert.match(styles, /\.benchmark-grid/);
+  assert.match(styles, /\.fetch-comparison-table/);
+  assert.match(styles, /\.adapter-benchmark-results/);
   assert.match(styles, /\.comparison-table td::before/);
   assert.match(styles, /content: attr\(data-label\)/);
   assert.match(styles, /\.js \.compare-navigation\[data-open='true'\]/);
@@ -549,6 +589,24 @@ test('comparison pages provide bilingual, sourced, and responsive decision suppo
   assert.match(sitemap, /https:\/\/f-loat\.github\.io\/panerelay\/zh-CN\/compare\//);
   assert.match(viteConfig, /compare: resolve\(websiteRoot, 'compare\/index\.html'\)/);
   assert.match(viteConfig, /compareZhCn: resolve\(websiteRoot, 'zh-CN\/compare\/index\.html'\)/);
+
+  assert.match(benchmarkReport, /Panerelay CLI 0\.9\.0/);
+  assert.match(benchmarkReport, /OpenCLI 1\.8\.6/);
+  assert.match(benchmarkReport, /129\.9 ms \| 217\.1 ms/);
+  assert.match(benchmarkReport, /227\.7 ms \| 441\.4 ms/);
+  assert.match(benchmarkReport, /OpenCLI `PUBLIC` commands may use direct non-browser HTTP/);
+  assert.match(benchmarkReport, /110 \/ 110/);
+  assert.match(benchmarkReport, /Field snapshot: Bilibili `me`/);
+  assert.match(benchmarkReport, /633\.8 ms \| 2753\.0 ms/);
+  assert.match(benchmarkReport, /740\.5 ms \| 3070\.2 ms/);
+  assert.match(benchmarkReport, /10 \/ 10 \| 10 \/ 10/);
+  assert.match(benchmarkReport, /implementation-inclusive field snapshot/);
+  assert.match(benchmarkFixture, /synthetic HttpOnly loopback cookie/);
+  assert.match(benchmarkFixture, /credentials:'include'/);
+  assert.match(benchmarkFixture, /warmupCount = integerOption\('warmup', 5/);
+  assert.match(benchmarkFixture, /sequentialCount = integerOption\('sequential', 30/);
+  assert.match(benchmarkFixture, /concurrency = integerOption\('concurrency', 8/);
+  assert.match(benchmarkFixture, /batchCount = integerOption\('batches', 10/);
 });
 
 test('unified Agent Skill keeps upstream installation and user authorization explicit', async () => {

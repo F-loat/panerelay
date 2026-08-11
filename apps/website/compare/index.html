@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Compare Panerelay with managed browsers, raw Chrome CDP, and the Playwright Chrome Extension for connecting AI agents to an existing logged-in browser."
+      content="Compare Panerelay Fetch with OpenCLI, plus managed browsers, raw Chrome CDP, and the Playwright Chrome Extension for connecting AI agents to an existing logged-in browser."
     />
     <meta name="theme-color" content="#080b0a" />
     <link rel="canonical" href="https://f-loat.github.io/panerelay/compare/" />
@@ -43,7 +43,7 @@
         "license": "https://github.com/F-loat/panerelay/blob/main/LICENSE"
       }
     </script>
-    <title>Panerelay vs CDP, managed browsers, and Playwright Extension</title>
+    <title>Panerelay vs OpenCLI, CDP, managed browsers, and Playwright Extension</title>
   </head>
   <body class="compare-page">
     <a class="skip-link" href="#main-content">Skip to content</a>
@@ -72,6 +72,7 @@
           data-open="false"
         >
           <a href="#matrix">Comparison</a>
+          <a href="#fetch-opencli">Fetch vs OpenCLI</a>
           <a href="#permission-model">Authorization model</a>
           <a href="#sources">Sources</a>
           <a class="locale-link" href="../zh-CN/compare/" lang="zh-CN" data-language-option="zh-CN"
@@ -102,7 +103,7 @@
           <a class="button button-solid" href="#matrix">Compare approaches</a>
           <a class="button button-ghost" href="https://github.com/F-loat/panerelay">View source</a>
         </div>
-        <p class="review-note">Claims and source links reviewed 4 August 2026.</p>
+        <p class="review-note">Claims, measurements, and source links reviewed 11 August 2026.</p>
       </section>
 
       <section class="compare-section shell" aria-labelledby="quick-heading">
@@ -156,7 +157,12 @@
             browser ownership determine whether an approach fits everyday use.
           </p>
         </div>
-        <div class="comparison-table-wrap" tabindex="0" aria-label="Scrollable comparison table">
+        <div
+          class="comparison-table-wrap"
+          role="region"
+          tabindex="0"
+          aria-label="Scrollable comparison table"
+        >
           <table class="comparison-table">
             <thead>
               <tr>
@@ -229,9 +235,146 @@
         </p>
       </section>
 
+      <section class="compare-section shell" id="fetch-opencli" aria-labelledby="fetch-heading">
+        <div class="compare-heading">
+          <p class="section-index">03 · AUTHENTICATED FETCH</p>
+          <h2 id="fetch-heading">Authenticated requests without routing through a tab.</h2>
+          <p>
+            Panerelay Fetch and OpenCLI overlap when an Agent needs an HTTP API with browser login
+            state, but they take different execution paths. OpenCLI is the broader tool: it also
+            covers public HTTP, page interaction, interception, and desktop workflows.
+          </p>
+        </div>
+        <p class="fetch-scope">
+          <strong>Comparison scope.</strong> Panerelay Fetch is compared with OpenCLI’s
+          browser-backed, page-context <code>fetch()</code> path. OpenCLI <code>PUBLIC</code>
+          commands can use direct HTTP and are intentionally excluded.
+        </p>
+        <div
+          class="comparison-table-wrap fetch-comparison-wrap"
+          role="region"
+          tabindex="0"
+          aria-label="Scrollable Panerelay Fetch and OpenCLI comparison table"
+        >
+          <table class="comparison-table fetch-comparison-table">
+            <thead>
+              <tr>
+                <th scope="col">Approach</th>
+                <th scope="col">Request path</th>
+                <th scope="col">Login state</th>
+                <th scope="col">Target-tab dependency</th>
+                <th scope="col">Browser UI</th>
+                <th scope="col">Parallel work</th>
+                <th scope="col">Best fit</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row">Panerelay Fetch</th>
+                <td data-label="Request path">
+                  Agent CLI → local Bridge → Extension background fetch
+                </td>
+                <td data-label="Login state">
+                  Browser cookies, plus explicit adapter bindings when needed
+                </td>
+                <td data-label="Target-tab dependency">None—the page can be closed</td>
+                <td data-label="Browser UI">No CDP attachment or debugging banner</td>
+                <td data-label="Parallel work">
+                  Independent short-lived sessions, bounded by the Extension
+                </td>
+                <td data-label="Best fit">
+                  Fast API, feed, and data calls with current login state
+                </td>
+              </tr>
+              <tr>
+                <th scope="row">OpenCLI browser-backed</th>
+                <td data-label="Request path">
+                  CLI → daemon / Extension → CDP Runtime.evaluate → page fetch
+                </td>
+                <td data-label="Login state">Credentials available to the prepared browser page</td>
+                <td data-label="Target-tab dependency">Requires a live, addressable page target</td>
+                <td data-label="Browser UI">
+                  Uses <code>chrome.debugger</code>; Chrome may show its debugging indicator
+                </td>
+                <td data-label="Parallel work">
+                  Parallel calls traverse the shared page and CDP command path
+                </td>
+                <td data-label="Best fit">
+                  Adapters combining requests with page inspection or action
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="benchmark-heading">
+          <p class="benchmark-kicker">LOCAL BENCHMARK SNAPSHOT · COMPLETE CLI INVOCATIONS</p>
+          <h3>Less command-path overhead in the browser-authenticated case.</h3>
+        </div>
+        <dl class="benchmark-grid">
+          <div>
+            <dt>Sequential median</dt>
+            <dd><strong>129.9 ms</strong><span>vs 217.1 ms · 40.2% lower</span></dd>
+          </div>
+          <div>
+            <dt>Eight-request batch</dt>
+            <dd><strong>227.7 ms</strong><span>vs 441.4 ms · 48.4% lower</span></dd>
+          </div>
+          <div>
+            <dt>Successful requests</dt>
+            <dd><strong>110 / 110</strong><span>for both implementations</span></dd>
+          </div>
+        </dl>
+        <p class="benchmark-note">
+          Measured 11 August 2026 on an Apple M4 Pro with Chrome 151, Panerelay 0.9.0, and OpenCLI
+          1.8.6. Five warm-ups were discarded; the fixture then ran 30 sequential calls and 10 × 8
+          concurrent calls against a loopback 1 KiB JSON response protected by a synthetic HttpOnly
+          cookie. The OpenCLI page was prepared before timing. Results are a local snapshot, not a
+          universal product benchmark.
+          <a
+            href="https://github.com/F-loat/panerelay/blob/main/docs/spikes/0010-fetch-opencli-performance.md"
+            >Read the method, aggregate results, and limitations</a
+          >.
+        </p>
+        <article class="adapter-benchmark" aria-labelledby="bilibili-benchmark-heading">
+          <div class="adapter-benchmark-heading">
+            <p class="benchmark-kicker">REAL ADAPTER SNAPSHOT · BILIBILI <code>ME</code></p>
+            <h3 id="bilibili-benchmark-heading">Real commands can widen the gap.</h3>
+            <p>
+              OpenCLI first prepares and settles a page, then this command makes three page-context
+              API calls. Panerelay uses Extension-background Fetch and caches the navigation data,
+              so it makes two API calls without preparing a target page.
+            </p>
+          </div>
+          <dl class="adapter-benchmark-results">
+            <div>
+              <dt>Panerelay median</dt>
+              <dd>633.8 ms</dd>
+            </div>
+            <div>
+              <dt>OpenCLI median</dt>
+              <dd>2753.0 ms</dd>
+            </div>
+            <div>
+              <dt>Measured difference</dt>
+              <dd>4.34×<span>77.0% lower latency</span></dd>
+            </div>
+          </dl>
+          <p class="adapter-benchmark-note">
+            Ten alternating measured invocations after one warm-up, on the same machine, browser
+            profile, and logged-in account; all 20 invocations succeeded. This includes live
+            Bilibili network, page preparation, and adapter implementation differences, so it is an
+            illustrative field snapshot—not a prediction for other sites or strategies.
+            <a
+              href="https://github.com/F-loat/panerelay/blob/main/docs/spikes/0010-fetch-opencli-performance.md#field-snapshot-bilibili-me"
+              >See p95, timing boundaries, source paths, and limitations</a
+            >.
+          </p>
+        </article>
+      </section>
+
       <section class="compare-section shell" id="permission-model" aria-labelledby="model-heading">
         <div class="compare-heading">
-          <p class="section-index">03 · PANERELAY MODEL</p>
+          <p class="section-index">04 · PANERELAY MODEL</p>
           <h2 id="model-heading">Authorization and active control are separate decisions.</h2>
         </div>
         <div class="model-grid">
@@ -258,7 +401,7 @@
 
       <section class="compare-section shell" aria-labelledby="other-heading">
         <div class="compare-heading">
-          <p class="section-index">04 · WHEN NOT TO CHOOSE PANERELAY</p>
+          <p class="section-index">05 · WHEN NOT TO CHOOSE PANERELAY</p>
           <h2 id="other-heading">Choose another approach when browser ownership is the feature.</h2>
         </div>
         <div class="honesty-panel">
@@ -282,7 +425,7 @@
 
       <section class="compare-section shell" id="sources" aria-labelledby="sources-heading">
         <div class="compare-heading">
-          <p class="section-index">05 · SOURCES</p>
+          <p class="section-index">06 · SOURCES</p>
           <h2 id="sources-heading">Primary references behind the comparison.</h2>
         </div>
         <ul class="source-list">
@@ -305,6 +448,15 @@
           <li>
             <a href="https://agent-browser.dev/configuration"
               >agent-browser provider configuration</a
+            >
+          </li>
+          <li>
+            <a href="https://github.com/jackwener/OpenCLI">OpenCLI source and strategy model</a>
+          </li>
+          <li>
+            <a
+              href="https://github.com/F-loat/panerelay/blob/main/docs/spikes/0010-fetch-opencli-performance.md"
+              >Panerelay Fetch / OpenCLI benchmark</a
             >
           </li>
           <li>
