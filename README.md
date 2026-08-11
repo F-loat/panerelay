@@ -13,7 +13,7 @@ Panerelay is an open-source local bridge to your existing Chrome or Microsoft Ed
 | **Fetch** | Send HTTP(S) requests with the browser's current login state through CLI, MCP, or site adapters | Approve an exact domain or wildcard domain |
 | **Connect** | Attach agent-browser, Browser Use, or Playwright CLI to existing tabs | Authorize the current tab or all supported tabs |
 
-Fetch does not navigate pages or inspect DOM. Connect keeps each automation engine's native commands and page semantics. Panerelay also includes a lightweight side-panel entry for installed local Agents, but Fetch and Connect are the primary integration surfaces.
+Fetch does not navigate pages or inspect DOM. Connect keeps each automation engine's native commands and page semantics. Panerelay also includes a lightweight local Agent side panel for starting or resuming conversations in the browser, with the current tab's URL and title supplied as bounded context.
 
 ![Panerelay](https://github.com/user-attachments/assets/2eba77ae-5362-4803-9190-cf134dd2b8d7)
 

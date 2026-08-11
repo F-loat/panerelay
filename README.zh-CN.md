@@ -13,7 +13,7 @@ Panerelay 是连接 AI Agent 与现有 Chrome 或 Microsoft Edge 的开源本地
 | **Fetch** | 通过 CLI、MCP 或站点适配器，携带浏览器登录态发送 HTTP(S) 请求 | 授权精确域名或通配域名 |
 | **Connect** | 把 agent-browser、Browser Use 或 Playwright CLI 接入现有标签页 | 授权当前标签页或全部受支持网页 |
 
-Fetch 不负责页面导航和 DOM。Connect 保留各自动化引擎原有的命令与页面语义。Panerelay 也提供一个轻量的本地 Agent 侧边栏入口，但主要接入方式是 Fetch 和 Connect。
+Fetch 不负责页面导航和 DOM。Connect 保留各自动化引擎原有的命令与页面语义。Panerelay 还提供一个轻量的本地 Agent 侧边栏，可在浏览器中直接启动或继续 Agent 会话，并将当前标签页的 URL 与标题作为有限上下文提供给 Agent。
 
 ![Panerelay](https://github.com/user-attachments/assets/2eba77ae-5362-4803-9190-cf134dd2b8d7)
 
