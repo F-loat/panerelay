@@ -131,7 +131,7 @@ The key environment entry is:
 BU_CDP_URL=http://127.0.0.1:43827/cdp/browser-use
 ```
 
-Setup writes it to Browser Harness's user-scoped environment file. The official `browser-use` CLI and `browser-use --cli-mcp` read it directly; no `panerelay-browser-use` or `panerelay run browser-use` wrapper is required. The URL is a fixed local discovery address. Panerelay still selects the saved browser and mints a short-lived CDP connection behind it, so this value is not a reusable browser credential. `panerelay connection use browser-use direct` removes Panerelay-managed Browser Harness keys and restores Browser Use's normal discovery behavior. An explicitly supplied process environment takes precedence over the managed file. Panerelay leaves Browser Harness's runtime and temporary-directory defaults unchanged so the official CLI and daemon resolve the same IPC endpoint.
+Setup writes it to Browser Harness's user-scoped environment file. The official `browser-use` CLI and `browser-use --cli-mcp` read it directly. The URL is a fixed local discovery address. Panerelay still selects the saved browser and mints a short-lived CDP connection behind it, so this value is not a reusable browser credential. `panerelay connection use browser-use direct` removes Panerelay-managed Browser Harness keys and restores Browser Use's normal discovery behavior. An explicitly supplied process environment takes precedence over the managed file. Panerelay leaves Browser Harness's runtime and temporary-directory defaults unchanged so the official CLI and daemon resolve the same IPC endpoint.
 
 The explicit `BU_CDP_URL=` prefix is a one-process override. After saving Extension mode, it can be omitted. Do not set Browser Harness's higher-priority `BU_CDP_WS` at the same time.
 
@@ -193,8 +193,9 @@ panerelay browsers
 panerelay browser use chrome
 # Or use an exact registration ID:
 # panerelay browser use REGISTRATION_ID
-panerelay browser clear
 ```
+
+Choose another live browser with `browser use`, or clear the current browser default from the Panerelay Extension settings.
 
 `@panerelay/cli` is the engine-neutral recurring command installed by normal base Setup. Setup uses npm's configured global prefix without editing shell startup files, skips an already matching Setup-owned release, and preserves any pre-existing or externally changed global installation. `--no-cli` skips this step; uninstall removes only an unchanged Setup-owned CLI unless `--keep-cli` is supplied.
 

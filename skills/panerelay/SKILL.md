@@ -183,7 +183,7 @@ When an exact conversation target hint is present, replace `panerelay-task` with
 
 Refresh snapshots after navigation or meaningful page changes because refs become stale. Treat `tab <id>` as Agent-local selection: it does not intentionally focus the user's Chrome or Edge window, and `tab new` opens in the background.
 
-When multiple browsers are ready, inspect them with `npx --yes @panerelay/cli browsers`. Ask which browser to use when intent is ambiguous, then scope the process with `PANERELAY_BROWSER_ID=<registration-id>` or `PANERELAY_BROWSER=<chrome|edge>`. Do not change the saved default unless asked. A running session remains pinned to its original browser.
+When multiple browsers are ready, inspect them with `panerelay browsers`. Ask which browser to use when intent is ambiguous, then scope the process with `PANERELAY_BROWSER_ID=<registration-id>` or `PANERELAY_BROWSER=<chrome|edge>`. Do not change the saved default unless asked. A running session remains pinned to its original browser.
 
 Normal page commands include `snapshot`, `get`, `eval`, navigation, interaction, `screenshot`, `pdf`, `upload`, supported tab operations, origin-scoped cookies and storage, network inspection, accessibility audits, tracing, and profiling.
 
@@ -196,8 +196,8 @@ Close only the exact session opened for a completed one-shot task. Panerelay rel
 Use the official Browser Use CLI directly. Setup initially saves Extension mode and manages Browser Harness's user-scoped environment. Change the durable preference only when requested:
 
 ```bash
-npx --yes @panerelay/cli connection use browser-use extension
-npx --yes @panerelay/cli connection use browser-use direct
+panerelay connection use browser-use extension
+panerelay connection use browser-use direct
 ```
 
 Invoke the official CLI with the fixed discovery URL when an explicit one-process connection is useful:

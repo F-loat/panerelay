@@ -5,7 +5,7 @@
 - Status: Accepted
 - Authors: F-loat
 - Created: 2026-07-31
-- Updated: 2026-08-05
+- Updated: 2026-08-11
 - OpenSpec: `openspec/changes/archive/2026-08-01-add-browser-use-connection-adapter`
 - Amendments: `openspec/changes/archive/2026-08-01-relax-browser-use-version-gate`, `openspec/changes/archive/2026-08-01-add-browser-use-default-setting`, `openspec/changes/show-control-engine-favicon`, `openspec/changes/archive/2026-08-02-make-adapter-installation-explicit`, `openspec/changes/archive/2026-08-03-add-playwright-cdp-integration`, `openspec/changes/archive/2026-08-03-simplify-setup-skill-installation`, `openspec/changes/archive/2026-08-04-add-conversation-target-hints`, `openspec/changes/shorten-conversation-target-session`
 
@@ -81,7 +81,7 @@ The Browser Use gateway selects the saved opaque browser ID for the fixed enviro
 
 Setup installs the gateway and integration metadata without installing a Browser Use wrapper, changing shell PATH, or managing an Agent Skill. The official Browser Use executable remains the user's installation.
 
-The implemented user-facing surfaces are `panerelay connection use <adapter> <mode>` and the shared browser-selection commands. Browser Use is invoked as the ordinary `browser-use` command; `connection resolve` and `run` are not required for its normal path.
+The implemented user-facing surfaces are `panerelay connection use <adapter> <mode>` and the shared browser-selection commands. Browser Use is invoked as the ordinary `browser-use` command. One-shot connection resolution remains bounded internal adapter machinery rather than a public CLI command, and Panerelay exposes no child-process wrapper.
 
 ## CDP HTTP bootstrap
 
@@ -117,7 +117,7 @@ Playwright uses a target-scoped discovery route, `/cdp/playwright/target/<opaque
 
 Browser Harness is not a child of the Native Host. Native Host shutdown closes its relay and participant but may leave a stale detached Browser Harness daemon process. Uninstall first stops the Panerelay gateway when its protected state and loopback health PID agree; it reports a gateway that cannot be verified or stopped and does not kill broad process patterns. Removing installed files still does not prove that an already running Browser Harness daemon disconnected, so the next invocation must recover through verified Browser Harness public health/restart behavior or fail explicitly. Panerelay will not inspect undocumented daemon internals, kill broad process patterns, or silently fall back to Direct Chrome.
 
-The canonical Panerelay CLI run surface serializes or fails simultaneous child invocations for this lane. Sequential commands from separate Agents may still interleave through Browser Harness's shared current-page/session state; the first release documents that limitation and does not claim task isolation.
+The fixed gateway and Browser Harness lane serialize or fail overlapping connection attempts without a Panerelay child-process wrapper. Sequential commands from separate Agents may still interleave through Browser Harness's shared current-page/session state; the first release documents that limitation and does not claim task isolation.
 
 ## Connection modes
 

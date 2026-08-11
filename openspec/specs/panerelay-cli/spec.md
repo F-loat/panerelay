@@ -8,27 +8,28 @@ Define an engine-neutral Panerelay command-line interface for recurring local br
 
 ### Requirement: Panerelay provides a standalone administration CLI
 
-Panerelay SHALL publish an optional `@panerelay/cli` package whose executable name is `panerelay`. The CLI SHALL manage Panerelay browser registrations and routing preferences and SHALL dispatch setup-managed connection adapters without embedding an automation engine or implementing browser automation commands.
+Panerelay SHALL publish `@panerelay/cli` with the executable name `panerelay`. Base Setup SHALL provide the normal global installation. The CLI SHALL expose recurring browser-authenticated Fetch, installed site commands, connected-browser listing and selection, and installed connection-mode selection without embedding an automation engine or implementing browser automation commands. It SHALL NOT expose child-process wrappers, one-shot connection-material resolution, or a CLI command for clearing the saved browser default.
 
-#### Scenario: User installs the CLI globally
+#### Scenario: Base Setup provides the CLI
 
-- **GIVEN** the user wants a persistent Panerelay administration command
-- **WHEN** they install `@panerelay/cli` globally
-- **THEN** `panerelay browsers`, `panerelay browser use <selector>`, and `panerelay browser clear` are available
-- **AND** the installation does not install or select agent-browser, browser-use, or another automation engine
+- **GIVEN** the user follows the documented base Setup path
+- **WHEN** Setup completes without `--no-cli`
+- **THEN** the global `panerelay` command is available for Fetch, site adapters, browser listing and selection, and connection-mode selection
+- **AND** Setup does not install an upstream automation engine
 
-#### Scenario: User invokes the CLI without installing it globally
+#### Scenario: Removed low-level command is requested
 
-- **GIVEN** the user needs an occasional browser-administration command
-- **WHEN** they run `npx --yes @panerelay/cli <command>`
-- **THEN** the command has the same browser-registry behavior as the global `panerelay` executable
+- **GIVEN** the user invokes `panerelay browser clear`, `panerelay connection resolve`, or `panerelay run`
+- **WHEN** the CLI parses the invocation
+- **THEN** it rejects the removed command as unknown
+- **AND** it does not select a browser, resolve connection material, start a child process, or change saved state
 
-#### Scenario: CLI dispatches an installed connection adapter
+#### Scenario: Help presents the supported product path
 
-- **GIVEN** setup registered a compatible connection adapter by exact path
-- **WHEN** the user or installed Skill asks the CLI to resolve or run that adapter
-- **THEN** the CLI performs browser and mode selection and invokes the adapter through the bounded adapter protocol
-- **AND** the adapter's automation engine remains responsible for every browser command
+- **GIVEN** the user invokes `panerelay`, `panerelay -h`, or `panerelay --help`
+- **WHEN** localized help is rendered
+- **THEN** it presents site adapters, browser-authenticated Fetch, connected-browser selection, base Setup, and `setup add`
+- **AND** it omits removed commands and temporary `npx @panerelay/cli` usage
 
 ### Requirement: Setup manages the normal global CLI lifecycle without taking over existing installations
 
@@ -103,48 +104,25 @@ The Panerelay CLI SHALL load connection adapters only from a protected setup-man
 
 ### Requirement: CLI connection commands preserve defaults and credentials
 
-The CLI SHALL provide engine-neutral connection resolution and execution surfaces. It SHALL apply an explicit one-run mode over the Panerelay-owned saved default and avoid printing Bridge bearer credentials. In Extension mode only, it SHALL select one live ready browser through the existing routing rules and pass only the opaque selected browser identity to the adapter request. Direct mode SHALL bypass Panerelay browser selection and Bridge connection state. A run surface SHALL inject only the adapter-returned bounded environment into the child process and SHALL preserve the child's standard streams, signals, and exit status.
+The CLI SHALL allow a user to save a supported Direct or Extension mode for one installed connection adapter. Saving a mode SHALL update only Panerelay-owned preference and integration environment state, SHALL NOT resolve or print short-lived connection material, and SHALL NOT start an automation process. Browser Use Extension mode SHALL select the fixed Panerelay gateway through its managed environment; Direct mode SHALL remove only Panerelay-managed Browser Harness environment keys.
 
-#### Scenario: Caller resolves a CDP URL
+#### Scenario: User selects Browser Use Extension mode
 
-- **GIVEN** a compatible adapter is available and Extension mode has selected one live browser
-- **WHEN** the caller explicitly requests the connection URL output
-- **THEN** the CLI returns only the adapter's short-lived scoped URL and documented metadata format
-- **AND** it does not print the live registration bearer token or unrelated adapter configuration
+- **GIVEN** the Browser Use integration is installed
+- **WHEN** the user runs `panerelay connection use browser-use extension`
+- **THEN** Panerelay saves Extension mode and writes the fixed gateway environment owned by the integration
+- **AND** it does not select a browser, mint a bootstrap ticket, or start Browser Use
 
-#### Scenario: Caller resolves a Direct connection
+#### Scenario: User selects Browser Use Direct mode
 
-- **GIVEN** a compatible adapter resolves in Direct mode
-- **WHEN** no live Panerelay browser registration is available
-- **THEN** the CLI returns the adapter's Direct connection result without selecting a browser
-- **AND** it reads no Bridge connection credentials and creates no Panerelay connection state
-
-#### Scenario: CLI runs an engine command
-
-- **GIVEN** an adapter resolves a bounded environment for an engine
-- **WHEN** the caller uses the CLI run surface with an explicit child command
-- **THEN** the CLI starts that exact command without interpreting its automation arguments
-- **AND** it applies the adapter environment only to that child
-- **AND** it forwards standard streams, termination signals, and the final exit status
-- **AND** when the adapter returns a concurrency key, the CLI waits at most 750 milliseconds for that user-scoped lane before failing deterministically with `busy`
-
-#### Scenario: One-run mode overrides the saved preference
-
-- **GIVEN** a Direct or Extension adapter mode is saved
-- **WHEN** a caller supplies the other mode for one connection command
-- **THEN** the CLI uses the explicit mode for that command only
-- **AND** it leaves the saved preference, browser default, and other running adapter connections unchanged
-
-#### Scenario: Selected browser becomes unavailable
-
-- **GIVEN** browser selection resolves an opaque registration ID
-- **WHEN** the browser or owning Native Host exits before the adapter obtains connection material
-- **THEN** the CLI or adapter fails with an unavailable-generation error
-- **AND** it does not silently select another browser or fall back to Direct automation
+- **GIVEN** the Browser Use integration is installed in Extension mode
+- **WHEN** the user runs `panerelay connection use browser-use direct`
+- **THEN** Panerelay saves Direct mode and removes only the Panerelay-managed Browser Harness environment keys
+- **AND** it leaves unrelated Browser Use state unchanged
 
 ### Requirement: Browser administration is localized and bounded
 
-The Panerelay CLI SHALL support English and Simplified Chinese human-readable help, argument errors, browser listings, and default-management results. It SHALL expose only bounded registration metadata and SHALL NOT print bearer credentials or change permissions, targets, participants, or control leases.
+The Panerelay CLI SHALL support English and Simplified Chinese human-readable help, argument errors, browser listings, and browser-selection results. It SHALL expose only bounded registration metadata and SHALL NOT print bearer credentials or change permissions, targets, participants, or control leases. Clearing a saved browser default SHALL remain available through the Extension settings surface rather than a CLI command.
 
 #### Scenario: User lists connected browsers
 
@@ -161,11 +139,11 @@ The Panerelay CLI SHALL support English and Simplified Chinese human-readable he
 - **THEN** only the routing preference changes
 - **AND** browser permissions, authorization, targets, active participants, and control leases remain unchanged
 
-#### Scenario: User clears the saved default
+#### Scenario: User clears the default in Extension settings
 
-- **GIVEN** a saved browser preference exists
-- **WHEN** the user runs `panerelay browser clear`
-- **THEN** the saved routing preference is removed without requiring a live browser
+- **GIVEN** the current browser is the saved default
+- **WHEN** the user clears that setting in the Panerelay Extension
+- **THEN** the saved routing preference is removed
 - **AND** browser permissions, authorization, targets, active participants, and control leases remain unchanged
 
 #### Scenario: Browser selector conflicts with ambient process state

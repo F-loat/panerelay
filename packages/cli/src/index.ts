@@ -16,7 +16,6 @@ export {
   resolveCliConnection,
   saveCliConnectionMode,
 } from './adapter-dispatcher.js';
-export { runCliConnectionCommand } from './command-runner.js';
 export {
   createBrowserFetchSession,
   requestBrowserFetchPermission,
@@ -29,16 +28,6 @@ export type {
   BrowserFetchClientOptions,
   BrowserFetchHttpClient,
 } from './browser-fetch-client.js';
-export type {
-  CliCommandRunnerDependencies,
-  CliCommandRunnerOptions,
-  RunCliConnectionInput,
-} from './command-runner.js';
-export {
-  PANERELAY_CLI_ADAPTER_LOCK_DIRECTORY_ENV,
-  acquireCliConcurrencyLock,
-} from './concurrency-lock.js';
-export type { CliConcurrencyLock, CliConcurrencyLockOptions } from './concurrency-lock.js';
 export type {
   CliAdapterInvocationOptions,
   CliConnectionResolverDependencies,

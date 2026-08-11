@@ -11,7 +11,6 @@ import {
   PANERELAY_BROWSER_REGISTRY_PATH_ENV,
 } from '@panerelay/browser-registry';
 import { main, parseCliArgs } from './cli.js';
-import type { RunCliConnectionInput } from './command-runner.js';
 
 const state = {
   protocol: 'panerelay.relay.v2' as const,
@@ -71,29 +70,6 @@ test('parses browser administration commands and localized options', () => {
     },
     { operation: 'browser-use', selector: 'edge' },
   );
-  assert.deepEqual(
-    parseCliArgs([
-      '--lang',
-      'en',
-      'run',
-      'browser-use',
-      '--mode=extension',
-      '--',
-      'browser-use',
-      '--help',
-      '--lang',
-      'zh-CN',
-    ]),
-    {
-      adapterId: 'browser-use',
-      childCommand: ['browser-use', '--help', '--lang', 'zh-CN'],
-      connectionMode: 'extension',
-      help: false,
-      language: 'en',
-      operation: 'run',
-    },
-  );
-  assert.equal(parseCliArgs(['browser', 'clear']).operation, 'browser-clear');
   assert.deepEqual(parseCliArgs(['fetch', 'bilibili', '--help']), {
     fetchArguments: ['bilibili', '--help'],
     help: false,
@@ -107,35 +83,90 @@ test('parses browser administration commands and localized options', () => {
     language: undefined,
     operation: 'connection-use',
   });
-  assert.deepEqual(
-    parseCliArgs([
-      'connection',
-      'resolve',
-      'browser-use',
-      '--mode=extension',
-      '--browser',
-      'chrome',
-      '--actor',
-      'Browser Use',
-      '--session-label=skill=run',
-    ]),
-    {
-      adapterId: 'browser-use',
-      actorName: 'Browser Use',
-      browserSelector: 'chrome',
-      connectionMode: 'extension',
-      help: false,
-      language: undefined,
-      operation: 'connection-resolve',
-      sessionLabel: 'skill=run',
-    },
-  );
   assert.equal(parseCliArgs(['--lang', 'zh-CN', 'browsers']).language, 'zh-CN');
   assert.equal(parseCliArgs(['browsers', '--lang=en']).language, 'en');
   assert.throws(() => parseCliArgs(['browser', 'use']), /BROWSER_SELECTOR_MISSING/);
+  assert.throws(() => parseCliArgs(['browser', 'clear']), /Unknown command: browser clear/);
+  assert.throws(
+    () => parseCliArgs(['connection', 'resolve', 'browser-use']),
+    /Unknown command: connection resolve/,
+  );
+  assert.throws(() => parseCliArgs(['run', 'browser-use']), /Unknown command: run/);
   assert.throws(() => parseCliArgs(['browser', 'focus']), /Unknown command: browser focus/);
   assert.throws(() => parseCliArgs(['setup']), /Unknown command: setup/);
   assert.throws(() => parseCliArgs(['browsers', '--json']), /Unknown option: --json/);
+});
+
+test('keeps top-level help focused on setup and common workflows', async () => {
+  const output: string[] = [];
+  const originalLog = console.log;
+  console.log = (...values: unknown[]) => output.push(values.join(' '));
+  try {
+    assert.equal(await main([], { environment: {}, systemLocale: 'en-US' }), 0);
+    assert.equal(await main(['--lang', 'zh-CN', '--help'], { environment: {} }), 0);
+  } finally {
+    console.log = originalLog;
+  }
+
+  const help = output.join('\n');
+  assert.match(help, /Setup and site adapters:/);
+  assert.match(help, /安装与站点适配器：/);
+  assert.match(help, /@panerelay\/setup add <adapter>/);
+  assert.match(help, /@panerelay\/setup add <适配器>/);
+  assert.doesNotMatch(help, /panerelay browser clear/);
+  assert.doesNotMatch(help, /panerelay connection resolve/);
+  assert.doesNotMatch(help, /panerelay run/);
+  assert.doesNotMatch(help, /@panerelay\/cli browsers/);
+});
+
+test('rejects removed commands without changing browser or integration state', async () => {
+  const errors: string[] = [];
+  const originalError = console.error;
+  const originalLog = console.log;
+  let sideEffect = false;
+  console.error = (...values: unknown[]) => errors.push(values.join(' '));
+  console.log = () => undefined;
+  try {
+    const dependencies = {
+      environment: {},
+      readFetchAdapterRegistry: async () => ({
+        protocol: 'panerelay.fetch-adapter-registry.v3' as const,
+        adapters: [],
+      }),
+      runFetchCommand: async () => {
+        sideEffect = true;
+        return 0;
+      },
+      saveCliConnectionMode: async () => {
+        sideEffect = true;
+      },
+      selectBrowserRegistration: async () => {
+        sideEffect = true;
+        return { source: 'explicit' as const, state };
+      },
+      setBrowserDefault: async () => {
+        sideEffect = true;
+        return {
+          protocol: 'panerelay.relay.v2' as const,
+          browserId: state.browserId,
+          updatedAt: state.updatedAt,
+        };
+      },
+      systemLocale: 'en-US',
+    };
+
+    assert.equal(await main(['browser', 'clear'], dependencies), 2);
+    assert.equal(await main(['connection', 'resolve', 'browser-use'], dependencies), 2);
+    assert.equal(await main(['run', 'browser-use', '--', 'browser-use'], dependencies), 2);
+  } finally {
+    console.error = originalError;
+    console.log = originalLog;
+  }
+
+  assert.equal(sideEffect, false);
+  assert.match(errors.join('\n'), /Unknown command: browser clear/);
+  assert.match(errors.join('\n'), /Unknown command: connection resolve/);
+  assert.match(errors.join('\n'), /Unknown command: run/);
 });
 
 test('routes fetch help through the fetch command without requiring a browser', async () => {
@@ -291,45 +322,7 @@ test('preserves a site command --version option instead of printing the CLI vers
   assert.deepEqual(invocation, ['osv', 'query', 'lodash', '--version', '4.17.20']);
 });
 
-test('passes the exact child command through the run surface', async () => {
-  let input: RunCliConnectionInput | undefined;
-  assert.equal(
-    await main(
-      [
-        'run',
-        'browser-use',
-        '--mode',
-        'direct',
-        '--',
-        'browser-use',
-        '--json',
-        '-h',
-        '--help',
-        '-v',
-        '--version',
-      ],
-      {
-        environment: {},
-        runCliConnectionCommand: async value => {
-          input = value;
-          return 23;
-        },
-      },
-    ),
-    23,
-  );
-  assert.deepEqual(input?.childCommand, [
-    'browser-use',
-    '--json',
-    '-h',
-    '--help',
-    '-v',
-    '--version',
-  ]);
-  assert.equal(input?.mode, 'direct');
-});
-
-test('saves and resolves engine-neutral connection modes', async () => {
+test('saves engine-neutral connection modes', async () => {
   const output: string[] = [];
   const originalLog = console.log;
   let saved: { adapterId: string; mode: string } | undefined;
@@ -346,40 +339,6 @@ test('saves and resolves engine-neutral connection modes', async () => {
     );
     assert.deepEqual(saved, { adapterId: 'browser-use', mode: 'extension' });
     assert.match(output.pop() ?? '', /Default browser-use connection mode: extension/);
-
-    assert.equal(
-      await main(
-        [
-          'connection',
-          'resolve',
-          'browser-use',
-          '--mode',
-          'extension',
-          '--actor',
-          'Browser Use',
-          '--lang',
-          'en',
-        ],
-        {
-          environment: {},
-          resolveCliConnection: async input => ({
-            adapterId: input.adapterId,
-            mode: 'extension',
-            connection: {
-              kind: 'cdp-http',
-              url: 'http://127.0.0.1:41234/cdp/bootstrap/ticket',
-            },
-            environment: { BU_CDP_URL: 'secret-ticket-url', BU_NAME: 'panerelay' },
-            expiresAt: '2026-08-01T02:02:03.000Z',
-            concurrencyKey: 'browser-use-lane',
-          }),
-        },
-      ),
-      0,
-    );
-    const resolved = JSON.parse(output.pop() ?? '{}') as Record<string, unknown>;
-    assert.deepEqual(resolved.environmentKeys, ['BU_CDP_URL', 'BU_NAME']);
-    assert.equal(JSON.stringify(resolved).includes('secret-ticket-url'), false);
   } finally {
     console.log = originalLog;
   }
@@ -390,7 +349,6 @@ test('lists bounded browser metadata and manages the saved default', async () =>
   const originalLog = console.log;
   let selectedEnvironment: NodeJS.ProcessEnv | undefined;
   let savedBrowserId: string | undefined;
-  let cleared = false;
   console.log = (...values: unknown[]) => output.push(values.join(' '));
   try {
     assert.equal(
@@ -447,20 +405,6 @@ test('lists bounded browser metadata and manages the saved default', async () =>
     assert.equal(selectedEnvironment?.PANERELAY_BROWSER, 'edge');
     assert.equal(savedBrowserId, 'edge-browser-id');
     assert.match(output.join('\n'), /Default browser: Microsoft Edge \(edge-browser-id\)/);
-
-    output.length = 0;
-    assert.equal(
-      await main(['browser', 'clear', '--lang', 'zh-CN'], {
-        clearBrowserDefault: async () => {
-          cleared = true;
-          return null;
-        },
-        environment: {},
-      }),
-      0,
-    );
-    assert.equal(cleared, true);
-    assert.match(output.join('\n'), /已清除保存的默认浏览器/);
   } finally {
     console.log = originalLog;
   }
@@ -475,7 +419,7 @@ test('localizes help and argument errors', async () => {
   console.error = (...values: unknown[]) => errors.push(values.join(' '));
   try {
     assert.equal(await main(['--help'], { environment: {}, systemLocale: 'zh-CN' }), 0);
-    assert.match(output.join('\n'), /用法：[\s\S]*panerelay <站点> <命令>/);
+    assert.match(output.join('\n'), /常用用法：[\s\S]*panerelay <站点> <命令>/);
 
     output.length = 0;
     assert.equal(
@@ -490,7 +434,7 @@ test('localizes help and argument errors', async () => {
       2,
     );
     assert.match(errors.join('\n'), /Unknown command: setup/);
-    assert.match(output.join('\n'), /Usage:/);
+    assert.match(output.join('\n'), /Common usage:/);
   } finally {
     console.log = originalLog;
     console.error = originalError;

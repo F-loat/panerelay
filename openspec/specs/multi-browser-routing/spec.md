@@ -136,7 +136,7 @@ An Agent launched from a Panerelay Extension side panel SHALL explicitly select 
 
 ### Requirement: Users can inspect and manage the saved default
 
-Panerelay SHALL provide an engine-neutral standalone CLI that lists live registrations, identifies the saved default, sets a default by exact registration ID or unambiguous browser family, and clears the default. These commands SHALL NOT alter browser permissions or active participants and SHALL be available through either the optional global `panerelay` executable or an explicit `npx` invocation of `@panerelay/cli`.
+Panerelay SHALL provide an engine-neutral standalone CLI that lists live registrations, identifies the saved default, and sets a default by exact registration ID or unambiguous browser family. Base Setup SHALL provide that CLI as the global `panerelay` executable. Clearing the saved default SHALL remain available through Extension settings. These surfaces SHALL NOT alter browser permissions or active participants.
 
 #### Scenario: User lists browsers
 
@@ -153,13 +153,14 @@ Panerelay SHALL provide an engine-neutral standalone CLI that lists live registr
 
 #### Scenario: User clears the default
 
-- **GIVEN** a saved browser default exists
-- **WHEN** the user clears it
+- **GIVEN** the current browser is the saved default
+- **WHEN** the user clears that setting in the Panerelay Extension
 - **THEN** future participants use the single-ready-browser rule or fail on ambiguity
 - **AND** active participants and browser authorization remain unchanged
 
-#### Scenario: User chooses an invocation mode
+#### Scenario: User invokes the Setup-provided CLI
 
-- **GIVEN** browser administration is independent of setup and automation engines
-- **WHEN** the user invokes a browser command through a globally installed `panerelay` executable or `npx --yes @panerelay/cli`
-- **THEN** both modes operate on the same protected browser registry and saved default
+- **GIVEN** base Setup has provided the global `panerelay` executable
+- **WHEN** the user runs `panerelay browsers` or `panerelay browser use <selector>`
+- **THEN** the command operates on the protected browser registry and saved default
+- **AND** no temporary `npx @panerelay/cli` invocation is required

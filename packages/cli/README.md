@@ -1,20 +1,14 @@
 # `@panerelay/cli`
 
-Optional, engine-neutral browser administration for Panerelay.
+Recurring browser-authenticated Fetch, site-adapter, and browser-selection commands for Panerelay.
 
-Install it when you want a persistent `panerelay` command:
+Base Setup installs or updates the global `panerelay` command. Install site adapters separately when needed:
 
 ```bash
-npm install --global @panerelay/cli
+npx --yes @panerelay/setup
+npx --yes @panerelay/setup add bilibili
 panerelay browsers
 panerelay browser use edge
-panerelay browser clear
-```
-
-For occasional use, no global installation is required:
-
-```bash
-npx --yes @panerelay/cli browsers
 ```
 
 ## Browser-backed fetch
@@ -55,7 +49,7 @@ The CLI lists live Panerelay browser registrations and manages the saved routing
 
 Use [`@panerelay/setup`](https://www.npmjs.com/package/@panerelay/setup) for one-time installation, diagnostics, updates, and uninstall.
 
-Setup-managed connection adapters can also expose engine-neutral mode operations. The examples below use a globally installed `panerelay` command. Browser Use itself is invoked through the official `browser-use` command; setup manages its Browser Harness environment default:
+Setup-managed connection adapters can also expose engine-neutral mode preferences. Browser Use itself is invoked through the official `browser-use` command; Setup manages its Browser Harness environment default:
 
 ```bash
 panerelay connection use browser-use extension

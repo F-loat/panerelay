@@ -3,7 +3,6 @@ import { execFileSync } from 'node:child_process';
 export type SupportedLocale = 'en' | 'zh-CN';
 
 const englishMessages = {
-  browserDefaultCleared: 'Saved browser default cleared.',
   browserDefaultMarker: 'default',
   browserDefaultSet: 'Default browser: {name} ({id})',
   browserDefaultStale: 'Saved browser default is unavailable: {id}',
@@ -20,7 +19,6 @@ const englishMessages = {
   errorAdapterTimeout: 'Connection adapter timed out.',
   errorAdapterInvalidResponse: 'Connection adapter returned an invalid response.',
   errorBrowserUnavailable: 'The selected Panerelay browser is unavailable.',
-  errorChildCommandMissing: 'run requires -- followed by the child command',
   errorGenerationChanged: 'The selected browser connection changed. Run the command again.',
   errorConnectionNotReady: 'The selected connection is not ready.',
   errorConnectionBusy: 'The selected connection is busy. Try again shortly.',
@@ -33,27 +31,25 @@ const englishMessages = {
   errorUnknownOption: 'Unknown option: {option}',
   help: `Panerelay CLI
 
-Usage:
-  panerelay browsers [--lang <language>]
-  panerelay browser use <registration-id|family> [--lang <language>]
-  panerelay browser clear [--lang <language>]
-  panerelay connection use <adapter-id> <direct|extension> [--lang <language>]
-  panerelay connection resolve <adapter-id> [--mode <mode>] [--browser <selector>]
+Common usage:
   panerelay <site> <command> [site arguments]
+              Run an installed site adapter
   panerelay fetch <url|site> [request or site arguments]
-  panerelay run <adapter-id> [--mode <mode>] [--browser <selector>] -- <command> [arguments...]
+              Send a browser-authenticated request or disambiguate a site command
+  panerelay browsers
+              List connected Panerelay browsers
+  panerelay browser use <registration-id|family>
+              Choose the default when multiple browsers are connected
+  panerelay connection use <adapter-id> <direct|extension>
+              Choose the connection mode for an installed automation adapter
 
-Commands:
-  browsers    List live Panerelay browser registrations
-  browser use Save one live registration as the routing default
-  browser clear
-              Clear the saved browser default
-  connection use
-              Save a connection mode for one installed adapter
-  connection resolve
-              Resolve connection material without running an automation command
-  fetch       Send a browser-backed request or explicitly run a site adapter
-  run         Run the caller's command with the selected connection
+Setup and site adapters:
+  npx --yes @panerelay/setup
+              Install or update the Native Host and global CLI
+  npx --yes @panerelay/setup add <adapter>
+              Install or update one site adapter
+  npx --yes @panerelay/setup add --all
+              Install or update the complete built-in site catalog
 
 Options:
   --lang      Use en or zh-CN instead of the system language
@@ -61,16 +57,12 @@ Options:
               Show the version
   --help, -h  Show this help
 
-Occasional use without a global installation:
-  npx --yes @panerelay/cli browsers
-
-Installed site adapters can run directly; use fetch for raw URLs or disambiguation.`,
+Run panerelay fetch --help to see installed sites and complete Fetch options.`,
 } as const;
 
 type MessageKey = keyof typeof englishMessages;
 
 const chineseMessages: Record<MessageKey, string> = {
-  browserDefaultCleared: '已清除保存的默认浏览器。',
   browserDefaultMarker: '默认',
   browserDefaultSet: '默认浏览器：{name}（{id}）',
   browserDefaultStale: '保存的默认浏览器当前不可用：{id}',
@@ -87,7 +79,6 @@ const chineseMessages: Record<MessageKey, string> = {
   errorAdapterTimeout: '连接 adapter 响应超时。',
   errorAdapterInvalidResponse: '连接 adapter 返回了无效响应。',
   errorBrowserUnavailable: '所选 Panerelay 浏览器当前不可用。',
-  errorChildCommandMissing: 'run 需要在 -- 后指定要运行的子命令',
   errorGenerationChanged: '所选浏览器连接已变化，请重新运行命令。',
   errorConnectionNotReady: '所选连接尚未就绪。',
   errorConnectionBusy: '所选连接正忙，请稍后重试。',
@@ -100,27 +91,25 @@ const chineseMessages: Record<MessageKey, string> = {
   errorUnknownOption: '未知选项：{option}',
   help: `Panerelay 命令行工具
 
-用法：
-  panerelay browsers [--lang <语言>]
-  panerelay browser use <注册 ID|浏览器类型> [--lang <语言>]
-  panerelay browser clear [--lang <语言>]
-  panerelay connection use <adapter ID> <direct|extension> [--lang <语言>]
-  panerelay connection resolve <adapter ID> [--mode <模式>] [--browser <选择器>]
+常用用法：
   panerelay <站点> <命令> [站点参数]
+              运行已安装的站点适配器
   panerelay fetch <URL|站点> [请求或站点参数]
-  panerelay run <adapter ID> [--mode <模式>] [--browser <选择器>] -- <命令> [参数...]
+              发送浏览器登录态请求，或消歧站点命令
+  panerelay browsers
+              列出已连接的 Panerelay 浏览器
+  panerelay browser use <注册 ID|浏览器类型>
+              在连接多个浏览器时选择默认浏览器
+  panerelay connection use <adapter ID> <direct|extension>
+              选择已安装自动化 adapter 的连接模式
 
-命令：
-  browsers    列出在线的 Panerelay 浏览器注册
-  browser use 保存一个在线注册作为路由默认浏览器
-  browser clear
-              清除保存的默认浏览器
-  connection use
-              保存一个已安装 adapter 的连接模式
-  connection resolve
-              解析连接信息，但不运行自动化命令
-  fetch       发送浏览器请求或显式运行站点适配器
-  run         使用所选连接运行调用者指定的命令
+安装与站点适配器：
+  npx --yes @panerelay/setup
+              安装或更新 Native Host 和全局 CLI
+  npx --yes @panerelay/setup add <适配器>
+              安装或更新一个站点适配器
+  npx --yes @panerelay/setup add --all
+              安装或更新完整的内置站点目录
 
 选项：
   --lang      使用 en 或 zh-CN，不跟随系统语言
@@ -128,10 +117,7 @@ const chineseMessages: Record<MessageKey, string> = {
               显示版本
   --help, -h  显示帮助
 
-无需全局安装的临时用法：
-  npx --yes @panerelay/cli browsers
-
-已安装的站点适配器可直接运行；原始 URL 请求或命令消歧请使用 fetch。`,
+运行 panerelay fetch --help 查看已安装站点和完整 Fetch 选项。`,
 };
 
 export interface LocaleResolutionOptions {

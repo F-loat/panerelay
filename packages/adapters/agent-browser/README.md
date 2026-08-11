@@ -55,11 +55,11 @@ Provider defaults change routing only. They do not grant browser permission, aut
 
 New Side Panel conversations may inject a reserved 56-character `panerelay-v2-...` session value for the originating tab. Use that exact value with `--session` and `--provider panerelay`; it stays within agent-browser 0.33.0's session-name limit while the Provider selects the named live browser and orders the already-authorized target as agent-browser's local `t1`. Do not construct or shorten the value manually or substitute a similar URL/title when it is unavailable. Malformed and legacy target values fail closed, while ordinary session names keep the existing default-browser and tab-order behavior.
 
-When more than one Panerelay browser is connected, choose one in Extension settings or with the optional administration CLI:
+When more than one Panerelay browser is connected, choose one in Extension settings or with the CLI installed by base Setup:
 
 ```bash
-npx --yes @panerelay/cli browsers
-npx --yes @panerelay/cli browser use chrome
+panerelay browsers
+panerelay browser use chrome
 ```
 
 An unavailable default or ambiguous browser choice fails closed. Every launched session remains pinned to the browser through which it was created, including cleanup.

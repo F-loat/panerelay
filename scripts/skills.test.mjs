@@ -32,6 +32,9 @@ test('publishes one unified repository Skill for all Panerelay workflows', async
   assert.match(skill, /Use the engine the user names/);
   assert.match(skill, /Do not inspect the other listed registrations/);
   assert.match(skill, /Do not switch engines merely because the cached hint was stale/);
+  assert.match(skill, /inspect them with `panerelay browsers`/);
+  assert.match(skill, /panerelay connection use browser-use extension/);
+  assert.doesNotMatch(skill, /npx(?: --yes)? @panerelay\/cli/);
   assert.match(skill, /npx skills add https:\/\/github\.com\/F-loat\/panerelay --skill panerelay/);
   assert.match(skill, /npx skills update panerelay/);
   assert.match(skill, /npx skills remove panerelay/);

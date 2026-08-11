@@ -85,7 +85,7 @@ test('every published executable supports the standard help and version aliases'
         assert.equal(result.error, undefined, `${executable.name}: ${result.error?.message}`);
         assert.equal(result.status, 0, `${executable.name}: ${result.stderr}`);
         assert.equal(result.stderr, '', executable.name);
-        assert.match(result.stdout, /Usage:/, executable.name);
+        assert.match(result.stdout, /(?:Usage|Common usage):/, executable.name);
         assert.match(result.stdout, /(?:-v, --version|--version, -v)/, executable.name);
         assert.match(result.stdout, /(?:-h, --help|--help, -h)/, executable.name);
       }
