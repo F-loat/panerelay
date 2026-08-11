@@ -17,6 +17,11 @@ import { installPlaywrightIntegration } from './playwright-integration.js';
 
 const chromeWebStoreUrl =
   'https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi';
+const setupPackageVersion = (
+  JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8')) as {
+    version: string;
+  }
+).version;
 const versionedHostFixture = {
   currentVersionPath: '/tmp/host-current.json',
   hostsDirectory: '/tmp/hosts',
@@ -447,7 +452,7 @@ test('offers interactive integration and default selections only for the unflagg
     assert.deepEqual(selections[1], {
       agentBrowser: false,
       browserUse: false,
-      cliVersion: '0.9.0',
+      cliVersion: setupPackageVersion,
       playwright: false,
       environment: {},
       extensionId: undefined,
