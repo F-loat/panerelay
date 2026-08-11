@@ -15,7 +15,7 @@ npx --yes @panerelay/setup
 npx --yes @panerelay/setup doctor
 ```
 
-The base command always installs the Native Host and side-panel prerequisites. In an interactive terminal it also offers one automation-integration selector; in non-interactive use it remains engine-neutral. Setup does not manage an Agent Skill or change `PATH`.
+The base command always installs the Native Host and side-panel prerequisites. It also installs the exact same-version global `@panerelay/cli` when absent, so the recurring `panerelay` command is available. A pre-existing PATH-visible global command is preserved even when it belongs to another NVM, Volta, or npm prefix; later setup/update runs change only a version that still matches Setup's protected ownership record. Project-local `node_modules/.bin` commands do not count as global installations. Use `--no-cli` to skip this lifecycle. In an interactive terminal Setup also offers one automation-integration selector; in non-interactive use it remains engine-neutral. Setup does not manage an Agent Skill or edit shell startup files.
 
 Agents in the side panel keep the selected project as their working directory and receive only bounded current-tab URL and title context. Panerelay-owned Codex and Claude Code processes also receive the bounded Panerelay Fetch MCP for browser-authenticated HTTP(S) requests. Automation MCP servers and Skills continue to come from the Agent's own configuration.
 
@@ -67,7 +67,7 @@ npx --yes @panerelay/setup uninstall --yes
 
 ### Fetch adapter lifecycle
 
-Fetch adapters are independent from base setup and automation-engine integrations. They are installed only by an explicit adapter command:
+Fetch adapters are independent from base setup and automation-engine integrations. Run base Setup first so the `panerelay` command is available; adapters are then installed only by an explicit adapter command:
 
 ```bash
 npx --yes @panerelay/setup add bilibili
@@ -189,14 +189,14 @@ agent-browser --provider panerelay tab list
 When Chrome and Edge are both connected, inspect or save the browser used by unscoped Provider invocations:
 
 ```bash
-npx --yes @panerelay/cli browsers
-npx --yes @panerelay/cli browser use chrome
+panerelay browsers
+panerelay browser use chrome
 # Or use an exact registration ID:
-# npx --yes @panerelay/cli browser use REGISTRATION_ID
-npx --yes @panerelay/cli browser clear
+# panerelay browser use REGISTRATION_ID
+panerelay browser clear
 ```
 
-`@panerelay/cli` is an optional, engine-neutral administration package. Install it globally when a persistent `panerelay` command is useful. Setup does not install it globally or modify the shell `PATH`.
+`@panerelay/cli` is the engine-neutral recurring command installed by normal base Setup. Setup uses npm's configured global prefix without editing shell startup files, skips an already matching Setup-owned release, and preserves any pre-existing or externally changed global installation. `--no-cli` skips this step; uninstall removes only an unchanged Setup-owned CLI unless `--keep-cli` is supplied.
 
 `PANERELAY_BROWSER_ID` selects one exact registration for a process. `PANERELAY_BROWSER` accepts an exact ID or an unambiguous browser family. Explicit selection wins over the saved browser default. Without either, Panerelay selects only when exactly one CDP-ready browser is live; ambiguity and unavailable defaults fail closed. Existing sessions remain pinned to the browser through which they were created.
 

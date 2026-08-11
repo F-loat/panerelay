@@ -5,14 +5,14 @@
 - Status: Accepted
 - Authors: F-loat
 - Created: 2026-08-05
-- Updated: 2026-08-06
-- OpenSpec: `openspec/changes/add-native-host-self-update`
+- Updated: 2026-08-11
+- OpenSpec: `openspec/changes/add-native-host-self-update`, `openspec/changes/refine-fetch-onboarding`
 
 ## Summary
 
 The authenticated Extension reports its semantic manifest `version_name` separately from Chromium's numeric build `version`; the running Native Host reports a release embedded in its bundle. After validating Extension identity and registration shape, the Host completes ordinary browser registration regardless of whether the two valid semantic releases match. Version maintenance is best-effort background work and is not a connection prerequisite.
 
-An older Host automatically invokes one fixed, exact-version, non-interactive `@panerelay/setup` operation. Setup stages an immutable versioned Host bundle behind a stable user-scoped launcher, validates the staged bundle, atomically switches a protected current-version pointer, and leaves the running old bundle untouched. The old Host then exits so Chrome or Edge reconnects through the launcher to the installed release. A newer Host never automatically downgrades.
+An older Host automatically invokes one fixed, exact-version, non-interactive `@panerelay/setup` operation. Normal Setup also provides the recurring `panerelay` command: it installs a missing exact-version global CLI, records protected ownership, and updates only an unchanged Setup-owned installation. A pre-existing, externally changed, or PATH-visible alternate-Node-prefix global CLI is preserved. Setup then stages an immutable versioned Host bundle behind a stable user-scoped launcher, validates the staged bundle, atomically switches a protected current-version pointer, and leaves the running old bundle untouched. The old Host exits so Chrome or Edge reconnects through the launcher to the installed release. A newer Host never automatically downgrades.
 
 Only the first registration initiated by an Extension background lifetime requests automatic comparison. Update state remains distinct from Native Messaging transport connectivity, completed browser registration, browser authorization, and control ownership. A valid older or newer Host remains usable through the ordinary gates understood by that connection; a newer Host is never automatically downgraded.
 
@@ -36,6 +36,7 @@ This RFC supersedes RFC-0005's same-protocol compatibility exception for missing
 4. Keep package selection closed and independent of optional automation integrations.
 5. Expose only bounded, non-blocking maintenance and restart state to the Side Panel.
 6. Keep release/update state separate from site permission, tab authorization, and automation control.
+7. Keep a Setup-created global Panerelay CLI on the same exact release without taking over user-managed global package state.
 
 ### Non-goals
 
@@ -123,7 +124,9 @@ npx --yes @panerelay/setup@<release> update --yes
 
 The mapping accepts no Extension-provided package name, command, flag, path, or shell fragment. It uses structured process arguments, a bounded timeout, safe Windows command-wrapper handling, and bounded captured output that never crosses Native Messaging. Missing exact packages are contained quietly; other failures may return a stable sanitized category and exact manual command.
 
-No integration flags are supplied. Base update preserves the effective Extension ID, runtime path entries, optional Panerelay Provider/adapter registrations, defaults, and unrelated user configuration. It does not probe or modify upstream automation engines or Agent runtimes.
+No integration flags are supplied. Before Host mutation, base Setup detects npm's global `@panerelay/cli` and any PATH-visible `panerelay` command outside a project-local `node_modules/.bin`. If both are absent, Setup installs the exact Setup release and writes a protected ownership record. If the installed version still matches that record, update skips a matching release or advances it to the exact target. A global installation without a matching ownership record, including one exposed by another NVM, Volta, or npm prefix, is reported and preserved rather than reinstalled, downgraded, or claimed. Adapter `add`, `remove`, and `adapters` operations never run this lifecycle. `--no-cli` is the explicit escape hatch for setup/update, while uninstall removes only an unchanged Setup-owned CLI unless `--keep-cli` is supplied.
+
+The npm operation uses a resolved executable and structured arguments without a shell, captures bounded output that is not echoed on failure, and completes before Native Host mutation. Setup does not edit shell startup files; the npm global prefix remains user-configured. Base update otherwise preserves the effective Extension ID, runtime path entries, optional Panerelay Provider/adapter registrations, defaults, and unrelated user configuration. It does not probe or modify upstream automation engines, Agent Skills, or Agent runtimes.
 
 ## Stable launcher and installation transaction
 
@@ -169,6 +172,7 @@ Stale cleanup requires both a bounded expired age and a non-live PID, and remove
 6. Update state never grants, widens, revokes, or exercises site permission or tab authorization.
 7. Stable launcher and current pointer remain user-scoped and reject unsafe file ownership, type, or derived paths.
 8. Automatic downgrade is forbidden.
+9. Global CLI lifecycle uses only the fixed `@panerelay/cli` package at the validated Setup release; ownership records never become package, executable, or argument input.
 
 ## Compatibility and migration
 
@@ -176,7 +180,7 @@ This RFC deliberately introduces a clean break. Development and candidate instal
 
 Stable and beta release validation checks the Extension identity, embedded Host self-check, package versions, and candidate inventory without polling npm after publication or synthesizing an old-package download. If an unpacked or newly published Extension names a package that is not yet resolvable, the automatic attempt fails quietly and the existing Host connection remains usable. It never falls back to `latest` or `beta`.
 
-Rollback is manual: install the intended earlier package explicitly if desired. A newer Host remains normally connected and does not automatically downgrade itself for an older Extension.
+Rollback is manual: install the intended earlier package explicitly if desired. A Setup-owned CLI follows that explicit Setup release; a user-owned CLI remains untouched. A newer Host remains normally connected and does not automatically downgrade itself for an older Extension.
 
 Self-update remains `Partial` until deterministic packed-consumer coverage passes on macOS, Linux, and Windows and representative daily Chrome plus real Windows Chrome/Edge evidence is retained. Passing update transport does not change agent-browser 0.33.0, Browser Use 0.13.7 with Browser Harness 0.1.8, Playwright CLI 0.1.17, Edge automation, or browser-process capability classifications.
 
@@ -216,5 +220,6 @@ The linked OpenSpec change owns implementation tasks and tests. Acceptance requi
 6. packed-consumer setup/update/doctor/uninstall on macOS, Linux, and Windows;
 7. a retained daily Chrome update/reconnect result; and
 8. real current-user Windows Chrome/Edge evidence from paths containing spaces.
+9. global CLI absent/current/owned-update/user-owned-preservation/uninstall coverage using structured npm invocation on macOS, Linux, and Windows path semantics.
 
 This RFC remains Accepted until the governed release and its applicable compatibility evidence are published. It must not move to Implemented merely because local tests pass.

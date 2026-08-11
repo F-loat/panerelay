@@ -10,6 +10,9 @@ Fetch and browser automation now have separate authorization models, but the con
 - Keep only the summarize-page and operate-page welcome suggestions, removing the redundant find-information suggestion and making the second action task-oriented.
 - Keep full authorized-domain management in Settings and preserve independent Fetch-domain, automation-tab, and active-control state.
 - Reorder the root README Fetch guide so site adapters and `add --all` appear before domain authorization, move external Agent MCP setup into the collapsed advanced section, replace the text architecture diagram with Mermaid, and credit the OpenCLI project that supplied the migrated site implementations.
+- Close the command-line onboarding gap by making base Setup install a missing same-version global `@panerelay/cli`, update only a Setup-owned CLI, preserve pre-existing global installations, and run before any bare `panerelay` command; keep adapter `add` independent and distinguish the CLI from the Agent Skill.
+- Shorten the bilingual homepage hero so its headline stays inside the copy column, reduce repeated first-screen language, and present the actionable Fetch path before the denser Connect engine comparison.
+- Keep the recommended path linear in both READMEs and the homepage: Setup precedes usage, while manual Connect commands, FAQ answers, contributor commands, and other details stay collapsed or move to focused guides.
 - Add direct regression coverage for `npx --yes @panerelay/setup add --all`, which is already part of the accepted setup contract.
 
 ## Capabilities
@@ -21,7 +24,8 @@ None.
 ### Modified Capabilities
 
 - `guided-browser-readiness`: The connected ready welcome state presents two focused Agent suggestions followed by independent automation-tab and Fetch-domain authorization cards.
-- `project-website`: The root English and Chinese README contract becomes Fetch/Connect-first, keeps external MCP configuration collapsed, documents all-built-in site installation, credits OpenCLI, and uses a Mermaid architecture diagram.
+- `project-website`: The root English and Chinese README contract becomes Fetch/Connect-first, keeps external MCP configuration collapsed, documents the CLI and all-built-in site installation, credits OpenCLI, and uses a Mermaid architecture diagram; the bilingual homepage gains a contained hero and complete Fetch quickstart before Connect.
+- `panerelay-cli`: Base setup, update, and uninstall own an opt-out global CLI lifecycle without taking over a pre-existing global installation; adapter lifecycle commands remain independent.
 
 ## Non-goals
 
@@ -32,6 +36,7 @@ None.
 ## Impact
 
 - Extension Side Panel copy, compact welcome components, styling, and component tests.
-- Root English and Simplified Chinese READMEs plus release documentation tests.
+- Root English and Simplified Chinese READMEs, bilingual website content and layout, plus release documentation tests.
 - Setup CLI help and tests for the existing all-built-in adapter path.
+- Setup-managed global CLI ownership, exact-version lifecycle, help, and tests.
 - No protocol, Bridge, browser-ownership, or compatibility-group changes; Chrome and Edge continue to share the existing Extension authorization behavior.

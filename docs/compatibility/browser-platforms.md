@@ -4,7 +4,7 @@
 - Extension target: shared Chromium Manifest V3
 - agent-browser baseline: 0.33.0
 - Playwright CLI baseline: 0.1.17
-- Last verified: 2026-08-07
+- Last verified: 2026-08-11
 
 ## Status meanings
 
@@ -41,7 +41,7 @@ Chrome and Edge Native Hosts persist independent protected registrations. Provid
 
 OpenCode discovery tests additionally cover explicit-override precedence, legacy runtime migration, live reconstructed-PATH precedence, and an all-provider query that leaves a stale persisted fallback untouched after a live candidate succeeds. A local macOS setup refresh and all-provider discovery check selected OpenCode 1.18.12 without producing a new execution-policy event. Dedicated daily-profile Side Panel acceptance remains pending, so OpenCode conversations stay `Forwarded` for both Chrome and Edge.
 
-The optional `@panerelay/cli` package uses the same engine-neutral registry for bounded listing and saved-default changes. Unit and packed-consumer tests cover its executable entry, English and Chinese output, explicit selector precedence, credential omission, and setup-command separation. These package-level checks also do not upgrade Edge runtime capabilities beyond `Forwarded`.
+The `@panerelay/cli` package uses the same engine-neutral registry for bounded listing and saved-default changes. Normal base Setup installs the exact lockstep release only when the package is absent, records Setup ownership, and later updates or removes only an unchanged Setup-owned installation. Pre-existing and externally changed global installations are preserved. Unit and packed-consumer tests cover its executable entry, English and Chinese output, explicit selector precedence, credential omission, setup-command separation, and ownership-aware lifecycle. These package-level checks also do not upgrade Edge runtime capabilities beyond `Forwarded`.
 
 ## Installation and artifacts
 

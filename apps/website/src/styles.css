@@ -2008,6 +2008,14 @@ html:not(.js) .engine-panel[hidden] {
   place-items: center;
 }
 
+.workflow-fetch .code-window {
+  width: min(88%, 620px);
+}
+
+.workflow-fetch .code-window pre {
+  font-size: 11px;
+}
+
 .cli-demo {
   background:
     radial-gradient(circle at 50% 35%, rgb(32 230 143 / 9%), transparent 37%),
@@ -2419,13 +2427,18 @@ html:not(.js) .engine-panel[hidden] {
 }
 
 .agent-handoff > strong,
-.integration-command > strong {
+.integration-command > summary {
   display: block;
   color: var(--muted-strong);
+  cursor: pointer;
   font-family: var(--mono);
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.05em;
+}
+
+.integration-command > summary::marker {
+  color: var(--green);
 }
 
 .agent-handoff-picker {
@@ -4010,7 +4023,7 @@ html[lang='zh-CN'] .final-content > p {
 }
 
 .js .hero-tool-reel {
-  width: 17ch;
+  width: 16ch;
   height: 1.76em;
   overflow: hidden;
 }
@@ -4034,8 +4047,11 @@ html[lang='zh-CN'] .final-content > p {
 }
 
 .hero-tool-item {
+  display: grid;
   height: 1.45em;
   flex: 0 0 1.45em;
+  place-items: center;
+  text-align: center;
   white-space: nowrap;
 }
 
@@ -4490,6 +4506,14 @@ html[lang='zh-CN'] .final-content > p {
   font-size: 9px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.setup-command-surface .setup-command-list {
+  display: grid;
+  gap: 2px;
+  line-height: 1.35;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .mini-copy {
@@ -5458,15 +5482,16 @@ html[lang='zh-CN'] .final-content > p {
 }
 
 html[lang='zh-CN'] .hero h1 {
-  max-width: 590px;
-  font-size: clamp(52px, 4.7vw, 70px);
+  max-width: 100%;
+  font-size: clamp(48px, 4.2vw, 62px);
   line-height: 1.04;
+  word-break: normal;
 }
 
 html[lang='zh-CN'] .hero h1 span {
   margin-top: 5px;
   font-family: var(--sans);
-  font-size: 0.6em;
+  font-size: 0.68em;
   font-weight: 680;
   letter-spacing: -0.055em;
 }
@@ -5485,6 +5510,11 @@ html[lang='zh-CN'] .hero h1 span {
 }
 
 @media (max-width: 620px) {
+  .workflow-fetch .code-window pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
   .hero .shell,
   .hero-layout,
   .hero-layout > *,

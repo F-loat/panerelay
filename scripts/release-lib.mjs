@@ -1002,10 +1002,14 @@ export async function smokePackedSetup(tarballs) {
       cwd: consumerDirectory,
       env: environment,
     });
-    await run(process.execPath, setupCliArguments(['--yes', '--extension-id', extensionId]), {
-      cwd: consumerDirectory,
-      env: environment,
-    });
+    await run(
+      process.execPath,
+      setupCliArguments(['--yes', '--no-cli', '--extension-id', extensionId]),
+      {
+        cwd: consumerDirectory,
+        env: environment,
+      },
+    );
     const baseDoctor = await packedDoctor(
       process.execPath,
       setupCliArguments(['doctor', '--json']),
@@ -1017,7 +1021,7 @@ export async function smokePackedSetup(tarballs) {
       'Packed setup doctor still reported a Skill check',
     );
 
-    await run(process.execPath, setupCliArguments(['--playwright', '--yes']), {
+    await run(process.execPath, setupCliArguments(['--playwright', '--yes', '--no-cli']), {
       cwd: consumerDirectory,
       env: environment,
     });
@@ -1051,6 +1055,7 @@ export async function smokePackedSetup(tarballs) {
       '--agent-browser',
       '--playwright',
       '--global-default',
+      '--no-cli',
       '--extension-id',
       extensionId,
     ];
@@ -1073,7 +1078,13 @@ export async function smokePackedSetup(tarballs) {
     );
     await run(
       process.execPath,
-      setupCliArguments(['update', '--agent-browser', '--playwright', '--global-default']),
+      setupCliArguments([
+        'update',
+        '--agent-browser',
+        '--playwright',
+        '--global-default',
+        '--no-cli',
+      ]),
       {
         cwd: consumerDirectory,
         env: environment,
@@ -1091,7 +1102,7 @@ export async function smokePackedSetup(tarballs) {
       ),
       'Packed setup update replaced the persisted custom Extension ID',
     );
-    await run(process.execPath, setupCliArguments(['uninstall', '--yes']), {
+    await run(process.execPath, setupCliArguments(['uninstall', '--yes', '--keep-cli']), {
       cwd: consumerDirectory,
       env: environment,
     });

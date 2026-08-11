@@ -77,6 +77,10 @@ test('parses setup aliases and global default flags', () => {
   assert.equal(parseSetupArgs(['setup', '--browser-use']).browserUse, true);
   assert.equal(parseSetupArgs(['setup', '--browser-use', '--global-default']).globalDefault, true);
   assert.equal(parseSetupArgs(['setup', '--agent-browser']).agentBrowser, true);
+  assert.equal(parseSetupArgs(['update', '--no-cli']).skipCli, true);
+  assert.equal(parseSetupArgs(['uninstall', '--keep-cli']).keepCli, true);
+  assert.throws(() => parseSetupArgs(['add', 'bilibili', '--no-cli']), /Unknown option/);
+  assert.throws(() => parseSetupArgs(['doctor', '--no-cli']), /only available with setup/);
   assert.equal(parseSetupArgs(['doctor', '--browser-use']).browserUse, true);
   assert.equal(parseSetupArgs(['doctor', '--playwright']).playwright, true);
   assert.equal(parseSetupArgs(['setup', '--codex-fetch']).codexFetch, true);
@@ -443,10 +447,12 @@ test('offers interactive integration and default selections only for the unflagg
     assert.deepEqual(selections[1], {
       agentBrowser: false,
       browserUse: false,
+      cliVersion: '0.9.0',
       playwright: false,
       environment: {},
       extensionId: undefined,
       globalDefault: false,
+      installCli: true,
     });
     assert.equal(prompts.length, 1);
     assert.equal(
@@ -637,6 +643,12 @@ test('reconciles an isolated interactive selection while preserving upstream exe
           setupPanerelay(
             { ...options, homeDirectory },
             {
+              installGlobalCli: async version => ({
+                managed: true,
+                operation: 'current',
+                packageSpec: `@panerelay/cli@${version}`,
+                version,
+              }),
               installHost: async () => ({
                 ...versionedHostFixture,
                 extensionId: PANERELAY_EXTENSION_ID,

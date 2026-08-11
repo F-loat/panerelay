@@ -62,6 +62,12 @@ const englishMessages = {
   extensionIdentity: 'Extension ID: {id}',
   extensionStoreNextStep: 'Extension: Install Panerelay in the Chrome Web Store: {url}',
   globalDefault: 'Global default configuration: {path}',
+  globalCliInstallFailed:
+    'Could not install or update the Panerelay CLI. Check npm global-install permissions and network access, then rerun setup or use --no-cli.',
+  globalCliNpmUnavailable:
+    'npm is unavailable, so Setup could not install the Panerelay CLI. Install npm or rerun setup with --no-cli.',
+  globalCliUninstallFailed:
+    'Could not remove the Setup-managed Panerelay CLI. Check npm global-install permissions and rerun uninstall, or use --keep-cli.',
   setupAgentBrowser: 'agent-browser',
   setupBrowserHarnessEnvironment: 'Browser Harness environment',
   setupBrowserUse: 'Browser Use',
@@ -75,6 +81,10 @@ const englishMessages = {
   setupPlaywrightConfig: 'Playwright config:',
   setupPlaywrightCommand: 'Playwright command:',
   setupExtensionId: 'Extension ID',
+  setupCli: 'Panerelay CLI',
+  setupCliCommandMissing: '{version} installed, but panerelay is not on PATH',
+  setupCliPreserved: '{version} (existing global installation preserved)',
+  setupCliPreservedPath: 'Existing command preserved: {path}',
   setupFix: 'Fix',
   setupGroupAutomation: 'Automation integrations',
   setupGroupLocal: 'Local integration',
@@ -96,9 +106,9 @@ const englishMessages = {
   help: `Panerelay Setup
 
 Usage:
-  npx --yes @panerelay/setup [--agent-browser] [--browser-use] [--playwright] [--codex-fetch|--remove-codex-fetch] [--claude-fetch|--remove-claude-fetch] [--global-default] [--extension-id <id>] [--lang <language>]
+  npx --yes @panerelay/setup [--agent-browser] [--browser-use] [--playwright] [--codex-fetch|--remove-codex-fetch] [--claude-fetch|--remove-claude-fetch] [--global-default] [--extension-id <id>] [--no-cli] [--lang <language>]
   npx --yes @panerelay/setup doctor [--agent-browser] [--browser-use] [--playwright] [--codex-fetch] [--claude-fetch] [--global-default] [--extension-id <id>] [--json] [--lang <language>]
-  npx --yes @panerelay/setup uninstall [--yes] [--lang <language>]
+  npx --yes @panerelay/setup uninstall [--yes] [--keep-cli] [--lang <language>]
   npx --yes @panerelay/setup add <adapter|path|github-source>... | --all
   npx --yes @panerelay/setup remove <adapter>... | --all
   npx --yes @panerelay/setup adapters
@@ -124,6 +134,8 @@ Options:
   --extension-id
               Use a custom 32-character Chrome Extension ID for this installation
   --json      Print a machine-readable doctor report
+  --no-cli    Do not install or update the global Panerelay CLI during setup
+  --keep-cli  Keep a Setup-managed global Panerelay CLI during uninstall
   --lang      Use en or zh-CN instead of the system language
   --yes, -y   Confirm uninstall without a prompt
   --version, -v
@@ -215,6 +227,12 @@ const chineseMessages: Record<MessageKey, string> = {
   extensionIdentity: '扩展 ID：{id}',
   extensionStoreNextStep: '扩展：请从 Chrome 应用商店安装或打开 Panerelay：{url}',
   globalDefault: '全局默认配置：{path}',
+  globalCliInstallFailed:
+    '无法安装或更新 Panerelay CLI。请检查 npm 全局安装权限和网络后重新运行 setup，或使用 --no-cli。',
+  globalCliNpmUnavailable:
+    '未找到 npm，Setup 无法安装 Panerelay CLI。请安装 npm，或使用 --no-cli 重新运行 setup。',
+  globalCliUninstallFailed:
+    '无法移除由 Setup 管理的 Panerelay CLI。请检查 npm 全局安装权限后重新运行 uninstall，或使用 --keep-cli。',
   setupAgentBrowser: 'agent-browser',
   setupBrowserHarnessEnvironment: 'Browser Harness 环境',
   setupBrowserUse: 'Browser Use',
@@ -230,6 +248,10 @@ const chineseMessages: Record<MessageKey, string> = {
   setupPlaywrightCommand: 'Playwright 命令：',
   setupPlaywright: 'Playwright CLI',
   setupExtensionId: '扩展 ID',
+  setupCli: 'Panerelay CLI',
+  setupCliCommandMissing: '已安装 {version}，但 PATH 中找不到 panerelay',
+  setupCliPreserved: '{version}（保留已有全局安装）',
+  setupCliPreservedPath: '已保留现有命令：{path}',
   setupFix: '处理',
   setupGroupAutomation: '自动化集成',
   setupGroupLocal: '本地集成',
@@ -250,9 +272,9 @@ const chineseMessages: Record<MessageKey, string> = {
   help: `Panerelay 安装工具
 
 用法：
-  npx --yes @panerelay/setup [--agent-browser] [--browser-use] [--playwright] [--codex-fetch|--remove-codex-fetch] [--claude-fetch|--remove-claude-fetch] [--global-default] [--extension-id <id>] [--lang <语言>]
+  npx --yes @panerelay/setup [--agent-browser] [--browser-use] [--playwright] [--codex-fetch|--remove-codex-fetch] [--claude-fetch|--remove-claude-fetch] [--global-default] [--extension-id <id>] [--no-cli] [--lang <语言>]
   npx --yes @panerelay/setup doctor [--agent-browser] [--browser-use] [--playwright] [--codex-fetch] [--claude-fetch] [--global-default] [--extension-id <id>] [--json] [--lang <语言>]
-  npx --yes @panerelay/setup uninstall [--yes] [--lang <语言>]
+  npx --yes @panerelay/setup uninstall [--yes] [--keep-cli] [--lang <语言>]
   npx --yes @panerelay/setup add <适配器|路径|GitHub 来源>... | --all
   npx --yes @panerelay/setup remove <适配器>... | --all
   npx --yes @panerelay/setup adapters
@@ -278,6 +300,8 @@ const chineseMessages: Record<MessageKey, string> = {
   --extension-id
               为当前安装指定 32 位 Chrome 扩展 ID
   --json      输出机器可读的 doctor 报告
+  --no-cli    setup 时不安装或更新全局 Panerelay CLI
+  --keep-cli  uninstall 时保留由 Setup 管理的全局 Panerelay CLI
   --lang      使用 en 或 zh-CN，不跟随系统语言
   --yes, -y   无需确认直接卸载
   --version, -v

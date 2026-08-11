@@ -10,6 +10,8 @@ See [proposal.md](./proposal.md) for motivation. RFC-0009 already defines Fetch 
 - Keep the welcome suggestions focused on summarizing content and operating the page.
 - Reuse the existing authorization state and permission request paths so compact and Settings surfaces cannot diverge.
 - Make the ordinary Fetch onboarding path short while retaining direct MCP configuration for advanced use.
+- Make every bare `panerelay` example reachable from base Setup, which provides the normal global CLI lifecycle without taking over an existing installation.
+- Keep the homepage hero inside its grid track and put an executable Fetch path ahead of the denser Connect comparison.
 - Add regression coverage around existing all-adapter installation behavior and README structure.
 
 **Non-Goals:**
@@ -50,12 +52,28 @@ The primary Fetch section will describe known URLs, built-in site adapters, and 
 
 Setup parsing, installation expansion, help text, and release documentation tests will directly cover `npx --yes @panerelay/setup add --all`. No parser or registry redesign is needed because the current implementation already resolves `all` to every built-in adapter.
 
+### Treat Setup, the CLI, adapters, and the Skill as separate lifecycle scopes
+
+The root READMEs and homepage will run base Setup before showing the bare `panerelay` command, then install the repository Skill separately. Base Setup detects both the current npm-global `@panerelay/cli` package and a PATH-visible non-project command: it installs the exact release only when absent, records ownership for installations it creates, skips a matching release, and updates or removes only a version that still matches that ownership record. A pre-existing, externally changed, or alternate-Node-prefix CLI is preserved and remains user-owned; project-local `node_modules/.bin` entries do not suppress installation. The CLI supplies direct Fetch, adapter, and administration commands; the Skill supplies Agent-readable workflow selection, authorization stops, verification, and troubleshooting. Adapter `add` remains independent and assumes base Setup has already run.
+
+An alternative was to replace every bare command with `npx --yes @panerelay/cli`. That avoids global installation but makes repeated site-adapter use noisy. Unconditionally reinstalling the global package on every setup or `add` was also rejected because it would take over user-managed package state and make adapter lifecycle unexpectedly mutate PATH-visible tooling.
+
+### Make Fetch the first actionable homepage workflow
+
+The hero title will be shortened to one bounded statement plus one short supporting line, with an explicit Chinese scale that fits the copy grid. The existing rotating engine name remains in the lede but its slot is slightly narrower and centered. The scrolling narrative follows value, Setup, Fetch/Connect, and trust in that order; the manual integration command inside Setup remains collapsed. In the workflow section, Fetch moves before Connect and its decorative side-panel mockup becomes a compact terminal quickstart showing base Setup, exact-domain authorization, an absolute request URL, and optional adapter installation and invocation.
+
+The first screen will continue to show the interactive authorization walkthrough because it explains Panerelay's user-controlled boundary. Replacing that walkthrough with another command sample was rejected: the command belongs in the workflow section, while the walkthrough communicates authorization and visible release.
+
 ## Risks / Trade-offs
 
 - [Four independent cards increase stack height] → Keep every row compact and retain only the two distinct suggestion actions.
 - [Selected options normally close without dispatching a change] → Add an opt-in selected-option callback and use it only for the two compact authorization selectors.
 - [Chrome permission denial can leave the visual selection unchanged] → Continue deriving displayed selection from confirmed controller state and surface the existing localized error.
 - [README Mermaid support varies by renderer] → Keep descriptive node labels and surrounding prose sufficient to understand Fetch and Connect without relying only on the diagram.
+- [A global install can overwrite user-managed package state] → Record protected ownership only when Setup creates the installation; preserve pre-existing or externally changed versions.
+- [Node managers can expose a global command from a prefix different from the current npm executable] → Treat a PATH-visible non-project command as an existing user installation before consulting npm for mutation.
+- [npm global installation can be unavailable or unwritable] → Fail before Host mutation with bounded guidance and offer explicit `--no-cli`; never edit shell startup files.
+- [Long localized hero copy can paint into the walkthrough] → Use shorter copy, an explicit line hierarchy, and browser assertions for copy-track containment at wide and narrow widths.
 
 ## Migration Plan
 

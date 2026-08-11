@@ -251,6 +251,14 @@ test('keeps official installation guidance Store-first and version-neutral', () 
     rootReadmeZhCn.indexOf('## 使用浏览器登录态 Fetch'),
     rootReadmeZhCn.indexOf('## Connect 自动化工具'),
   );
+  const englishConnect = rootReadme.slice(
+    rootReadme.indexOf('## Connect automation tools'),
+    rootReadme.indexOf('## How it works'),
+  );
+  const chineseConnect = rootReadmeZhCn.slice(
+    rootReadmeZhCn.indexOf('## Connect 自动化工具'),
+    rootReadmeZhCn.indexOf('## 工作方式'),
+  );
   const englishAdvanced = rootReadme.slice(
     rootReadme.indexOf('## Advanced management'),
     rootReadme.indexOf('## Development and release checks'),
@@ -262,9 +270,15 @@ test('keeps official installation guidance Store-first and version-neutral', () 
 
   for (const guidance of [englishQuickstart, chineseQuickstart]) {
     assert.match(guidance, new RegExp(chromeWebStoreUrl.replaceAll('.', '\\.')));
+    assert.match(guidance, /npx --yes @panerelay\/setup/);
     assert.match(guidance, /npx skills add F-loat\/panerelay --skill panerelay/);
-    assert.doesNotMatch(guidance, /npx --yes @panerelay\/setup/);
     assert.doesNotMatch(guidance, /@panerelay\/setup@\d+\.\d+\.\d+/);
+    assert.ok(
+      guidance.indexOf('npx --yes @panerelay/setup') <
+        guidance.indexOf('npx skills add F-loat/panerelay --skill panerelay'),
+    );
+    assert.match(guidance, /global [`]?panerelay[`]? CLI|全局 [`]?panerelay[`]? CLI/);
+    assert.doesNotMatch(guidance, /preserves it|保留它/);
   }
   assert.match(setupReadme, new RegExp(chromeWebStoreUrl.replaceAll('.', '\\.')));
   assert.match(setupReadme, /npx skills add F-loat\/panerelay --skill panerelay/);
@@ -282,6 +296,12 @@ test('keeps official installation guidance Store-first and version-neutral', () 
   assert.match(rootReadmeZhCn, /\| \*\*Fetch\*\*[\s\S]+\| \*\*Connect\*\*/);
   assert.match(rootReadme, /## Advanced management[\s\S]+?<details>[\s\S]+?<\/details>/);
   assert.match(rootReadmeZhCn, /## 高级管理[\s\S]+?<details>[\s\S]+?<\/details>/);
+  assert.match(rootReadme, /## Development and release checks[\s\S]+?<details>[\s\S]+?<\/details>/);
+  assert.match(rootReadmeZhCn, /## 开发与发布检查[\s\S]+?<details>[\s\S]+?<\/details>/);
+  assert.equal((rootReadme.match(/<details>/g) ?? []).length, 6);
+  assert.equal((rootReadmeZhCn.match(/<details>/g) ?? []).length, 6);
+  assert.match(rootReadme, /<summary>Show technical and security boundaries<\/summary>/);
+  assert.match(rootReadmeZhCn, /<summary>显示技术与安全边界<\/summary>/);
   assert.match(
     rootReadme,
     /## FAQ[\s\S]+How is Panerelay different from OpenCLI\?[\s\S]+How is Panerelay different from connecting directly through CDP\?[\s\S]+What are Panerelay's main advantages\?/,
@@ -309,17 +329,36 @@ test('keeps official installation guidance Store-first and version-neutral', () 
   }
   for (const fetchSection of [englishFetch, chineseFetch]) {
     const adapters = fetchSection.indexOf('@panerelay/setup add --all');
+    const invocation = fetchSection.indexOf('panerelay bilibili me');
+    const migrationCredit = fetchSection.indexOf('github.com/jackwener/OpenCLI');
     const authorization = fetchSection.indexOf('panerelay fetch --authorize');
+    const request = fetchSection.indexOf('panerelay fetch https://');
     assert.ok(adapters >= 0 && authorization >= 0 && adapters < authorization);
+    assert.ok(invocation >= 0 && migrationCredit >= 0 && invocation < migrationCredit);
+    assert.ok(request >= 0 && authorization < request);
     assert.doesNotMatch(
       fetchSection,
       /panerelay_fetch\.browser_fetch|--codex-fetch|--claude-fetch/,
+    );
+  }
+  for (const connectSection of [englishConnect, chineseConnect]) {
+    assert.doesNotMatch(
+      connectSection,
+      /@panerelay\/setup --(?:agent-browser|browser-use|playwright)|BU_CDP_URL|playwright-cli attach/,
+    );
+    assert.match(connectSection, /Advanced management|高级管理/);
+  }
+  for (const readme of [rootReadme, rootReadmeZhCn]) {
+    assert.ok(
+      readme.indexOf('npx --yes @panerelay/setup') < readme.indexOf('panerelay bilibili me'),
     );
   }
   for (const advancedSection of [englishAdvanced, chineseAdvanced]) {
     assert.match(advancedSection, /panerelay_fetch\.browser_fetch/);
     assert.match(advancedSection, /--codex-fetch/);
     assert.match(advancedSection, /--claude-fetch/);
+    assert.match(advancedSection, /preserves it|保留它/);
+    assert.match(advancedSection, /agent-browser 0\.33\.0/);
   }
   assert.doesNotMatch(rootReadme, /^## (?:Supported workflows|Documentation)$/m);
   assert.doesNotMatch(rootReadmeZhCn, /^## (?:支持的工作流|文档)$/m);

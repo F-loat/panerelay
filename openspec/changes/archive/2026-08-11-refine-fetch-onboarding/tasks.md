@@ -12,9 +12,14 @@
 - [x] 2.1 Reorganize both root READMEs around Fetch and Connect, move MCP setup into advanced management, and replace the architecture text diagram with Mermaid.
 - [x] 2.2 Document individual and all-built-in adapter installation before authorization and add a concise OpenCLI migration credit with its upstream link.
 - [x] 2.3 Add setup parsing, expansion, help, and release-documentation regression coverage for `npx --yes @panerelay/setup add --all`.
+- [x] 2.4 Run base Setup before bare command examples in both root READMEs and clearly distinguish the Setup-managed CLI, independent adapter lifecycle, and Agent Skill.
+- [x] 2.5 Shorten the bilingual homepage hero, put Fetch before Connect, and render a complete CLI/domain/absolute-URL/adapter quickstart plus separate Setup and Skill commands.
+- [x] 2.6 Add ownership-aware same-version global CLI install/update/uninstall behavior to base Setup while preserving existing installations and keeping adapter commands independent.
+- [x] 2.7 Keep README and homepage onboarding linear: move manual Connect, FAQ, and contributor details behind collapsed disclosure, and place homepage Setup before workflows.
 
 ## 3. Validation and cleanup
 
 - [x] 3.1 Run focused Extension, setup, and release-documentation tests and resolve failures.
-- [ ] 3.2 Validate the four-row Extension welcome card stack in a reloaded daily Chrome session without changing stored authorization unexpectedly.
-- [ ] 3.3 Run strict OpenSpec validation, frozen installation, the full repository check, formatting checks, and `git diff --check`.
+- [x] 3.2 Validate the four-row Extension welcome card stack in a reloaded daily Chrome session without changing stored authorization unexpectedly.
+- [x] 3.3 Run strict OpenSpec validation, frozen installation, the full repository check, formatting checks, and `git diff --check`.
+- [x] 3.4 Add source regressions for CLI installation, command validity, workflow ordering, localized hero copy, and centered reel sizing; validate desktop and 375-pixel homepage layouts in Chrome.

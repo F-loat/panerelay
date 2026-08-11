@@ -30,45 +30,58 @@ Panerelay SHALL publish an optional `@panerelay/cli` package whose executable na
 - **THEN** the CLI performs browser and mode selection and invokes the adapter through the bounded adapter protocol
 - **AND** the adapter's automation engine remains responsible for every browser command
 
-### Requirement: Setup remains a one-time integration surface
+### Requirement: Setup manages the normal global CLI lifecycle without taking over existing installations
 
-`@panerelay/setup` SHALL expose setup, update, doctor, and uninstall behavior without owning recurring browser-administration commands. Plain setup SHALL install only the user-scoped Native Host and side-panel runtime prerequisites. Setup SHALL NOT silently install `@panerelay/cli` globally, modify the user's shell `PATH`, or install either automation integration. `--agent-browser` and `--browser-use` SHALL independently select their peer setup-managed integrations and MAY be combined in one invocation.
+`@panerelay/setup` SHALL continue to expose setup, update, doctor, uninstall, and explicit integration behavior without owning recurring browser-administration semantics. A normal setup, install, or update invocation SHALL detect both the current npm-global `@panerelay/cli` package and a PATH-visible non-project `panerelay` command before mutating the Native Host. If no global CLI exists, Setup SHALL install the exact Setup release through structured npm arguments and record protected Setup ownership. A later setup or update SHALL skip an already matching version and SHALL update an older version only when the installed version still matches that ownership record. A pre-existing, externally changed, or alternate-Node-prefix global CLI SHALL be preserved without reinstalling, downgrading, or claiming ownership. A project-local `node_modules/.bin` command SHALL NOT suppress the normal global lifecycle.
 
-#### Scenario: User performs base setup
+Setup SHALL expose `--no-cli` for an explicit base setup without global CLI lifecycle. Uninstall SHALL remove only a CLI whose installed version still matches Setup's ownership record and SHALL expose `--keep-cli`. Adapter `add`, `remove`, and `adapters` operations SHALL NOT install, update, remove, or claim the global CLI. Setup SHALL continue not to edit shell startup files or install upstream automation engines.
 
-- **GIVEN** the user invokes `npx --yes @panerelay/setup`
-- **WHEN** setup completes
-- **THEN** the Native Host and side-panel runtime prerequisites are installed
-- **AND** no automation engine is probed and no agent-browser Provider, agent-browser Skill, Browser Use adapter, Browser Use Skill, global Panerelay CLI, side-panel MCP override, or shell-path modification is added
+#### Scenario: First base setup provides the command
 
-#### Scenario: User requests a browser command from setup
+- **GIVEN** no global `@panerelay/cli` installation or Setup ownership record exists
+- **WHEN** the user runs base Setup
+- **THEN** Setup installs its exact `@panerelay/cli` release before installing the Native Host
+- **AND** records protected ownership so later setup and update invocations can keep it in lockstep
 
-- **GIVEN** browser administration has moved to `@panerelay/cli`
-- **WHEN** the user supplies `browsers` or `browser use` to `@panerelay/setup`
-- **THEN** setup rejects the command as unsupported
-- **AND** its help keeps browser administration outside the setup command catalog
+#### Scenario: Matching Setup-managed CLI is current
 
-#### Scenario: User explicitly selects agent-browser
+- **GIVEN** the global CLI and Setup ownership record both name the current Setup release
+- **WHEN** setup or update runs again
+- **THEN** Setup does not invoke a global package installation
+- **AND** the existing command remains available
 
-- **GIVEN** the user wants agent-browser to connect through Panerelay
-- **WHEN** setup receives `--agent-browser`
-- **THEN** setup validates agent-browser and installs its Panerelay Provider and Skill in addition to the base Native Host
-- **AND** it does not inject an MCP server or Skill into a side-panel conversation
-- **AND** it does not install or modify agent-browser itself
+#### Scenario: Setup-managed CLI is updated
 
-#### Scenario: User explicitly selects Browser Use
+- **GIVEN** the global CLI version still matches an older Setup ownership record
+- **WHEN** a newer exact Setup release runs setup or update
+- **THEN** Setup installs the newer exact CLI release and updates its ownership record
 
-- **GIVEN** the user wants Browser Use to connect through Panerelay
-- **WHEN** setup receives `--browser-use`
-- **THEN** setup installs the private version-pinned CLI launcher, adapter artifact, and Browser Use Skill in addition to the base Native Host
-- **AND** it does not install or modify Browser Use itself
+#### Scenario: Existing user installation is preserved
 
-#### Scenario: User selects both automation integrations
+- **GIVEN** a global CLI exists without a matching Setup ownership record
+- **WHEN** setup or update runs
+- **THEN** Setup reports and preserves that installation without reinstalling or claiming it
 
-- **GIVEN** both supported engines satisfy their pinned minimum versions
-- **WHEN** setup receives `--agent-browser --browser-use`
-- **THEN** setup installs both peer integrations and the shared Native Host in one idempotent invocation
-- **AND** neither integration becomes the implicit default for the other
+#### Scenario: Existing command belongs to another Node prefix
+
+- **GIVEN** `panerelay` is PATH-visible from an NVM, Volta, or npm prefix different from the npm executable currently selected by Setup
+- **AND** no matching Setup ownership record exists
+- **WHEN** setup or update runs
+- **THEN** Setup preserves the existing command without consulting the current prefix for an installation mutation
+
+#### Scenario: Adapter installation remains independent
+
+- **GIVEN** the user runs `npx --yes @panerelay/setup add bilibili`
+- **WHEN** the adapter is installed
+- **THEN** Setup does not probe or change the global CLI
+- **AND** documentation has already instructed the user to run base Setup before adapter installation
+
+#### Scenario: Uninstall preserves user-owned CLI
+
+- **GIVEN** the global CLI has no matching Setup ownership record
+- **WHEN** Panerelay uninstall runs
+- **THEN** the CLI remains installed
+- **AND** only Panerelay-owned local integration files are removed
 
 ### Requirement: CLI adapters are explicitly registered and protocol bounded
 

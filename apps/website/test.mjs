@@ -90,16 +90,16 @@ test('source contains the complete product and installation journey', async () =
   const i18n = await read('src/i18n.ts');
 
   for (const requiredText of [
-    'Give Agents browser login state.',
-    'Connect them to the browser you use.',
-    'Fetch with browser login state',
+    'Browser login state.',
+    'Ready for your Agents.',
+    'Fetch signed-in APIs',
     'Cookies stay in the browser',
-    'Install the Agent Skill',
+    'Install Setup + Skill',
     'Two browser capabilities.',
     'One local boundary.',
     'npx --yes @panerelay/setup',
     'Install once.',
-    'Install one Skill for every Panerelay workflow.',
+    'Install Panerelay, then one Skill for every workflow.',
     'npx skills add F-loat/panerelay --skill panerelay',
     'Fetch domain',
     'Connect tabs',
@@ -113,7 +113,7 @@ test('source contains the complete product and installation journey', async () =
     'Connect Playwright CLI',
     'playwright-cli',
     'Request known URLs',
-    'Browser-authenticated Fetch example',
+    'Browser-authenticated Fetch quickstart',
     'Chrome Web Store',
     'agent-browser 0.33.0',
     'browser-use 0.13.7',
@@ -146,6 +146,7 @@ test('source contains the complete product and installation journey', async () =
   assert.doesNotMatch(html, /browser-use tab list/);
   assert.doesNotMatch(html, /await browser\./);
   assert.match(html, /data-handoff-command-copy/);
+  assert.match(html, /data-copy-command="npx --yes @panerelay\/setup"/);
   assert.match(html, /data-copy-command="npx --yes @panerelay\/setup --agent-browser"/);
   assert.match(html, /data-handoff-select="playwright"/);
   assert.match(html, /data-handoff-select="all"/);
@@ -155,7 +156,7 @@ test('source contains the complete product and installation journey', async () =
   assert.doesNotMatch(i18n, /agent-setup\.md|curl -fsSL/);
   assert.match(
     html,
-    /data-i18n="demo\.local\.body">\s*One Skill gives the Agent both Fetch and Connect workflows\./,
+    /data-i18n="demo\.local\.body">\s*Setup provides the CLI\. One Skill guides Fetch and Connect workflows\./,
   );
   assert.match(
     html,
@@ -166,6 +167,22 @@ test('source contains the complete product and installation journey', async () =
   assert.match(i18n, /'setup\.authorization\.link': '查看高级管理'/);
   assert.match(html, /F-loat\/panerelay#advanced-management/);
   assert.equal((i18n.match(/npx skills add F-loat\/panerelay --skill panerelay/g) ?? []).length, 2);
+  assert.match(
+    html,
+    /panerelay fetch --authorize api\.example\.com[\s\S]+panerelay fetch https:\/\/api\.example\.com\/me/,
+  );
+  assert.doesNotMatch(html, /panerelay fetch \/api\/me/);
+  assert.ok(
+    html.indexOf('class="section setup-section"') <
+      html.indexOf('class="section workflows-section"'),
+  );
+  assert.match(html, /<nav[\s\S]+?href="#setup"[\s\S]+?href="#workflows"[\s\S]+?<\/nav>/);
+  assert.ok(
+    html.indexOf('class="workflow workflow-panel workflow-fetch"') <
+      html.indexOf('class="workflow workflow-engines"'),
+  );
+  assert.match(html, /<details class="integration-command">[\s\S]+?<summary/);
+  assert.doesNotMatch(html, /<details class="integration-command" open/);
 
   const englishCatalog = i18n.slice(
     i18n.indexOf('const english ='),
@@ -198,7 +215,7 @@ test('source preserves semantic and accessible interactions', async () => {
   assert.match(html, /aria-live="polite"/);
   assert.match(html, /aria-expanded="false"/);
   assert.match(html, /class="nav-github"[\s\S]+?aria-label="GitHub"/);
-  assert.equal((html.match(/data-copy-command=/g) ?? []).length, 2);
+  assert.equal((html.match(/data-copy-command=/g) ?? []).length, 3);
   assert.equal((html.match(/data-copy-text-key=/g) ?? []).length, 5);
   assert.match(html, /role="tablist"/);
   assert.equal((html.match(/data-engine-tab=/g) ?? []).length, 3);
@@ -214,7 +231,7 @@ test('source preserves semantic and accessible interactions', async () => {
   assert.match(html, /data-demo-toggle/);
   assert.match(html, /data-demo-replay/);
   assert.match(script, /navigator\.clipboard\.writeText/);
-  assert.match(i18n, /'hero\.agentSetup': '安装 Agent Skill'/);
+  assert.match(i18n, /'hero\.agentSetup': '安装 Setup 与 Skill'/);
   assert.match(script, /button\.dataset\.copiedLabel = translation\('command\.copied'\)/);
   assert.doesNotMatch(script, /label\.textContent = translation\('command\.copied'\)/);
   assert.match(
@@ -314,10 +331,14 @@ test('hero presents all three peer tools with stable motion fallbacks', async ()
     /class="hero-tool-track"[\s\S]+agent-browser[\s\S]+Browser Use[\s\S]+Playwright CLI/,
   );
   assert.match(html, /class="hero-tool-static"[\s\S]*agent-browser · Browser Use · Playwright CLI/);
-  assert.match(i18n, /'hero\.lede\.before': 'Fetch with browser login state, or connect'/);
-  assert.match(i18n, /'hero\.lede\.before': '携带登录态 Fetch，或把'/);
+  assert.match(i18n, /'hero\.lede\.before': 'Fetch signed-in APIs, or connect'/);
+  assert.match(i18n, /'hero\.lede\.before': 'Fetch 登录态接口，或把'/);
   assert.match(styles, /@keyframes hero-tool-reel/);
-  assert.match(styles, /\.js \.hero-tool-reel \{[\s\S]+?width: 17ch;[\s\S]+?height: 1\.76em;/);
+  assert.match(styles, /\.js \.hero-tool-reel \{[\s\S]+?width: 16ch;[\s\S]+?height: 1\.76em;/);
+  assert.match(
+    styles,
+    /\.hero-tool-item \{[\s\S]+?display: grid;[\s\S]+?place-items: center;[\s\S]+?text-align: center;/,
+  );
   assert.match(
     styles,
     /@media \(prefers-reduced-motion: reduce\) \{[\s\S]+?\.js \.hero-tool-viewport \{[\s\S]+?display: none;[\s\S]+?\.js \.hero-tool-static \{[\s\S]+?display: inline;/,
@@ -354,7 +375,7 @@ test('source provides complete English and Simplified Chinese language contracts
   assert.match(script, /document\.documentElement\.lang = locale/);
   assert.doesNotMatch(script, /navigator\.languages|localStorage/);
   assert.match(script, /initializeLocalePreference\(\)/);
-  assert.match(i18n, /把浏览器登录态交给 Agent。<span>把 Agent 接入你正在使用的浏览器。<\/span>/);
+  assert.match(i18n, /浏览器登录态。<span>直接给 Agent 使用。<\/span>/);
   assert.match(i18n, /携带浏览器登录态请求已知 URL/);
   assert.match(i18n, /域名或标签页明确授权/);
   assert.match(i18n, /Fetch 请求域名授权；Connect 请求当前标签页或全部受支持网页/);
@@ -363,7 +384,7 @@ test('source provides complete English and Simplified Chinese language contracts
   assert.match(i18n, /控制可见、可随时释放/);
   assert.match(i18n, /已找出 2 个影响发布的问题/);
   assert.match(i18n, /使用 panerelay Skill，完成 agent-browser 接入并运行 doctor/);
-  assert.match(i18n, /一个 Skill 覆盖所有 Panerelay 工作流/);
+  assert.match(i18n, /先安装 Panerelay，再用一个 Skill 覆盖所有工作流/);
   assert.match(i18n, /统一 Skill 中的 Browser Harness CLI/);
   assert.match(i18n, /权限始终明确/);
   assert.match(i18n, /当前标签页仍保持授权；再次点击已选范围，才会取消授权/);
@@ -379,7 +400,11 @@ test('source provides complete English and Simplified Chinese language contracts
   assert.match(styles, /html\[lang='zh-CN'\] \.step-content h3/);
   assert.match(styles, /html\[lang='zh-CN'\] \.trust-copy h2/);
   assert.match(styles, /html\[lang='zh-CN'\] \.final-content h2/);
-  assert.match(styles, /html\[lang='zh-CN'\] \.hero h1 span \{[\s\S]+?font-size: 0\.6em;/);
+  assert.match(styles, /html\[lang='zh-CN'\] \.hero h1 span \{[\s\S]+?font-size: 0\.68em;/);
+  assert.match(
+    styles,
+    /@media \(max-width: 620px\) \{[\s\S]+?\.workflow-fetch \.code-window pre \{[\s\S]+?white-space: pre-wrap;[\s\S]+?overflow-wrap: anywhere;/,
+  );
   assert.match(styles, /text-wrap: balance/);
 
   for (const key of new Set([...htmlKeys, ...scriptTranslationKeys])) {
@@ -484,12 +509,9 @@ test('public copy keeps flexible authorization and active control distinct', asy
   assert.match(i18n, /当前标签页或全部受支持网页/);
   assert.match(i18n, /释放控制时保留已选授权范围/);
   assert.match(rootReadme, /Fetch approval is domain-based\. Connect authorization is tab-based/);
-  assert.match(
-    rootReadme,
-    /Release ends active control without clearing the selected authorization scope/,
-  );
+  assert.match(rootReadme, /Releasing control does not clear the authorization scope/);
   assert.match(chineseReadme, /Fetch 按域名授权，Connect 按标签页授权/);
-  assert.match(chineseReadme, /释放会结束当前控制，但保留已选授权范围/);
+  assert.match(chineseReadme, /释放控制不会清除授权范围/);
   assert.match(extensionI18n, /Choose the current tab or all supported tabs/);
   assert.match(extensionI18n, /授权当前标签页或全部受支持网页/);
   assert.match(extensionI18n, /persists until you clear it/);
@@ -730,10 +752,7 @@ test('localized homepage is statically rendered, canonical, and cross-linked', a
     /property="og:title"[^>]*content="Panerelay — Agent 的浏览器 Fetch 与 Connect/,
   );
   assert.match(chinese, /name="twitter:description"[^>]*content="一条本地链路/);
-  assert.match(
-    chinese,
-    /把浏览器登录态交给 Agent。<span>把 Agent 接入你正在使用的浏览器。<\/span>/,
-  );
+  assert.match(chinese, /浏览器登录态。<span>直接给 Agent 使用。<\/span>/);
   assert.match(chinese, /授权当前标签页或全部受支持网页/);
   assert.match(chinese, /获得访问，<br>不等于获得控制。/);
   assert.doesNotMatch(chinese, /Give Agents browser login state/);

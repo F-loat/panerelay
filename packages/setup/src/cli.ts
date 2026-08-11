@@ -26,6 +26,7 @@ import {
 } from './interactive-setup-state.js';
 import { setupPanerelay, uninstallPanerelay, type PanerelaySetupOptions } from './lifecycle.js';
 import { installFetchAdapters, listFetchAdapters, removeFetchAdapters } from './fetch-adapters.js';
+import { GlobalCliLifecycleError } from './global-cli.js';
 
 const PANERELAY_CHROME_WEB_STORE_URL =
   'https://chromewebstore.google.com/detail/panerelay/panplnkjlkoceaonlmpdekjphgmbggmi';
@@ -47,6 +48,8 @@ export interface ParsedSetupArgs {
   language?: SupportedLocale;
   operation: SetupOperation;
   yes: boolean;
+  skipCli?: boolean;
+  keepCli?: boolean;
   adapterItems?: string[];
   adapterAll?: boolean;
 }
@@ -209,6 +212,8 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
   let playwright = false;
   let json = false;
   let yes = false;
+  let skipCli = false;
+  let keepCli = false;
   let extensionId: string | undefined;
   for (let index = optionStart; index < localized.argv.length; index += 1) {
     const argument = localized.argv[index]!;
@@ -221,6 +226,8 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
     else if (argument === '--remove-codex-fetch') removeCodexFetch = true;
     else if (argument === '--playwright') playwright = true;
     else if (argument === '--json') json = true;
+    else if (argument === '--no-cli') skipCli = true;
+    else if (argument === '--keep-cli') keepCli = true;
     else if (argument === '--extension-id' || argument.startsWith('--extension-id=')) {
       if (extensionId !== undefined) throw new Error('EXTENSION_ID_REPEATED');
       const value =
@@ -237,6 +244,12 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
   }
   if (json && operation !== 'doctor') {
     throw new Error('--json is only available with doctor');
+  }
+  if (skipCli && operation !== 'setup') {
+    throw new Error('--no-cli is only available with setup, update, or install');
+  }
+  if (keepCli && operation !== 'uninstall') {
+    throw new Error('--keep-cli is only available with uninstall');
   }
   if (globalDefault && operation === 'uninstall') {
     throw new Error('--global-default is not needed with uninstall');
@@ -283,6 +296,8 @@ export function parseSetupArgs(argv: string[]): ParsedSetupArgs {
     language: localized.language,
     operation,
     yes,
+    ...(skipCli ? { skipCli: true } : {}),
+    ...(keepCli ? { keepCli: true } : {}),
   };
 }
 
@@ -549,6 +564,14 @@ export interface CliDependencies {
 
 function isInteractiveTerminal(): boolean {
   return stdin.isTTY === true && stdout.isTTY === true;
+}
+
+function localizedGlobalCliError(error: GlobalCliLifecycleError, locale: SupportedLocale): string {
+  if (error.code === 'npm-unavailable') return translate(locale, 'globalCliNpmUnavailable');
+  return translate(
+    locale,
+    error.operation === 'install' ? 'globalCliInstallFailed' : 'globalCliUninstallFailed',
+  );
 }
 
 function terminalSetupProgress(): SetupProgress | undefined {
@@ -826,7 +849,10 @@ export async function main(
         );
         return 2;
       }
-      const result = await (dependencies.uninstall ?? uninstallPanerelay)({});
+      const result = await (dependencies.uninstall ?? uninstallPanerelay)({
+        environment: dependencies.environment,
+        uninstallCli: !parsed.keepCli,
+      });
       console.log(translate(locale, 'uninstallComplete'));
       if (result.browserUseIntegration.detachedDaemonMayRemain) {
         console.log(translate(locale, 'browserUseDetachedDaemon'));
@@ -834,6 +860,7 @@ export async function main(
       return 0;
     }
 
+    const cliVersion = parsed.skipCli ? undefined : await packageVersion();
     let setupOptions: PanerelaySetupOptions = {
       agentBrowser: parsed.agentBrowser,
       browserUse: parsed.browserUse,
@@ -845,6 +872,8 @@ export async function main(
       environment: dependencies.environment,
       extensionId: parsed.extensionId,
       globalDefault: parsed.globalDefault,
+      installCli: !parsed.skipCli,
+      ...(cliVersion ? { cliVersion } : {}),
       ...(parsed.browserUse && parsed.globalDefault
         ? { browserUseDefault: 'extension' as const }
         : {}),
@@ -898,6 +927,24 @@ export async function main(
     console.log('');
     console.log(translate(locale, 'setupGroupLocal'));
     printSetupCheck('pass', translate(locale, 'setupNativeHost'), result.host.hostPath);
+    if (result.cli) {
+      const status =
+        !result.cli.executablePath || (!result.cli.managed && result.cli.version !== cliVersion)
+          ? 'warn'
+          : 'pass';
+      const detail = !result.cli.executablePath
+        ? translate(locale, 'setupCliCommandMissing', {
+            version: result.cli.version ?? cliVersion ?? 'unknown',
+          })
+        : result.cli.managed
+          ? (result.cli.version ?? cliVersion ?? result.cli.executablePath)
+          : result.cli.version
+            ? translate(locale, 'setupCliPreserved', { version: result.cli.version })
+            : translate(locale, 'setupCliPreservedPath', {
+                path: result.cli.executablePath,
+              });
+      printSetupCheck(status, translate(locale, 'setupCli'), detail);
+    }
     printSetupCheck('pass', translate(locale, 'setupExtensionId'), result.host.extensionId);
     printSetupSubline(
       translate(locale, 'setupNextStep'),
@@ -1059,11 +1106,15 @@ export async function main(
   } catch (error) {
     setupProgress?.error(translate(locale, 'setupProgressFailed'));
     console.error(
-      parsed.operation === 'add' || parsed.operation === 'remove' || parsed.operation === 'adapters'
-        ? localizedAdapterError(error, locale)
-        : error instanceof Error
-          ? error.message
-          : String(error),
+      error instanceof GlobalCliLifecycleError
+        ? localizedGlobalCliError(error, locale)
+        : parsed.operation === 'add' ||
+            parsed.operation === 'remove' ||
+            parsed.operation === 'adapters'
+          ? localizedAdapterError(error, locale)
+          : error instanceof Error
+            ? error.message
+            : String(error),
     );
     return 1;
   }

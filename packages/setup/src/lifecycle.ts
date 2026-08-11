@@ -38,6 +38,11 @@ import {
   uninstallClaudeFetchIntegration,
   uninstallCodexFetchIntegration,
 } from './agent-fetch-integration.js';
+import {
+  installGlobalPanerelayCli,
+  uninstallGlobalPanerelayCli,
+  type GlobalCliLifecycleResult,
+} from './global-cli.js';
 
 export interface PanerelaySetupOptions {
   agentBrowser?: boolean;
@@ -52,16 +57,20 @@ export interface PanerelaySetupOptions {
   extensionId?: string;
   globalDefault?: boolean;
   homeDirectory?: string;
+  installCli?: boolean;
+  cliVersion?: string;
   platform?: NodeJS.Platform;
   project?: boolean;
   projectDirectory?: string;
   reconcileIntegrations?: boolean;
+  uninstallCli?: boolean;
 }
 
 export interface PanerelaySetupResult {
   agentBrowserInstallation?: AgentBrowserInstallation;
   agentBrowserConfigPath?: string;
   globalDefault: boolean;
+  cli?: GlobalCliLifecycleResult;
   host: NativeHostInstallationResult;
   browserUseRequested?: boolean;
   browserUseIntegration?: BrowserUseIntegrationInstallation;
@@ -86,6 +95,7 @@ export interface PanerelayUninstallResult {
   codexFetchConfigPath?: string;
   playwrightIntegration: Awaited<ReturnType<typeof uninstallPlaywrightIntegration>>;
   projectConfigPath?: string;
+  cli?: GlobalCliLifecycleResult;
 }
 
 export interface LifecycleDependencies {
@@ -96,6 +106,7 @@ export interface LifecycleDependencies {
   installBrowserUse?: typeof installBrowserUseIntegrationArtifacts;
   installClaudeFetch?: typeof installClaudeFetchIntegration;
   installCodexFetch?: typeof installCodexFetchIntegration;
+  installGlobalCli?: typeof installGlobalPanerelayCli;
   probeBrowserUse?: typeof probeBrowserUseVersions;
   probeAgentBrowser?: typeof probeAgentBrowserInstallation;
   registerProvider?: typeof registerPanerelayProvider;
@@ -104,6 +115,7 @@ export interface LifecycleDependencies {
   uninstallBrowserUse?: typeof uninstallBrowserUseIntegrationArtifacts;
   uninstallClaudeFetch?: typeof uninstallClaudeFetchIntegration;
   uninstallCodexFetch?: typeof uninstallCodexFetchIntegration;
+  uninstallGlobalCli?: typeof uninstallGlobalPanerelayCli;
   installPlaywright?: typeof installPlaywrightIntegration;
   probePlaywright?: typeof probePlaywrightInstallation;
   uninstallPlaywright?: typeof uninstallPlaywrightIntegration;
@@ -134,6 +146,16 @@ export async function setupPanerelay(
   if (options.codexFetch && options.removeCodexFetch) {
     throw new Error('codexFetch and removeCodexFetch are mutually exclusive');
   }
+  if (options.installCli && !options.cliVersion) {
+    throw new Error('cliVersion is required when installCli is enabled');
+  }
+  const cli = options.installCli
+    ? await (dependencies.installGlobalCli ?? installGlobalPanerelayCli)(options.cliVersion!, {
+        environment: options.environment,
+        homeDirectory: options.homeDirectory,
+        platform: options.platform,
+      })
+    : undefined;
   const agentBrowserInstallation = options.agentBrowser
     ? await (dependencies.probeAgentBrowser ?? probeAgentBrowserInstallation)({
         environment: options.environment,
@@ -239,6 +261,7 @@ export async function setupPanerelay(
   if (!options.project) {
     return {
       host,
+      ...(cli ? { cli } : {}),
       ...(agentBrowserInstallation ? { agentBrowserInstallation } : {}),
       ...(agentBrowserConfigPath ? { agentBrowserConfigPath } : {}),
       browserUseRequested: options.browserUse === true,
@@ -266,6 +289,7 @@ export async function setupPanerelay(
   });
   return {
     host,
+    ...(cli ? { cli } : {}),
     ...(agentBrowserInstallation ? { agentBrowserInstallation } : {}),
     ...(agentBrowserConfigPath ? { agentBrowserConfigPath } : {}),
     browserUseRequested: options.browserUse === true,
@@ -294,6 +318,13 @@ export async function uninstallPanerelay(
   options: PanerelaySetupOptions = {},
   dependencies: LifecycleDependencies = {},
 ): Promise<PanerelayUninstallResult> {
+  const cli = options.uninstallCli
+    ? await (dependencies.uninstallGlobalCli ?? uninstallGlobalPanerelayCli)({
+        environment: options.environment,
+        homeDirectory: options.homeDirectory,
+        platform: options.platform,
+      })
+    : undefined;
   const uninstallHost = dependencies.uninstallHost ?? uninstallNativeHost;
   const unregisterProvider = dependencies.unregisterProvider ?? unregisterPanerelayProvider;
   const uninstallSelectedBrowserUse =
@@ -331,6 +362,7 @@ export async function uninstallPanerelay(
       ...(codexFetchConfigPath ? { codexFetchConfigPath } : {}),
       ...(claudeFetchConfigPaths ? { claudeFetchConfigPaths } : {}),
       playwrightIntegration,
+      ...(cli ? { cli } : {}),
     };
   }
   const projectConfigPath = await removeProject({
@@ -342,6 +374,7 @@ export async function uninstallPanerelay(
     ...(codexFetchConfigPath ? { codexFetchConfigPath } : {}),
     ...(claudeFetchConfigPaths ? { claudeFetchConfigPaths } : {}),
     playwrightIntegration,
+    ...(cli ? { cli } : {}),
     projectConfigPath,
   };
 }

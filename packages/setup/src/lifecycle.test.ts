@@ -18,6 +18,37 @@ const host: NativeHostInstallationResult = {
   updateLockPath: '/home/.panerelay/update.lock',
 };
 
+test('installs the exact CLI before Host setup when explicitly enabled', async () => {
+  const calls: string[] = [];
+  const result = await setupPanerelay(
+    {
+      cliVersion: '0.9.0',
+      environment: { HOME: '/home' },
+      homeDirectory: '/home',
+      installCli: true,
+    },
+    {
+      installGlobalCli: async (version, options) => {
+        calls.push(`install-cli:${version}`);
+        assert.equal(options?.homeDirectory, '/home');
+        return {
+          managed: true,
+          operation: 'installed',
+          packageSpec: `@panerelay/cli@${version}`,
+          version,
+        };
+      },
+      installHost: async () => {
+        calls.push('install-host');
+        return host;
+      },
+    },
+  );
+
+  assert.deepEqual(calls, ['install-cli:0.9.0', 'install-host']);
+  assert.equal(result.cli?.version, '0.9.0');
+});
+
 test('setup can opt into global and project default providers', async () => {
   const calls: string[] = [];
   let browserUseDefault: 'direct' | 'extension' | undefined;

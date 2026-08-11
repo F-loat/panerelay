@@ -3,7 +3,7 @@
 - Panerelay release: current development candidate
 - Protocol: `panerelay.relay.v2`
 - Status: Partial
-- Last verified: 2026-08-06
+- Last verified: 2026-08-11
 
 ## Supported contract
 
@@ -39,4 +39,4 @@ npx --yes @panerelay/setup doctor
 
 A newer Host never downgrades itself for an older Extension. Rollback is explicit and manual. Pre-`panerelay.relay.v2` Hosts are intentionally not migrated; during this early project phase, replace them with a clean setup.
 
-Base Host update preserves a protected custom Extension ID, runtime path entries, and optional Panerelay integration selections. It does not install, update, downgrade, or reclassify agent-browser 0.33.0, Browser Use 0.13.7 with Browser Harness 0.1.8, or Playwright CLI 0.1.17. Chrome and Edge capability classifications outside Host release management are unchanged.
+Base Host update preserves a protected custom Extension ID, runtime path entries, and optional Panerelay integration selections. Normal base Setup also ensures that the exact lockstep `@panerelay/cli` release is present, but updates or removes it only while its protected ownership record still matches the installed version; pre-existing and externally changed CLI installations are preserved. Setup does not install, update, downgrade, or reclassify agent-browser 0.33.0, Browser Use 0.13.7 with Browser Harness 0.1.8, or Playwright CLI 0.1.17. Chrome and Edge capability classifications outside Host release management are unchanged.
