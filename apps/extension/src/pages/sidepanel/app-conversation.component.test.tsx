@@ -205,6 +205,7 @@ describe('React Side Panel conversation presentation', () => {
             kind: 'browser',
             title: 'agent-browser',
             detail: "Plugin 'panerelay' returned success=false",
+            output: 'Error: plugin process exited with code 1',
             status: 'failed',
           },
         },
@@ -212,19 +213,56 @@ describe('React Side Panel conversation presentation', () => {
     });
     expect(screen.getByText('Panerelay setup needed')).toBeVisible();
     expect(screen.getByText('npx --yes @panerelay/setup')).toBeVisible();
-    const activityDetails = screen.getAllByText('agent-browser')[0]?.closest('details');
-    expect(activityDetails).not.toHaveAttribute('open');
-    expect(activityDetails?.querySelector('.activity-chevron')).toBeNull();
-    await user.click(
-      within(activityDetails as HTMLElement).getByLabelText(/Show or hide activity details/),
+    const activityGroup = screen.getByLabelText('Show or hide 2 activities').closest('details');
+    expect(activityGroup).toHaveClass('activity-group');
+    expect(activityGroup).toHaveAttribute('data-status', 'failed');
+    expect(activityGroup).not.toHaveAttribute('open');
+    expect(within(activityGroup as HTMLElement).getByText('2 activities · 1 failed')).toBeVisible();
+    const activityGroupSummary = screen.getByLabelText('Show or hide 2 activities');
+    expect(within(activityGroupSummary).getByText('agent-browser')).toBeVisible();
+    await user.click(screen.getByLabelText('Show or hide 2 activities'));
+    expect(activityGroup).toHaveAttribute('open');
+    expect(within(activityGroupSummary).getByText('Activity log')).toBeVisible();
+    expect(within(activityGroupSummary).queryByText('agent-browser')).not.toBeInTheDocument();
+    const groupedList = activityGroup?.querySelector('.activity-group-items');
+    expect(groupedList?.querySelectorAll('.activity-card')).toHaveLength(0);
+    expect(groupedList?.querySelectorAll('.activity-icon')).toHaveLength(0);
+    const completedDetails = document.querySelector(
+      '.activity-group-item[data-activity-id="activity-1"]',
     );
-    expect(activityDetails).toHaveAttribute('open');
-    expect(within(activityDetails as HTMLElement).getAllByText('agent-browser')).toHaveLength(2);
+    await user.click(
+      within(completedDetails as HTMLElement).getByLabelText(
+        'Show or hide activity details: panerelay · agent_browser_read',
+      ),
+    );
+    expect(document.querySelector('.activity-group')).toHaveAttribute('open');
+    expect(
+      within(completedDetails as HTMLElement).getByLabelText(
+        'Show or hide activity details: panerelay · agent_browser_read',
+      ),
+    ).toHaveAttribute('aria-expanded', 'true');
+    expect(within(completedDetails as HTMLElement).getByText(/tab t1/)).toBeVisible();
+    const activityDetails = document.querySelector(
+      '.activity-group-item[data-activity-id="activity-setup"]',
+    );
+    expect(activityDetails).toHaveClass('activity-group-item');
+    expect(activityDetails).not.toHaveClass('activity-card');
+    expect(activityDetails?.querySelector('.activity-icon')).toBeNull();
+    const activityDetailsButton = within(activityDetails as HTMLElement).getByLabelText(
+      'Show or hide activity details: agent-browser',
+    );
+    expect(activityDetailsButton).toHaveAttribute('aria-expanded', 'false');
+    await user.click(activityDetailsButton);
+    expect(activityDetailsButton).toHaveAttribute('aria-expanded', 'true');
+    expect(within(activityDetails as HTMLElement).getAllByText('agent-browser')).toHaveLength(1);
     expect(
       within(activityDetails as HTMLElement).getAllByText(
         "Plugin 'panerelay' returned success=false",
       ),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
+    expect(activityDetails?.querySelector('.activity-output-expanded')).toHaveTextContent(
+      'Error: plugin process exited with code 1',
+    );
 
     act(() => {
       client.emit({
@@ -242,14 +280,19 @@ describe('React Side Panel conversation presentation', () => {
         },
       });
     });
-    const plainFailure = screen.getAllByText('Plain failure')[0]?.closest('details');
-    expect(plainFailure).toHaveClass('activity-card');
-    expect(plainFailure).not.toHaveAttribute('open');
-    await user.click(
-      within(plainFailure as HTMLElement).getByLabelText(/Show or hide activity details/),
+    expect(screen.getByLabelText('Show or hide 3 activities')).toBeVisible();
+    const plainFailure = document.querySelector(
+      '.activity-group-item[data-activity-id="activity-no-detail"]',
     );
-    expect(plainFailure).toHaveAttribute('open');
-    expect(within(plainFailure as HTMLElement).getAllByText('Plain failure')).toHaveLength(2);
+    expect(plainFailure).toHaveClass('activity-group-item');
+    expect(plainFailure).not.toHaveClass('activity-card');
+    const plainFailureButton = within(plainFailure as HTMLElement).getByLabelText(
+      /Show or hide activity details/,
+    );
+    expect(plainFailureButton).toHaveAttribute('aria-expanded', 'false');
+    await user.click(plainFailureButton);
+    expect(plainFailureButton).toHaveAttribute('aria-expanded', 'true');
+    expect(within(plainFailure as HTMLElement).getAllByText('Plain failure')).toHaveLength(1);
 
     act(() => {
       client.emit({
@@ -267,8 +310,22 @@ describe('React Side Panel conversation presentation', () => {
         },
       });
     });
-    expect(screen.getByText('Still running').closest('article')).toHaveClass('activity-card');
-    expect(screen.getByText('Still running').closest('details')).toBeNull();
+    expect(activityGroup).toHaveAttribute('data-status', 'running');
+    expect(within(activityGroup as HTMLElement).getByText('4 activities · 2 failed')).toBeVisible();
+    const runningActivity = document.querySelector('article[data-activity-id="activity-running"]');
+    expect(runningActivity).toHaveClass('activity-group-item');
+    expect(runningActivity).not.toHaveClass('activity-card');
+    expect(runningActivity).toHaveTextContent('Still running');
+    expect(runningActivity?.closest('details')).toBe(activityGroup);
+    const groupedIds = [
+      ...document.querySelectorAll('.activity-group-items [data-activity-id]'),
+    ].map(element => element.getAttribute('data-activity-id'));
+    expect(groupedIds).toEqual([
+      'activity-1',
+      'activity-setup',
+      'activity-no-detail',
+      'activity-running',
+    ]);
 
     act(() => {
       client.emit({

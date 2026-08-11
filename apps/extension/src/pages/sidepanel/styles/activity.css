@@ -195,6 +195,113 @@
   background: var(--danger-soft);
 }
 
+.activity-group-items {
+  display: grid;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 32%, transparent);
+  padding: 4px 10px 6px;
+}
+
+.activity-group-item {
+  min-width: 0;
+  color: var(--text-secondary);
+}
+
+.activity-group-item + .activity-group-item {
+  border-top: 1px solid color-mix(in srgb, var(--border) 72%, transparent);
+}
+
+.activity-group-item-summary {
+  display: grid;
+  min-height: 30px;
+  grid-template-columns: 11px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 7px;
+  list-style: none;
+  padding: 5px 2px;
+}
+
+.activity-group-item > button.activity-group-item-summary {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.activity-group-item-chevron {
+  width: 11px;
+  height: 11px;
+  color: var(--text-tertiary);
+  stroke-width: 1.7;
+  transition: transform 120ms ease;
+}
+
+.activity-group-item[data-expanded='true'] .activity-group-item-chevron {
+  transform: rotate(90deg);
+}
+
+.activity-group-item-running {
+  width: 6px;
+  height: 6px;
+  justify-self: center;
+  border-radius: 999px;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.activity-group-item-title {
+  min-width: 0;
+  overflow: hidden;
+  font-family: 'SFMono-Regular', Consolas, monospace;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activity-group-item[data-expanded='true'] .activity-group-item-title {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+
+.activity-group-item[data-status='failed'] .activity-group-item-chevron,
+.activity-group-item[data-status='declined'] .activity-group-item-chevron,
+.activity-group-item[data-status='failed'] .activity-status,
+.activity-group-item[data-status='declined'] .activity-status {
+  color: var(--danger);
+}
+
+.activity-group-item[data-status='completed'] .activity-status,
+.activity-group-item[data-status='running'] .activity-status {
+  color: var(--accent);
+}
+
+.activity-group-item-detail {
+  margin: 0 0 5px 18px;
+  border-top: 0;
+  padding: 1px 0 7px;
+}
+
+.activity-group-item-detail > :first-child {
+  margin-top: 0;
+  border-top: 0;
+  padding-top: 0;
+}
+
+.activity-group-item[data-status='failed'] .activity-group-item-detail,
+.activity-group-item[data-status='declined'] .activity-group-item-detail {
+  color: var(--danger);
+}
+
+.activity-group[data-status='failed'] > .activity-group-items,
+.activity-group[data-status='declined'] > .activity-group-items {
+  border-top-color: color-mix(in srgb, var(--danger) 22%, var(--border));
+}
+
 .approval-card {
   overflow: hidden;
   border-color: color-mix(in srgb, var(--warning) 32%, var(--border));

@@ -271,6 +271,92 @@ test('lists recent Codex history across sources and working directories', async 
   });
 });
 
+test('preserves bounded Codex command output and failed exit codes', async () => {
+  const { provider, events, handlers } = createProvider();
+  await provider.handle({ method: 'conversation.list', providerId: 'codex' });
+
+  handlers().onNotification({
+    method: 'item/completed',
+    params: {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      item: {
+        type: 'commandExecution',
+        id: 'command-output',
+        command: 'agent-browser tab list',
+        cwd: '/Users/tuyan',
+        aggregatedOutput: 'Error: browser session was not found\n',
+        exitCode: 1,
+        status: 'failed',
+      },
+    },
+  });
+  assert.deepEqual(events[0], {
+    kind: 'activity.updated',
+    conversationId: 'thread-1',
+    turnId: 'turn-1',
+    activity: {
+      id: 'command-output',
+      kind: 'command',
+      title: 'agent-browser tab list',
+      output: 'Error: browser session was not found',
+      detail: '/Users/tuyan',
+      status: 'failed',
+    },
+  });
+
+  handlers().onNotification({
+    method: 'item/completed',
+    params: {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      item: {
+        type: 'commandExecution',
+        id: 'command-no-output',
+        command: 'missing-command',
+        cwd: '/repo',
+        aggregatedOutput: null,
+        exitCode: 127,
+        status: 'failed',
+      },
+    },
+  });
+  assert.deepEqual(events[1], {
+    kind: 'activity.updated',
+    conversationId: 'thread-1',
+    turnId: 'turn-1',
+    activity: {
+      id: 'command-no-output',
+      kind: 'command',
+      title: 'missing-command',
+      output: 'Command exited with code 127',
+      detail: '/repo',
+      status: 'failed',
+    },
+  });
+
+  handlers().onNotification({
+    method: 'item/completed',
+    params: {
+      threadId: 'thread-1',
+      turnId: 'turn-1',
+      item: {
+        type: 'commandExecution',
+        id: 'command-bounded-output',
+        command: 'verbose-command',
+        aggregatedOutput: `discarded${'x'.repeat(8 * 1024)}`,
+        exitCode: 1,
+        status: 'failed',
+      },
+    },
+  });
+  const boundedOutput = events[2];
+  assert.equal(boundedOutput?.kind, 'activity.updated');
+  if (boundedOutput?.kind === 'activity.updated') {
+    assert.equal(boundedOutput.activity.output, 'x'.repeat(8 * 1024));
+  }
+});
+
 test('normalizes streaming, activity, completion, and approval events', async () => {
   const { provider, client, events, handlers } = createProvider();
   await provider.handle({

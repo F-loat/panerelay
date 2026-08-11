@@ -53,6 +53,8 @@ interface CodexItem {
   content?: Array<{ type?: string; text?: string }>;
   command?: string;
   cwd?: string;
+  aggregatedOutput?: string | null;
+  exitCode?: number | null;
   status?: string;
   changes?: unknown[];
   server?: string;
@@ -105,6 +107,14 @@ function activityErrorDetail(item: CodexItem, failed: boolean): string | undefin
   if (!failed) return undefined;
   const message = item.error?.message?.trim();
   return message ? message.slice(0, MAX_ACTIVITY_DETAIL_CHARS) : undefined;
+}
+
+function commandExecutionOutput(item: CodexItem, failed: boolean): string | undefined {
+  const output = item.aggregatedOutput?.trim();
+  if (output) return output.slice(-MAX_ACTIVITY_DETAIL_CHARS);
+  return failed && typeof item.exitCode === 'number'
+    ? `Command exited with code ${item.exitCode}`
+    : undefined;
 }
 
 function threadStatus(thread: CodexThread): ConversationStatus {
@@ -191,14 +201,17 @@ function activityFromItem(item: CodexItem, completed: boolean): ConversationActi
           : 'running';
 
   switch (item.type) {
-    case 'commandExecution':
+    case 'commandExecution': {
+      const output = commandExecutionOutput(item, normalizedStatus === 'failed');
       return {
         id: item.id,
         kind: 'command',
         title: item.command || 'Run command',
+        ...(output ? { output } : {}),
         ...(item.cwd ? { detail: item.cwd } : {}),
         status: normalizedStatus,
       };
+    }
     case 'fileChange':
       return {
         id: item.id,

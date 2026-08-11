@@ -33,7 +33,12 @@ import {
   type SidepanelController,
   type SidepanelState,
 } from '../sidepanel-controller.js';
-import { translate, type CopyKey, type Locale } from '../i18n.js';
+import { formatCopy, translate, type CopyKey, type Locale } from '../i18n.js';
+import {
+  groupTimelineActivities,
+  type ActivityGroupRenderItem,
+  type ActivityTimelineItem,
+} from '../activity-groups.js';
 import { writeClipboardText } from '../clipboard.js';
 import { isPanerelaySetupFailure } from '../setup-guidance.js';
 import { AuthorizationPanel, FetchAuthorizationPanel } from './access-settings.js';
@@ -313,14 +318,14 @@ function MessageTime({ locale, value }: { locale: Locale; value: string }) {
   );
 }
 
-function activityStatus(locale: Locale, activity: ConversationActivity): string {
+function activityStatus(locale: Locale, status: ConversationActivity['status']): string {
   const keys: Record<ConversationActivity['status'], CopyKey> = {
     running: 'activityRunning',
     completed: 'activityCompleted',
     failed: 'activityFailed',
     declined: 'activityDeclined',
   };
-  return translate(locale, keys[activity.status]);
+  return translate(locale, keys[status]);
 }
 
 function activityTitle(title: string): string {
@@ -442,6 +447,179 @@ function ReasoningCard({
   );
 }
 
+function activityNeedsSetupGuide(activity: ConversationActivity): boolean {
+  return (
+    activity.status === 'failed' &&
+    isPanerelaySetupFailure([activity.title, activity.detail].filter(Boolean).join('\n'))
+  );
+}
+
+function ActivityCard({
+  controller,
+  item,
+}: {
+  controller: SidepanelController;
+  item: ActivityTimelineItem;
+}) {
+  const { state } = controller;
+  const activity = item.activity;
+  const Icon = activityIcon(activity);
+  const expandable = activity.status !== 'running';
+  const setupFailure = activityNeedsSetupGuide(activity);
+
+  return (
+    <div className="activity-stack" data-activity-id={activity.id}>
+      {expandable ? (
+        <details className="activity-card activity-card-expandable" data-status={activity.status}>
+          <summary
+            aria-label={`${translate(state.locale, 'activityDetails')}: ${activityTitle(activity.title)}`}
+            className="activity-card-summary"
+          >
+            <Icon aria-hidden="true" className="activity-icon" />
+            <div className="activity-copy">
+              <div className="activity-title">{activityTitle(activity.title)}</div>
+              {activity.detail && <div className="activity-detail">{activity.detail}</div>}
+            </div>
+            <span className="activity-status">{activityStatus(state.locale, activity.status)}</span>
+          </summary>
+          <div className="activity-detail-expanded">
+            <div className="activity-command-expanded">{activity.title}</div>
+            {activity.output && <div className="activity-output-expanded">{activity.output}</div>}
+            {activity.detail && <div className="activity-extra-expanded">{activity.detail}</div>}
+          </div>
+        </details>
+      ) : (
+        <article className="activity-card" data-status={activity.status}>
+          <Icon aria-hidden="true" className="activity-icon" />
+          <div className="activity-copy">
+            <div className="activity-title">{activityTitle(activity.title)}</div>
+            {activity.detail && <div className="activity-detail">{activity.detail}</div>}
+          </div>
+          <span className="activity-status">{activityStatus(state.locale, activity.status)}</span>
+        </article>
+      )}
+      {setupFailure && <PanerelaySetupGuide controller={controller} />}
+    </div>
+  );
+}
+
+function ActivityGroupItem({ item, locale }: { item: ActivityTimelineItem; locale: Locale }) {
+  const activity = item.activity;
+  const running = activity.status === 'running';
+  const [open, setOpen] = useState(false);
+  const content = (
+    <>
+      {running ? (
+        <span aria-hidden="true" className="activity-group-item-running" />
+      ) : (
+        <ChevronRight aria-hidden="true" className="activity-group-item-chevron" />
+      )}
+      <span className="activity-group-item-title">
+        {open ? activity.title : activityTitle(activity.title)}
+      </span>
+      <span className="activity-status">{activityStatus(locale, activity.status)}</span>
+    </>
+  );
+
+  if (running) {
+    return (
+      <article
+        className="activity-group-item"
+        data-activity-id={activity.id}
+        data-status={activity.status}
+      >
+        <div className="activity-group-item-summary">{content}</div>
+      </article>
+    );
+  }
+
+  return (
+    <div
+      className="activity-group-item"
+      data-activity-id={activity.id}
+      data-expanded={open ? 'true' : 'false'}
+      data-status={activity.status}
+    >
+      <button
+        aria-expanded={open}
+        aria-label={`${translate(locale, 'activityDetails')}: ${activityTitle(activity.title)}`}
+        className="activity-group-item-summary"
+        onClick={() => setOpen(value => !value)}
+        type="button"
+      >
+        {content}
+      </button>
+      {open && (activity.output || activity.detail) && (
+        <div className="activity-detail-expanded activity-group-item-detail">
+          {activity.output && <div className="activity-output-expanded">{activity.output}</div>}
+          {activity.detail && <div className="activity-extra-expanded">{activity.detail}</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ActivityGroup({
+  controller,
+  group,
+}: {
+  controller: SidepanelController;
+  group: ActivityGroupRenderItem;
+}) {
+  const { state } = controller;
+  const [open, setOpen] = useState(false);
+  const Icon = activityIcon(group.latest);
+  const metadata = [
+    formatCopy(state.locale, 'activityGroupCount', { count: group.activities.length }),
+    group.failedCount > 0
+      ? formatCopy(state.locale, 'activityGroupFailedCount', { count: group.failedCount })
+      : null,
+    group.declinedCount > 0
+      ? formatCopy(state.locale, 'activityGroupDeclinedCount', { count: group.declinedCount })
+      : null,
+  ]
+    .filter((value): value is string => Boolean(value))
+    .join(' · ');
+  const setupFailure = group.activities.some(item => activityNeedsSetupGuide(item.activity));
+
+  return (
+    <div className="activity-stack activity-group-stack" data-activity-group={group.id}>
+      <details
+        className="activity-card activity-card-expandable activity-group"
+        data-status={group.status}
+        onToggle={event => {
+          if (event.target === event.currentTarget) setOpen(event.currentTarget.open);
+        }}
+        open={open}
+      >
+        <summary
+          aria-label={formatCopy(state.locale, 'activityGroupDetails', {
+            count: group.activities.length,
+          })}
+          className="activity-card-summary"
+        >
+          <Icon aria-hidden="true" className="activity-icon" />
+          <div className="activity-copy">
+            <div className="activity-title">
+              {open
+                ? translate(state.locale, 'activityGroupTitle')
+                : activityTitle(group.latest.title)}
+            </div>
+            <div className="activity-detail">{metadata}</div>
+          </div>
+          <span className="activity-status">{activityStatus(state.locale, group.status)}</span>
+        </summary>
+        <div className="activity-group-items">
+          {group.activities.map(item => (
+            <ActivityGroupItem item={item} key={item.activity.id} locale={state.locale} />
+          ))}
+        </div>
+      </details>
+      {setupFailure && <PanerelaySetupGuide controller={controller} />}
+    </div>
+  );
+}
+
 export function Timeline({
   controller,
   scrollRef,
@@ -452,6 +630,7 @@ export function Timeline({
   const { state } = controller;
   const { t } = useCopy(state);
   const providerName = selectedAgentName(state);
+  const timeline = groupTimelineActivities(state.timeline);
   const followingBottomRef = useRef(true);
   const lastScrollRequestRef = useRef(-1);
   const lastWorkspaceRevisionRef = useRef<string | null>(null);
@@ -490,7 +669,7 @@ export function Timeline({
 
   return (
     <div className="timeline flex flex-col gap-3 px-3 pt-[15px] pb-5">
-      {state.timeline.map(item => {
+      {timeline.map(item => {
         if (item.type === 'message') {
           const timelineId = item.segmentId ?? item.message.id;
           return (
@@ -515,61 +694,17 @@ export function Timeline({
           );
         }
         if (item.type === 'activity') {
-          const Icon = activityIcon(item.activity);
-          const expandable = item.activity.status !== 'running';
-          const setupFailure =
-            item.activity.status === 'failed' &&
-            isPanerelaySetupFailure(
-              [item.activity.title, item.activity.detail].filter(Boolean).join('\n'),
-            );
           return (
-            <div className="activity-stack" key={`activity-${item.activity.id}`}>
-              {expandable ? (
-                <details
-                  className="activity-card activity-card-expandable"
-                  data-status={item.activity.status}
-                >
-                  <summary
-                    aria-label={`${t('activityDetails')}: ${activityTitle(item.activity.title)}`}
-                    className="activity-card-summary"
-                  >
-                    <Icon aria-hidden="true" className="activity-icon" />
-                    <div className="activity-copy">
-                      <div className="activity-title">{activityTitle(item.activity.title)}</div>
-                      {item.activity.detail && (
-                        <div className="activity-detail">{item.activity.detail}</div>
-                      )}
-                    </div>
-                    <span className="activity-status">
-                      {activityStatus(state.locale, item.activity)}
-                    </span>
-                  </summary>
-                  <div className="activity-detail-expanded">
-                    <div className="activity-command-expanded">{item.activity.title}</div>
-                    {item.activity.output && (
-                      <div className="activity-output-expanded">{item.activity.output}</div>
-                    )}
-                    {item.activity.detail && (
-                      <div className="activity-extra-expanded">{item.activity.detail}</div>
-                    )}
-                  </div>
-                </details>
-              ) : (
-                <article className="activity-card" data-status={item.activity.status}>
-                  <Icon aria-hidden="true" className="activity-icon" />
-                  <div className="activity-copy">
-                    <div className="activity-title">{activityTitle(item.activity.title)}</div>
-                    {item.activity.detail && (
-                      <div className="activity-detail">{item.activity.detail}</div>
-                    )}
-                  </div>
-                  <span className="activity-status">
-                    {activityStatus(state.locale, item.activity)}
-                  </span>
-                </article>
-              )}
-              {setupFailure && <PanerelaySetupGuide controller={controller} />}
-            </div>
+            <ActivityCard
+              controller={controller}
+              item={item}
+              key={`activity-${item.activity.id}`}
+            />
+          );
+        }
+        if (item.type === 'activity-group') {
+          return (
+            <ActivityGroup controller={controller} group={item} key={`activity-group-${item.id}`} />
           );
         }
         if (item.type === 'approval') {
