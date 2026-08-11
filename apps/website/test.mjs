@@ -100,7 +100,10 @@ test('source contains the complete product and installation journey', async () =
     'npx --yes @panerelay/setup',
     'Install once.',
     'Install Panerelay, then one Skill for every workflow.',
-    'npx skills add F-loat/panerelay --skill panerelay',
+    'npx skills add https://github.com/F-loat/panerelay --skill panerelay',
+    'Give your Agent a known URL.',
+    'Share the exact HTTP(S) URL you want to request.',
+    'Approve that exact domain in the Extension when asked.',
     'Fetch domain',
     'Connect tabs',
     'This tab',
@@ -145,11 +148,17 @@ test('source contains the complete product and installation journey', async () =
   assert.doesNotMatch(html, /panerelay-browser-use-cli/);
   assert.doesNotMatch(html, /browser-use tab list/);
   assert.doesNotMatch(html, /await browser\./);
-  assert.match(html, /data-handoff-command-copy/);
   assert.match(html, /data-copy-command="npx --yes @panerelay\/setup"/);
-  assert.match(html, /data-copy-command="npx --yes @panerelay\/setup --agent-browser"/);
-  assert.match(html, /data-handoff-select="playwright"/);
-  assert.match(html, /data-handoff-select="all"/);
+  assert.match(html, /data-copy-text-key="setup\.fetch\.prompt"/);
+  assert.match(
+    html,
+    /class="fetch-usage"[\s\S]+setup\.fetch\.step1[\s\S]+setup\.fetch\.step2[\s\S]+setup\.fetch\.step3[\s\S]+https:\/\/api\.example\.com\/me/,
+  );
+  assert.doesNotMatch(html, /data-handoff|class="integration-command"/);
+  assert.doesNotMatch(
+    html,
+    /data-copy-command="npx --yes @panerelay\/setup --(?:agent-browser|browser-use|playwright)/,
+  );
   assert.doesNotMatch(html, /waiting for your approval|You authorize this tab/);
   assert.doesNotMatch(html, /agent-setup\.md|curl -fsSL/);
   assert.doesNotMatch(html, /AGENT SIDE PANEL|Work with local Agents beside the page/);
@@ -166,7 +175,11 @@ test('source contains the complete product and installation journey', async () =
   assert.match(i18n, /'setup\.authorization\.link': 'Read advanced management'/);
   assert.match(i18n, /'setup\.authorization\.link': '查看高级管理'/);
   assert.match(html, /F-loat\/panerelay#advanced-management/);
-  assert.equal((i18n.match(/npx skills add F-loat\/panerelay --skill panerelay/g) ?? []).length, 2);
+  assert.equal(
+    (i18n.match(/npx skills add https:\/\/github\.com\/F-loat\/panerelay --skill panerelay/g) ?? [])
+      .length,
+    2,
+  );
   assert.match(
     html,
     /panerelay fetch --authorize api\.example\.com[\s\S]+panerelay fetch https:\/\/api\.example\.com\/me/,
@@ -181,8 +194,7 @@ test('source contains the complete product and installation journey', async () =
     html.indexOf('class="workflow workflow-panel workflow-fetch"') <
       html.indexOf('class="workflow workflow-engines"'),
   );
-  assert.match(html, /<details class="integration-command">[\s\S]+?<summary/);
-  assert.doesNotMatch(html, /<details class="integration-command" open/);
+  assert.match(i18n, /Use the installed panerelay Skill and Panerelay Fetch to request/);
 
   const englishCatalog = i18n.slice(
     i18n.indexOf('const english ='),
@@ -215,18 +227,17 @@ test('source preserves semantic and accessible interactions', async () => {
   assert.match(html, /aria-live="polite"/);
   assert.match(html, /aria-expanded="false"/);
   assert.match(html, /class="nav-github"[\s\S]+?aria-label="GitHub"/);
-  assert.equal((html.match(/data-copy-command=/g) ?? []).length, 3);
-  assert.equal((html.match(/data-copy-text-key=/g) ?? []).length, 5);
+  assert.equal((html.match(/data-copy-command=/g) ?? []).length, 2);
+  assert.equal((html.match(/data-copy-text-key=/g) ?? []).length, 2);
   assert.match(html, /role="tablist"/);
   assert.equal((html.match(/data-engine-tab=/g) ?? []).length, 3);
   assert.equal((html.match(/data-engine-panel=/g) ?? []).length, 3);
   assert.equal((html.match(/data-engine-(?:tab|panel)="playwright"/g) ?? []).length, 2);
   assert.match(html, /class="setup-agent-step"/);
-  assert.equal((html.match(/data-handoff-tab=/g) ?? []).length, 4);
-  assert.equal((html.match(/data-handoff-panel=/g) ?? []).length, 4);
+  assert.equal((html.match(/class="fetch-usage-steps"/g) ?? []).length, 1);
   assert.equal((html.match(/data-demo-step=/g) ?? []).length, 6);
   assert.equal((html.match(/data-demo-panel=/g) ?? []).length, 6);
-  assert.equal((html.match(/role="tabpanel"/g) ?? []).length, 13);
+  assert.equal((html.match(/role="tabpanel"/g) ?? []).length, 9);
   assert.match(html, /data-product-demo/);
   assert.match(html, /data-demo-toggle/);
   assert.match(html, /data-demo-replay/);
@@ -272,12 +283,7 @@ test('source preserves semantic and accessible interactions', async () => {
   assert.match(script, /demoMedia\.revert/);
   assert.doesNotMatch(script, /ScrollTrigger/);
   assert.match(script, /ArrowLeft[\s\S]+ArrowRight[\s\S]+Home[\s\S]+End/);
-  assert.match(script, /type HandoffChoice = AutomationEngine \| 'all'/);
-  assert.match(script, /playwright: 'npx --yes @panerelay\/setup --playwright'/);
-  assert.match(
-    script,
-    /all: 'npx --yes @panerelay\/setup --agent-browser --browser-use --playwright'/,
-  );
+  assert.doesNotMatch(script, /HandoffChoice|data-handoff|handoffCommands/);
   assert.match(styles, /:focus-visible/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(styles, /@media \(max-width: 520px\)/);
@@ -287,8 +293,8 @@ test('source preserves semantic and accessible interactions', async () => {
   assert.match(styles, /\.engine-tabs/);
   assert.match(styles, /\.engine-panel/);
   assert.doesNotMatch(styles, /\.playwright-compat/);
-  assert.match(styles, /\.agent-handoff-picker/);
-  assert.match(styles, /\.agent-handoff-panel/);
+  assert.match(styles, /\.fetch-usage-steps/);
+  assert.doesNotMatch(styles, /\.agent-handoff|\.integration-command/);
   assert.match(
     styles,
     /\.workflow \{[\s\S]+?--workflow-copy-track: 0\.88fr;[\s\S]+?--workflow-demo-track: 1\.12fr;[\s\S]+?grid-template-columns: var\(--workflow-copy-track\) var\(--workflow-demo-track\);/,
@@ -385,6 +391,10 @@ test('source provides complete English and Simplified Chinese language contracts
   assert.match(i18n, /已找出 2 个影响发布的问题/);
   assert.match(i18n, /使用 panerelay Skill，完成 agent-browser 接入并运行 doctor/);
   assert.match(i18n, /先安装 Panerelay，再用一个 Skill 覆盖所有工作流/);
+  assert.match(i18n, /把已知 URL 直接交给 Agent/);
+  assert.match(i18n, /通过 Panerelay Fetch 携带浏览器登录态发起请求/);
+  assert.match(i18n, /扩展弹出提示时，只批准这个域名/);
+  assert.match(i18n, /请使用已安装的 panerelay Skill 和 Panerelay Fetch/);
   assert.match(i18n, /统一 Skill 中的 Browser Harness CLI/);
   assert.match(i18n, /权限始终明确/);
   assert.match(i18n, /当前标签页仍保持授权；再次点击已选范围，才会取消授权/);

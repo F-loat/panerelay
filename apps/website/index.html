@@ -372,7 +372,10 @@
                         <div class="setup-command-surface">
                           <code class="setup-command-list"
                             ><span>npx --yes @panerelay/setup</span
-                            ><span>npx skills add F-loat/panerelay --skill panerelay</span></code
+                            ><span
+                              >npx skills add https://github.com/F-loat/panerelay --skill
+                              panerelay</span
+                            ></code
                           >
                           <span class="mini-copy" aria-hidden="true">
                             <svg viewBox="0 0 20 20">
@@ -864,13 +867,15 @@
                     data-i18n-aria-label="command.group.skill"
                   >
                     <span class="command-prompt" aria-hidden="true">$</span>
-                    <code>npx skills add F-loat/panerelay --skill panerelay</code>
+                    <code
+                      >npx skills add https://github.com/F-loat/panerelay --skill panerelay</code
+                    >
                     <button
                       class="copy-button"
                       type="button"
                       aria-label="Copy Skill command"
                       data-i18n-aria-label="command.copy"
-                      data-copy-command="npx skills add F-loat/panerelay --skill panerelay"
+                      data-copy-command="npx skills add https://github.com/F-loat/panerelay --skill panerelay"
                       data-copied="false"
                     >
                       <svg class="copy-icon" viewBox="0 0 20 20" aria-hidden="true">
@@ -904,280 +909,60 @@
                   </div>
                 </div>
 
-                <div class="agent-handoff">
-                  <strong data-i18n="setup.agent.handoff"
-                    >Then tell your Agent what to configure.</strong
-                  >
+                <div class="fetch-usage">
+                  <span class="fetch-usage-label" data-i18n="setup.fetch.label">USE FETCH</span>
+                  <strong data-i18n="setup.fetch.title">Give your Agent a known URL.</strong>
+                  <ol class="fetch-usage-steps">
+                    <li>
+                      <span>01</span>
+                      <p data-i18n="setup.fetch.step1">
+                        Share the exact HTTP(S) URL you want to request.
+                      </p>
+                    </li>
+                    <li>
+                      <span>02</span>
+                      <p data-i18n="setup.fetch.step2">
+                        Ask the Agent to use Panerelay Fetch with your browser login state.
+                      </p>
+                    </li>
+                    <li>
+                      <span>03</span>
+                      <p data-i18n="setup.fetch.step3">
+                        Approve that exact domain in the Extension when asked.
+                      </p>
+                    </li>
+                  </ol>
                   <div
-                    class="agent-handoff-picker"
-                    role="tablist"
-                    aria-label="Choose what your Agent should configure"
-                    data-i18n-aria-label="setup.agent.group"
+                    class="agent-prompt fetch-prompt"
+                    role="group"
+                    aria-label="Agent prompt for Panerelay Fetch"
+                    data-i18n-aria-label="prompt.group.fetch"
                   >
+                    <p data-i18n="setup.fetch.prompt">
+                      Use the installed panerelay Skill and Panerelay Fetch to request
+                      https://api.example.com/me with my browser login state.
+                    </p>
                     <button
-                      id="handoff-tab-agent-browser"
+                      class="copy-button agent-prompt-copy"
                       type="button"
-                      role="tab"
-                      aria-selected="true"
-                      aria-controls="handoff-panel-agent-browser"
-                      tabindex="0"
-                      data-handoff-tab="agent-browser"
-                      data-handoff-select="agent-browser"
-                      data-active="true"
+                      aria-label="Copy Fetch prompt"
+                      data-i18n-aria-label="prompt.copy"
+                      data-copy-text-key="setup.fetch.prompt"
+                      data-copy-success-key="prompt.copySuccess"
+                      data-copied="false"
                     >
-                      agent-browser
-                    </button>
-                    <button
-                      id="handoff-tab-browser-use"
-                      type="button"
-                      role="tab"
-                      aria-selected="false"
-                      aria-controls="handoff-panel-browser-use"
-                      tabindex="-1"
-                      data-handoff-tab="browser-use"
-                      data-handoff-select="browser-use"
-                      data-active="false"
-                    >
-                      Browser Use
-                    </button>
-                    <button
-                      id="handoff-tab-playwright"
-                      type="button"
-                      role="tab"
-                      aria-selected="false"
-                      aria-controls="handoff-panel-playwright"
-                      tabindex="-1"
-                      data-handoff-tab="playwright"
-                      data-handoff-select="playwright"
-                      data-active="false"
-                    >
-                      Playwright CLI
-                    </button>
-                    <button
-                      id="handoff-tab-all"
-                      type="button"
-                      role="tab"
-                      aria-selected="false"
-                      aria-controls="handoff-panel-all"
-                      tabindex="-1"
-                      data-handoff-tab="all"
-                      data-handoff-select="all"
-                      data-active="false"
-                      data-i18n="setup.agent.all"
-                    >
-                      All three
+                      <svg class="copy-icon" viewBox="0 0 20 20" aria-hidden="true">
+                        <rect x="6.5" y="6.5" width="9" height="9" rx="1.5" />
+                        <path d="M4.5 12.5h-1a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" />
+                      </svg>
+                      <svg class="check-icon" viewBox="0 0 20 20" aria-hidden="true">
+                        <path d="m4 10 4 4 8-9" />
+                      </svg>
+                      <span class="copy-label" data-copy-label data-i18n="prompt.copyShort"
+                        >Copy prompt</span
+                      >
                     </button>
                   </div>
-
-                  <div class="agent-handoff-panels">
-                    <section
-                      class="agent-handoff-panel"
-                      id="handoff-panel-agent-browser"
-                      role="tabpanel"
-                      aria-labelledby="handoff-tab-agent-browser"
-                      tabindex="0"
-                      data-handoff-panel="agent-browser"
-                    >
-                      <div
-                        class="agent-prompt"
-                        role="group"
-                        aria-label="Agent prompt for agent-browser setup"
-                        data-i18n-aria-label="prompt.group.agentBrowser"
-                      >
-                        <p data-i18n="setup.agentPrompt.agentBrowser">
-                          Use the installed panerelay Skill to set up and verify agent-browser. Stop
-                          when I need to authorize a browser tab.
-                        </p>
-                        <button
-                          class="copy-button agent-prompt-copy"
-                          type="button"
-                          aria-label="Copy Agent setup prompt"
-                          data-i18n-aria-label="prompt.copy"
-                          data-copy-text-key="setup.agentPrompt.agentBrowser"
-                          data-copy-success-key="prompt.copySuccess"
-                          data-copied="false"
-                        >
-                          <svg class="copy-icon" viewBox="0 0 20 20" aria-hidden="true">
-                            <rect x="6.5" y="6.5" width="9" height="9" rx="1.5" />
-                            <path
-                              d="M4.5 12.5h-1a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1"
-                            />
-                          </svg>
-                          <svg class="check-icon" viewBox="0 0 20 20" aria-hidden="true">
-                            <path d="m4 10 4 4 8-9" />
-                          </svg>
-                          <span class="copy-label" data-copy-label data-i18n="prompt.copyShort"
-                            >Copy prompt</span
-                          >
-                        </button>
-                      </div>
-                    </section>
-
-                    <section
-                      class="agent-handoff-panel"
-                      id="handoff-panel-browser-use"
-                      role="tabpanel"
-                      aria-labelledby="handoff-tab-browser-use"
-                      tabindex="0"
-                      data-handoff-panel="browser-use"
-                    >
-                      <div
-                        class="agent-prompt"
-                        role="group"
-                        aria-label="Agent prompt for Browser Use setup"
-                        data-i18n-aria-label="prompt.group.browserUse"
-                      >
-                        <p data-i18n="setup.agentPrompt.browserUse">
-                          Use the installed panerelay Skill to set up and verify Browser Use. Stop
-                          when I need to authorize a browser tab.
-                        </p>
-                        <button
-                          class="copy-button agent-prompt-copy"
-                          type="button"
-                          aria-label="Copy Agent setup prompt"
-                          data-i18n-aria-label="prompt.copy"
-                          data-copy-text-key="setup.agentPrompt.browserUse"
-                          data-copy-success-key="prompt.copySuccess"
-                          data-copied="false"
-                        >
-                          <svg class="copy-icon" viewBox="0 0 20 20" aria-hidden="true">
-                            <rect x="6.5" y="6.5" width="9" height="9" rx="1.5" />
-                            <path
-                              d="M4.5 12.5h-1a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1"
-                            />
-                          </svg>
-                          <svg class="check-icon" viewBox="0 0 20 20" aria-hidden="true">
-                            <path d="m4 10 4 4 8-9" />
-                          </svg>
-                          <span class="copy-label" data-copy-label data-i18n="prompt.copyShort"
-                            >Copy prompt</span
-                          >
-                        </button>
-                      </div>
-                    </section>
-
-                    <section
-                      class="agent-handoff-panel"
-                      id="handoff-panel-playwright"
-                      role="tabpanel"
-                      aria-labelledby="handoff-tab-playwright"
-                      tabindex="0"
-                      data-handoff-panel="playwright"
-                    >
-                      <div
-                        class="agent-prompt"
-                        role="group"
-                        aria-label="Agent prompt for Playwright CLI setup"
-                        data-i18n-aria-label="prompt.group.playwright"
-                      >
-                        <p data-i18n="setup.agentPrompt.playwright">
-                          Use the installed panerelay Skill to set up and verify Playwright CLI.
-                          Stop when I need to authorize a browser tab.
-                        </p>
-                        <button
-                          class="copy-button agent-prompt-copy"
-                          type="button"
-                          aria-label="Copy Agent setup prompt"
-                          data-i18n-aria-label="prompt.copy"
-                          data-copy-text-key="setup.agentPrompt.playwright"
-                          data-copy-success-key="prompt.copySuccess"
-                          data-copied="false"
-                        >
-                          <svg class="copy-icon" viewBox="0 0 20 20" aria-hidden="true">
-                            <rect x="6.5" y="6.5" width="9" height="9" rx="1.5" />
-                            <path
-                              d="M4.5 12.5h-1a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1"
-                            />
-                          </svg>
-                          <svg class="check-icon" viewBox="0 0 20 20" aria-hidden="true">
-                            <path d="m4 10 4 4 8-9" />
-                          </svg>
-                          <span class="copy-label" data-copy-label data-i18n="prompt.copyShort"
-                            >Copy prompt</span
-                          >
-                        </button>
-                      </div>
-                    </section>
-
-                    <section
-                      class="agent-handoff-panel"
-                      id="handoff-panel-all"
-                      role="tabpanel"
-                      aria-labelledby="handoff-tab-all"
-                      tabindex="0"
-                      data-handoff-panel="all"
-                    >
-                      <div
-                        class="agent-prompt"
-                        role="group"
-                        aria-label="Agent prompt for all supported integrations"
-                        data-i18n-aria-label="prompt.group.all"
-                      >
-                        <p data-i18n="setup.agentPrompt.all">
-                          Use the installed panerelay Skill to set up and verify agent-browser,
-                          Browser Use, and Playwright CLI. Stop when I need to authorize browser
-                          tabs.
-                        </p>
-                        <button
-                          class="copy-button agent-prompt-copy"
-                          type="button"
-                          aria-label="Copy Agent setup prompt"
-                          data-i18n-aria-label="prompt.copy"
-                          data-copy-text-key="setup.agentPrompt.all"
-                          data-copy-success-key="prompt.copySuccess"
-                          data-copied="false"
-                        >
-                          <svg class="copy-icon" viewBox="0 0 20 20" aria-hidden="true">
-                            <rect x="6.5" y="6.5" width="9" height="9" rx="1.5" />
-                            <path
-                              d="M4.5 12.5h-1a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1"
-                            />
-                          </svg>
-                          <svg class="check-icon" viewBox="0 0 20 20" aria-hidden="true">
-                            <path d="m4 10 4 4 8-9" />
-                          </svg>
-                          <span class="copy-label" data-copy-label data-i18n="prompt.copyShort"
-                            >Copy prompt</span
-                          >
-                        </button>
-                      </div>
-                    </section>
-                  </div>
-
-                  <details class="integration-command">
-                    <summary data-i18n="setup.agent.command">
-                      Advanced: run the matching integration command yourself.
-                    </summary>
-                    <div
-                      class="command command-inline"
-                      role="group"
-                      aria-label="Selected Panerelay integration command"
-                      data-i18n-aria-label="command.group.integration"
-                    >
-                      <span class="command-prompt" aria-hidden="true">$</span>
-                      <code data-handoff-command>npx --yes @panerelay/setup --agent-browser</code>
-                      <button
-                        class="copy-button"
-                        type="button"
-                        aria-label="Copy selected integration command"
-                        data-i18n-aria-label="command.copyIntegration"
-                        data-copy-command="npx --yes @panerelay/setup --agent-browser"
-                        data-handoff-command-copy
-                        data-copied="false"
-                      >
-                        <svg class="copy-icon" viewBox="0 0 20 20" aria-hidden="true">
-                          <rect x="6.5" y="6.5" width="9" height="9" rx="1.5" />
-                          <path d="M4.5 12.5h-1a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v1" />
-                        </svg>
-                        <svg class="check-icon" viewBox="0 0 20 20" aria-hidden="true">
-                          <path d="m4 10 4 4 8-9" />
-                        </svg>
-                        <span class="copy-label" data-copy-label data-i18n="command.copyShort"
-                          >Copy</span
-                        >
-                      </button>
-                    </div>
-                  </details>
                 </div>
               </div>
               <div class="step-visual bridge-visual" aria-hidden="true">
