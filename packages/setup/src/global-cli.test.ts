@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 import test from 'node:test';
 import {
   GLOBAL_CLI_OWNERSHIP_PROTOCOL,
@@ -214,4 +214,53 @@ test('preserves a PATH-visible global command before consulting the current npm 
     },
   );
   assert.deepEqual(launches, [['--version'], ['--version']]);
+});
+
+test('skips an npx-local command and finds the later global CLI on PATH', async t => {
+  const homeDirectory = await mkdtemp(join(tmpdir(), 'panerelay-global-cli-npx-path-'));
+  t.after(async () => {
+    const { rm } = await import('node:fs/promises');
+    await rm(homeDirectory, { force: true, recursive: true });
+  });
+  const localBinDirectory = join(homeDirectory, 'node_modules', '.bin');
+  const globalBinDirectory = join(homeDirectory, 'global-bin');
+  const localExecutablePath = join(localBinDirectory, 'panerelay');
+  const globalExecutablePath = join(globalBinDirectory, 'panerelay');
+  await mkdir(localBinDirectory, { recursive: true });
+  await mkdir(globalBinDirectory, { recursive: true });
+  await Promise.all([writeFile(localExecutablePath, ''), writeFile(globalExecutablePath, '')]);
+  await Promise.all([chmod(localExecutablePath, 0o755), chmod(globalExecutablePath, 0o755)]);
+  await mkdir(join(homeDirectory, '.panerelay'));
+  await writeFile(
+    globalCliOwnershipPath(homeDirectory),
+    `${JSON.stringify({ protocol: GLOBAL_CLI_OWNERSHIP_PROTOCOL, version: '0.9.0' })}\n`,
+    { mode: 0o600 },
+  );
+
+  const launches: Array<{ command: string; args: string[] }> = [];
+  const result = await installGlobalPanerelayCli('0.9.0', {
+    environment: {
+      PATH: `${localBinDirectory}${delimiter}${globalBinDirectory}`,
+    },
+    homeDirectory,
+    packageManager: '/opt/node/bin/npm',
+    runner: async (command, args) => {
+      launches.push({ command, args });
+      return { code: 0, stderr: '', stdout: npmList('0.9.0') };
+    },
+  });
+
+  assert.deepEqual(result, {
+    executablePath: globalExecutablePath,
+    managed: true,
+    operation: 'current',
+    packageSpec: '@panerelay/cli@0.9.0',
+    version: '0.9.0',
+  });
+  assert.deepEqual(launches, [
+    {
+      command: '/opt/node/bin/npm',
+      args: ['list', '--global', '--depth=0', '--json', '@panerelay/cli'],
+    },
+  ]);
 });

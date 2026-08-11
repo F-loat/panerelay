@@ -1,4 +1,6 @@
 import {
+  executableCandidatePaths,
+  isExecutableFile,
   resolveExecutablePath,
   resolveSpawnCommand,
   runCommand,
@@ -113,13 +115,18 @@ async function existingGlobalCliExecutable(
   options: GlobalCliLifecycleOptions,
 ): Promise<string | undefined> {
   if (options.cliExecutablePath === false) return undefined;
-  const executablePath =
-    options.cliExecutablePath ??
-    (await resolveExecutablePath('panerelay', {
-      environment: options.environment ?? process.env,
-      platform: options.platform,
-    }));
-  return executablePath && !isProjectPackageExecutable(executablePath) ? executablePath : undefined;
+  if (options.cliExecutablePath) {
+    return isProjectPackageExecutable(options.cliExecutablePath)
+      ? undefined
+      : options.cliExecutablePath;
+  }
+  const environment = options.environment ?? process.env;
+  const platform = options.platform ?? process.platform;
+  for (const candidate of executableCandidatePaths('panerelay', { environment, platform })) {
+    if (isProjectPackageExecutable(candidate)) continue;
+    if (await isExecutableFile(candidate, platform)) return candidate;
+  }
+  return undefined;
 }
 
 async function executableVersion(
