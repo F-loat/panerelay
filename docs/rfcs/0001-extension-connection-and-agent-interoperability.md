@@ -5,7 +5,8 @@
 - Status: Accepted
 - Authors: F-loat
 - Created: 2026-07-29
-- Updated: 2026-08-06
+- Updated: 2026-08-12
+- Amendment: `openspec/changes/sync-website-accent-color`
 - Amendment: `openspec/changes/archive/2026-08-02-make-adapter-installation-explicit`
 - Amendment: `openspec/changes/archive/2026-08-01-add-browser-use-default-setting`
 - Amendment: `openspec/changes/archive/2026-08-01-improve-browser-authorization-controls`
@@ -292,6 +293,12 @@ The Bridge will expose opaque relay target IDs. A target ID may be rebound after
 
 Focus may choose a default browser or tab only when the caller did not specify one. Focus never grants authorization or a control lease.
 
+## Official website appearance channel
+
+The Extension manifest permits only pages under `https://f-loat.github.io/panerelay/*` to open one named, versioned external appearance port to the retained official Extension ID. The background worker independently validates the port name, HTTPS origin, and `/panerelay/` route before returning data. An accepted port receives only a three-color accent palette derived from the user's validated local accent preference, first on connection and again after that preference changes. It never receives arbitrary Extension storage, browser or page state, Agent state, permissions, identifiers, credentials, or Bridge messages.
+
+This externally connectable presentation channel is not Chrome Host Permission, Panerelay site permission, tab authorization, target exposure, debugger attachment, an Agent session, or a browser-control lease. Opening the website and reading its accent palette does not make the tab eligible for automation. The website validates every snapshot, retains its checked-in default when the Extension or channel is unavailable, and reconnects after a bounded delay without sending keepalive traffic. Custom Extension identities and other website origins are unsupported by this convenience channel.
+
 ## Browser authorization scopes
 
 The side panel exposes two explicit authorization scopes:
@@ -419,6 +426,7 @@ The page-comment runtime is injected into the authorized active tab's currently 
 13. Page evidence is bounded, user-selected, treated as untrusted, and cleared at document boundaries.
 14. Image inputs are explicit, bounded at both Extension and Bridge boundaries, capability-gated, and excluded from logs and durable workspace state.
 15. Session-retained conversation timelines contain only bounded normalized presentation data, never restore approval authority, and grant no browser permission or control ownership.
+16. Official-website appearance synchronization is origin- and route-bound, read-only, and grants no browser or Agent authority.
 
 ### Native Messaging
 
@@ -435,6 +443,8 @@ The Bridge must not listen on non-loopback interfaces in the first release.
 ### Extension permissions
 
 The initial Chrome extension is expected to require `debugger`, `nativeMessaging`, `sidePanel`, `storage`, `webNavigation`, and tab-related permissions. `webNavigation` is used only to observe Chrome's `onCreatedNavigationTarget` relationship so a tab created by a bound source page can inherit that page's conversation workspace. Tabs created through browser chrome do not inherit through this permission. It does not read browsing history or page content and does not grant host access. Broad host access will be optional and requested per site or origin through a user gesture.
+
+The manifest's exact official-website `externally_connectable` match exposes only the separate appearance port described above. It neither requests nor substitutes for Host Permission, and the background repeats sender validation instead of treating the manifest match as sufficient authorization.
 
 Permission descriptions and controlled-tab indicators are part of the product, not release documentation alone.
 
@@ -457,6 +467,7 @@ Audit events will not contain raw page HTML, screenshots, cookies, credentials, 
 - If DevTools or another debugger displaces Panerelay, the affected target closes and clients receive an explicit error.
 - If a tab navigates outside authorized origins, mutating commands pause until authorization is re-evaluated.
 - If side-panel event replay is incomplete, the UI reports the gap instead of implying a complete history.
+- If the optional website appearance port is absent, malformed, or disconnected, the website keeps its last valid or checked-in palette and no browser authorization state changes.
 
 ## Compatibility strategy
 

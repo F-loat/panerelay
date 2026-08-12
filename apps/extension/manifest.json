@@ -24,6 +24,9 @@
   },
   "background": { "service_worker": "src/background/index.ts", "type": "module" },
   "side_panel": { "default_path": "src/pages/sidepanel/index.html" },
+  "externally_connectable": {
+    "matches": ["https://f-loat.github.io/panerelay/*"]
+  },
   "optional_host_permissions": ["http://*/*", "https://*/*", "file:///*"],
   "permissions": [
     "contextMenus",

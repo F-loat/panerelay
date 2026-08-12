@@ -8,6 +8,12 @@ export interface AccentPalette {
   soft: string;
 }
 
+export interface WebsiteAccentPalette {
+  primary: string;
+  soft: string;
+  dark: string;
+}
+
 type Rgb = readonly [red: number, green: number, blue: number];
 
 export const ACCENT_COLOR_KEY = 'panerelay.accentColor';
@@ -103,5 +109,14 @@ export function accentPalette(value: unknown, theme: ResolvedTheme): AccentPalet
     hover: mixColors(color, theme === 'light' ? '#000000' : '#ffffff', 0.12),
     outline: THEME_SURFACES[theme].outline,
     soft: `rgb(${red} ${green} ${blue} / ${theme === 'light' ? '10%' : '14%'})`,
+  };
+}
+
+export function websiteAccentPalette(value: unknown): WebsiteAccentPalette {
+  const primary = accentPalette(value, 'dark').color;
+  return {
+    primary,
+    soft: mixColors(primary, '#ffffff', 0.4),
+    dark: mixColors(primary, '#000000', 0.74),
   };
 }

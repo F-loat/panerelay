@@ -4,7 +4,7 @@
 - Extension target: shared Chromium Manifest V3
 - agent-browser baseline: 0.33.0
 - Playwright CLI baseline: 0.1.17
-- Last verified: 2026-08-11
+- Last verified: 2026-08-12
 
 ## Status meanings
 
@@ -23,6 +23,7 @@ This record distinguishes deterministic installation and artifact coverage from 
 | Codex, Claude Code, and Qoder conversations                 | Verified          | Forwarded      |
 | OpenCode 1.18.12 conversations                              | Forwarded         | Forwarded      |
 | Project selection and page comments                         | Verified          | Forwarded      |
+| Official website accent synchronization                     | Partial           | Forwarded      |
 | Explicit site and tab authorization                         | Verified          | Forwarded      |
 | Browser-level CDP relay                                     | Verified          | Forwarded      |
 | Browser-backed fetch                                        | Partial           | Partial        |
@@ -36,6 +37,8 @@ This record distinguishes deterministic installation and artifact coverage from 
 | Browser-wide close and top-level request containment        | Unsupported       | Unsupported    |
 
 Edge uses the same Chromium Manifest V3 artifact, side-panel graph, debugger relay, permission flow, opaque target model, control lease, and revocation implementation as Chrome. It registers `browserFamily: "edge"` and declares CDP relay support only from feature detection.
+
+Official website accent synchronization has deterministic coverage for the exact production-route manifest allowlist, independent sender validation, initial and live palette publication, website message validation, reconnect, cleanup, and no-Extension fallback. A daily Chrome candidate run is still pending, so Chrome remains `Partial`; Edge uses the same external messaging API but remains `Forwarded` without dedicated runtime evidence. This presentation-only channel does not change any agent-browser 0.33.0 compatibility group or grant site permission, tab authorization, target exposure, or control ownership.
 
 Chrome and Edge Native Hosts persist independent protected registrations. Provider contract tests verify explicit selection, saved defaults, single-ready selection, ambiguity failures, unavailable-default failures, browser-pinned cleanup, and legacy-singleton migration. These deterministic routing claims do not upgrade Edge's runtime classification: representative Edge Provider evidence is still pending.
 

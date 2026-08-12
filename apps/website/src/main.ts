@@ -2,8 +2,10 @@ import './styles.css';
 import { gsap } from 'gsap';
 import { translations, type Locale, type TranslationKey } from './i18n';
 import { initializeLocalePreference } from './locale-preference';
+import { initializeWebsiteAppearance } from './extension-appearance';
 
 initializeLocalePreference();
+initializeWebsiteAppearance();
 document.documentElement.classList.add('js');
 
 const languageLinks = document.querySelectorAll<HTMLAnchorElement>('[data-language-option]');

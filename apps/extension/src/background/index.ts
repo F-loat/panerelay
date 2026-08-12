@@ -97,6 +97,7 @@ import {
   setFetchAllDomains,
 } from '../shared/fetch-permissions.js';
 import { FetchPermissionRequestManager } from './fetch-permission-requests.js';
+import { WebsiteAppearancePublisher } from './website-appearance.js';
 
 const BROWSER_ID_KEY = 'panerelay.browserId';
 const ALL_TABS_AUTHORIZATION_KEY = 'panerelay.authorization.allTabs';
@@ -108,6 +109,10 @@ const browserRuntime = detectBrowserRuntime();
 const browserFetchEnvironment = createChromeBrowserFetchEnvironment();
 const browserFetchStartupCleanup = removeAbandonedBrowserFetchRules().catch(() => undefined);
 const fetchPermissionRequests = new FetchPermissionRequestManager();
+const websiteAppearancePublisher = new WebsiteAppearancePublisher(async () => {
+  const stored = await chrome.storage.local.get(ACCENT_COLOR_KEY);
+  return stored[ACCENT_COLOR_KEY];
+});
 const pendingBrowserFetchControllers = new Map<
   string,
   { browserId: string; controller: AbortController; generation: string }
@@ -1633,9 +1638,14 @@ chrome.permissions.onRemoved.addListener(() => {
   })();
 });
 
+chrome.runtime.onConnectExternal.addListener(port => {
+  websiteAppearancePublisher.connect(port);
+});
+
 chrome.storage.onChanged.addListener((changes, areaName) => {
   if (areaName === 'local' && ACCENT_COLOR_KEY in changes) {
     void updateActionBadge().catch(() => undefined);
+    websiteAppearancePublisher.publishAccent(changes[ACCENT_COLOR_KEY]?.newValue);
   }
 });
 

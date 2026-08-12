@@ -166,9 +166,9 @@
 }
 
 .decision-card-featured {
-  border-color: rgb(32 230 143 / 45%);
+  border-color: rgb(var(--green-rgb) / 45%);
   background:
-    radial-gradient(circle at 85% 10%, rgb(32 230 143 / 16%), transparent 38%),
+    radial-gradient(circle at 85% 10%, rgb(var(--green-rgb) / 16%), transparent 38%),
     linear-gradient(145deg, var(--green-dark), var(--surface));
 }
 
@@ -252,7 +252,7 @@
 }
 
 .comparison-table tbody tr:first-child {
-  background: rgb(32 230 143 / 4%);
+  background: rgb(var(--green-rgb) / 4%);
 }
 
 .matrix-note {
@@ -265,7 +265,7 @@
   margin: -16px 0 28px;
   padding: 18px 20px;
   border-left: 2px solid var(--green);
-  background: rgb(32 230 143 / 6%);
+  background: rgb(var(--green-rgb) / 6%);
   color: var(--muted-strong);
 }
 
@@ -322,7 +322,7 @@
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background:
-    radial-gradient(circle at 90% 10%, rgb(32 230 143 / 10%), transparent 45%), var(--surface);
+    radial-gradient(circle at 90% 10%, rgb(var(--green-rgb) / 10%), transparent 45%), var(--surface);
 }
 
 .benchmark-grid dt {
@@ -365,7 +365,7 @@
 .benchmark-note a {
   color: var(--green-soft);
   text-decoration: underline;
-  text-decoration-color: rgb(32 230 143 / 35%);
+  text-decoration-color: rgb(var(--green-rgb) / 35%);
   text-underline-offset: 3px;
 }
 
@@ -374,7 +374,7 @@
   padding: 30px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
-  background: linear-gradient(135deg, rgb(32 230 143 / 7%), transparent 48%), var(--surface);
+  background: linear-gradient(135deg, rgb(var(--green-rgb) / 7%), transparent 48%), var(--surface);
 }
 
 .adapter-benchmark-heading {
@@ -459,7 +459,7 @@
 .adapter-benchmark-note a {
   color: var(--green-soft);
   text-decoration: underline;
-  text-decoration-color: rgb(32 230 143 / 35%);
+  text-decoration-color: rgb(var(--green-rgb) / 35%);
   text-underline-offset: 3px;
 }
 

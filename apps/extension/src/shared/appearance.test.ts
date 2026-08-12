@@ -5,6 +5,7 @@ import {
   colorContrastRatio,
   DEFAULT_ACCENT_COLOR,
   normalizeAccentColor,
+  websiteAccentPalette,
 } from './appearance.js';
 
 test('normalizes only bounded six-digit hexadecimal accent colors', () => {
@@ -35,4 +36,15 @@ test('adjusts extreme colors until they remain readable on each theme surface', 
 
 test('falls back safely when the stored accent is invalid', () => {
   assert.deepEqual(accentPalette('not-css', 'dark'), accentPalette(DEFAULT_ACCENT_COLOR, 'dark'));
+});
+
+test('derives a bounded website palette from the contrast-safe dark accent', () => {
+  for (const accent of [DEFAULT_ACCENT_COLOR, '#000000', '#ffffff', '#336699', 'not-css']) {
+    const palette = websiteAccentPalette(accent);
+    assert.match(palette.primary, /^#[\da-f]{6}$/);
+    assert.match(palette.soft, /^#[\da-f]{6}$/);
+    assert.match(palette.dark, /^#[\da-f]{6}$/);
+    assert.ok(colorContrastRatio(palette.primary, '#080b0a') >= 4.5);
+    assert.ok(colorContrastRatio(palette.soft, palette.dark) >= 4.5);
+  }
 });

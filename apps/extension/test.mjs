@@ -24,6 +24,7 @@ const entryPoints = [
   'src/background/routing-boundaries.test.ts',
   'src/background/sidepanel-request-router.test.ts',
   'src/background/target-publication.test.ts',
+  'src/background/website-appearance.test.ts',
   'src/pages/sidepanel/provider-selection.test.ts',
   'src/pages/sidepanel/setup-guidance.test.ts',
   'src/pages/sidepanel/sidepanel-build-output.test.ts',

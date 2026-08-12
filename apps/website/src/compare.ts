@@ -1,6 +1,8 @@
 import { initializeLocalePreference } from './locale-preference';
+import { initializeWebsiteAppearance } from './extension-appearance';
 
 initializeLocalePreference();
+initializeWebsiteAppearance();
 document.documentElement.classList.add('js');
 
 const compareNavigation = document.querySelector<HTMLElement>('[data-compare-navigation]');

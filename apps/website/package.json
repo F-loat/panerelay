@@ -12,7 +12,7 @@
     "dev": "vite --host 127.0.0.1",
     "preview": "vite preview --host 127.0.0.1",
     "test": "pnpm run build && pnpm run test:compiled",
-    "test:compiled": "node --test test.mjs",
+    "test:compiled": "node --test test.mjs extension-appearance.test.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
