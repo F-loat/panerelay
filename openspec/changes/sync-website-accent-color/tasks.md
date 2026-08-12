@@ -8,6 +8,7 @@
 
 - [x] 2.1 Add a fail-safe official Extension client that validates palettes, applies website CSS variables, reconnects after disconnect, and cleans up on teardown
 - [x] 2.2 Initialize appearance synchronization on every website entry and cover installed, absent, malformed, live-update, reconnect, and cleanup behavior
+- [x] 2.3 Route prominent dark surfaces and light-demo success accents through the synchronized palette while preserving neutral and danger semantics, with regression coverage
 
 ## 3. Architecture And Compatibility
 

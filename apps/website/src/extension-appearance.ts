@@ -27,6 +27,7 @@ interface StyleTarget {
 export interface WebsiteAppearanceEnvironment {
   runtime: ExternalRuntime | undefined;
   style: StyleTarget;
+  applyLogoAccent?(color: string): void;
   setTimer(callback: () => void, delay: number): number;
   clearTimer(timer: number): void;
   addPageHideListener(listener: (persisted: boolean) => void): void;
@@ -46,10 +47,19 @@ function defaultEnvironment(): WebsiteAppearanceEnvironment {
     (persisted: boolean) => void,
     (event: PageTransitionEvent) => void
   >();
+  const logoImages = [
+    ...document.querySelectorAll<HTMLImageElement>('img[src$="panerelay-icon.svg"]'),
+  ];
+  const iconLinks = [...document.querySelectorAll<HTMLLinkElement>('link[rel~="icon"]')];
 
   return {
     runtime,
     style: document.documentElement.style,
+    applyLogoAccent(color) {
+      const source = websiteLogoDataUrl(color);
+      for (const image of logoImages) image.src = source;
+      for (const link of iconLinks) link.href = source;
+    },
     setTimer: (callback, delay) => window.setTimeout(callback, delay),
     clearTimer: timer => window.clearTimeout(timer),
     addPageHideListener(listener) {
@@ -64,6 +74,11 @@ function defaultEnvironment(): WebsiteAppearanceEnvironment {
       window.removeEventListener('pagehide', browserListener);
     },
   };
+}
+
+export function websiteLogoDataUrl(accentColor: string): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#111513"/><path d="M216 108H120V404H216" fill="none" stroke="#F4F7F5" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/><path d="M296 108H392V404H296" fill="none" stroke="#F4F7F5" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/><path d="M202 328L310 220" fill="none" stroke="${accentColor}" stroke-width="42" stroke-linecap="round"/></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
 function parsePalette(message: unknown): WebsiteAccentPalette | null {
@@ -99,15 +114,19 @@ function colorChannels(color: string): string {
     .join(' ');
 }
 
-function applyPalette(style: StyleTarget, palette: WebsiteAccentPalette): void {
+function applyPalette(
+  environment: WebsiteAppearanceEnvironment,
+  palette: WebsiteAccentPalette,
+): void {
   for (const [name, color] of [
     ['--green', palette.primary],
     ['--green-soft', palette.soft],
     ['--green-dark', palette.dark],
   ] as const) {
-    style.setProperty(name, color);
-    style.setProperty(`${name}-rgb`, colorChannels(color));
+    environment.style.setProperty(name, color);
+    environment.style.setProperty(`${name}-rgb`, colorChannels(color));
   }
+  environment.applyLogoAccent?.(palette.primary);
 }
 
 export function initializeWebsiteAppearance(
@@ -142,7 +161,7 @@ export function initializeWebsiteAppearance(
     currentPort = port;
     const onMessage = (message: unknown) => {
       const palette = parsePalette(message);
-      if (palette) applyPalette(environment.style, palette);
+      if (palette) applyPalette(environment, palette);
     };
     const onDisconnect = () => {
       void runtime.lastError;

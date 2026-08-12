@@ -45,16 +45,19 @@ class FakePort {
 
 function fakeEnvironment(runtime) {
   const values = new Map();
+  const logoAccents = [];
   const timers = new Map();
   const pageHideListeners = new Set();
   let nextTimer = 1;
   return {
     values,
+    logoAccents,
     timers,
     pageHideListeners,
     environment: {
       runtime,
       style: { setProperty: (name, value) => values.set(name, value) },
+      applyLogoAccent: color => logoAccents.push(color),
       setTimer(callback, delay) {
         assert.equal(delay, 5_000);
         const id = nextTimer++;
@@ -99,10 +102,19 @@ test('applies complete valid palettes and ignores malformed appearance data', as
     '--green-dark': '#112233',
     '--green-dark-rgb': '17 34 51',
   });
+  assert.deepEqual(fixture.logoAccents, ['#336699']);
 
   port.onMessage.emit({ ...validMessage, version: 2 });
   port.onMessage.emit({ ...validMessage, accent: { ...validMessage.accent, dark: 'red' } });
   assert.equal(fixture.values.get('--green'), '#336699');
+  assert.deepEqual(fixture.logoAccents, ['#336699']);
+});
+
+test('builds an inline website logo using the validated primary accent', async () => {
+  const { websiteLogoDataUrl } = await appearanceModule();
+  const dataUrl = websiteLogoDataUrl('#336699');
+  assert.match(dataUrl, /^data:image\/svg\+xml,/);
+  assert.match(decodeURIComponent(dataUrl), /stroke="#336699"/);
 });
 
 test('applies live palette updates without reloading the page', async () => {
@@ -119,6 +131,7 @@ test('applies live palette updates without reloading the page', async () => {
   assert.equal(fixture.values.get('--green'), '#abcdef');
   assert.equal(fixture.values.get('--green-soft'), '#fedcba');
   assert.equal(fixture.values.get('--green-dark'), '#123456');
+  assert.deepEqual(fixture.logoAccents, ['#336699', '#abcdef']);
 });
 
 test('reconnects, retains the last valid palette, and cleans up page teardown', async () => {
@@ -175,4 +188,60 @@ test('routes every website green alpha treatment through synchronized color chan
     `${styles}\n${compare}`,
     /rgb\((?:32 230 143|134 243 189|9 59 41) \/ [^)]+\)/,
   );
+});
+
+test('routes prominent component accents through the synchronized semantic palette', async () => {
+  const styles = await readFile(new URL('src/styles.css', import.meta.url), 'utf8');
+  const fixedGreenTokens = [
+    '#d7eee2',
+    '#eaf8f1',
+    '#082117',
+    '#07130d',
+    '#0d2319',
+    '#0d1c15',
+    '#08301f',
+    '#456b59',
+    '#0d3a29',
+    '#d8efe3',
+    '#b3cabf',
+    '#91b4a3',
+    '#91aa9e',
+    '#8fac9e',
+    '#20b873',
+    '#d8e4dd',
+    '#edf7f2',
+    '#08713f',
+    '#0c9d59',
+    '#38775a',
+    '#19b66f',
+    '#0e9858',
+    '#0c8c50',
+    '#176a48',
+    '#24d98a',
+    '#092a1b',
+    '#16a34a',
+    '#19c779',
+    '#062416',
+    '#e8f7ef',
+    '#0d9d59',
+    '#0e9b59',
+    'rgb(8 41 28 / 82%)',
+    'rgb(216 239 227 / 12%)',
+    'rgb(216 239 227 / 16%)',
+    'rgb(216 239 227 / 18%)',
+    'rgb(3 20 13 / 18%)',
+    'rgb(6 30 20 / 58%)',
+    'rgb(14 69 48 / 80%)',
+    'rgb(5 43 26 / 10%)',
+    'rgb(13 113 67 / 18%)',
+    'rgb(14 50 34 / 74%)',
+  ];
+
+  for (const token of fixedGreenTokens) assert.equal(styles.includes(token), false, token);
+  assert.match(styles, /--accent-surface-strong: color-mix/);
+  assert.match(styles, /\.bridge-node-accent[\s\S]*?background: var\(--accent-surface-subtle\)/);
+  assert.match(styles, /\.trust-panel[\s\S]*?var\(--accent-surface-strong\)/);
+  assert.match(styles, /\.scope-switch-demo span\[data-active='true'\][\s\S]*?var\(--green\)/);
+  assert.match(styles, /\.release-result[\s\S]*?background: var\(--accent-surface\)/);
+  assert.match(styles, /--danger: #ff8b78/);
 });
