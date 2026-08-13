@@ -230,11 +230,15 @@ test('localizes source and GitHub help, trust guidance, and adapter failures', a
   try {
     assert.equal(await main(['add', '--help', '--lang', 'en'], { environment: {} }), 0);
     assert.match(output.join('\n'), /owner\/repository/);
+    assert.match(output.join('\n'), /zhihu@main/);
+    assert.match(output.join('\n'), /F-loat\/panerelay#zhihu/);
     assert.match(output.join('\n'), /local two-file\/source-form/);
     assert.match(output.join('\n'), /@panerelay\/setup add --all/);
     output.length = 0;
     assert.equal(await main(['add', '--help', '--lang', 'zh-CN'], { environment: {} }), 0);
     assert.match(output.join('\n'), /公开 GitHub/);
+    assert.match(output.join('\n'), /zhihu@main/);
+    assert.match(output.join('\n'), /F-loat\/panerelay#zhihu/);
     assert.match(output.join('\n'), /源码格式/);
     assert.match(output.join('\n'), /@panerelay\/setup add --all/);
     output.length = 0;

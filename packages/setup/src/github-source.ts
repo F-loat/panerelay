@@ -1,5 +1,6 @@
+import { execFile } from 'node:child_process';
 import { createGunzip } from 'node:zlib';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
 import { Readable } from 'node:stream';
@@ -9,11 +10,20 @@ const MAX_REDIRECTS = 3;
 const REQUEST_TIMEOUT_MS = 30_000;
 const MAX_COMPRESSED_BYTES = 16 * 1024 * 1024;
 const MAX_EXPANDED_BYTES = 64 * 1024 * 1024;
-const MAX_ARCHIVE_ENTRIES = 2_048;
+const MAX_ARCHIVE_ENTRIES = 4_096;
 const MAX_ARCHIVE_FILE_BYTES = 8 * 1024 * 1024;
 const MAX_ARCHIVE_PATH_DEPTH = 32;
 const MAX_REF_BYTES = 256;
 const MAX_SUBDIRECTORY_BYTES = 4 * 1024;
+
+export const GITHUB_ADAPTER_SHORT_PATH_PATTERNS = [
+  '<name>',
+  'sites/<name>',
+  'adapters/<name>',
+  'packages/sites/src/<name>',
+  'packages/sites/<name>',
+  'src/sites/<name>',
+] as const;
 
 export type GitHubFetch = (
   input: string | URL | globalThis.Request,
@@ -30,12 +40,166 @@ export interface GitHubResolutionOptions {
   fetch?: GitHubFetch;
   apiBaseUrl?: string;
   codeloadBaseUrl?: string;
+  git?: GitHubGitRunner | false;
 }
+
+export type GitHubGitRunner = (args: string[]) => Promise<string>;
 
 export interface ResolvedGitHubSource {
   cleanup(): Promise<void>;
   directory: string;
   provenance: FetchAdapterSourceProvenance & { kind: 'github' };
+}
+
+function gitEnvironment(): NodeJS.ProcessEnv {
+  const environment: NodeJS.ProcessEnv = {};
+  for (const key of [
+    'PATH',
+    'Path',
+    'PATHEXT',
+    'SystemRoot',
+    'WINDIR',
+    'TEMP',
+    'TMP',
+    'TMPDIR',
+    'LANG',
+    'LC_ALL',
+    'SSL_CERT_FILE',
+    'SSL_CERT_DIR',
+    'HTTP_PROXY',
+    'HTTPS_PROXY',
+    'NO_PROXY',
+    'http_proxy',
+    'https_proxy',
+    'no_proxy',
+  ]) {
+    if (process.env[key] !== undefined) environment[key] = process.env[key];
+  }
+  return {
+    ...environment,
+    GIT_CONFIG_GLOBAL: process.platform === 'win32' ? 'NUL' : '/dev/null',
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_TERMINAL_PROMPT: '0',
+    GCM_INTERACTIVE: 'Never',
+  };
+}
+
+function defaultGitRunner(args: string[]): Promise<string> {
+  return new Promise((resolveOutput, rejectOutput) => {
+    execFile(
+      'git',
+      args,
+      {
+        encoding: 'utf8',
+        env: gitEnvironment(),
+        maxBuffer: 64 * 1024,
+        timeout: REQUEST_TIMEOUT_MS,
+        windowsHide: true,
+      },
+      (error, stdout) => {
+        if (error) rejectOutput(error);
+        else resolveOutput(stdout);
+      },
+    );
+  });
+}
+
+function gitUnavailable(error: unknown): boolean {
+  return !!error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT';
+}
+
+function parseLsRemote(output: string): Map<string, string> {
+  const refs = new Map<string, string>();
+  for (const line of output.split(/\r?\n/)) {
+    const match = /^([0-9a-f]{40})\t(.+)$/.exec(line);
+    if (match?.[1] && match[2]) refs.set(match[2], match[1]);
+  }
+  return refs;
+}
+
+async function resolveWithGit(
+  source: GitHubSource,
+  runner: GitHubGitRunner,
+): Promise<{ commit: string; ref: string }> {
+  const repositoryUrl = `https://github.com/${source.repository}.git`;
+  const baseArgs = [
+    '-c',
+    'credential.helper=',
+    '-c',
+    'core.askPass=',
+    '-c',
+    'credential.interactive=never',
+    'ls-remote',
+    '--exit-code',
+  ];
+  if (!source.ref) {
+    const output = await runner([...baseArgs, '--symref', repositoryUrl, 'HEAD']);
+    const branch = /^ref: refs\/heads\/(.+)\tHEAD$/m.exec(output)?.[1];
+    const commit = parseLsRemote(output).get('HEAD');
+    if (!branch || !validRef(branch) || !commit) {
+      throw new Error(
+        `GitHub Git returned malformed default-branch metadata: ${source.repository}`,
+      );
+    }
+    return { commit, ref: branch };
+  }
+
+  if (/^[0-9a-f]{40}$/.test(source.ref)) {
+    return { commit: source.ref, ref: source.ref };
+  }
+  const selectedRef = source.ref;
+  const output = await runner([
+    ...baseArgs,
+    repositoryUrl,
+    selectedRef,
+    `refs/heads/${selectedRef}`,
+    `refs/tags/${selectedRef}`,
+    `refs/tags/${selectedRef}^{}`,
+  ]);
+  const refs = parseLsRemote(output);
+  const choices = selectedRef.startsWith('refs/tags/')
+    ? [`${selectedRef}^{}`, selectedRef]
+    : selectedRef.startsWith('refs/')
+      ? [selectedRef]
+      : [
+          `refs/heads/${selectedRef}`,
+          `refs/tags/${selectedRef}^{}`,
+          `refs/tags/${selectedRef}`,
+          selectedRef,
+        ];
+  const commit = choices.map(choice => refs.get(choice)).find(value => value !== undefined);
+  if (!commit) throw new Error(`GitHub repository or ref is unavailable: ${source.repository}`);
+  return { commit, ref: selectedRef };
+}
+
+function shortPathCandidates(name: string): string[] {
+  return GITHUB_ADAPTER_SHORT_PATH_PATTERNS.map(pattern => pattern.replace('<name>', name));
+}
+
+async function isAdapterShaped(directory: string): Promise<boolean> {
+  try {
+    const entries = await readdir(directory);
+    return (
+      entries.includes('panerelay.site.ts') || entries.includes('panerelay-fetch-adapter.json')
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function resolveSourceSubdirectory(
+  repositoryRoot: string,
+  subdirectory: string,
+): Promise<string> {
+  if (subdirectory.includes('/')) return subdirectory;
+  const candidates = shortPathCandidates(subdirectory);
+  for (const candidate of candidates) {
+    const directory = resolve(repositoryRoot, ...candidate.split('/'));
+    if (await isAdapterShaped(directory)) return candidate;
+  }
+  throw new Error(
+    `GitHub adapter selector did not match a common source path: ${subdirectory} (checked: ${candidates.join(', ')})`,
+  );
 }
 
 function bounded(value: string, maximum: number): boolean {
@@ -213,6 +377,20 @@ async function extractArchive(compressed: Buffer, output: string): Promise<void>
     entries += 1;
     if (entries > MAX_ARCHIVE_ENTRIES) throw new Error('GitHub archive has too many entries');
     verifyTarChecksum(header);
+    const size = tarNumber(header, 124, 12);
+    if (size > MAX_ARCHIVE_FILE_BYTES) throw new Error('GitHub archive contains an oversized file');
+    const paddedSize = Math.ceil(size / 512) * 512;
+    if (offset + paddedSize > archive.length) throw new Error('GitHub archive is truncated');
+    const type = String.fromCharCode(header[156] ?? 0);
+    if (type === 'g') {
+      // GitHub codeload emits one global PAX metadata record. Its attributes do not
+      // affect extraction, so keep it bounded like a file and ignore its body.
+      offset += paddedSize;
+      continue;
+    }
+    if (type !== '\0' && type !== '0' && type !== '5') {
+      throw new Error('GitHub archive contains a link or unsupported file type');
+    }
     const prefix = tarString(header, 345, 155);
     const name = tarString(header, 0, 100);
     const archivePath = prefix ? `${prefix}/${name}` : name;
@@ -220,14 +398,6 @@ async function extractArchive(compressed: Buffer, output: string): Promise<void>
     rootSegment ??= segments[0];
     if (segments[0] !== rootSegment) throw new Error('GitHub archive has multiple roots');
     const relativeSegments = segments.slice(1);
-    const size = tarNumber(header, 124, 12);
-    if (size > MAX_ARCHIVE_FILE_BYTES) throw new Error('GitHub archive contains an oversized file');
-    const paddedSize = Math.ceil(size / 512) * 512;
-    if (offset + paddedSize > archive.length) throw new Error('GitHub archive is truncated');
-    const type = String.fromCharCode(header[156] ?? 0);
-    if (type !== '\0' && type !== '0' && type !== '5') {
-      throw new Error('GitHub archive contains a link or unsupported file type');
-    }
     if (relativeSegments.length > 0) {
       const target = resolve(output, ...relativeSegments);
       const expectedPrefix = `${resolve(output)}${sep}`;
@@ -338,27 +508,45 @@ export async function resolveGitHubSource(
   );
   const [owner, repositoryName] = source.repository.split('/') as [string, string];
   let ref = source.ref;
-  if (!ref) {
-    const repository = await githubJson(
-      `${apiBase}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repositoryName)}`,
+  let resolvedCommit: string | undefined;
+  if (options.git !== false) {
+    try {
+      const resolution = await resolveWithGit(source, options.git ?? defaultGitRunner);
+      ref = resolution.ref;
+      resolvedCommit = resolution.commit;
+    } catch (error) {
+      if (!gitUnavailable(error)) {
+        if (error instanceof Error && error.message.startsWith('GitHub ')) throw error;
+        throw new Error(`GitHub Git ref resolution failed: ${source.repository}`, {
+          cause: error,
+        });
+      }
+    }
+  }
+  if (!resolvedCommit) {
+    if (!ref) {
+      const repository = await githubJson(
+        `${apiBase}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repositoryName)}`,
+        fetchImplementation,
+        source.repository,
+      );
+      if (typeof repository.default_branch !== 'string' || !validRef(repository.default_branch)) {
+        throw new Error(`GitHub repository default branch is invalid: ${source.repository}`);
+      }
+      ref = repository.default_branch;
+    }
+    const commit = await githubJson(
+      `${apiBase}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repositoryName)}/commits/${encodeURIComponent(ref)}`,
       fetchImplementation,
       source.repository,
     );
-    if (typeof repository.default_branch !== 'string' || !validRef(repository.default_branch)) {
-      throw new Error(`GitHub repository default branch is invalid: ${source.repository}`);
+    if (typeof commit.sha !== 'string' || !/^[0-9a-f]{40}$/.test(commit.sha)) {
+      throw new Error(`GitHub commit metadata is invalid: ${source.repository}`);
     }
-    ref = repository.default_branch;
-  }
-  const commit = await githubJson(
-    `${apiBase}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repositoryName)}/commits/${encodeURIComponent(ref)}`,
-    fetchImplementation,
-    source.repository,
-  );
-  if (typeof commit.sha !== 'string' || !/^[0-9a-f]{40}$/.test(commit.sha)) {
-    throw new Error(`GitHub commit metadata is invalid: ${source.repository}`);
+    resolvedCommit = commit.sha;
   }
   const archiveResponse = await request(
-    `${codeloadBase}/${encodeURIComponent(owner)}/${encodeURIComponent(repositoryName)}/tar.gz/${commit.sha}`,
+    `${codeloadBase}/${encodeURIComponent(owner)}/${encodeURIComponent(repositoryName)}/tar.gz/${resolvedCommit}`,
     fetchImplementation,
     'application/octet-stream',
   );
@@ -370,8 +558,11 @@ export async function resolveGitHubSource(
     const repositoryRoot = join(temporaryRoot, 'repository');
     await mkdir(repositoryRoot, { mode: 0o700 });
     await extractArchive(await responseBytes(archiveResponse), repositoryRoot);
-    const directory = source.subdirectory
-      ? resolve(repositoryRoot, ...source.subdirectory.split('/'))
+    const subdirectory = source.subdirectory
+      ? await resolveSourceSubdirectory(repositoryRoot, source.subdirectory)
+      : undefined;
+    const directory = subdirectory
+      ? resolve(repositoryRoot, ...subdirectory.split('/'))
       : repositoryRoot;
     if (
       !`${directory}${sep}`.startsWith(`${repositoryRoot}${sep}`) &&
@@ -384,9 +575,9 @@ export async function resolveGitHubSource(
       provenance: {
         kind: 'github',
         repository: source.repository,
-        commit: commit.sha,
+        commit: resolvedCommit,
         ...(source.ref ? { ref: source.ref } : {}),
-        ...(source.subdirectory ? { subdirectory: source.subdirectory } : {}),
+        ...(subdirectory ? { subdirectory } : {}),
       },
       cleanup: () => rm(temporaryRoot, { force: true, recursive: true }),
     };

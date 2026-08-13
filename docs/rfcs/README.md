@@ -60,3 +60,4 @@ RFCs should distinguish decisions from open questions, describe rejected alterna
 - [RFC-0008: Native Host release negotiation and self-update](./0008-native-host-release-negotiation-and-self-update.md)
 - [RFC-0009: Browser-backed fetch and site adapters](./0009-browser-backed-fetch-and-site-adapters.md)
 - [RFC-0010: Browser-state fetch authority and Agent routing](./0010-browser-state-fetch-authority-and-agent-routing.md)
+- [RFC-0011: Bounded GitHub adapter source aliases](./0011-bounded-github-adapter-source-aliases.md)

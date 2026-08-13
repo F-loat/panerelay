@@ -71,8 +71,10 @@ Fetch adapters are independent from base setup and automation-engine integration
 
 ```bash
 npx --yes @panerelay/setup add bilibili
+npx --yes @panerelay/setup add zhihu@main
 npx --yes @panerelay/setup add bilibili /absolute/path/to/local-adapter /absolute/path/to/source-site
 npx --yes @panerelay/setup add owner/repository
+npx --yes @panerelay/setup add 'F-loat/panerelay#zhihu'
 npx --yes @panerelay/setup add github:owner/repository@v1.0.0#sites/example
 npx --yes @panerelay/setup add 'https://github.com/owner/repository?ref=v1.0.0&path=sites/example'
 npx --yes @panerelay/setup add --all
@@ -81,7 +83,9 @@ npx --yes @panerelay/setup remove bilibili
 npx --yes @panerelay/setup remove --all
 ```
 
-`add` validates every source before making a batch visible. Built-in names resolve only within the lockstep `@panerelay/sites` catalog dependency. Existing local paths win over GitHub shorthand, and an unknown bare ID fails without network access. Only an explicit `owner/repository`, `github:` shorthand, or canonical `https://github.com/owner/repository` URL enables public GitHub access. Setup resolves the selected/default ref once to a full commit through the unauthenticated GitHub API, downloads its bounded HTTPS codeload archive, and records credential-free provenance. Private repositories, tokens, Git credential helpers, `git clone`, submodules, dependency installation, and repository scripts are unsupported.
+`add` validates every source before making a batch visible. Built-in names resolve only within the lockstep `@panerelay/sites` catalog dependency. For a known built-in, `<id>@<ref>` selects its source from the official `F-loat/panerelay` repository; for example, `zhihu@main` installs the cataloged Zhihu adapter from `main`. Existing local paths win over this alias and GitHub shorthand, while an unknown bare ID or unknown `<id>@<ref>` fails without network access. Only an explicit `owner/repository`, `github:` shorthand, canonical `https://github.com/owner/repository` URL, or catalog-gated built-in ref alias enables public GitHub access. When Git is available, Setup uses non-interactive `git ls-remote` with credential helpers disabled to resolve the selected/default ref once to a full commit; systems without Git fall back to the unauthenticated GitHub API. Setup then downloads the commit-pinned bounded HTTPS codeload archive and records credential-free provenance. Private repositories, tokens, Git credential helpers, `git clone`, checkout, submodules, dependency installation, and repository scripts are unsupported.
+
+A one-segment GitHub selector such as `F-loat/panerelay#zhihu` checks these paths in order and installs the first adapter-shaped match: `<name>`, `sites/<name>`, `adapters/<name>`, `packages/sites/src/<name>`, `packages/sites/<name>`, then `src/sites/<name>`. A match must directly contain `panerelay.site.ts` or `panerelay-fetch-adapter.json`. Multiple matches therefore resolve deterministically to the highest-priority path. Selectors containing `/` remain exact paths, and Setup never recursively searches the repository.
 
 A local source may be either the strict installed two-file form or an editable site-kit directory containing `panerelay.site.ts` and direct `commands/*.ts` files. Source-form adapters are built in protected temporary storage through `@panerelay/site-kit`; setup never writes generated files into the author directory and never runs colocated tests. Active files and the atomic registry are stored under `~/.panerelay/fetch-adapters` with user-only permissions. `adapters` shows recorded built-in, absolute local, or GitHub commit provenance. Re-running `add` explicitly replaces that site; `remove` changes only selected fetch-adapter records and owned version directories, not the Native Host, automation integrations, browser defaults, or conversations.
 

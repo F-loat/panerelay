@@ -34,8 +34,12 @@ import { buildSite } from '@panerelay/site-kit';
 import {
   parseGitHubSource,
   resolveGitHubSource,
+  type GitHubSource,
   type GitHubResolutionOptions,
 } from './github-source.js';
+
+const OFFICIAL_ADAPTER_REPOSITORY = 'F-loat/panerelay';
+const OFFICIAL_ADAPTER_SOURCE_ROOT = 'packages/sites/src';
 
 export interface FetchAdapterInstallOptions
   extends FetchAdapterRegistryOptions, GitHubResolutionOptions {
@@ -103,6 +107,19 @@ async function existingDirectory(value: string): Promise<string | undefined> {
   return undefined;
 }
 
+function builtinRefAlias(
+  value: string,
+  builtins: Record<string, string>,
+): GitHubSource | undefined {
+  const match = /^([a-z0-9][a-z0-9-]{0,63})@(.+)$/.exec(value);
+  if (!match?.[1] || !match[2]) return undefined;
+  const id = match[1];
+  if (!builtins[id]) throw new Error(`Unknown fetch adapter source: ${value}`);
+  return parseGitHubSource(
+    `github:${OFFICIAL_ADAPTER_REPOSITORY}@${match[2]}#${OFFICIAL_ADAPTER_SOURCE_ROOT}/${id}`,
+  );
+}
+
 async function resolveSource(
   value: string,
   builtins: Record<string, string>,
@@ -129,7 +146,7 @@ async function resolveSource(
     const path = resolve(value);
     return [{ directory: path, provenance: { kind: 'local', path } }];
   }
-  const github = parseGitHubSource(value);
+  const github = builtinRefAlias(value, builtins) ?? parseGitHubSource(value);
   if (github) {
     const resolvedSource = await resolveGitHubSource(github, options);
     cleanups.push(resolvedSource.cleanup);

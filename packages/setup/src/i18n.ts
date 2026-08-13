@@ -153,9 +153,11 @@ Optional automation integrations:
 
 Optional fetch adapters:
   npx --yes @panerelay/setup add bilibili
+  npx --yes @panerelay/setup add zhihu@main
   npx --yes @panerelay/setup add --all
   npx --yes @panerelay/setup add ./my-site
   npx --yes @panerelay/setup add owner/repository
+  npx --yes @panerelay/setup add 'F-loat/panerelay#zhihu'
   npx --yes @panerelay/setup add github:owner/repository@v1.0.0#sites/example
   npx --yes @panerelay/setup add 'https://github.com/owner/repository?ref=v1.0.0&path=sites/example'
   npx --yes @panerelay/setup remove bilibili`,
@@ -319,9 +321,11 @@ const chineseMessages: Record<MessageKey, string> = {
 
 可选 Fetch 适配器：
   npx --yes @panerelay/setup add bilibili
+  npx --yes @panerelay/setup add zhihu@main
   npx --yes @panerelay/setup add --all
   npx --yes @panerelay/setup add ./my-site
   npx --yes @panerelay/setup add owner/repository
+  npx --yes @panerelay/setup add 'F-loat/panerelay#zhihu'
   npx --yes @panerelay/setup add github:owner/repository@v1.0.0#sites/example
   npx --yes @panerelay/setup add 'https://github.com/owner/repository?ref=v1.0.0&path=sites/example'
   npx --yes @panerelay/setup remove bilibili`,
