@@ -1,6 +1,6 @@
 {
   "name": "panerelay",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "private": true,
   "description": "Connect AI Agents to one tab or all supported tabs in your existing browser with visible, releasable control.",
   "license": "MIT",
