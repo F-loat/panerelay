@@ -22,6 +22,84 @@ import {
 
 type Args = Record<string, unknown>;
 
+const ARTICLE_TITLE_MAX_BYTES = 300;
+const ARTICLE_CONTENT_MAX_BYTES = 1_000_000;
+
+function inlineArticleField(
+  value: unknown,
+  name: 'title' | 'content',
+  maximumBytes: number,
+): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error(`zhihu article ${name} cannot be empty or whitespace only`);
+  }
+  if (new TextEncoder().encode(value).byteLength > maximumBytes) {
+    throw new Error(`zhihu article ${name} exceeds ${maximumBytes} UTF-8 bytes`);
+  }
+  return name === 'title' ? value.trim() : value;
+}
+
+function optionalArticleField(
+  args: Args,
+  name: 'title' | 'content',
+  maximumBytes: number,
+): string | undefined {
+  if (!Object.prototype.hasOwnProperty.call(args, name) || args[name] == null) return undefined;
+  return inlineArticleField(args[name], name, maximumBytes);
+}
+
+function articleId(value: Value): string {
+  const id = pick(value, 'id');
+  if (typeof id === 'number' && Number.isSafeInteger(id) && id > 0) return String(id);
+  if (typeof id === 'string' && /^\d+$/.test(id)) return id;
+  const data = object(pick(value, 'data'));
+  const dataId = pick(data, 'id');
+  if (typeof dataId === 'number' && Number.isSafeInteger(dataId) && dataId > 0) {
+    return String(dataId);
+  }
+  return typeof dataId === 'string' && /^\d+$/.test(dataId) ? dataId : '';
+}
+
+function draftAuthor(draft: Value): Value {
+  return object(pick(draft, 'author'));
+}
+
+function requireOwnedDraft(draft: Value, me: Value, id: string): void {
+  const author = draftAuthor(draft);
+  const owned = ['url_token', 'uid', 'id'].some(key => {
+    const currentIdentity = text(pick(me, key));
+    const authorIdentity = text(pick(author, key));
+    return Boolean(currentIdentity && authorIdentity && currentIdentity === authorIdentity);
+  });
+  if (!owned) {
+    throw new Error(`zhihu article ${id} is not owned by the signed-in account`);
+  }
+}
+
+function articleTableOfContents(draft: Value): boolean {
+  const settings = object(pick(draft, 'settings'));
+  return pick(object(pick(settings, 'table_of_contents')), 'enabled') === true;
+}
+
+function draftRow(draft: Value) {
+  const id = articleId(draft);
+  if (!id || !Object.prototype.hasOwnProperty.call(draft, 'content')) {
+    throw new Error('zhihu article draft response is malformed');
+  }
+  const author = draftAuthor(draft);
+  return {
+    id,
+    title: text(pick(draft, 'title')),
+    content: String(pick(draft, 'content') ?? ''),
+    state: text(pick(draft, 'state')),
+    author_identity: text(pick(author, 'url_token') ?? pick(author, 'uid') ?? pick(author, 'id')),
+    created_at: unixTime(pick(draft, 'created')),
+    updated_at: unixTime(pick(draft, 'updated')),
+    url: `https://zhuanlan.zhihu.com/p/${id}`,
+    editor_url: `https://zhuanlan.zhihu.com/p/${id}/edit`,
+  };
+}
+
 function peopleRow(item: Value, rank: number) {
   const slug = text(pick(item, 'url_token'));
   const name = text(pick(item, 'name'));
@@ -501,6 +579,121 @@ export async function whoami(context: SiteCommandContext) {
       url_token: text(pick(data, 'url_token')),
       name: text(pick(data, 'name')),
       uid: text(pick(data, 'uid') ?? pick(data, 'id')),
+    },
+  ];
+}
+
+export async function articleDraft(context: SiteCommandContext, args: Args) {
+  const target = requireKind(parseTarget(required(args.target, 'target')), 'article-draft', [
+    'article',
+  ]);
+  const client = new ZhihuClient(context);
+  const [me, draft] = await Promise.all([client.me(), client.articleDraft(target.id)]);
+  if (!draft) throw new Error(`zhihu article draft not found: ${target.id}`);
+  requireOwnedDraft(draft, me, target.id);
+  return [draftRow(draft)];
+}
+
+export async function articleCreate(context: SiteCommandContext, args: Args) {
+  requireExecute(args);
+  const title = inlineArticleField(args.title, 'title', ARTICLE_TITLE_MAX_BYTES);
+  const content = inlineArticleField(args.content, 'content', ARTICLE_CONTENT_MAX_BYTES);
+  const client = new ZhihuClient(context);
+  const me = await client.me();
+  const created = await client.createArticleDraft({
+    title,
+    content,
+    delta_time: 1,
+    table_of_contents: false,
+  });
+  const id = articleId(created);
+  if (!id) throw new Error('zhihu draft creation response did not include an article id');
+  const draft = await client.articleDraft(id);
+  if (!draft) throw new Error(`zhihu created draft ${id} could not be read back`);
+  requireOwnedDraft(draft, me, id);
+  if (text(pick(draft, 'title')) !== title || String(pick(draft, 'content') ?? '') !== content) {
+    throw new Error(`zhihu created draft ${id} did not match the requested fields`);
+  }
+  return [
+    {
+      status: 'success',
+      outcome: 'created',
+      message: `Created private article draft ${id}`,
+      ...draftRow(draft),
+    },
+  ];
+}
+
+export async function articleUpdate(context: SiteCommandContext, args: Args) {
+  requireExecute(args);
+  const target = requireKind(parseTarget(required(args.target, 'target')), 'article-update', [
+    'article',
+  ]);
+  const title = optionalArticleField(args, 'title', ARTICLE_TITLE_MAX_BYTES);
+  const content = optionalArticleField(args, 'content', ARTICLE_CONTENT_MAX_BYTES);
+  if (title === undefined && content === undefined) {
+    throw new Error('zhihu article-update requires --title or --content');
+  }
+  const client = new ZhihuClient(context);
+  const [me, current] = await Promise.all([client.me(), client.articleDraft(target.id)]);
+  if (!current) throw new Error(`zhihu article draft not found: ${target.id}`);
+  requireOwnedDraft(current, me, target.id);
+  const nextTitle =
+    title ?? inlineArticleField(pick(current, 'title'), 'title', ARTICLE_TITLE_MAX_BYTES);
+  const nextContent =
+    content ?? inlineArticleField(pick(current, 'content'), 'content', ARTICLE_CONTENT_MAX_BYTES);
+  const canReward = pick(current, 'can_reward');
+  await client.updateArticleDraft(target.id, {
+    title: nextTitle,
+    content: nextContent,
+    delta_time: 1,
+    table_of_contents: articleTableOfContents(current),
+    ...(typeof canReward === 'boolean' ? { can_reward: canReward } : {}),
+  });
+  const updated = await client.articleDraft(target.id);
+  if (!updated) throw new Error(`zhihu updated draft ${target.id} could not be read back`);
+  requireOwnedDraft(updated, me, target.id);
+  if (
+    text(pick(updated, 'title')) !== nextTitle ||
+    String(pick(updated, 'content') ?? '') !== nextContent
+  ) {
+    throw new Error(`zhihu updated draft ${target.id} did not match the requested fields`);
+  }
+  return [
+    {
+      status: 'success',
+      outcome: 'applied',
+      message: `Updated article draft ${target.id}`,
+      ...draftRow(updated),
+    },
+  ];
+}
+
+export async function articleDelete(context: SiteCommandContext, args: Args) {
+  requireExecute(args);
+  const target = requireKind(parseTarget(required(args.target, 'target')), 'article-delete', [
+    'article',
+  ]);
+  const client = new ZhihuClient(context);
+  const [me, draft] = await Promise.all([client.me(), client.articleDraft(target.id)]);
+  if (!draft) throw new Error(`zhihu article draft not found: ${target.id}`);
+  requireOwnedDraft(draft, me, target.id);
+  const state = text(pick(draft, 'state'));
+  if (state !== 'draft') {
+    throw new Error(
+      `zhihu article-delete only supports private drafts; article ${target.id} is ${state || 'unknown'}`,
+    );
+  }
+  await client.deleteArticleDraft(target.id);
+  if (await client.articleDraft(target.id)) {
+    throw new Error(`zhihu deleted draft ${target.id} is still readable`);
+  }
+  return [
+    {
+      status: 'success',
+      outcome: 'applied',
+      message: `Deleted private article draft ${target.id}`,
+      id: target.id,
     },
   ];
 }

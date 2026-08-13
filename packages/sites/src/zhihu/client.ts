@@ -1,4 +1,8 @@
-import type { BrowserFetchRequest, SiteCommandContext } from '@panerelay/site-kit';
+import type {
+  BrowserFetchRequest,
+  BrowserFetchResponse,
+  SiteCommandContext,
+} from '@panerelay/site-kit';
 
 export type Value = Record<string, unknown>;
 export type Target =
@@ -209,7 +213,10 @@ function normalizeApiUrl(value: unknown): string {
   if (!raw) return '';
   try {
     const url = new URL(raw);
-    if (url.protocol !== 'https:' || !['www.zhihu.com', 'api.zhihu.com'].includes(url.hostname)) {
+    if (
+      url.protocol !== 'https:' ||
+      !['www.zhihu.com', 'api.zhihu.com', 'zhuanlan.zhihu.com'].includes(url.hostname)
+    ) {
       return '';
     }
     if (url.hostname === 'api.zhihu.com') {
@@ -220,6 +227,17 @@ function normalizeApiUrl(value: unknown): string {
       }
       if (url.pathname.startsWith('/topstory/')) {
         return `https://www.zhihu.com/api/v3/feed${url.pathname}${url.search}`;
+      }
+    }
+    if (url.hostname === 'zhuanlan.zhihu.com') {
+      if (
+        url.search ||
+        !(
+          url.pathname === '/api/articles/drafts' ||
+          /^\/api\/articles\/\d+\/draft$/.test(url.pathname)
+        )
+      ) {
+        return '';
       }
     }
     return url.toString();
@@ -252,6 +270,92 @@ export class ZhihuClient {
       throw new Error(`zhihu request failed: HTTP ${response.status}`);
     }
     return response.body;
+  }
+
+  async articleDraft(id: string): Promise<Value | null> {
+    const response = await this.#articleRequest(
+      'GET',
+      `https://zhuanlan.zhihu.com/api/articles/${numericId(id, 'article id')}/draft`,
+    );
+    if (response.status === 404) return null;
+    return this.#articleJson(response, 'draft read');
+  }
+
+  async createArticleDraft(body: Value): Promise<Value> {
+    const response = await this.#articleRequest(
+      'POST',
+      'https://zhuanlan.zhihu.com/api/articles/drafts',
+      body,
+    );
+    return this.#articleJson(response, 'draft creation');
+  }
+
+  async updateArticleDraft(id: string, body: Value): Promise<Value> {
+    const response = await this.#articleRequest(
+      'PATCH',
+      `https://zhuanlan.zhihu.com/api/articles/${numericId(id, 'article id')}/draft`,
+      body,
+    );
+    return this.#articleJson(response, 'draft update');
+  }
+
+  async deleteArticleDraft(id: string): Promise<void> {
+    const response = await this.#articleRequest(
+      'DELETE',
+      `https://zhuanlan.zhihu.com/api/articles/${numericId(id, 'article id')}/draft`,
+    );
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('zhihu requires a valid logged-in browser session');
+    }
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(`zhihu draft deletion failed: HTTP ${response.status}`);
+    }
+  }
+
+  async #articleRequest(
+    method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+    input: string,
+    body?: Value,
+  ): Promise<BrowserFetchResponse> {
+    const url = normalizeApiUrl(input);
+    if (!url || new URL(url).hostname !== 'zhuanlan.zhihu.com') {
+      throw new Error('zhihu article API URL is invalid');
+    }
+    const request: BrowserFetchRequest = {
+      url,
+      method,
+      headers: {
+        accept: 'application/json',
+        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+        ...(method === 'GET'
+          ? { referer: 'https://zhuanlan.zhihu.com/write' }
+          : {
+              origin: 'https://zhuanlan.zhihu.com',
+              referer: 'https://zhuanlan.zhihu.com/write',
+              'x-requested-with': 'fetch',
+            }),
+      },
+      ...(body === undefined
+        ? {}
+        : { body: { encoding: 'utf8' as const, data: JSON.stringify(body) } }),
+      ...(method === 'GET' ? {} : { bindings: ['zhihu-xsrf'] }),
+      responseType: method === 'DELETE' ? 'auto' : 'json',
+      withCookies: true,
+    };
+    return this.#context.fetch(request);
+  }
+
+  #articleJson(response: BrowserFetchResponse, operation: string): Value {
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('zhihu requires a valid logged-in browser session');
+    }
+    if (response.status < 200 || response.status >= 300) {
+      throw new Error(`zhihu ${operation} failed: HTTP ${response.status}`);
+    }
+    if (response.bodyType !== 'json') {
+      throw new Error(`zhihu ${operation} response is malformed`);
+    }
+    return object(response.body);
   }
 
   async post(path: string, body?: unknown): Promise<unknown> {

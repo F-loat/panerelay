@@ -25,10 +25,27 @@ test('catalog exposes every built-in adapter as a valid two-file source', async 
     ]);
     const manifest = JSON.parse(
       await readFile(join(directory, 'panerelay-fetch-adapter.json'), 'utf8'),
-    ) as { id?: string; entry?: string; version?: string };
+    ) as {
+      id?: string;
+      entry?: string;
+      version?: string;
+      origins?: string[];
+      commands?: Array<{ name?: string; access?: string }>;
+    };
     assert.equal(manifest.id, id);
     assert.equal(manifest.entry, 'adapter.mjs');
     assert.equal(manifest.version, catalogPackage.version);
     assert.ok((await stat(join(directory, 'adapter.mjs'))).size > 0);
+    if (id === 'zhihu') {
+      assert.deepEqual(manifest.origins, ['https://www.zhihu.com', 'https://zhuanlan.zhihu.com']);
+      const commandAccess = Object.fromEntries(
+        (manifest.commands ?? []).map(command => [command.name, command.access]),
+      );
+      assert.equal(commandAccess['article-create'], 'write');
+      assert.equal(commandAccess['article-draft'], 'read');
+      assert.equal(commandAccess['article-update'], 'write');
+      assert.equal(commandAccess['article-delete'], 'write');
+      assert.equal(commandAccess['article-publish'], undefined);
+    }
   }
 });

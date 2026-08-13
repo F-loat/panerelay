@@ -11,6 +11,10 @@ const requestedSites = (process.env.PANERELAY_E2E_SITES ?? '')
   .split(',')
   .map(site => site.trim())
   .filter(Boolean);
+const zhihuArticleId = process.env.PANERELAY_E2E_ZHIHU_ARTICLE_ID ?? '';
+if (zhihuArticleId && !/^\d+$/.test(zhihuArticleId)) {
+  throw new Error('PANERELAY_E2E_ZHIHU_ARTICLE_ID must be a numeric owned Zhihu article id');
+}
 
 function dateFromToday(days) {
   const date = new Date();
@@ -193,6 +197,15 @@ const rawCases = [
   ['zsxq', 'whoami', [], ['user_id', 'name']],
 ];
 
+if (zhihuArticleId) {
+  rawCases.push([
+    'zhihu',
+    'article-draft',
+    [`article:${zhihuArticleId}`],
+    ['id', 'title', 'content', 'state', 'author_identity', 'editor_url'],
+  ]);
+}
+
 const requiredAuthentication = new Set([
   'bilibili/me',
   'bilibili/dynamic',
@@ -205,6 +218,7 @@ const requiredAuthentication = new Set([
   'flomo/memos',
   'quark/whoami',
   'zsxq/whoami',
+  'zhihu/article-draft',
 ]);
 const optionalAuthentication = new Set(['bilibili/whoami', 'douban/whoami', 'github/whoami']);
 const expectedBlockers = new Map([
