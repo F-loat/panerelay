@@ -9,7 +9,8 @@ export type Target =
   | { kind: 'user'; slug: string; url: string }
   | { kind: 'question'; id: string; url: string }
   | { kind: 'answer'; id: string; questionId: string; url: string }
-  | { kind: 'article'; id: string; url: string };
+  | { kind: 'article'; id: string; url: string }
+  | { kind: 'comment'; id: string; url: string };
 
 export function object(value: unknown): Value {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Value) : {};
@@ -95,6 +96,36 @@ export function numericId(value: unknown, name: string): string {
   return result;
 }
 
+export function parseCommentTarget(value: unknown): Extract<Target, { kind: 'comment' }> {
+  const raw = required(value, 'comment');
+  const typed = raw.match(/^comment:(\d+)$/);
+  if (/^\d+$/.test(raw) || typed?.[1]) {
+    const id = typed?.[1] ?? raw;
+    return { kind: 'comment', id, url: `https://www.zhihu.com/api/v4/comments/${id}` };
+  }
+  try {
+    const url = new URL(raw);
+    const match = url.hash.match(/^#comment-(\d+)$/);
+    if (
+      url.protocol === 'https:' &&
+      !url.username &&
+      !url.password &&
+      !url.port &&
+      (url.hostname === 'www.zhihu.com' || url.hostname === 'zhihu.com') &&
+      match?.[1]
+    ) {
+      return {
+        kind: 'comment',
+        id: match[1],
+        url: `https://www.zhihu.com/api/v4/comments/${match[1]}`,
+      };
+    }
+  } catch {
+    // Fall through to the validation error below.
+  }
+  throw new Error('zhihu comment must be numeric, comment:<id>, or a Zhihu URL with #comment-<id>');
+}
+
 export function parseAnswerTarget(value: unknown): { answerId: string; questionId: string } {
   const raw = required(value, 'answer id');
   if (/^\d+$/.test(raw)) return { answerId: raw, questionId: '' };
@@ -147,10 +178,26 @@ export function parseTarget(value: unknown): Target {
   if (match?.[1]) {
     return { kind: 'article', id: match[1], url: `https://zhuanlan.zhihu.com/p/${match[1]}` };
   }
+  match = raw.match(/^comment:(\d+)$/);
+  if (match?.[1]) {
+    return {
+      kind: 'comment',
+      id: match[1],
+      url: `https://www.zhihu.com/api/v4/comments/${match[1]}`,
+    };
+  }
   try {
     const url = new URL(raw);
     if (url.protocol !== 'https:' || url.username || url.password || url.port) throw new Error();
     if (url.hostname === 'www.zhihu.com') {
+      match = url.hash.match(/^#comment-(\d+)$/);
+      if (match?.[1]) {
+        return {
+          kind: 'comment',
+          id: match[1],
+          url: `https://www.zhihu.com/api/v4/comments/${match[1]}`,
+        };
+      }
       match = url.pathname.match(/^\/people\/([A-Za-z0-9_-]+)\/?$/);
       if (match?.[1])
         return { kind: 'user', slug: match[1], url: `https://www.zhihu.com/people/${match[1]}` };
@@ -234,7 +281,7 @@ function normalizeApiUrl(value: unknown): string {
         url.search ||
         !(
           url.pathname === '/api/articles/drafts' ||
-          /^\/api\/articles\/\d+\/draft$/.test(url.pathname)
+          /^\/api\/articles\/\d+(?:\/draft)?$/.test(url.pathname)
         )
       ) {
         return '';
@@ -281,6 +328,15 @@ export class ZhihuClient {
     return this.#articleJson(response, 'draft read');
   }
 
+  async article(id: string): Promise<Value | null> {
+    const response = await this.#articleRequest(
+      'GET',
+      `https://zhuanlan.zhihu.com/api/articles/${numericId(id, 'article id')}`,
+    );
+    if (response.status === 404) return null;
+    return this.#articleJson(response, 'article read');
+  }
+
   async createArticleDraft(body: Value): Promise<Value> {
     const response = await this.#articleRequest(
       'POST',
@@ -310,6 +366,39 @@ export class ZhihuClient {
     if (response.status < 200 || response.status >= 300) {
       throw new Error(`zhihu draft deletion failed: HTTP ${response.status}`);
     }
+  }
+
+  async comment(id: string): Promise<Value | null> {
+    const url = `https://www.zhihu.com/api/v4/comments/${numericId(id, 'comment id')}`;
+    let response: BrowserFetchResponse | undefined;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      response = await this.#context.fetch({
+        url,
+        headers: { accept: 'application/json', referer: 'https://www.zhihu.com/' },
+        responseType: 'json',
+        withCookies: true,
+      });
+      if (response.status < 500 || response.status >= 600 || attempt === 4) break;
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+    if (!response) throw new Error('zhihu comment read did not issue a request');
+    if (response.status === 404) return null;
+    if (response.status === 401 || response.status === 403) {
+      throw new Error('zhihu requires a valid logged-in browser session');
+    }
+    if (response.status < 200 || response.status >= 300 || response.bodyType !== 'json') {
+      throw new Error(`zhihu comment read failed: HTTP ${response.status}`);
+    }
+    return object(response.body);
+  }
+
+  async deleteComment(id: string): Promise<void> {
+    await this.#wwwWrite(
+      'DELETE',
+      `/api/v4/comment_v5/comment/${numericId(id, 'comment id')}`,
+      undefined,
+      'comment deletion',
+    );
   }
 
   async #articleRequest(
@@ -359,11 +448,20 @@ export class ZhihuClient {
   }
 
   async post(path: string, body?: unknown): Promise<unknown> {
+    return this.#wwwWrite('POST', path, body, 'write request');
+  }
+
+  async #wwwWrite(
+    method: 'POST' | 'DELETE',
+    path: string,
+    body: unknown,
+    operation: string,
+  ): Promise<Value> {
     const url = normalizeApiUrl(new URL(path, 'https://www.zhihu.com').href);
     if (!url) throw new Error('zhihu API URL is invalid');
     const request: BrowserFetchRequest = {
       url,
-      method: 'POST',
+      method,
       headers: {
         accept: 'application/json',
         ...(body === undefined ? {} : { 'content-type': 'application/json' }),
@@ -385,10 +483,10 @@ export class ZhihuClient {
       const error =
         text(pick(response.body, 'message')) || text(pick(pick(response.body, 'error'), 'message'));
       throw new Error(
-        `zhihu write request failed: HTTP ${response.status}${error ? `: ${error}` : ''}`,
+        `zhihu ${operation} failed: HTTP ${response.status}${error ? `: ${error}` : ''}`,
       );
     }
-    return response.bodyType === 'json' ? response.body : {};
+    return response.bodyType === 'json' ? object(response.body) : {};
   }
 
   async me(): Promise<Value> {

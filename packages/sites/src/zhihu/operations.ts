@@ -5,6 +5,7 @@ import {
   numericId,
   object,
   parseAnswerTarget,
+  parseCommentTarget,
   parseTarget,
   payload,
   pick,
@@ -588,7 +589,8 @@ export async function articleDraft(context: SiteCommandContext, args: Args) {
     'article',
   ]);
   const client = new ZhihuClient(context);
-  const [me, draft] = await Promise.all([client.me(), client.articleDraft(target.id)]);
+  const me = await client.me();
+  const draft = await client.articleDraft(target.id);
   if (!draft) throw new Error(`zhihu article draft not found: ${target.id}`);
   requireOwnedDraft(draft, me, target.id);
   return [draftRow(draft)];
@@ -635,7 +637,8 @@ export async function articleUpdate(context: SiteCommandContext, args: Args) {
     throw new Error('zhihu article-update requires --title or --content');
   }
   const client = new ZhihuClient(context);
-  const [me, current] = await Promise.all([client.me(), client.articleDraft(target.id)]);
+  const me = await client.me();
+  const current = await client.articleDraft(target.id);
   if (!current) throw new Error(`zhihu article draft not found: ${target.id}`);
   requireOwnedDraft(current, me, target.id);
   const nextTitle =
@@ -675,7 +678,8 @@ export async function articleDelete(context: SiteCommandContext, args: Args) {
     'article',
   ]);
   const client = new ZhihuClient(context);
-  const [me, draft] = await Promise.all([client.me(), client.articleDraft(target.id)]);
+  const me = await client.me();
+  const draft = await client.articleDraft(target.id);
   if (!draft) throw new Error(`zhihu article draft not found: ${target.id}`);
   requireOwnedDraft(draft, me, target.id);
   const state = text(pick(draft, 'state'));
@@ -737,6 +741,46 @@ export async function comment(context: SiteCommandContext, args: Args) {
     author_identity: text(pick(author, 'url_token')),
     created_url: text(pick(result, 'url')),
   });
+}
+
+function commentAuthorIdentity(comment: Value): string {
+  const author = object(pick(comment, 'author'));
+  return text(pick(object(pick(author, 'member')), 'url_token') ?? pick(author, 'url_token'));
+}
+
+function requireOwnedComment(comment: Value, me: Value, id: string): void {
+  const author = commentAuthorIdentity(comment);
+  const current = text(pick(me, 'url_token'));
+  if (!author || !current || author !== current) {
+    throw new Error(`zhihu comment ${id} is not owned by the signed-in account`);
+  }
+}
+
+export async function commentDelete(context: SiteCommandContext, args: Args) {
+  requireExecute(args);
+  const target = parseCommentTarget(args.target);
+  const client = new ZhihuClient(context);
+  const me = await client.me();
+  const current = await client.comment(target.id);
+  if (!current) throw new Error(`zhihu comment not found: ${target.id}`);
+  requireOwnedComment(current, me, target.id);
+  await client.deleteComment(target.id);
+  let remaining = await client.comment(target.id);
+  for (let attempt = 1; remaining && attempt < 5; attempt += 1) {
+    await new Promise(resolve => setTimeout(resolve, 200));
+    remaining = await client.comment(target.id);
+  }
+  if (remaining) {
+    throw new Error(`zhihu deleted comment ${target.id} is still readable`);
+  }
+  return [
+    {
+      status: 'success',
+      outcome: 'applied',
+      message: `Deleted comment ${target.id}`,
+      id: target.id,
+    },
+  ];
 }
 
 function normalizedCollectionName(value: unknown): string {
@@ -857,11 +901,9 @@ export async function download(context: SiteCommandContext, args: Args) {
     );
   }
   const target = requireKind(parseTarget(required(args.url, 'url')), 'download', ['article']);
-  const data = object(
-    await new ZhihuClient(context).get(
-      `/api/v4/articles/${target.id}?include=content,title,author,created,updated`,
-    ),
-  );
+  const article = await new ZhihuClient(context).article(target.id);
+  if (!article) throw new Error(`zhihu article not found: ${target.id}`);
+  const data = object(article);
   const converted = articleMarkdown(String(pick(data, 'content') ?? ''));
   const title = text(pick(data, 'title')) || 'untitled';
   const author = text(pick(pick(data, 'author'), 'name'));

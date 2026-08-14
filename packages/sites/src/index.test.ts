@@ -46,6 +46,8 @@ test('catalog exposes every built-in adapter as a valid two-file source', async 
       assert.equal(commandAccess['article-update'], 'write');
       assert.equal(commandAccess['article-delete'], 'write');
       assert.equal(commandAccess['article-publish'], undefined);
+      assert.equal(commandAccess['comment-update'], undefined);
+      assert.equal(commandAccess['comment-delete'], 'write');
     }
   }
 });

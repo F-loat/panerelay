@@ -6,14 +6,17 @@ import type {
   FetchAdapterInvocationRequest,
   SiteCommandContext,
 } from '@panerelay/site-kit';
-import { parseTarget } from './client.js';
+import { parseCommentTarget, parseTarget } from './client.js';
 import articleCreate from './commands/article-create.js';
 import articleDelete from './commands/article-delete.js';
 import articleDraft from './commands/article-draft.js';
 import articleUpdate from './commands/article-update.js';
+import commentDelete from './commands/comment-delete.js';
+import download from './commands/download.js';
 import site from './panerelay.site.js';
 
 const ARTICLE_ID = '123456789';
+const COMMENT_ID = '987654321';
 const ME = { id: 'member-id', uid: 'member-uid', url_token: 'panerelay-user', name: 'User' };
 
 function invocation(
@@ -108,6 +111,7 @@ test('Zhihu manifest and article command metadata expose the bounded draft surfa
       ['article-delete', 'write'],
     ],
   );
+  assert.deepEqual([commentDelete.name, commentDelete.access], ['comment-delete', 'write']);
 });
 
 test('Zhihu article targets accept typed and canonical public URLs only', () => {
@@ -125,6 +129,21 @@ test('Zhihu article targets accept typed and canonical public URLs only', () => 
     () => parseTarget(`https://zhuanlan.zhihu.com/p/${ARTICLE_ID}/edit`),
     /supported Zhihu HTTPS URL/,
   );
+});
+
+test('Zhihu comment targets preserve the numeric comment identity', () => {
+  const expected = {
+    kind: 'comment',
+    id: COMMENT_ID,
+    url: `https://www.zhihu.com/api/v4/comments/${COMMENT_ID}`,
+  };
+  assert.deepEqual(parseCommentTarget(COMMENT_ID), expected);
+  assert.deepEqual(parseCommentTarget(`comment:${COMMENT_ID}`), expected);
+  assert.deepEqual(
+    parseCommentTarget(`https://www.zhihu.com/question/123/answer/456#comment-${COMMENT_ID}`),
+    expected,
+  );
+  assert.throws(() => parseCommentTarget('https://example.com/#comment-1'), /zhihu comment must/);
 });
 
 test('article-create requires execute before issuing any request', async () => {
@@ -307,4 +326,98 @@ test('article-draft fails closed on a malformed response', async () => {
     ),
     /response is malformed/,
   );
+});
+
+test('download reads a public article from the editor origin and returns Markdown', async () => {
+  const requests: BrowserFetchRequest[] = [];
+  const args = { url: `https://zhuanlan.zhihu.com/p/${ARTICLE_ID}` };
+  const result = await download.run(
+    context('download', args, requests, async request =>
+      response(
+        {
+          id: ARTICLE_ID,
+          title: 'Public title',
+          content: '<h2>Heading</h2><p>Body</p>',
+          author: ME,
+          created: 1_700_000_000,
+          state: 'published',
+        },
+        request.url,
+      ),
+    ),
+    args,
+  );
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0]?.url, `https://zhuanlan.zhihu.com/api/articles/${ARTICLE_ID}`);
+  assert.match(String((result as Array<Record<string, unknown>>)[0]?.markdown), /## Heading/);
+});
+
+test('comment-delete requires execute before issuing any request', async () => {
+  const requests: BrowserFetchRequest[] = [];
+  const args = { target: `comment:${COMMENT_ID}` };
+  await assert.rejects(
+    commentDelete.run(
+      context('comment-delete', args, requests, async request => response({}, request.url)),
+      args,
+    ),
+    /requires --execute/,
+  );
+  assert.equal(requests.length, 0);
+});
+
+test('comment-delete rejects another author before DELETE', async () => {
+  const requests: BrowserFetchRequest[] = [];
+  const args = { target: `comment:${COMMENT_ID}`, execute: true };
+  await assert.rejects(
+    commentDelete.run(
+      context('comment-delete', args, requests, async request => {
+        if (new URL(request.url).pathname === '/api/v4/me') return response(ME, request.url);
+        return response(
+          { id: COMMENT_ID, author: { member: { url_token: 'another-user' } } },
+          request.url,
+        );
+      }),
+      args,
+    ),
+    /not owned by the signed-in account/,
+  );
+  assert.equal(
+    requests.some(request => request.method === 'DELETE'),
+    false,
+  );
+});
+
+test('comment-delete deletes an owned comment and verifies its absence', async () => {
+  const requests: BrowserFetchRequest[] = [];
+  const args = { target: `comment:${COMMENT_ID}`, execute: true };
+  let deleted = false;
+  let initialReads = 0;
+  let readbacks = 0;
+  const result = await commentDelete.run(
+    context('comment-delete', args, requests, async request => {
+      if (new URL(request.url).pathname === '/api/v4/me') return response(ME, request.url);
+      if (request.method === 'DELETE') {
+        deleted = true;
+        return response('', request.url, 204, 'text');
+      }
+      if (!deleted) {
+        initialReads += 1;
+        return initialReads === 1
+          ? response({}, request.url, 500)
+          : response({ id: COMMENT_ID, author: { member: ME } }, request.url);
+      }
+      readbacks += 1;
+      return readbacks === 1
+        ? response({ id: COMMENT_ID, author: { member: ME } }, request.url)
+        : response({}, request.url, 404);
+    }),
+    args,
+  );
+  const deleteRequest = requests.find(request => request.method === 'DELETE');
+  assert.ok(deleteRequest);
+  assert.equal(deleteRequest.url, `https://www.zhihu.com/api/v4/comment_v5/comment/${COMMENT_ID}`);
+  assert.deepEqual(deleteRequest.bindings, ['zhihu-xsrf']);
+  assert.equal(initialReads, 2);
+  assert.equal(readbacks, 2);
+  assert.equal((result as Array<Record<string, unknown>>)[0]?.id, COMMENT_ID);
 });
