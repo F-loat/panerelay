@@ -5,7 +5,7 @@
 - Support policy: minimum supported version and initial version-specific verified baseline
 - Connection: browser-level Provider over Native Messaging
 - Last verified: 2026-08-06
-- Last updated: 2026-08-06
+- Last updated: 2026-09-26
 
 agent-browser versions newer than 0.33.0 satisfy Panerelay's minimum-version check, but they do not inherit this file's `Verified` classifications. Record a separate version-specific compatibility report before describing a newer version as verified.
 
@@ -41,6 +41,7 @@ agent-browser versions newer than 0.33.0 satisfy Panerelay's minimum-version che
 | agent-browser capability | Status | Notes |
 | --- | --- | --- |
 | `tab`, `tab new`, switch, close | Verified | The initial authorized inventory and Agent-created tabs use stable session-local IDs. Without all-tabs authorization, `tab new` fails closed and directs the user to an Extension-side authorization action. |
+| Concurrent tab creation and target refresh | Automated | Bridge tests reproduce [issue #30](https://github.com/F-loat/panerelay/issues/30)'s stale-list interleaving across two participants. A target created after a list request starts remains listed with a usable page session; a later current list can remove it. An explicit destruction event cannot be undone by an older list response. This exact concurrency case has not run in daily Chrome. |
 | Side Panel conversation target to session-local `t1` | Automated | Provider, protocol, and relay tests bind the canonical 56-character `panerelay-v2-<base64url UUID bytes>` session to its named live browser, keep it within agent-browser 0.33.0's 64-character limit, order the hinted authorized target first, and fail closed on malformed, legacy, stale, wrong-browser, or revoked hints. The complete injected-context daily-Chrome acceptance scenario has not yet run, so this is not promoted to `Verified`. |
 | Background target selection | Verified | `tab <id>`, `Target.activateTarget`, and `Page.bringToFront` update or acknowledge Agent-local selection without activating a Chrome tab or focusing its window. `tab new` creates an inactive tab. |
 | Controlled-lineage target discovery | Verified | After initial seeding, independently opened tabs stay private; Agent-created tabs and Chrome-reported descendants of controlled tabs expand the exposed inventory. Later target lists remain bounded to that inventory. |
@@ -73,6 +74,8 @@ agent-browser versions newer than 0.33.0 satisfy Panerelay's minimum-version che
 | Durable activity history | Unsupported | Activity is intentionally memory-only and is cleared across process histories. |
 
 Real-browser evidence covers active heartbeat, completed page activity, tab activity, direct Provider release, and two simultaneously live agent-browser 0.33.0 participants. Both named participants listed the same eight authorized tabs and concurrently read the same GitHub target. Closing the first left the second usable; closing the second completed cleanup without changing tab authorization.
+
+The 2026-09-26 issue #30 regression is automated only. This workspace had a running Chrome browser, but no callable `agent-browser` executable or running Panerelay Native Host, so no live concurrent tab-creation check was performed or browser state changed. The issue reporter used agent-browser 0.38.1 on Edge/Windows; that version and platform have not been verified by this regression.
 
 A later daily-Chrome focus-isolation run kept one user-visible tab active while an Agent selected a different authorized target, read its title, and captured its accessibility snapshot. Fresh observer participants continued to report the original Chrome-active target. The Agent then created an inactive `about:blank` target, observer participants still reported the original active target, and closing the background target did not change it. After the user independently changed the visible tab, an Agent DOM-focus command succeeded on the background target without pulling Chrome back to it. Every verification participant was released independently afterward.
 

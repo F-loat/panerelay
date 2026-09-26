@@ -237,6 +237,8 @@ export class BrowserRelay {
 
   private readonly clients = new Map<WebSocket, ClientState>();
   private readonly targets = new Map<string, CdpTargetInfo>();
+  private readonly pendingTargetRefreshes = new Set<Set<string>>();
+  private targetInventoryEpoch = 0;
   private readonly pageSessions = new Map<string, PageSession>();
   private readonly childSessions = new Map<string, ChildSession>();
   private readonly childTargets = new Map<string, PhysicalChildTarget>();
@@ -1799,6 +1801,7 @@ export class BrowserRelay {
         );
         if (!result.success || !result.target)
           throw new Error(result.error || 'Tab creation failed');
+        this.markTargetChanged(result.target.targetId);
         this.targets.set(result.target.targetId, result.target);
         try {
           await this.emitPlaywrightPageAttachment(client, result.target);
@@ -1936,16 +1939,52 @@ export class BrowserRelay {
   }
 
   private async refreshTargets(): Promise<CdpTargetInfo[]> {
-    const result = await this.requestTarget({ kind: 'list' });
-    if (!result.success || !result.targets) {
-      throw new Error(result.error || 'Panerelay could not list authorized targets');
+    const browser = this.browser;
+    const targetInventoryEpoch = this.targetInventoryEpoch;
+    const knownTargets = new Map(this.targets);
+    const changedTargets = new Set<string>();
+    this.pendingTargetRefreshes.add(changedTargets);
+    try {
+      const result = await this.requestTarget({ kind: 'list' });
+      if (this.browser !== browser || this.targetInventoryEpoch !== targetInventoryEpoch) {
+        throw new Error('Panerelay browser control changed during target listing');
+      }
+      if (!result.success || !result.targets) {
+        throw new Error(result.error || 'Panerelay could not list authorized targets');
+      }
+      const nextIds = new Set(result.targets.map(target => target.targetId));
+      for (const [targetId, knownTarget] of knownTargets) {
+        if (
+          !nextIds.has(targetId) &&
+          !changedTargets.has(targetId) &&
+          this.targets.get(targetId) === knownTarget
+        ) {
+          this.removeTarget(targetId);
+        }
+      }
+      for (const target of result.targets) {
+        if (changedTargets.has(target.targetId)) continue;
+        if (knownTargets.has(target.targetId)) {
+          if (this.targets.get(target.targetId) !== knownTargets.get(target.targetId)) continue;
+        } else if (this.targets.has(target.targetId)) {
+          continue;
+        }
+        this.targets.set(target.targetId, target);
+      }
+      return [
+        ...result.targets.flatMap(target => {
+          const current = this.targets.get(target.targetId);
+          return current ? [current] : [];
+        }),
+        ...[...this.targets.values()].filter(target => !nextIds.has(target.targetId)),
+      ];
+    } finally {
+      this.pendingTargetRefreshes.delete(changedTargets);
     }
-    const nextIds = new Set(result.targets.map(target => target.targetId));
-    for (const targetId of this.targets.keys()) {
-      if (!nextIds.has(targetId)) this.removeTarget(targetId);
-    }
-    for (const target of result.targets) this.targets.set(target.targetId, target);
-    return result.targets;
+  }
+
+  private markTargetChanged(targetId: string): void {
+    for (const changedTargets of this.pendingTargetRefreshes) changedTargets.add(targetId);
   }
 
   private async requireAvailableInitialTarget(targetId: string): Promise<void> {
@@ -1988,7 +2027,10 @@ export class BrowserRelay {
   private async rollbackCreatedTarget(targetId: string): Promise<void> {
     try {
       const result = await this.requestTarget({ kind: 'close', targetId });
-      if (result.success) this.removeTarget(targetId);
+      if (result.success) {
+        this.markTargetChanged(targetId);
+        this.removeTarget(targetId);
+      }
     } catch {
       // Preserve the attachment failure while making rollback best-effort.
     }
@@ -3019,6 +3061,9 @@ export class BrowserRelay {
   }
 
   private handleTargetEvent(message: CdpTargetEventMessage): void {
+    this.markTargetChanged(
+      message.event === 'destroyed' ? message.targetId : message.target.targetId,
+    );
     if (message.event === 'destroyed') {
       this.removeTarget(message.targetId);
       this.broadcastTargetEvent('Target.targetDestroyed', { targetId: message.targetId });
@@ -3341,6 +3386,7 @@ export class BrowserRelay {
       );
     }
     if (!lease) return;
+    this.targetInventoryEpoch += 1;
     const hadTargets = this.attachedTargets.size > 0 || this.targets.size > 0;
     this.activityJournal.failOutstanding('session-ended');
     for (const participant of lease.participants.values()) {

@@ -2008,6 +2008,202 @@ test('publishes a Playwright-created page before returning Target.createTarget',
   }
 });
 
+test('keeps a newly created target session when another participant receives an older list', async () => {
+  const createdTarget = target('concurrent-created', 'about:blank');
+  let heldListRequestId: string | undefined;
+  let holdNextList = false;
+  const relay = await BrowserRelay.listen({
+    sendToExtension: message => {
+      if (message.type === 'cdp.target.request' && message.operation.kind === 'list') {
+        if (holdNextList) {
+          holdNextList = false;
+          heldListRequestId = message.requestId;
+          return;
+        }
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.target.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            targets: [],
+          });
+        });
+      } else if (message.type === 'cdp.target.request' && message.operation.kind === 'create') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.target.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            target: createdTarget,
+          });
+        });
+      } else if (message.type === 'cdp.attach') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.attached',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            target: { ...createdTarget, attached: true },
+          });
+        });
+      } else if (message.type === 'cdp.command') {
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            result: {},
+          });
+        });
+      }
+    },
+    onBrowserRegistered: () => undefined,
+    onBrowserDisconnected: () => undefined,
+  });
+  await register(relay);
+
+  const firstParticipant = await createRelaySession(relay, 'creator');
+  const secondParticipant = await createRelaySession(relay, 'lister');
+  const firstClient = new WebSocket(firstParticipant.cdpUrl);
+  const secondClient = new WebSocket(secondParticipant.cdpUrl);
+  try {
+    await Promise.all([waitForOpen(firstClient), waitForOpen(secondClient)]);
+    await Promise.all([
+      command(firstClient, { id: 1, method: 'Target.getTargets' }),
+      command(secondClient, { id: 1, method: 'Target.getTargets' }),
+    ]);
+
+    holdNextList = true;
+    const oldList = command(secondClient, { id: 2, method: 'Target.getTargets' });
+    await waitForCondition(() => heldListRequestId !== undefined);
+    assert.deepEqual(
+      await command(firstClient, {
+        id: 2,
+        method: 'Target.createTarget',
+        params: { url: 'about:blank' },
+      }),
+      { id: 2, result: { targetId: createdTarget.targetId } },
+    );
+    const attached = await command(firstClient, {
+      id: 3,
+      method: 'Target.attachToTarget',
+      params: { targetId: createdTarget.targetId, flatten: true },
+    });
+    const pageSessionId = (attached.result as { sessionId: string }).sessionId;
+
+    await relay.handleExtensionMessage({
+      type: 'cdp.target.result',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      requestId: heldListRequestId!,
+      success: true,
+      targets: [],
+    });
+    const listed = await oldList;
+    assert.deepEqual(
+      (listed.result as { targetInfos: { targetId: string }[] }).targetInfos.map(
+        target => target.targetId,
+      ),
+      [createdTarget.targetId],
+    );
+    assert.deepEqual(
+      await command(firstClient, {
+        id: 4,
+        method: 'Runtime.evaluate',
+        sessionId: pageSessionId,
+        params: { expression: '1' },
+      }),
+      { id: 4, result: {}, sessionId: pageSessionId },
+    );
+
+    const detached = waitForMessage(firstClient);
+    assert.deepEqual(await command(secondClient, { id: 3, method: 'Target.getTargets' }), {
+      id: 3,
+      result: { targetInfos: [] },
+    });
+    assert.deepEqual(await detached, {
+      method: 'Target.detachedFromTarget',
+      params: { sessionId: pageSessionId, targetId: createdTarget.targetId },
+    });
+  } finally {
+    await Promise.all([closeClient(firstClient), closeClient(secondClient)]);
+    await relay.close();
+  }
+});
+
+test('does not restore a destroyed target from an older list response', async () => {
+  const fixtureTarget = target('destroyed-during-list');
+  let heldListRequestId: string | undefined;
+  let holdNextList = false;
+  const relay = await BrowserRelay.listen({
+    sendToExtension: message => {
+      if (message.type === 'cdp.target.request' && message.operation.kind === 'list') {
+        if (holdNextList) {
+          holdNextList = false;
+          heldListRequestId = message.requestId;
+          return;
+        }
+        queueMicrotask(() => {
+          void relay.handleExtensionMessage({
+            type: 'cdp.target.result',
+            protocol: PANERELAY_PROTOCOL_VERSION,
+            requestId: message.requestId,
+            success: true,
+            targets: [fixtureTarget],
+          });
+        });
+      }
+    },
+    onBrowserRegistered: () => undefined,
+    onBrowserDisconnected: () => undefined,
+  });
+  await register(relay);
+
+  const firstParticipant = await createRelaySession(relay, 'attached');
+  const secondParticipant = await createRelaySession(relay, 'lister');
+  const firstClient = new WebSocket(firstParticipant.cdpUrl);
+  const secondClient = new WebSocket(secondParticipant.cdpUrl);
+  try {
+    await Promise.all([waitForOpen(firstClient), waitForOpen(secondClient)]);
+    await command(firstClient, { id: 1, method: 'Target.getTargets' });
+    const attached = await command(firstClient, {
+      id: 2,
+      method: 'Target.attachToTarget',
+      params: { targetId: fixtureTarget.targetId, flatten: true },
+    });
+    const pageSessionId = (attached.result as { sessionId: string }).sessionId;
+
+    holdNextList = true;
+    const oldList = command(secondClient, { id: 1, method: 'Target.getTargets' });
+    await waitForCondition(() => heldListRequestId !== undefined);
+    const detached = waitForMessage(firstClient);
+    await relay.handleExtensionMessage({
+      type: 'cdp.target.event',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      event: 'destroyed',
+      targetId: fixtureTarget.targetId,
+    });
+    assert.deepEqual(await detached, {
+      method: 'Target.detachedFromTarget',
+      params: { sessionId: pageSessionId, targetId: fixtureTarget.targetId },
+    });
+
+    await relay.handleExtensionMessage({
+      type: 'cdp.target.result',
+      protocol: PANERELAY_PROTOCOL_VERSION,
+      requestId: heldListRequestId!,
+      success: true,
+      targets: [fixtureTarget],
+    });
+    assert.deepEqual(await oldList, { id: 1, result: { targetInfos: [] } });
+  } finally {
+    await Promise.all([closeClient(firstClient), closeClient(secondClient)]);
+    await relay.close();
+  }
+});
+
 test('rolls back a Playwright-created target when page attachment initialization fails', async () => {
   const extensionMessages: HostToExtensionMessage[] = [];
   const createdTarget = target('playwright-rollback', 'about:blank');
